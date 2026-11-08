@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: M
 mode: Image
@@ -37,20 +37,20 @@ This spec is the second half of the topic "Image palette and gradient"; the pale
 
 Terms used below: the drag runs from the start point `a` to the end point `b`; `L` is its length. For a pixel, `r` is the distance from `a` to the pixel's centre and `θ` is the angle from the drag direction to the line from `a` to the pixel's centre, measured clockwise on screen (y grows downward), in [0°, 360°); for a pixel whose centre is exactly `a`, `θ` is 0°. `frac(x)` is `x − floor(x)`, always in [0, 1), also for negative `x` (`frac(−0.25)` = 0.75). `t` is the ramp position: 0 gives the start color, values towards 1 the end color, exactly as for the existing kinds.
 
-- [ ] AC-01 (always): The Gradient tool options in Image mode offer, after the five existing kinds, Spiral (clockwise) and Spiral (counter-clockwise).
-- [ ] AC-02 (event): When the user drags with the Gradient tool and the kind Spiral (clockwise), then every pixel takes `t` = `frac(r / L − θ / 360°)`; with Spiral (counter-clockwise), `t` = `frac(r / L + θ / 360°)`.
-- [ ] AC-03 (event): When the user drags on a 32 × 32 transparent layer from the centre of pixel (8, 8) to the centre of pixel (24, 8) with an opaque black foreground and an opaque white background, then with Spiral (clockwise) pixel (16, 8) has the grey value 128, pixel (8, 16) 64 and pixel (8, 0) 191, and with Spiral (counter-clockwise) pixel (16, 8) has 128, pixel (8, 16) 191 and pixel (8, 0) 64 (each channel ±1).
-- [ ] AC-04 (always): For a drag along a horizontal line that lies on a pixel boundary, the Spiral (counter-clockwise) result equals the Spiral (clockwise) result mirrored across that line (each channel ±1).
-- [ ] AC-05 (always): Unlike Linear and Radial, a spiral kind never holds the end color beyond the drag: pixels on the ray from `a` through `b` (and beyond `b`) at distance `L` to `2L` from `a` repeat the ramp that ray shows at distance 0 to `L`; on the opposite ray behind `a` (`θ` = 180°) the ramp also repeats every `L`, shifted by half a period.
-- [ ] AC-06 (option): Where the Transparency channel is chosen, a spiral kind keeps each pixel's color and sets its alpha along the same `t` as in the Color channel, as the other kinds do in that channel.
-- [ ] AC-07 (state): While a selection exists, a spiral gradient changes only pixels inside it, blending feathered edges by coverage, as the other kinds do (`image-editing` AC-11).
-- [ ] AC-08 (event): When a spiral gradient is drawn, then it is one undo step, and undo restores the layer exactly.
-- [ ] AC-09 (error): If the drag has zero length, then a spiral kind changes no pixel and adds no undo step, as the other kinds do.
-- [ ] AC-10 (always): `tools/list` shows `draw.gradient` with a `kind` argument whose accepted values include `spiral_cw` and `spiral_ccw`, and the tool's description names both.
-- [ ] AC-11 (event): When the client calls `draw.gradient` on an Image document with `kind` `spiral_cw` or `spiral_ccw`, then the layer's pixels equal those the editor's Gradient tool produces for the same drag, colors, channel, opacity and selection with Spiral (clockwise) or Spiral (counter-clockwise), in one undo step.
-- [ ] AC-12 (error): If `draw.gradient` is called with a `kind` that is none of the accepted values (e.g. `spiral`), then the call fails with `isError: true`, the message lists the accepted kinds, and the document is unchanged.
-- [ ] AC-13 (error): If `draw.gradient` with a spiral kind is called on a Pixel document, then the call fails with `isError: true` and the usual mode error naming the document's mode (Pixel mode's Gradient has no spiral kinds), and the document is unchanged — also if another spec gives `draw.gradient` a Pixel route for its linear and radial kinds.
-- [ ] AC-14 (option): Where the UI language is German, the two kinds read "Spirale (im Uhrzeigersinn)" and "Spirale (gegen den Uhrzeigersinn)".
+- [x] AC-01 (always): The Gradient tool options in Image mode offer, after the five existing kinds, Spiral (clockwise) and Spiral (counter-clockwise).
+- [x] AC-02 (event): When the user drags with the Gradient tool and the kind Spiral (clockwise), then every pixel takes `t` = `frac(r / L − θ / 360°)`; with Spiral (counter-clockwise), `t` = `frac(r / L + θ / 360°)`.
+- [x] AC-03 (event): When the user drags on a 32 × 32 transparent layer from the centre of pixel (8, 8) to the centre of pixel (24, 8) with an opaque black foreground and an opaque white background, then with Spiral (clockwise) pixel (16, 8) has the grey value 128, pixel (8, 16) 64 and pixel (8, 0) 191, and with Spiral (counter-clockwise) pixel (16, 8) has 128, pixel (8, 16) 191 and pixel (8, 0) 64 (each channel ±1).
+- [x] AC-04 (always): For a drag along a horizontal line that lies on a pixel boundary, the Spiral (counter-clockwise) result equals the Spiral (clockwise) result mirrored across that line (each channel ±1).
+- [x] AC-05 (always): Unlike Linear and Radial, a spiral kind never holds the end color beyond the drag: pixels on the ray from `a` through `b` (and beyond `b`) at distance `L` to `2L` from `a` repeat the ramp that ray shows at distance 0 to `L`; on the opposite ray behind `a` (`θ` = 180°) the ramp also repeats every `L`, shifted by half a period.
+- [x] AC-06 (option): Where the Transparency channel is chosen, a spiral kind keeps each pixel's color and sets its alpha along the same `t` as in the Color channel, as the other kinds do in that channel.
+- [x] AC-07 (state): While a selection exists, a spiral gradient changes only pixels inside it, blending feathered edges by coverage, as the other kinds do (`image-editing` AC-11).
+- [x] AC-08 (event): When a spiral gradient is drawn, then it is one undo step, and undo restores the layer exactly.
+- [x] AC-09 (error): If the drag has zero length, then a spiral kind changes no pixel and adds no undo step, as the other kinds do.
+- [x] AC-10 (always): `tools/list` shows `draw.gradient` with a `kind` argument whose accepted values include `spiral_cw` and `spiral_ccw`, and the tool's description names both.
+- [x] AC-11 (event): When the client calls `draw.gradient` on an Image document with `kind` `spiral_cw` or `spiral_ccw`, then the layer's pixels equal those the editor's Gradient tool produces for the same drag, colors, channel, opacity and selection with Spiral (clockwise) or Spiral (counter-clockwise), in one undo step.
+- [x] AC-12 (error): If `draw.gradient` is called with a `kind` that is none of the accepted values (e.g. `spiral`), then the call fails with `isError: true`, the message lists the accepted kinds, and the document is unchanged.
+- [x] AC-13 (error): If `draw.gradient` with a spiral kind is called on a Pixel document, then the call fails with `isError: true` and the usual mode error naming the document's mode (Pixel mode's Gradient has no spiral kinds), and the document is unchanged — also if another spec gives `draw.gradient` a Pixel route for its linear and radial kinds.
+- [x] AC-14 (option): Where the UI language is German, the two kinds read "Spirale (im Uhrzeigersinn)" and "Spirale (gegen den Uhrzeigersinn)".
 
 ## Technical notes
 
@@ -87,23 +87,38 @@ Terms used below: the drag runs from the start point `a` to the end point `b`; `
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `the Gradient options offer both spirals after the five kinds (AC-01)` (`ui/e2e/image-gradient-spiral.spec.ts`) | verified | 27d38bd0 |
+| AC-02 | `spiral_every_pixel_follows_the_spiral_formula`, `spiral_start_pixel_takes_the_start_color_for_any_direction` (`crates/pincel-image-core/tests/gradient_spiral.rs`); `a spiral drag paints the spec example and is one undo step (AC-03, AC-08)` (`ui/e2e/image-gradient-spiral.spec.ts`, the UI sends the chosen kind) | verified | 8a9910fe |
+| AC-03 | `spiral_pins_the_spec_example_values` (`crates/pincel-image-core/tests/gradient_spiral.rs`); `a spiral drag paints the spec example and is one undo step (AC-03, AC-08)` (`ui/e2e/image-gradient-spiral.spec.ts`) | verified | 8a9910fe |
+| AC-04 | `spiral_ccw_mirrors_spiral_cw_across_a_horizontal_drag_on_a_boundary` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | verified | 8a9910fe |
+| AC-05 | `spiral_repeats_the_ramp_every_drag_length_on_the_drag_line` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | verified | 8a9910fe |
+| AC-06 | `spiral_transparency_fades_alpha_along_t_and_keeps_the_color` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | verified | 8a9910fe |
+| AC-07 | `spiral_inside_a_feathered_selection_changes_only_selected_pixels` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | verified | 8a9910fe |
+| AC-08 | `spiral_is_one_undo_step_and_undo_restores_the_layer_exactly` (`crates/pincel-image-core/tests/gradient_spiral.rs`); `a spiral drag paints the spec example and is one undo step (AC-03, AC-08)` (`ui/e2e/image-gradient-spiral.spec.ts`) | verified | 8a9910fe |
+| AC-09 | `spiral_zero_length_drag_changes_nothing_and_adds_no_step` (`crates/pincel-image-core/tests/gradient_spiral.rs`) | verified | 8a9910fe |
+| AC-10 | `tools_list_offers_the_spiral_kinds_for_draw_gradient` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | verified | 34703b0a |
+| AC-11 | `draw_gradient_spiral_matches_the_editor_gradient_tool` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | verified | 34703b0a |
+| AC-12 | `draw_gradient_with_an_unknown_kind_lists_the_accepted_kinds` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | verified | 34703b0a |
+| AC-13 | `draw_gradient_spiral_on_a_pixel_document_is_a_mode_error` (`crates/pincel-agent/src/tests/image_gradient_spiral.rs`) | verified | 34703b0a |
+| AC-14 | `the spiral kinds read in German (AC-14)` (`ui/e2e/image-gradient-spiral.spec.ts`) | verified | 27d38bd0 |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- Two new Image-mode Gradient kinds, Spiral (clockwise) and Spiral (counter-clockwise): `GradientKind::SpiralCw` / `SpiralCcw` in `pincel-image-core` compute `t` = `frac(r / L ∓ θ / 360°)` with `floor`, `θ` = 0 at the drag start, in both the Color and the Transparency channel, through the live gradient and `draw_gradient` alike.
+- The wire names `spiral_cw` / `spiral_ccw` parse in `CommandSpec` and round-trip through the live object's kind report.
+- The Gradient tool options list both kinds after the five existing ones, with English and German labels.
+- `draw.gradient` accepts both kinds on Image documents (schema `enum` and description), paints what the editor paints in one undo step, rejects unknown kinds with the accepted list and refuses the spiral kinds on Pixel documents with the mode error.
+- `pincel.md` §5.4 and the `draw_gradient` kind list in `image-editing.md` name the spiral kinds.
 
 ## Decisions
 
 - 2026-11-05: Split from `image-palette-gradient.md`, because palette and spiral together exceed size L and share no code.
 - 2026-11-05: `draw.gradient` gains the spiral kinds in the same change as the editor, because the MCP tool parity decision (2026-11-05) requires the tool to reach every kind the editor offers.
 - 2026-11-05: `frac` is defined with `floor` (AC terms), because a truncating fractional part keeps the sign and would paint the start color where the spiral should continue.
+- 2026-11-06: The spiral `t` takes `θ` from the same `atan2` minus the drag angle as Conical, and sets `θ` = 0 when the pixel centre is the drag start, because `atan2(0, 0)` minus a non-zero drag angle would otherwise give the start pixel a ramp position other than 0 (Edge cases).
+- 2026-11-06: The core tests drive the spirals through `run_command` with `begin_live_gradient` + `commit_live`, because a Gradient drag in the editor begins a live gradient (`image-live-objects-ui`); a separate test pins that `draw_gradient` (MCP's path) paints the same pixels.
+- 2026-11-06: The test reference for `t` (AC-02, AC-06) accepts a 0 ↔ 255 difference only at the seam (one side ≤ 2), because the `f64` reference and the core's `f32` math may put a pixel that sits on the seam on opposite sides of it.
+- 2026-11-06: Red runs. Before the core change all value tests failed (`spiral_*` parsed as Linear). Tests green before the change were shown red against temporary breaks, then reverted: AC-02 start pixel (no `θ` = 0 case at `a`), AC-04 (counter-clockwise = clockwise), AC-07 (spirals ignore the selection), AC-08 (`draw_gradient` records two steps for a spiral), AC-09 (a zero-length spiral falls back to a unit drag), `draw_gradient` parity (live path maps spirals to Linear), the live-object kind report (`spiral_ccw` reported as `spiral_cw`), AC-13 (Pixel route without the spiral refusal: "unknown gradient kind"), AC-03 e2e (UI sends `spiral_ccw` for `spiral_cw`: pixel (8, 16) not 64). AC-01, AC-10, AC-11, AC-12, AC-14 failed before their implementation.
+- 2026-11-06: The e2e AC-03 check samples after Enter commits the live gradient, because the live handles' guide line runs along row 8 and covers pixel (16, 8).

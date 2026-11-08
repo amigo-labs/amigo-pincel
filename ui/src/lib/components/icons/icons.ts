@@ -78,6 +78,12 @@ export const ICONS = {
     { d: 'M17.5 9a3.5 3.5 0 1 1 0 7c-4 0-8.5-1.2-14.5-3.5C9 10.2 13.5 9 17.5 9z', fill: true },
     { d: 'M4 7.5h6M6 18h5' },
   ],
+  // A rubber stamp over its print: the Clone Stamp.
+  'clone-stamp': [
+    { d: 'M10 3h4v6h-4z' },
+    { d: 'M6 9h12v4H6z', fill: true },
+    { d: 'M4 17h16M7 21h10' },
+  ],
   // A box split by a ramp from empty to full: the blend between two colors.
   gradient: [
     { d: 'M3 5h18v14H3z' },
@@ -158,6 +164,10 @@ export const ICONS = {
   film: [{ d: 'M3 5h18v14H3z' }, { d: 'M7 5v14M17 5v14M3 12h4M17 12h4' }],
   more: [{ d: 'M5 12h.01M12 12h.01M19 12h.01' }],
   download: [{ d: 'M12 4v11M7 10l5 5 5-5' }, { d: 'M5 20h14' }],
+  // History panel (docs/specs/history-panel.md)
+  history: [{ d: 'M4 12a8 8 0 1 0 2.3-5.6' }, { d: 'M4 4v4h4' }, { d: 'M12 8v4l3 2' }],
+  rewind: [{ d: 'M11 5l-7 7 7 7z', fill: true }, { d: 'M20 5l-7 7 7 7z', fill: true }],
+  'fast-forward': [{ d: 'M4 5l7 7-7 7z', fill: true }, { d: 'M13 5l7 7-7 7z', fill: true }],
   // Document modes (tab bar marker)
   'mode-pixel': [
     { d: 'M4 14h6v6H4z', fill: true },

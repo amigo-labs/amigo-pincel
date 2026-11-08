@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: Image
@@ -50,26 +50,26 @@ Decision Log 2026-11-05 "MCP tool parity" says that every document-changing capa
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Image mode's tool rail shows a Clone Stamp button in its own group, in the paint section directly after Smudge. Its tooltip names the tool and its key `C`. Pressing `C` selects the tool. Pixel mode has no Clone Stamp, and the key does nothing in Pixel mode. Help ▸ Keyboard Shortcuts lists the tool and its key in Image mode.
-- [ ] AC-02 (state): While the Clone Stamp is the active tool, the options bar shows the Brush's tip controls (shape, size, hardness, opacity, angle, tilt angle, pressure size, pressure opacity) plus *Sample* (*Current Layer*, the default, or *All Layers*) and a *Set source* toggle. The tip controls hold the same values as the Brush's: a change made with either tool shows in the other. *Sample* is the Clone Stamp's own setting. `[` and `]` change the size as they do for the Brush.
-- [ ] AC-03 (event): When the user presses on the canvas with the Clone Stamp while holding Ctrl (⌘ on macOS), then the pixel under the press becomes the source point, no pixel of the document changes, and no undo step is added.
-- [ ] AC-04 (option): Where *Set source* is on, the next press on the canvas sets the source point as in AC-03 instead of painting, and *Set source* switches off.
-- [ ] AC-05 (event): When the user makes the first stroke after setting a source point, then the offset is fixed, and every dab composites, at each pixel p it covers, the source image's pixel at p + offset source-over onto p's current value, with the source pixel's alpha scaled by p's effective coverage under that dab. Overlapping dabs build up as the Brush's do. The stroke writes only into the active layer.
-- [ ] AC-06 (always): A Clone Stamp stroke whose source image is one opaque color C, at every pixel the stroke reads, gives the same pixels as a Brush stroke in color C with the same points delivered in the same segments, and the same tip settings and pen input. With a hard round tip at 100% opacity, no selection and an opaque source image, every pixel p the stroke covers whose source position p + offset lies inside the canvas ends up equal to the source image's pixel there.
-- [ ] AC-07 (state): While the source point stays the same, every later stroke uses the offset fixed in AC-05: a stroke that starts at point q copies from q + offset, not from the source point. Setting a new source point makes the next stroke fix a new offset.
-- [ ] AC-08 (always): A stroke reads the source image as it was at the stroke's press. Pixels written earlier in the same stroke are not read again. Delivering the same sequence of segments, each starting at the end point of the one before, as one command or as several commands of the same stroke gives the same pixels.
-- [ ] AC-09 (option): Where *Sample* is *All Layers*, the stroke copies from the composite of the visible layers (as the Paint Bucket's *All Layers* sample does) and writes into the active layer. Hidden layers are not part of the composite.
-- [ ] AC-10 (state): While a selection exists, the stroke changes only selected pixels. A feathered edge scales the effective coverage by the selection coverage, as it does for the Brush. The source position p + offset may lie outside the selection.
-- [ ] AC-11 (always): A destination pixel whose source position p + offset lies outside the canvas stays unchanged.
-- [ ] AC-12 (always): Each stroke that changes the document is exactly one undo step, whatever number of segments it has. Undo restores the layer byte for byte, and redo restores the stroke's result. Undo and redo do not change the source point or the offset.
-- [ ] AC-13 (error): If the user presses on the canvas with the Clone Stamp, without Ctrl / ⌘ and without *Set source*, and no source point is set in this document, then no pixel changes, no undo step is added, and the status bar tells the user to Ctrl+click (⌘+click on macOS) to set a source. Where AC-14 also applies, the status bar shows AC-14's notice instead.
-- [ ] AC-14 (error): If the active layer is locked, lies inside a locked group, or is a group, then a Clone Stamp stroke changes nothing and adds no undo step, and the status bar shows the notice the Brush shows in the same case, whether or not a source point is set. Setting a source point still works.
-- [ ] AC-15 (state): While the Clone Stamp is the active tool and a source point is set, a crosshair over the canvas marks the source position: the centre of the source point before the offset is fixed; once the offset is fixed, the pointer position plus the offset, while hovering over the canvas and while painting. The crosshair keeps the same on-screen size at every zoom. Without a source point, or with another tool, no crosshair is shown.
-- [ ] AC-16 (always): Each document tab has its own source point and offset. Switching tools, switching layers or switching tabs and back keeps them. Closing the document drops them. They are not saved with the file.
-- [ ] AC-17 (event): When a press with Ctrl / ⌘ or with *Set source* lands outside the canvas (on the stage beside it), then the source point is unchanged and no pixel changes.
-- [ ] AC-18 (always): Every user-visible string of the tool (tool name, tooltip, options, *Set source*, the status-bar notice of AC-13, and the history step's name where a history panel exists) exists in English and German.
-- [ ] AC-19 (event): When an MCP client calls `draw.clone` on an Image document with `points`, `source` (`[x, y]`, the integer canvas pixel copied to the pixel under the first point), and optional `layer` (default: the active layer), the brush arguments of `draw.stroke` (`size`, `hardness`, `opacity`, `shape`, `angle`) and `sample` (`current_layer`, the default, or `all_layers`), then the target layer equals the editor's result after setting that source point and painting one full-pressure stroke through `points`, delivered as one segment, with these settings on that layer. A call that changes the document is exactly one undo step and never merges with another call; a call that changes no pixel (every source position outside the canvas, or every pixel copied onto an equal pixel) adds no undo step.
-- [ ] AC-20 (error): If `draw.clone` is called on a Pixel document, without `source`, with a `source` that is not two integers or lies outside the canvas, with an empty `points` list, with `sample` or a brush argument outside its allowed values, or with a target layer that is locked, inside a locked group or a group, then the call fails with `isError: true` (the mode error of `mcp-headless-image` AC-05 for a Pixel document, otherwise a message naming the argument or the layer, as `draw.stroke` does), and the document is unchanged.
+- [x] AC-01 (always): Image mode's tool rail shows a Clone Stamp button in its own group, in the paint section directly after Smudge. Its tooltip names the tool and its key `C`. Pressing `C` selects the tool. Pixel mode has no Clone Stamp, and the key does nothing in Pixel mode. Help ▸ Keyboard Shortcuts lists the tool and its key in Image mode.
+- [x] AC-02 (state): While the Clone Stamp is the active tool, the options bar shows the Brush's tip controls (shape, size, hardness, opacity, angle, tilt angle, pressure size, pressure opacity) plus *Sample* (*Current Layer*, the default, or *All Layers*) and a *Set source* toggle. The tip controls hold the same values as the Brush's: a change made with either tool shows in the other. *Sample* is the Clone Stamp's own setting. `[` and `]` change the size as they do for the Brush.
+- [x] AC-03 (event): When the user presses on the canvas with the Clone Stamp while holding Ctrl (⌘ on macOS), then the pixel under the press becomes the source point, no pixel of the document changes, and no undo step is added.
+- [x] AC-04 (option): Where *Set source* is on, the next press on the canvas sets the source point as in AC-03 instead of painting, and *Set source* switches off.
+- [x] AC-05 (event): When the user makes the first stroke after setting a source point, then the offset is fixed, and every dab composites, at each pixel p it covers, the source image's pixel at p + offset source-over onto p's current value, with the source pixel's alpha scaled by p's effective coverage under that dab. Overlapping dabs build up as the Brush's do. The stroke writes only into the active layer.
+- [x] AC-06 (always): A Clone Stamp stroke whose source image is one opaque color C, at every pixel the stroke reads, gives the same pixels as a Brush stroke in color C with the same points delivered in the same segments, and the same tip settings and pen input. With a hard round tip at 100% opacity, no selection and an opaque source image, every pixel p the stroke covers whose source position p + offset lies inside the canvas ends up equal to the source image's pixel there.
+- [x] AC-07 (state): While the source point stays the same, every later stroke uses the offset fixed in AC-05: a stroke that starts at point q copies from q + offset, not from the source point. Setting a new source point makes the next stroke fix a new offset.
+- [x] AC-08 (always): A stroke reads the source image as it was at the stroke's press. Pixels written earlier in the same stroke are not read again. Delivering the same sequence of segments, each starting at the end point of the one before, as one command or as several commands of the same stroke gives the same pixels.
+- [x] AC-09 (option): Where *Sample* is *All Layers*, the stroke copies from the composite of the visible layers (as the Paint Bucket's *All Layers* sample does) and writes into the active layer. Hidden layers are not part of the composite.
+- [x] AC-10 (state): While a selection exists, the stroke changes only selected pixels. A feathered edge scales the effective coverage by the selection coverage, as it does for the Brush. The source position p + offset may lie outside the selection.
+- [x] AC-11 (always): A destination pixel whose source position p + offset lies outside the canvas stays unchanged.
+- [x] AC-12 (always): Each stroke that changes the document is exactly one undo step, whatever number of segments it has. Undo restores the layer byte for byte, and redo restores the stroke's result. Undo and redo do not change the source point or the offset.
+- [x] AC-13 (error): If the user presses on the canvas with the Clone Stamp, without Ctrl / ⌘ and without *Set source*, and no source point is set in this document, then no pixel changes, no undo step is added, and the status bar tells the user to Ctrl+click (⌘+click on macOS) to set a source. Where AC-14 also applies, the status bar shows AC-14's notice instead.
+- [x] AC-14 (error): If the active layer is locked, lies inside a locked group, or is a group, then a Clone Stamp stroke changes nothing and adds no undo step, and the status bar shows the notice the Brush shows in the same case, whether or not a source point is set. Setting a source point still works.
+- [x] AC-15 (state): While the Clone Stamp is the active tool and a source point is set, a crosshair over the canvas marks the source position: the centre of the source point before the offset is fixed; once the offset is fixed, the pointer position plus the offset, while hovering over the canvas and while painting. The crosshair keeps the same on-screen size at every zoom. Without a source point, or with another tool, no crosshair is shown.
+- [x] AC-16 (always): Each document tab has its own source point and offset. Switching tools, switching layers or switching tabs and back keeps them. Closing the document drops them. They are not saved with the file.
+- [x] AC-17 (event): When a press with Ctrl / ⌘ or with *Set source* lands outside the canvas (on the stage beside it), then the source point is unchanged and no pixel changes.
+- [x] AC-18 (always): Every user-visible string of the tool (tool name, tooltip, options, *Set source*, the status-bar notice of AC-13, and the history step's name where a history panel exists) exists in English and German.
+- [x] AC-19 (event): When an MCP client calls `draw.clone` on an Image document with `points`, `source` (`[x, y]`, the integer canvas pixel copied to the pixel under the first point), and optional `layer` (default: the active layer), the brush arguments of `draw.stroke` (`size`, `hardness`, `opacity`, `shape`, `angle`) and `sample` (`current_layer`, the default, or `all_layers`), then the target layer equals the editor's result after setting that source point and painting one full-pressure stroke through `points`, delivered as one segment, with these settings on that layer. A call that changes the document is exactly one undo step and never merges with another call; a call that changes no pixel (every source position outside the canvas, or every pixel copied onto an equal pixel) adds no undo step.
+- [x] AC-20 (error): If `draw.clone` is called on a Pixel document, without `source`, with a `source` that is not two integers or lies outside the canvas, with an empty `points` list, with `sample` or a brush argument outside its allowed values, or with a target layer that is locked, inside a locked group or a group, then the call fails with `isError: true` (the mode error of `mcp-headless-image` AC-05 for a Pixel document, otherwise a message naming the argument or the layer, as `draw.stroke` does), and the document is unchanged.
 
 ## Technical notes
 
@@ -118,26 +118,36 @@ Existing parts to reuse (grep for the names, line numbers drift):
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `the Clone Stamp is a rail tool with key C in Image mode only (AC-01)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-02 | `the options bar shares the Brush tip and adds Sample and Set source (AC-02)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-03 | `Ctrl+click sets the source; strokes copy at the fixed offset (AC-03, AC-05, AC-07, AC-12)`; `on macOS › ⌘+click sets the source, Ctrl+click does not, and the hint names ⌘ (AC-03, AC-13)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-04 | `Set source makes the next press set the source and switches off (AC-04)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-05 | `clone_composites_each_source_pixel_through_the_dabs` (crates/pincel-image-core/src/tools/clone_stamp.rs); `Ctrl+click sets the source; strokes copy at the fixed offset (AC-03, AC-05, AC-07, AC-12)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 38dfde17 |
+| AC-06 | `a_uniform_source_paints_like_the_brush_in_that_color`, `a_hard_full_opacity_tip_copies_the_source_exactly` (crates/pincel-image-core/src/tools/clone_stamp.rs) | verified | 38dfde17 |
+| AC-07 | `Ctrl+click sets the source; strokes copy at the fixed offset (AC-03, AC-05, AC-07, AC-12)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-08 | `a_stroke_reads_the_source_as_it_was_at_the_press`, `a_split_stroke_matches_the_same_segments_in_one_command`, `a_split_stroke_that_forgets_its_snapshot_differs` (crates/pincel-image-core/src/tools/clone_stamp.rs); `clone_stroke_split_across_commands_equals_one_command`, `clone_stroke_with_a_new_id_reads_the_canvas_afresh` (crates/pincel-image-core/src/command/clone_spec.rs) | verified | 38dfde17 |
+| AC-09 | `all_layers_copies_the_visible_composite_into_the_target_layer` (crates/pincel-image-core/src/tools/clone_stamp.rs); `clone_stroke_defaults_to_the_current_layer` (crates/pincel-image-core/src/command/clone_spec.rs); `Sample All Layers copies the visible composite into the active layer (AC-09)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 38dfde17 |
+| AC-10 | `the_selection_bounds_the_writes_and_feathers_like_the_brush` (crates/pincel-image-core/src/tools/clone_stamp.rs) | verified | 38dfde17 |
+| AC-11 | `a_source_outside_the_canvas_leaves_the_pixel_unchanged`, `transparent_or_identical_sources_change_nothing` (crates/pincel-image-core/src/tools/clone_stamp.rs) | verified | 38dfde17 |
+| AC-12 | `clone_stroke_segments_merge_into_one_undo_step` (crates/pincel-image-core/src/command/clone_spec.rs); `clone_is_undoable_byte_for_byte` (crates/pincel-image-core/src/tools/clone_stamp.rs); `Ctrl+click sets the source; strokes copy at the fixed offset (AC-03, AC-05, AC-07, AC-12)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 38dfde17 |
+| AC-13 | `a stroke without a source paints nothing and says how to set one (AC-13)`; `on macOS › ⌘+click sets the source, Ctrl+click does not, and the hint names ⌘ (AC-03, AC-13)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-14 | `a locked layer refuses the stroke with the Brush notice; the source can still be set (AC-14)` (ui/e2e/image-clone-stamp.spec.ts); `clone_stroke_on_a_locked_layer_is_refused` (crates/pincel-image-core/src/command/clone_spec.rs) | verified | 173c1091 |
+| AC-15 | `the crosshair marks the source at a constant size, then follows the pointer (AC-15)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-16 | `each tab keeps its own source through tool, layer and tab switches (AC-16)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-17 | `Ctrl+press or Set source beside the canvas changes nothing (AC-17)` (ui/e2e/image-clone-stamp.spec.ts) | verified | 173c1091 |
+| AC-18 | `in German the tool, its options and its notice are translated (AC-18)` (ui/e2e/image-clone-stamp.spec.ts); step name: `clone_stroke_segments_merge_into_one_undo_step` (crates/pincel-image-core/src/command/clone_spec.rs), `image_calls_name_their_step_after_the_editor_action` (crates/pincel-agent/src/tests/history.rs), `the Clone Stamp step is named in English and German (AC-18)` (ui/e2e/image-clone-stamp-names.spec.ts) | verified | 173c1091 |
+| AC-19 | `draw_clone_is_listed_for_image_documents`, `draw_clone_equals_the_editors_clone_stamp`, `draw_clone_samples_the_layer_or_the_visible_composite`, `draw_clone_is_one_undo_step_per_changing_call` (crates/pincel-agent/src/tests/image_clone.rs) | verified | b244b1c6 |
+| AC-20 | `draw_clone_refuses_bad_arguments_and_targets` (crates/pincel-agent/src/tests/image_clone.rs) | verified | b244b1c6 |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- Image mode has a Clone Stamp (key `C`, after Smudge in the rail) with the Brush's shared tip controls, its own *Sample* (*Current Layer* / *All Layers*) and a *Set source* toggle for pen and touch.
+- Ctrl+click (⌘+click on macOS) or *Set source* sets a per-tab source point; the first stroke fixes the offset (aligned cloning), and a constant-size crosshair marks the source.
+- `pincel-image-core`: `CloneStamp` composites the source pixel at p + offset through each dab like the Brush, reads the stroke-start snapshot (`CloneSnapshot` in `StrokeScratch`), respects the selection, and makes one `clone_stamp` undo step per stroke (none when nothing changes).
+- MCP tool `draw.clone` builds the editor's `clone_stroke` command from `source` and the first point, with `draw.stroke`'s brush arguments and `sample`.
+- Strings, notices and the history step name in English and German.
 
 ## Decisions
 
@@ -154,3 +164,13 @@ Existing parts to reuse (grep for the names, line numbers drift):
 - 2026-11-05 (clarification pass): `draw.clone` takes `angle`, `layer` and the no-op rule of `mcp-parity-drawing-image` AC-13, and `source` as two integers — because `mcp-parity-drawing-image` gives every stroke tool `draw.stroke`'s brush arguments and undo rule, and an integer pixel leaves no doubt which pixel is copied.
 - 2026-11-05 (clarification pass): The crosshair's look is a design default in Technical notes, not an AC — because its exact size and colors are visual design, while its presence, position and constant on-screen size (AC-15) are what can be tested.
 - 2026-11-05: `draw.clone`'s `sample` takes `current_layer` / `all_layers` — because the other Image tools that sample (`draw.fill`, `select.wand`) use these values, and the MCP tool parity rule (Decision Log 2026-11-05) gives one capability one name across tools.
+- 2026-11-06 (spec-build): The core takes the offset, not the source point (`clone_stroke.offset`), and the UI fixes it at the first stroke's press — because the offset is the per-tab tool state of AC-07, and `draw.clone` derives the same offset from `source` and the first point.
+- 2026-11-06 (spec-build): A stroke command that changes no pixel returns no command (no undo step) — because AC-19 asks it of `draw.clone`, and an empty step from the editor would be an undo that does nothing.
+- 2026-11-06 (spec-build): The stroke-start snapshot is the whole source image (the layer, or the composite for *All Layers*), taken by the stroke's first command and kept in `StrokeScratch` — because the Smudge / Recolor per-drag memory already lives there and a lazy per-tile snapshot is an optimisation the ACs do not need.
+- 2026-11-06 (spec-build): The source point lives in a per-tab-id map (`ui/src/modes/image/tools/clone-source.svelte.ts`), dropped when the tab's document is released — because it is tool state, not part of `docInit` mirrored from the core.
+- 2026-11-06 (spec-build): The crosshair is an SVG element in the viewport (`CloneCrosshair.svelte`), not drawn on `CanvasOverlay` — because a DOM element keeps its 16 CSS px at every zoom by construction and the e2e test can check its box without screenshots.
+- 2026-11-06 (spec-build): The status notice of AC-13 names the platform key in each language (Ctrl / Strg, ⌘) — because German keyboards label Ctrl "Strg", as the other German hints do.
+- 2026-11-06 (spec-build): `pointer.ts` was over 800 lines before the tool; its drag-geometry helpers moved to `tools/drag-geometry.ts` (separate refactor commit) so the file stays under the limit.
+- 2026-11-06 (spec-build): Closing a tab drops its source (AC-16) by tab id; tab ids never repeat within a page load, so no later document can see it. The e2e test checks the per-tab separation and the source surviving another tab's close; the drop itself is not observable from the UI.
+- 2026-11-06 (spec-build) red runs: core — coverage ignored (src_over at alpha 1) failed AC-05/06/10 tests; snapshot retaken per command failed both split tests; All Layers read as the layer failed the AC-09 test; wrapped source coordinates failed AC-11 tests; always returning a command failed the no-change tests; spec — fresh snapshot per command failed the split test, no snapshot clear on a new stroke id failed the new-id test, no `stroke_id` merge failed the one-step test. Agent — `round` instead of `floor` for the first point, no canvas check on `source`, `sample` ignored each failed its test. UI — offset re-fixed every stroke failed AC-07; Set source not switched off failed AC-04; no notice failed AC-13; source press after the lock check, and the missing-source check before it, each failed AC-14; a crosshair scaled with the zoom and one that ignored the pointer each failed AC-15; one source for all tabs failed AC-16; the source press before the on-canvas check failed AC-17; `sample` not sent failed the AC-09 e2e test; *Sample* bound to the Paint Bucket's failed AC-02; an English German tool name failed AC-18; no `C` key failed AC-01.
+- 2026-11-06 (spec-check rework) red runs: `clone-press.ts` with `e.ctrlKey` and `clone.noSource` on every platform failed the macOS e2e test (`⌘+click sets the source, Ctrl+click does not, and the hint names ⌘`); `CloneStamp::stroke_with_pen` without `.with_kind(HistoryKind::CloneStamp)` failed `clone_stroke_segments_merge_into_one_undo_step` and `image_calls_name_their_step_after_the_editor_action` ("draw_pixels" instead of "clone_stamp"). The step's English and German names (`history.clone_stamp`) are pinned by `ui/e2e/image-clone-stamp-names.spec.ts`; an English German label failed it. The optional save-as-ORA / reopen e2e for AC-16 was left out: it needs the faked file-system picker and a reload flow, and adds little over the per-tab test.

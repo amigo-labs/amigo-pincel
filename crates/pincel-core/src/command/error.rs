@@ -247,4 +247,16 @@ pub enum CommandError {
         /// Requested cell height.
         height: u32,
     },
+
+    /// A RotSprite rotation's input is wider or taller than
+    /// [`crate::ROTSPRITE_MAX_SIDE`]. Emitted by [`crate::RotateCel`].
+    #[error("RotSprite takes at most {max}x{max} pixels; the input is {width}x{height}")]
+    RotSpriteTooLarge {
+        /// Input width.
+        width: u32,
+        /// Input height.
+        height: u32,
+        /// The per-side limit.
+        max: u32,
+    },
 }

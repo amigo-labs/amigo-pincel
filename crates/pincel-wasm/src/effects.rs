@@ -10,6 +10,7 @@
 //! composites the would-be result without touching document state or the
 //! undo stack, for a live dialog preview.
 
+use pincel_core::HistoryKind;
 use pincel_core::{
     CelData, ColorMode, ComposeRequest, FrameIndex, LayerId, Rect, ReplaceCelPixels, compose,
 };
@@ -145,8 +146,9 @@ impl Document {
         };
         self.bus.seal();
         let cmd = ReplaceCelPixels::new(run.layer, run.frame, run.pixels).with_dirty_hint(dirty);
+        let kind = HistoryKind::effect(name).ok_or_else(|| format!("unknown effect `{name}`"))?;
         self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .execute_as(kind, cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply effect: {e}"))?;
         self.bus.seal();
         if let Some(ev) = Event::from_dirty(self.bus.last_dirty_region()) {

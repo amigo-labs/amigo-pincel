@@ -12,6 +12,7 @@ use crate::geometry::Rect;
 
 use super::Command;
 use super::error::CommandError;
+use super::history::HistoryKind;
 use super::transform_support::{
     Orientation, cel_to_canvas, orient_point, orient_rect, raster_to_cel, rgba_buffer,
 };
@@ -36,6 +37,17 @@ struct Prior {
 impl TransformCanvas {
     pub fn new(op: Orientation) -> Self {
         Self { op, prior: None }
+    }
+
+    /// The history kind of this canvas flip or rotation.
+    pub(crate) fn history_kind(&self) -> HistoryKind {
+        match self.op {
+            Orientation::FlipHorizontal => HistoryKind::FlipCanvasHorizontal,
+            Orientation::FlipVertical => HistoryKind::FlipCanvasVertical,
+            Orientation::Rotate90Cw => HistoryKind::RotateCanvas90Cw,
+            Orientation::Rotate90Ccw => HistoryKind::RotateCanvas90Ccw,
+            Orientation::Rotate180 => HistoryKind::RotateCanvas180,
+        }
     }
 }
 

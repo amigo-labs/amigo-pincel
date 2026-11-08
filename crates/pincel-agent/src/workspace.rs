@@ -2,8 +2,8 @@
 //! per-document undo bus.
 
 use pincel_core::{
-    AnyCommand, Bus, Cel, CelMap, ColorMode, CommandBatch, Frame, FrameIndex, Layer, LayerId,
-    LayerKind, Palette, PixelBuffer, Sprite,
+    AnyCommand, Bus, Cel, CelMap, ColorMode, CommandBatch, Frame, FrameIndex, HistoryKind, Layer,
+    LayerId, LayerKind, Palette, PixelBuffer, Sprite,
 };
 use serde_json::{Value, json};
 
@@ -23,6 +23,9 @@ pub(crate) struct Doc {
     pub active_frame: FrameIndex,
     /// The file the document was opened from or last saved to.
     pub path: Option<String>,
+    /// The file a document without a file of its own was made from (a PNG
+    /// opened with `mode: "pixel"`); `doc.save` suggests its stem.
+    pub source_name: Option<String>,
     /// Changed since it was opened, created or last saved.
     pub dirty: bool,
 }
@@ -57,6 +60,7 @@ impl Doc {
             active_layer: None,
             active_frame: FrameIndex::new(0),
             path,
+            source_name: None,
             dirty: false,
         }
     }
@@ -64,14 +68,37 @@ impl Doc {
     /// Run `cmds` as exactly one undo step (sealed on both sides, grouped
     /// in a [`CommandBatch`] when there are several). An empty list
     /// records nothing. A failing command leaves the document unchanged.
-    pub fn commit(&mut self, mut cmds: Vec<AnyCommand>) -> Result<(), AgentError> {
+    /// The step's history kind is the first command's own kind; tools whose
+    /// editor action it does not name use [`Doc::commit_as`].
+    pub fn commit(&mut self, cmds: Vec<AnyCommand>) -> Result<(), AgentError> {
+        self.commit_kind(None, cmds)
+    }
+
+    /// [`Doc::commit`] with the history kind of the editor action the tool
+    /// mirrors (docs/specs/history-panel.md AC-15).
+    pub fn commit_as(
+        &mut self,
+        kind: HistoryKind,
+        cmds: Vec<AnyCommand>,
+    ) -> Result<(), AgentError> {
+        self.commit_kind(Some(kind), cmds)
+    }
+
+    fn commit_kind(
+        &mut self,
+        kind: Option<HistoryKind>,
+        mut cmds: Vec<AnyCommand>,
+    ) -> Result<(), AgentError> {
         let cmd = match cmds.len() {
             0 => return Ok(()),
             1 => cmds.remove(0),
             _ => CommandBatch::new(cmds).into(),
         };
+        let kind = kind.unwrap_or_else(|| cmd.kind());
         self.bus.seal();
-        let result = self.bus.execute(cmd, &mut self.sprite, &mut self.cels);
+        let result = self
+            .bus
+            .execute_as(kind, cmd, &mut self.sprite, &mut self.cels);
         self.bus.seal();
         result.map_err(|e| AgentError::tool(e.to_string()))?;
         self.dirty = true;
@@ -88,6 +115,24 @@ impl Doc {
         &mut self,
         build: impl Fn() -> Vec<AnyCommand>,
     ) -> Result<bool, AgentError> {
+        self.commit_if_changed_kind(None, build)
+    }
+
+    /// [`Doc::commit_if_changed`] with the history kind `kind`, as
+    /// [`Doc::commit_as`].
+    pub fn commit_if_changed_as(
+        &mut self,
+        kind: HistoryKind,
+        build: impl Fn() -> Vec<AnyCommand>,
+    ) -> Result<bool, AgentError> {
+        self.commit_if_changed_kind(Some(kind), build)
+    }
+
+    fn commit_if_changed_kind(
+        &mut self,
+        kind: Option<HistoryKind>,
+        build: impl Fn() -> Vec<AnyCommand>,
+    ) -> Result<bool, AgentError> {
         let mut sprite = self.sprite.clone();
         let mut cels = self.cels.clone();
         let mut cmds = build();
@@ -102,7 +147,7 @@ impl Doc {
         if sprite == self.sprite && cels == self.cels {
             return Ok(false);
         }
-        self.commit(build())?;
+        self.commit_kind(kind, build())?;
         Ok(true)
     }
 

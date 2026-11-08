@@ -148,7 +148,7 @@ export async function newImageBytes(system: Blob | null): Promise<Uint8Array | n
 
 /** A pasted image as a document the shell opens, with no file behind it. */
 export function pastedImageFile(bytes: Uint8Array, mime: string): OpenedFile {
-  return { name: t('paste.newImageName'), bytes, mime, handle: null, path: null };
+  return { name: t('paste.newImageName'), bytes, mime, handle: null, path: null, origin: 'paste' };
 }
 
 const tags = new WeakMap<object, string>();

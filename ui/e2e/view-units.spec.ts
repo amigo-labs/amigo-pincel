@@ -3,7 +3,6 @@ import {
   DEFAULT_IMAGE_VIEW,
   formatPixels,
   parseImageViewPref,
-  RULER_MIN_SPACING,
   rulerStep,
   rulerTicks,
   type ViewUnit,
@@ -20,6 +19,8 @@ const UNITS: readonly ViewUnit[] = ['px', 'in', 'cm'];
 const MIN_ZOOM = 0.02;
 const MAX_ZOOM = 64;
 
+// That labels never overlap needs their rendered width: the zoom sweep in
+// image-view-aids.spec.ts measures it.
 test('AC-03: labels step by 1, 2 or 5 × 10ⁿ, at least 40 px apart, at every zoom', () => {
   const zooms: number[] = [];
   for (let z = MIN_ZOOM; z <= MAX_ZOOM; z *= 1.07) zooms.push(z);
@@ -36,7 +37,7 @@ test('AC-03: labels step by 1, 2 or 5 × 10ⁿ, at least 40 px apart, at every z
         const b = ticks[i];
         if (!a || !b) continue;
         expect(b.value - a.value).toBeCloseTo(step, 9);
-        expect(b.pos - a.pos).toBeGreaterThanOrEqual(Math.max(40, RULER_MIN_SPACING) - 1e-6);
+        expect(b.pos - a.pos).toBeGreaterThanOrEqual(40 - 1e-6);
         // Neighbouring labels stay distinct after rounding to two decimals.
         if (unit !== 'px') expect(a.value.toFixed(2)).not.toBe(b.value.toFixed(2));
       }
@@ -67,9 +68,13 @@ test('AC-12: Pixels are whole, inches and centimeters two decimals, per language
 });
 
 test('AC-21: a broken resolution counts as 96 DPI', () => {
-  for (const dpi of [0, -72, Number.NaN, Number.POSITIVE_INFINITY]) {
+  for (const dpi of [0, -72, Number.NaN, Number.POSITIVE_INFINITY, Number.NEGATIVE_INFINITY]) {
     expect(formatPixels(96, 'in', dpi, 'en')).toBe('1.00');
     expect(formatPixels(96, 'cm', dpi, 'en')).toBe('2.54');
+    // The rulers too.
+    for (const unit of ['in', 'cm'] as const) {
+      expect(rulerTicks(800, 37, 3, unit, dpi)).toEqual(rulerTicks(800, 37, 3, unit, 96));
+    }
   }
 });
 

@@ -49,6 +49,7 @@ export type ShortcutAction =
   | 'deselect'
   | 'invertSelection'
   | 'deleteSelection'
+  | 'fillSelection'
   | 'zoomIn'
   | 'zoomOut'
   | 'zoomFit'
@@ -198,7 +199,11 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   selectAll: [{ key: 'a', mod: true }],
   deselect: [{ key: 'd', mod: true }],
   invertSelection: [{ key: 'i', mod: true, shift: true }],
-  deleteSelection: [{ key: 'Delete' }, { key: 'Backspace' }],
+  // Backspace is Fill Selection (paint.net) on Windows / Linux; Mac
+  // laptops have no other delete key, so there it stays Delete Selection
+  // and Fill Selection takes ⌥⌫ (docs/specs/image-edit-extras.md AC-14).
+  deleteSelection: IS_MAC ? [{ key: 'Delete' }, { key: 'Backspace' }] : [{ key: 'Delete' }],
+  fillSelection: [IS_MAC ? { key: 'Backspace', alt: true } : { key: 'Backspace' }],
   zoomIn: [{ key: '+' }, { key: '=' }],
   zoomOut: [{ key: '-' }, { key: '_' }],
   zoomFit: [{ key: '0' }],
@@ -277,6 +282,7 @@ export const TOOL_GROUP_KEYS: Record<string, string> = {
   eyedropper: 'i',
   recolor: 'r',
   smudge: 's',
+  clone: 'c',
   line: 'l',
   shapes: 'u',
   text: 't',

@@ -13,6 +13,7 @@
 import type { Document } from '../../../lib/core';
 import { tabStore } from '../../../lib/shell/tab-store';
 import type { SaveTarget } from '../../../lib/fs';
+import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../../lib/history/names';
 import type { RecentFile } from '../../../lib/idb/recent-files';
 import type { EffectSession } from '../../../lib/effects/session.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
@@ -20,6 +21,7 @@ import type { CanvasRenderer, RenderBackend } from '../../../lib/render/types';
 import { PinchTracker } from '../../../lib/view/pinch';
 import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
+import type { RotateDialogState } from '../rotate-ops';
 import type { BrushShape } from '../brush';
 import type { Direction, Tool } from '../tools';
 import type { PasteDialogState } from '../clipboard-ops';
@@ -49,6 +51,12 @@ function docInit() {
     doc: null as Document | null,
     undoDepth: 0,
     redoDepth: 0,
+    /** The undo history the History panel lists (history-panel AC-02). */
+    history: EMPTY_HISTORY as HistorySnapshot,
+    /** `historyRevision` the panel's list was read at; `-1` before. */
+    historyRev: -1,
+    /** How the document began: names the start entry (history-panel AC-03). */
+    origin: 'start' as HistoryOrigin,
     /** Undo depth at the last save / load; `-1` marks a recovered
      *  document as unsaved. */
     lastSavedUndoDepth: 0,
@@ -245,6 +253,8 @@ function dialogsInit() {
     editingTile: null as TileRef | null,
     /** Edit ▸ Paste of an image larger than the canvas (spec §5.4). */
     paste: null as PasteDialogState | null,
+    /** Layer ▸ Rotate… is open (rotsprite). */
+    rotate: null as RotateDialogState | null,
   };
 }
 

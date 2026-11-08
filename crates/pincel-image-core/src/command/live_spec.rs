@@ -199,6 +199,8 @@ fn gradient_kind_str(kind: GradientKind) -> &'static str {
         GradientKind::Radial => "radial",
         GradientKind::Conical => "conical",
         GradientKind::Diamond => "diamond",
+        GradientKind::SpiralCw => "spiral_cw",
+        GradientKind::SpiralCcw => "spiral_ccw",
     }
 }
 
@@ -308,5 +310,25 @@ mod tests {
         );
         run(&mut bus, r#"{"type":"cancel_live"}"#).expect("cancel");
         assert_eq!(bus.history.undo_depth(), 0);
+    }
+
+    #[test]
+    fn live_object_spec_reports_the_spiral_kinds_by_their_wire_names() {
+        // docs/specs/image-palette-gradient-spiral.md: the options bar shows
+        // the live gradient's kind, so the spiral names must round-trip.
+        let mut bus = CommandBus::new(Document::new(32, 32).expect("doc"));
+        run(
+            &mut bus,
+            r#"{"type":"begin_live_gradient","layer":0,"kind":"spiral_cw",
+                "x0":4,"y0":4,"x1":20,"y1":9}"#,
+        )
+        .expect("begin");
+        let kind = |bus: &CommandBus| match live_object_spec(bus) {
+            Some(LiveObjectSpec::Gradient { kind, .. }) => kind,
+            other => panic!("not a live gradient: {other:?}"),
+        };
+        assert_eq!(kind(&bus), "spiral_cw");
+        run(&mut bus, r#"{"type":"edit_live","kind":"spiral_ccw"}"#).expect("kind");
+        assert_eq!(kind(&bus), "spiral_ccw");
     }
 }

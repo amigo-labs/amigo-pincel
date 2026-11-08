@@ -6,7 +6,9 @@
 
 mod auto_crop;
 mod batch;
+mod clone_spec;
 mod damage;
+mod history;
 mod layers;
 mod live;
 pub mod live_spec;
@@ -25,6 +27,7 @@ mod transform;
 pub use auto_crop::{AutoCrop, auto_crop_rect};
 pub(crate) use batch::Batch;
 pub use damage::Damage;
+pub use history::HistoryKind;
 pub use layers::{AddGroup, AddLayer, DuplicateLayer, MoveLayer, MoveLayerTo, RemoveLayer};
 pub use live::{
     BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
@@ -63,8 +66,9 @@ pub trait Command: Send + Sync {
     /// Reverts the change, restoring the document to its prior state.
     fn revert(&mut self, doc: &mut Document) -> Result<(), DocumentError>;
 
-    /// Human-readable label shown in the history panel (e.g. "Pencil Stroke").
-    fn label(&self) -> &str;
+    /// The action that made this step, which the History panel names
+    /// (docs/specs/history-panel.md AC-15).
+    fn kind(&self) -> HistoryKind;
 
     /// Attempts to absorb `newer` into `self` for a single undo step.
     ///
@@ -103,6 +107,9 @@ pub struct UndoStack {
     /// [`Command::undo_bytes`] summed over both stacks, kept up to date.
     bytes: usize,
     byte_cap: usize,
+    /// Set once the capacity or the byte cap has dropped a step from the
+    /// bottom of the history (docs/specs/history-panel.md AC-03).
+    dropped: bool,
 }
 
 impl UndoStack {
@@ -119,6 +126,7 @@ impl UndoStack {
             capacity: capacity.clamp(10, 500),
             bytes: 0,
             byte_cap: DEFAULT_UNDO_BYTE_CAP,
+            dropped: false,
         }
     }
 
@@ -152,6 +160,23 @@ impl UndoStack {
     /// Number of commands available to redo.
     pub fn redo_depth(&self) -> usize {
         self.redo.len()
+    }
+
+    /// The kinds of the undo steps, oldest first.
+    pub fn undo_kinds(&self) -> impl Iterator<Item = HistoryKind> + '_ {
+        self.undo.iter().map(|c| c.kind())
+    }
+
+    /// The kinds of the redo steps, in the order [`UndoStack::redo`]
+    /// restores them (the next redo first).
+    pub fn redo_kinds(&self) -> impl Iterator<Item = HistoryKind> + '_ {
+        self.redo.iter().rev().map(|c| c.kind())
+    }
+
+    /// `true` once the capacity or the byte cap has dropped a step: the
+    /// oldest state left is no longer the document's start.
+    pub fn dropped_steps(&self) -> bool {
+        self.dropped
     }
 
     /// Whether an undo is available.
@@ -217,6 +242,7 @@ impl UndoStack {
             None => {
                 let dropped = self.undo.remove(0);
                 self.bytes -= dropped.undo_bytes();
+                self.dropped = true;
             }
         }
     }
@@ -275,6 +301,29 @@ impl UndoStack {
     /// The damage the next [`redo`](UndoStack::redo) reports, if any.
     fn next_redo_damage(&self) -> Option<Damage> {
         self.redo.last().map(|cmd| cmd.damage())
+    }
+
+    /// One step of a jump: undo (`back`) or redo, but a step that fails
+    /// goes back to the stack it came from instead of being dropped
+    /// (docs/specs/history-panel.md AC-12).
+    fn step_keeping(&mut self, doc: &mut Document, back: bool) -> Result<bool, DocumentError> {
+        let from = if back { &mut self.undo } else { &mut self.redo };
+        let Some(mut cmd) = from.pop() else {
+            return Ok(false);
+        };
+        let before = cmd.undo_bytes();
+        let done = if back {
+            cmd.revert(doc)
+        } else {
+            cmd.apply(doc)
+        };
+        self.bytes = self.bytes - before + cmd.undo_bytes();
+        let to = match (&done, back) {
+            (Err(_), true) | (Ok(()), false) => &mut self.undo,
+            (Err(_), false) | (Ok(()), true) => &mut self.redo,
+        };
+        to.push(cmd);
+        done.map(|()| true)
     }
 
     /// Re-applies the most recently undone command.
@@ -359,6 +408,35 @@ impl CommandBus {
         let redone = self.history.redo(&mut self.document);
         self.record(damage, redone.is_ok());
         redone
+    }
+
+    /// Moves through the history by `delta` steps (`-n` undoes `n`, `+n`
+    /// redoes `n`) as that many [`undo`](Self::undo) / [`redo`](Self::redo)
+    /// calls would, clamped to the steps there are, and returns how many it
+    /// moved. When a step fails the jump stops at the last state it
+    /// reached, the failed step stays where it was, and the error comes
+    /// back with the steps moved before it (docs/specs/history-panel.md
+    /// AC-05, AC-12).
+    pub fn jump(&mut self, delta: i64) -> Result<usize, (usize, DocumentError)> {
+        self.live_merge = None;
+        let back = delta < 0;
+        let steps = delta.unsigned_abs();
+        let mut moved = 0usize;
+        while (moved as u64) < steps {
+            let damage = if back {
+                self.history.next_undo_damage()
+            } else {
+                self.history.next_redo_damage()
+            };
+            let step = self.history.step_keeping(&mut self.document, back);
+            self.record(damage, step.is_ok());
+            match step {
+                Ok(true) => moved += 1,
+                Ok(false) => break,
+                Err(e) => return Err((moved, e)),
+            }
+        }
+        Ok(moved)
     }
 
     /// Returns what changed in the composite since the last call (all of it

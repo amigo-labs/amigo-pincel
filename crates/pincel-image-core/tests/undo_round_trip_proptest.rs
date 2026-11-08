@@ -305,7 +305,7 @@ fn undo_of_canvas_size_changes_restores_the_document() {
     ];
     for cmd in cmds {
         let mut bus = CommandBus::new(original.clone());
-        if cmd.label() == "Crop to Selection" {
+        if cmd.kind() == pincel_image_core::command::HistoryKind::CropToSelection {
             bus.apply(Box::new(SetSelection::replace(SelectionMask::rectangle(
                 300,
                 170,

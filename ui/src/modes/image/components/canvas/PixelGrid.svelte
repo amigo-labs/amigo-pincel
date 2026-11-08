@@ -63,7 +63,24 @@
     measure();
     const ro = new ResizeObserver(measure);
     ro.observe(canvas);
-    return () => ro.disconnect();
+    // A move to a monitor with another device pixel ratio changes no CSS
+    // size, so the ResizeObserver stays silent: watch the ratio itself, one
+    // query per ratio, re-armed on every change (AC-09).
+    let ratio: MediaQueryList | null = null;
+    const watchRatio = (): void => {
+      ratio?.removeEventListener('change', onRatio);
+      ratio = window.matchMedia(`(resolution: ${window.devicePixelRatio || 1}dppx)`);
+      ratio.addEventListener('change', onRatio);
+    };
+    function onRatio(): void {
+      measure();
+      watchRatio();
+    }
+    watchRatio();
+    return () => {
+      ro.disconnect();
+      ratio?.removeEventListener('change', onRatio);
+    };
   });
 
   $effect(() => {

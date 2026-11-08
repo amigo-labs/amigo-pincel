@@ -37,12 +37,7 @@ export function isBox(obj: ShapeObject): boolean {
 /** The normalized box `[x0, y0, x1, y1]` of two corners. */
 function box(points: PointPair): [number, number, number, number] {
   const [a, b] = points;
-  return [
-    Math.min(a[0], b[0]),
-    Math.min(a[1], b[1]),
-    Math.max(a[0], b[0]),
-    Math.max(a[1], b[1]),
-  ];
+  return [Math.min(a[0], b[0]), Math.min(a[1], b[1]), Math.max(a[0], b[0]), Math.max(a[1], b[1])];
 }
 
 /** Where each box handle sits, in canvas space. */
@@ -92,7 +87,8 @@ function segmentDistance(p: Pt, a: Pt, b: Pt): number {
   const dx = b[0] - a[0];
   const dy = b[1] - a[1];
   const len2 = dx * dx + dy * dy;
-  const t = len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
+  const t =
+    len2 === 0 ? 0 : Math.max(0, Math.min(1, ((p[0] - a[0]) * dx + (p[1] - a[1]) * dy) / len2));
   return Math.hypot(p[0] - (a[0] + t * dx), p[1] - (a[1] + t * dy));
 }
 
@@ -200,5 +196,17 @@ export function dragPoints(
   return [
     [x0, y0],
     [x1, y1],
+  ];
+}
+
+/** A live text's box corner moved by the drag `start` → `p`, rounded to
+ *  whole document pixels (docs/specs/image-live-text.md AC-07). */
+export function wholeMove(from: PointPair, start: Pt, p: Pt): PointPair {
+  const dx = Math.round(p[0] - start[0]);
+  const dy = Math.round(p[1] - start[1]);
+  const [a] = from;
+  return [
+    [a[0] + dx, a[1] + dy],
+    [a[0] + dx, a[1] + dy],
   ];
 }

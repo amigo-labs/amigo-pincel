@@ -118,6 +118,10 @@ const EXPECTED_TOOLS: &[&str] = &[
     "grid.set",
     // image-resize-autocrop
     "image.auto_crop",
+    // clone-stamp
+    "draw.clone",
+    // image-edit-extras
+    "select.fill",
 ];
 
 /// One valid example call per tool.
@@ -170,6 +174,7 @@ fn example(name: &str) -> Value {
         "select.expand" | "select.contract" | "select.feather" => json!({ "radius": 2 }),
         "select.get" => json!({ "region": region }),
         "select.delete" => json!({ "layer": 0, "frame": 0 }),
+        "select.fill" => json!({ "layer": 0, "color": "#ff000080" }),
         "layer.flip" => json!({ "direction": "horizontal", "layer": 0, "frame": 0 }),
         "layer.rotate" => json!({ "angle": 90, "layer": 0 }),
         "layer.translate" | "select.move_content" => json!({ "dx": 2, "dy": -1, "layer": 0 }),
@@ -194,6 +199,9 @@ fn example(name: &str) -> Value {
         "tilemap.place" => json!({ "layer": 1, "cells": [{ "col": 0, "row": 1, "tile": 1 }] }),
         "grid.set" => json!({ "x": -4, "y": 0, "width": 8, "height": 16 }),
         "draw.smudge" => json!({ "points": [[1, 2], [3, 4]], "strength": 40, "shape": "flat" }),
+        "draw.clone" => {
+            json!({ "points": [[5, 2], [7, 4]], "source": [1, 2], "sample": "all_layers", "size": 3 })
+        }
         "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
         "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
@@ -260,6 +268,12 @@ fn tool_schemas_are_valid() {
     for name in EXPECTED_TOOLS {
         assert!(names.contains(name), "missing tool {name}");
     }
+    // No tool beyond the expected ones, each listed once (a spec that adds
+    // a tool name adds it here; mcp-parity-drawing AC-01).
+    for name in &names {
+        assert!(EXPECTED_TOOLS.contains(name), "unexpected tool {name}");
+    }
+    assert_eq!(names.len(), EXPECTED_TOOLS.len(), "a tool is listed twice");
     // Renamed to select.rect / select.clear without aliases
     // (mcp-parity-selection-transform AC-01).
     for gone in ["selection.set_rect", "selection.clear"] {

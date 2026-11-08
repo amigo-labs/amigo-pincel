@@ -2,10 +2,10 @@
 
 use pincel_core::{
     AddFrame, AddLayer, AddTag, AddTilemapLayer, AnyCommand, BlendMode, Cel, Frame, FrameIndex,
-    Layer, LayerId, LayerKind, LayerPlacement, MoveLayerTo, PutCel, RemoveFrame, RemoveLayer,
-    RemoveTag, Rgba, SetFrameDuration, SetLayerBlendMode, SetLayerEditable, SetLayerName,
-    SetLayerOpacity, SetLayerVisible, SetTagDirection, SetTagName, SetTagRange, Sprite, Tag,
-    TagDirection, TilesetId,
+    HistoryKind, Layer, LayerId, LayerKind, LayerPlacement, MoveLayerTo, PutCel, RemoveFrame,
+    RemoveLayer, RemoveTag, Rgba, SetFrameDuration, SetLayerBlendMode, SetLayerEditable,
+    SetLayerName, SetLayerOpacity, SetLayerVisible, SetTagDirection, SetTagName, SetTagRange,
+    Sprite, Tag, TagDirection, TilesetId,
 };
 use serde_json::{Value, json};
 
@@ -315,7 +315,10 @@ fn layer_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     if let Some(p) = group_arg(doc, args)? {
         cmds.push(MoveLayerTo::new(lid, p, LayerPlacement::Into).into());
     }
-    doc.commit(cmds)?;
+    match cmds.len() {
+        1 => doc.commit(cmds)?,
+        _ => doc.commit_as(HistoryKind::LayerProperties, cmds)?,
+    }
     Ok(ToolOutput::json(
         json!({ "doc": id, "layers": layers_json(&doc.sprite) }),
     ))
@@ -399,7 +402,11 @@ fn frame_add(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
             .collect();
         cmds.extend(clones.into_iter().map(|c| PutCel::new(c).into()));
     }
-    doc.commit(cmds)?;
+    let kind = match source {
+        Some(_) => HistoryKind::DuplicateFrame,
+        None => HistoryKind::AddFrame,
+    };
+    doc.commit_as(kind, cmds)?;
     doc.active_frame = new_index;
     Ok(ToolOutput::json(json!({
         "doc": id,
@@ -585,7 +592,11 @@ fn tag_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
             "argument `name`: a tag name cannot be empty",
         ));
     }
-    let changed = doc.commit_if_changed(|| {
+    let several = usize::from(name.is_some())
+        + usize::from(range.is_some())
+        + usize::from(direction.is_some())
+        > 1;
+    let build = || {
         let mut cmds: Vec<AnyCommand> = Vec::new();
         if let Some(n) = name {
             cmds.push(SetTagName::new(index, n).into());
@@ -597,7 +608,11 @@ fn tag_set(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
             cmds.push(SetTagDirection::new(index, d).into());
         }
         cmds
-    })?;
+    };
+    let changed = match several {
+        true => doc.commit_if_changed_as(HistoryKind::TagProperties, build)?,
+        false => doc.commit_if_changed(build)?,
+    };
     Ok(ToolOutput::json(json!({
         "doc": id,
         "changed": changed,

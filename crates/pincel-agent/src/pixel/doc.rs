@@ -161,6 +161,7 @@ fn open_png_as_pixel(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentE
     let layer = pincel_core::LayerId::new(0);
     doc.cels
         .insert(pincel_core::Cel::image(layer, FrameIndex::new(0), buf));
+    doc.source_name = Some(path.to_owned());
     let info = doc.info("");
     let id = ctx.ws.insert(doc);
     Ok(ToolOutput::json(with_id(info, &id)))
@@ -526,8 +527,12 @@ fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     let path = match args.str("path") {
         Some(p) => p.to_owned(),
         None => doc.path.clone().ok_or_else(|| {
+            let suggestion = doc
+                .source_name
+                .as_deref()
+                .map_or_else(|| "sprite.aseprite".to_owned(), aseprite_name);
             AgentError::tool(format!(
-                "document `{id}` was never opened from or saved to a file; pass a `path` (e.g. \"sprite.aseprite\")"
+                "document `{id}` was never opened from or saved to a file; pass a `path` (e.g. \"{suggestion}\")"
             ))
         })?,
     };
@@ -546,6 +551,17 @@ fn doc_save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
     doc.path = Some(path.clone());
     doc.dirty = false;
     Ok(ToolOutput::json(json!({ "doc": id, "path": path })))
+}
+
+/// `path` with its extension replaced by `.aseprite`, in the same
+/// directory (mcp-parity-export AC-23).
+fn aseprite_name(path: &str) -> String {
+    let dir_end = path.rfind('/').map_or(0, |i| i + 1);
+    let stem = match path[dir_end..].rfind('.') {
+        Some(dot) if dot > 0 => &path[..dir_end + dot],
+        _ => path,
+    };
+    format!("{stem}.aseprite")
 }
 
 pub(super) const EXPORT_PNG: Tool = Tool {

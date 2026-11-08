@@ -9,6 +9,7 @@
 //! matches); the prior selection is restored on undo.
 
 use super::Command;
+use super::HistoryKind;
 use super::snapshot::{DocSnapshot, mask_bytes, restore, snapshot};
 use crate::document::{CanvasSize, Document, ImageBuffer};
 use crate::error::DocumentError;
@@ -69,11 +70,11 @@ impl Command for TransformLayer {
         self.op.apply_to(doc, self.index)
     }
 
-    fn label(&self) -> &str {
+    fn kind(&self) -> HistoryKind {
         match self.op {
-            LayerTransform::FlipHorizontal => "Flip Layer Horizontal",
-            LayerTransform::FlipVertical => "Flip Layer Vertical",
-            LayerTransform::Rotate180 => "Rotate Layer 180°",
+            LayerTransform::FlipHorizontal => HistoryKind::FlipLayerHorizontal,
+            LayerTransform::FlipVertical => HistoryKind::FlipLayerVertical,
+            LayerTransform::Rotate180 => HistoryKind::RotateLayer180,
         }
     }
 
@@ -128,11 +129,11 @@ impl Command for FlipCanvas {
         Ok(())
     }
 
-    fn label(&self) -> &str {
+    fn kind(&self) -> HistoryKind {
         if self.horizontal {
-            "Flip Canvas Horizontal"
+            HistoryKind::FlipCanvasHorizontal
         } else {
-            "Flip Canvas Vertical"
+            HistoryKind::FlipCanvasVertical
         }
     }
 
@@ -220,11 +221,11 @@ impl Command for RotateCanvas {
         Ok(())
     }
 
-    fn label(&self) -> &str {
+    fn kind(&self) -> HistoryKind {
         match self.rotation {
-            CanvasRotation::Cw90 => "Rotate Canvas 90° CW",
-            CanvasRotation::Ccw90 => "Rotate Canvas 90° CCW",
-            CanvasRotation::Rotate180 => "Rotate Canvas 180°",
+            CanvasRotation::Cw90 => HistoryKind::RotateCanvas90Cw,
+            CanvasRotation::Ccw90 => HistoryKind::RotateCanvas90Ccw,
+            CanvasRotation::Rotate180 => HistoryKind::RotateCanvas180,
         }
     }
 
@@ -280,8 +281,8 @@ impl Command for ScaleImage {
         restore(doc, snap)
     }
 
-    fn label(&self) -> &str {
-        "Scale Image"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::ScaleImage
     }
 
     fn undo_bytes(&self) -> usize {
@@ -338,8 +339,8 @@ impl Command for CropToSelection {
         }
     }
 
-    fn label(&self) -> &str {
-        "Crop to Selection"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::CropToSelection
     }
 
     fn undo_bytes(&self) -> usize {
@@ -412,11 +413,11 @@ impl Command for RotateLayer90 {
         Ok(())
     }
 
-    fn label(&self) -> &str {
+    fn kind(&self) -> HistoryKind {
         if self.ccw {
-            "Rotate Layer 90° CCW"
+            HistoryKind::RotateLayer90Ccw
         } else {
-            "Rotate Layer 90° CW"
+            HistoryKind::RotateLayer90Cw
         }
     }
 
@@ -449,8 +450,8 @@ mod tests {
         ];
         for mut cmd in cmds {
             cmd.apply(&mut doc).unwrap();
-            assert_eq!(doc.layers[0].pixels.width(), 0, "{}", cmd.label());
-            assert_eq!(doc.layers[0].pixels.height(), 0, "{}", cmd.label());
+            assert_eq!(doc.layers[0].pixels.width(), 0, "{:?}", cmd.kind());
+            assert_eq!(doc.layers[0].pixels.height(), 0, "{:?}", cmd.kind());
         }
         doc.selection = Some(SelectionMask::rectangle(5, 5, Rect::new(1, 1, 2, 2)));
         CropToSelection::new().apply(&mut doc).unwrap();

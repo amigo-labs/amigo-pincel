@@ -9,6 +9,7 @@
 //! translation (spec §9.2 Move); the core only computes the moved pixels.
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::{Document, ImageBuffer};
 use crate::geometry::Rect;
@@ -52,7 +53,7 @@ impl Move {
         }
 
         let region = Rect::new(0, 0, w, h);
-        Some(SetPixels::new(layer_index, region, after).with_label("Move Layer"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::TranslateLayer))
     }
 }
 
@@ -135,7 +136,7 @@ impl Move {
         }
 
         let region = Rect::new(0, 0, w, h);
-        Some(SetPixels::new(layer_index, region, after).with_label("Move Selection"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::MoveSelection))
     }
 }
 

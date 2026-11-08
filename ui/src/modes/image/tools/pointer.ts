@@ -27,57 +27,29 @@ import {
   view,
   type ToolKind,
 } from '../stores/editor.svelte';
-import type { PointPair, SelectionMode, ShapeKind } from '../core/wasm';
+import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
-import { cursorOf, dragPoints, hitLive, type LiveHit, type Pt } from './live-handles';
+import { cursorOf, dragPoints, hitLive, wholeMove, type LiveHit, type Pt } from './live-handles';
 import { editRefused } from '../core/layer-tree';
+import {
+  caretToPoint,
+  hitText,
+  pressText,
+  requestTextFocus,
+  textBoxOpen,
+} from '../core/live-text.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
-import { altHeld, shiftHeld } from '../../../lib/shell/modifiers.svelte';
+import { shiftHeld } from '../../../lib/shell/modifiers.svelte';
 import { gestureControl } from './gesture-control';
 import { frameBatch } from './frame-batch';
 import { wandClick } from './wand-link';
-
-/** Converts a pointer event into document-pixel coordinates. `surface` is
- *  the element that covers the document on screen (any size / transform). */
-function toCanvasPoint(surface: HTMLElement, e: PointerEvent): [number, number] {
-  const rect = surface.getBoundingClientRect();
-  const scaleX = editor.width / rect.width;
-  const scaleY = editor.height / rect.height;
-  return [(e.clientX - rect.left) * scaleX, (e.clientY - rect.top) * scaleY];
-}
-
-/** Selection combine mode from the keyboard or on-screen modifiers (spec §8.2). */
-function selectionModeOf(e: PointerEvent): SelectionMode {
-  const shift = shiftHeld(e);
-  const alt = altHeld(e);
-  if (shift && alt) return 'intersect';
-  if (shift) return 'add';
-  if (alt) return 'subtract';
-  return 'replace';
-}
-
-/** Pen pressure in `[0, 1]`; mouse and touch paint at full pressure. */
-function pressureOf(e: PointerEvent): number {
-  return e.pointerType === 'pen' ? Math.min(1, Math.max(0, e.pressure)) : 1;
-}
-
-/** Pen azimuth in radians (0 = +x, clockwise), or `null` when the input
- *  is not a pen or the pen stands upright / reports no tilt. Uses the
- *  Pointer Events 3 angles where the browser has them, else derives the
- *  azimuth from `tiltX` / `tiltY`. */
-function azimuthOf(e: PointerEvent): number | null {
-  if (e.pointerType !== 'pen') return null;
-  const angles = e as PointerEvent & { altitudeAngle?: number; azimuthAngle?: number };
-  if (typeof angles.altitudeAngle === 'number' && typeof angles.azimuthAngle === 'number') {
-    return angles.altitudeAngle < Math.PI / 2 - 1e-3 ? angles.azimuthAngle : null;
-  }
-  if (e.tiltX === 0 && e.tiltY === 0) return null;
-  const rad = Math.PI / 180;
-  return Math.atan2(Math.tan(e.tiltY * rad), Math.tan(e.tiltX * rad));
-}
+import { azimuthOf, pressureOf, selectionModeOf, toCanvasPoint, touchHold } from './pointer-input';
+import { constrainShape, rectFromCorners, snappedCorners } from './drag-geometry';
+import { cloneStroke } from '../core/clone-stroke';
+import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
-const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge']);
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge', 'clone']);
 
 /** The three drag-to-move tools: the layer, the selected pixels, the
  *  outline alone. `move_mask` writes no pixels, so it stays out of
@@ -92,6 +64,7 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'gradient',
   'recolor',
   'smudge',
+  'clone',
   'move',
   'move_selection',
   'text',
@@ -148,59 +121,6 @@ function onControl(e: PointerEvent): boolean {
 }
 
 /**
- * Normalizes two corners into a positive-size rect, each corner snapped to
- * the nearest pixel grid line on its own (rounding the size instead would
- * drop the column under a far edge).
- *
- * Shift is reserved for the selection combine mode (add), so rectangle/ellipse
- * do not also constrain to a square on Shift — that would conflict with the
- * documented modifier mapping (spec §8.2 vs §9.3).
- */
-function rectFromCorners(
-  a: [number, number],
-  b: [number, number],
-): { x: number; y: number; w: number; h: number } {
-  const x0 = Math.round(Math.min(a[0], b[0]));
-  const y0 = Math.round(Math.min(a[1], b[1]));
-  const x1 = Math.round(Math.max(a[0], b[0]));
-  const y1 = Math.round(Math.max(a[1], b[1]));
-  return { x: x0, y: y0, w: x1 - x0, h: y1 - y0 };
-}
-
-/** The rubber band of a rect/ellipse drag: the snapped rect it will commit. */
-function snappedCorners(a: [number, number], b: [number, number]): [number, number][] {
-  const r = rectFromCorners(a, b);
-  return [
-    [r.x, r.y],
-    [r.x + r.w, r.y + r.h],
-  ];
-}
-
-/**
- * Applies the Shapes-tool Shift constraint to the drag endpoint (spec §9.2):
- * a square box for area shapes, a 45°-snapped segment for a line.
- */
-function constrainShape(
-  a: [number, number],
-  p: [number, number],
-  kind: ShapeKind,
-  shift: boolean,
-): [number, number] {
-  if (!shift) {
-    return p;
-  }
-  const dx = p[0] - a[0];
-  const dy = p[1] - a[1];
-  if (kind === 'line') {
-    const angle = (Math.round(Math.atan2(dy, dx) / (Math.PI / 4)) * Math.PI) / 4;
-    const len = Math.hypot(dx, dy);
-    return [a[0] + Math.cos(angle) * len, a[1] + Math.sin(angle) * len];
-  }
-  const side = Math.max(Math.abs(dx), Math.abs(dy));
-  return [a[0] + Math.sign(dx || 1) * side, a[1] + Math.sign(dy || 1) * side];
-}
-
-/**
  * Attaches the active tool's pointer behavior to a canvas. Returns a teardown.
  * `canvas` covers the document and maps pointer coordinates; `stage`, the
  * viewport around it, takes the events, so a selection gesture can start
@@ -216,7 +136,6 @@ export function attachTools(
   canvas: HTMLElement,
   stage: HTMLElement,
   redraw: () => void,
-  onPlaceText?: (cx: number, cy: number, e: PointerEvent) => void,
 ): () => void {
   let active = false;
   // The pointer that owns the in-flight gesture: a second pointer coming down
@@ -249,6 +168,7 @@ export function attachTools(
       paintStroke(b.points, strokeId, useBackground, b.pressure, b.azimuth);
     else if (gestureKind === 'recolor') recolorStroke(b.points, strokeId, b.pressure, b.azimuth);
     else if (gestureKind === 'smudge') smudgeStroke(b.points, strokeId, b.pressure, b.azimuth);
+    else if (gestureKind === 'clone') cloneStroke(b.points, strokeId, b.pressure, b.azimuth);
     else eraseStroke(b.points, strokeId, b.pressure, b.azimuth);
   }, redraw);
 
@@ -262,7 +182,14 @@ export function attachTools(
     gesture: number;
     pending: PointPair | null;
     frame: number;
+    /** A live text moves by whole document pixels (image-live-text AC-07). */
+    whole: boolean;
   } | null = null;
+  // A press-and-drag placing the caret and selecting characters in the live
+  // text (image-live-text AC-06): the pointer that owns it.
+  let textSelect: number | null = null;
+  // A touch press held back while a live object is open (pointer-input.ts).
+  const held = touchHold((down) => press(down));
 
   /** Sends the drag's latest points, at most once per frame. */
   const flushLive = (): void => {
@@ -303,6 +230,29 @@ export function attachTools(
     if (obj === null) return false;
     if (obj.type === 'text') {
       if (e.button !== 0) return true;
+      // The move handle drags the text; inside the box a press places the
+      // caret; outside it commits (image-live-text AC-06, AC-07, AC-11).
+      const hit = hitText(point, view.zoom, e.pointerType !== 'mouse');
+      if (hit === 'handle') {
+        const at: [number, number] = [obj.x, obj.y];
+        liveDrag = {
+          pointer: e.pointerId,
+          hit: { kind: 'body' },
+          from: [at, [at[0], at[1]]],
+          start: point,
+          gesture: nextStrokeId++,
+          pending: null,
+          frame: 0,
+          whole: true,
+        };
+        stage.setPointerCapture(e.pointerId);
+        requestTextFocus();
+        return true;
+      }
+      if (hit === 'inside') {
+        startTextSelect(e, point);
+        return true;
+      }
       commitLive();
       redraw();
       return false;
@@ -320,6 +270,7 @@ export function attachTools(
         gesture: nextStrokeId++,
         pending: null,
         frame: 0,
+        whole: false,
       };
       stage.setPointerCapture(e.pointerId);
       return true;
@@ -327,6 +278,21 @@ export function attachTools(
     commitLive();
     redraw();
     return false;
+  };
+
+  /** Places the caret in the open text box and starts a selecting drag. */
+  const startTextSelect = (e: PointerEvent, point: Pt): void => {
+    caretToPoint(point, shiftHeld(e));
+    textSelect = e.pointerId;
+    stage.setPointerCapture(e.pointerId);
+    requestTextFocus();
+  };
+
+  const endTextSelect = (): void => {
+    if (textSelect !== null && stage.hasPointerCapture(textSelect)) {
+      stage.releasePointerCapture(textSelect);
+    }
+    textSelect = null;
   };
 
   /** Commits the placed polygon if it has enough vertices, then resets. */
@@ -344,9 +310,22 @@ export function attachTools(
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
-    if (active || liveDrag !== null) {
+    if (active || liveDrag !== null || textSelect !== null || held.held) {
       return;
     }
+    // A touch press waits until no pinch can follow (pointer-input.ts).
+    if (e.pointerType === 'touch' && e.button === 0 && (live.object !== null || textBoxOpen())) {
+      held.hold(e);
+      stage.setPointerCapture(e.pointerId);
+      // The editor frame moved the focus to the stage; give it back.
+      if (textBoxOpen()) requestTextFocus();
+      return;
+    }
+    press(e);
+  };
+
+  /** Runs a press: the live object's hit test first, then the tool. */
+  const press = (e: PointerEvent): void => {
     if (pressLive(e, toCanvasPoint(canvas, e))) {
       return;
     }
@@ -369,10 +348,14 @@ export function attachTools(
 
     const point = toCanvasPoint(canvas, e);
     const inside = onCanvas(point);
-    // Beside the canvas only the selection gestures start (AC-32).
-    if (!inside && !STAGE_TOOLS.has(tool.kind)) {
+    // Beside the canvas only the selection gestures and a text box start
+    // (AC-32; image-live-text AC-01).
+    if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
       return;
     }
+    // Ctrl / ⌘ or Set source sets the Clone Stamp's source, even on a
+    // locked layer (docs/specs/clone-stamp.md AC-03, AC-04, AC-14).
+    if (tool.kind === 'clone' && pressCloneSource(e, point)) return;
 
     // Pixel-writing tools refuse a locked layer, a layer in a locked group
     // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
@@ -385,15 +368,21 @@ export function attachTools(
       }
     }
     editor.notice = null;
+    if (tool.kind === 'clone' && !beginCloneStroke(point)) return;
 
     if (tool.kind === 'magic_wand') {
       wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
       return;
     }
 
-    // Text places a cursor for the entry overlay; it has no drag gesture here.
+    // Text opens a box (image-live-text AC-01); inside an empty box the
+    // press keeps it.
     if (tool.kind === 'text') {
-      onPlaceText?.(point[0], point[1], e);
+      if (hitText(point, view.zoom, e.pointerType !== 'mouse') !== null) {
+        startTextSelect(e, point);
+      } else {
+        void pressText(point);
+      }
       return;
     }
 
@@ -482,6 +471,10 @@ export function attachTools(
         // A single dab only picks colour up; the stroke starts on the move.
         smudgeStroke([point], strokeId, [lastPressure], [lastAzimuth]);
         break;
+      case 'clone':
+        cloneStroke([point], strokeId, [lastPressure], [lastAzimuth]);
+        brushFrames.present();
+        break;
       case 'fill':
         fillAt(point[0], point[1], useBackground);
         redraw();
@@ -497,10 +490,13 @@ export function attachTools(
   };
 
   const onMove = (e: PointerEvent): void => {
+    if (held.moved(e)) return;
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
-      liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      liveDrag.pending = liveDrag.whole
+        ? wholeMove(liveDrag.from, liveDrag.start, p)
+        : dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
       if (liveDrag.frame === 0) {
         liveDrag.frame = requestAnimationFrame(() => {
           if (liveDrag !== null) liveDrag.frame = 0;
@@ -509,13 +505,19 @@ export function attachTools(
       }
       return;
     }
+    if (textSelect !== null) {
+      if (e.pointerId === textSelect) caretToPoint(toCanvasPoint(canvas, e), true);
+      return;
+    }
     // The cursor over the live object's handles and body (AC-13).
     if (!active) {
       const obj = live.object;
-      live.cursor =
-        obj === null || obj.type === 'text'
-          ? null
-          : cursorOf(hitLive(obj, toCanvasPoint(canvas, e), view.zoom, e.pointerType !== 'mouse'));
+      const p = toCanvasPoint(canvas, e);
+      const touch = e.pointerType !== 'mouse';
+      if (obj === null) live.cursor = null;
+      else if (obj.type === 'text') {
+        live.cursor = hitText(p, view.zoom, touch) === 'handle' ? 'move' : null;
+      } else live.cursor = cursorOf(hitLive(obj, p, view.zoom, touch));
     }
     // Only the pointer that started the gesture may drive it.
     if (active && e.pointerId !== activePointer) {
@@ -588,10 +590,15 @@ export function attachTools(
   };
 
   const onUp = (e: PointerEvent): void => {
+    held.lifted(e);
     if (liveDrag !== null && e.pointerId === liveDrag.pointer) {
       cancelAnimationFrame(liveDrag.frame);
       flushLive();
       endLiveDrag();
+      return;
+    }
+    if (textSelect !== null && e.pointerId === textSelect) {
+      endTextSelect();
       return;
     }
     if (!active || e.pointerId !== activePointer) {
@@ -664,7 +671,12 @@ export function attachTools(
    * pixels already applied stay — as a single undoable stroke (stroke_id).
    */
   const abort = (): boolean => {
+    if (held.drop()) return true;
     if (cancelLiveDrag()) return true;
+    if (textSelect !== null) {
+      endTextSelect();
+      return true;
+    }
     const inProgress = active || polygonPoints.length > 0;
     // Brush pixels painted so far stay; so do the samples still queued.
     if (active) brushFrames.flush();
@@ -685,6 +697,11 @@ export function attachTools(
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
   // the in-flight gesture — unless the cancel is for a bystander pointer.
   const onCancel = (e: PointerEvent): void => {
+    if (held.drop()) return;
+    if (textSelect !== null) {
+      if (e.pointerId === textSelect) endTextSelect();
+      return;
+    }
     if (liveDrag !== null) {
       if (e.pointerId === liveDrag.pointer) {
         cancelAnimationFrame(liveDrag.frame);
@@ -717,11 +734,15 @@ export function attachTools(
   stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
   gestureControl.cancelLiveDrag = cancelLiveDrag;
+  gestureControl.inProgress = () => active;
+  const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 
   return () => {
+    detachCloneHover();
     brushFrames.dispose();
     gestureControl.cancel = () => false;
     gestureControl.cancelLiveDrag = () => false;
+    gestureControl.inProgress = () => false;
     endLiveDrag();
     stage.removeEventListener('pointerdown', onDown);
     stage.removeEventListener('pointermove', onMove);

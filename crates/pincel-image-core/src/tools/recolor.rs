@@ -8,6 +8,7 @@
 use std::collections::HashMap;
 
 use crate::color::Color;
+use crate::command::HistoryKind;
 use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
@@ -105,7 +106,7 @@ impl Recolor {
                         p.dst
                     }
                 })?;
-        Some(SetPixels::new(layer_index, region, after).with_label("Recolor"))
+        Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Recolor))
     }
 }
 

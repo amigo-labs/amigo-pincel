@@ -28,13 +28,6 @@ Agents reach every document-changing capability; live mode last. Runs in paralle
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| A1 | [mcp-parity-structure](mcp-parity-structure.md) | both | L | mcp-headless-image | First of five MCP parity specs; runs in parallel with mcp-live-desktop |
-| A2 | [mcp-parity-selection-transform](mcp-parity-selection-transform.md) | both | L | mcp-parity-structure | MCP select.* for both modes, Delete, canvas and layer transforms |
-| A3 | [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md) | both | M | mcp-parity-selection-transform | MCP move content and headless clipboard (layer.import, export.selection) |
-| A4 | [mcp-parity-drawing](mcp-parity-drawing.md) | both | L | mcp-parity-structure | MCP Pixel drawing via draw.stroke / shape / text / gradient |
-| A5 | [mcp-parity-drawing-image](mcp-parity-drawing-image.md) | Image | M | mcp-parity-structure | MCP Image recolor / smudge / eraser modes; fixes Image effect defaults; after mcp-parity-drawing |
-| A6 | [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md) | Pixel | L | mcp-parity-structure | MCP slices, tilesets / tilemaps, document grid |
-| A7 | [mcp-parity-export](mcp-parity-export.md) | both | L | mcp-parity-structure, psd-import, vectorize-dialog | MCP SVG, APNG / GIF, BMP / TIFF, save-back, PSD, PNG as Pixel |
 | A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
 
 ### B — Image live objects
@@ -45,10 +38,8 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | - | ---- | ---- | ---- | ---------- | ---- |
 | B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
 | B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
-| B3 | [image-live-text](image-live-text.md) | Image | L | image-live-objects | Text stays editable until commit; underline / strikethrough |
 | B4 | [image-shapes-curves](image-shapes-curves.md) | Image | L | image-live-objects | Line / Curve with control points, arrow heads, dash-dot |
 | B5 | [image-shapes-curves-shapes](image-shapes-curves-shapes.md) | Image | L | image-live-objects-ui, image-shapes-curves | Six new shapes: triangle, diamond, star, block arrow, heart, callout |
-| B6 | [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md) | Image | M | — | Layer ▸ Rotate / Zoom as an Image-only effect; builds the resampler |
 | B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
 
 ### C — Editor feedback
@@ -57,12 +48,7 @@ Owner feedback of 2026-11-05 on the running editor. Touches the options bar and 
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| C1 | [effect-panel](effect-panel.md) | both | M | — | Revision 2026-11-05: small movable effect dialog, dimmed UI |
-| C2 | [image-editing](image-editing.md) | Image | S | — | Revision 2026-11-05: Magic Wand settings update the last click; right-click zooms out |
-| C3 | [pixel-selection-move](pixel-selection-move.md) | Pixel | S | — | Revision 2026-11-05: Magic Wand settings update the last click |
 | C4 | [power-user-shortcuts-coverage](power-user-shortcuts-coverage.md) | shell | S | — | Revision 2026-11-05: Ctrl+N in the desktop app and installed PWA |
-| C5 | [color-picker](color-picker.md) | both | L | — | |
-| C6 | [history-panel](history-panel.md) | both | L | pixel-undo-history | paint.net parity: History panel with named steps and jumps |
 
 ### D — Image tools
 
@@ -70,11 +56,9 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| D1 | [clone-stamp](clone-stamp.md) | Image | L | — | Clone Stamp (key C) plus MCP draw.clone |
 | D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
 | D3 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
-| D5 | [image-palette-gradient-spiral](image-palette-gradient-spiral.md) | Image | M | — | Spiral gradients, also in MCP draw.gradient |
 
 ### E — Text and fonts
 
@@ -91,8 +75,6 @@ Independent of every other group.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| F0 | [save-original-format](save-original-format.md) | Image | S | — | Revision 2026-11-06: one Save As dialog (format, JPEG quality, flatten checkbox); before image-formats-more, which extends the same format list |
-| F1 | [image-resize-autocrop](image-resize-autocrop.md) | Image | L | — | Resize by percent / print size, Supersampling, Auto Crop |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
 | F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
 | F4 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
@@ -110,7 +92,6 @@ Owner priority; measure first, then the budgets of pincel.md §4.5.
 | G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
 | G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
 | G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
-| G7 | [performance-image-undo-memory](performance-image-undo-memory.md) | Image | L | performance-benchmarks | Can move earlier if memory hurts |
 | G8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 
 ### H — Other planned features
@@ -165,26 +146,43 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
+- [clone-stamp](clone-stamp.md)
+- [color-picker](color-picker.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
+- [effect-panel](effect-panel.md)
 - [effects-adjustments](effects-adjustments.md)
 - [effects-artistic-photo](effects-artistic-photo.md)
 - [effects-blurs](effects-blurs.md)
 - [effects-distort](effects-distort.md)
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
+- [history-panel](history-panel.md)
+- [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
+- [image-live-text](image-live-text.md)
+- [image-palette-gradient-spiral](image-palette-gradient-spiral.md)
+- [image-resize-autocrop](image-resize-autocrop.md)
+- [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [mcp-parity-drawing](mcp-parity-drawing.md)
+- [mcp-parity-drawing-image](mcp-parity-drawing-image.md)
+- [mcp-parity-export](mcp-parity-export.md)
+- [mcp-parity-pixel-assets](mcp-parity-pixel-assets.md)
+- [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
+- [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md)
+- [mcp-parity-structure](mcp-parity-structure.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
 - [performance-image-kernel](performance-image-kernel.md)
+- [performance-image-undo-memory](performance-image-undo-memory.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
@@ -192,8 +190,10 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [pixel-palette](pixel-palette.md)
 - [pixel-pencil](pixel-pencil.md)
 - [pixel-pressure](pixel-pressure.md)
+- [pixel-selection-move](pixel-selection-move.md)
 - [pixel-undo-history](pixel-undo-history.md)
 - [power-user-shortcuts-palette](power-user-shortcuts-palette.md)
+- [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
@@ -216,6 +216,7 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Gap | Note |
 | --- | ---- |
 | Layer masks and clipping masks | Probably Image mode first |
+| Image-mode Save while the previous Save finishes | `saveTab` silently drops a Save / Save As while the previous one still writes the autosave snapshot and recents; queue it or show that a save is running (found by `save-original-format`'s acceptance) |
 | Non-destructive layer effects and adjustment layers | Large; touches compose in both cores |
 | Reference layers | Small: a non-exported, non-editable layer kind |
 | Custom brushes | Spec §13.3 |

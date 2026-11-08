@@ -1,5 +1,14 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu } from './helpers';
+import {
+  clearClipboard,
+  copiedImage,
+  createDocument,
+  drag,
+  imageCanvas,
+  menu,
+  pixelOf,
+  setColor,
+} from './helpers';
 
 // image-resize-autocrop: the shared size input of Scale Image / Resize
 // Canvas, the Supersampling filter and Image ▸ Auto Crop. The arithmetic
@@ -59,6 +68,33 @@ test('both dialogs open fresh with the size input (AC-01, AC-09)', async ({ page
   }
 });
 
+test('each size mode keeps its values and the readout follows the selected mode (AC-04)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 40, height: 30 });
+  for (const item of ['Scale Image…', 'Resize Canvas…'] as const) {
+    const dialog = await open(page, item);
+    const result = dialog.getByTestId('size-result');
+    const byPercent = dialog.getByRole('radio', { name: 'By percentage' });
+    const byAbsolute = dialog.getByRole('radio', { name: 'By absolute size' });
+    await dialog.getByLabel('Percentage', { exact: true }).fill('50');
+    await expect(result).toHaveText('20 × 15 px');
+    await byAbsolute.check();
+    await dialog.getByLabel('Maintain aspect ratio').uncheck();
+    await dialog.getByLabel('Width').fill('10');
+    await expect(result).toHaveText('10 × 30 px');
+    await byPercent.check();
+    await expect(dialog.getByLabel('Percentage', { exact: true })).toHaveValue('50');
+    await expect(result).toHaveText('20 × 15 px');
+    await byAbsolute.check();
+    await expect(dialog.getByLabel('Width')).toHaveValue('10');
+    await expect(dialog.getByLabel('Height')).toHaveValue('30');
+    await expect(dialog.getByLabel('Maintain aspect ratio')).not.toBeChecked();
+    await expect(result).toHaveText('10 × 30 px');
+    await dialog.getByRole('button', { name: 'Cancel' }).click();
+  }
+});
+
 test('a percentage and a print size apply exactly (AC-02, AC-03, AC-05, AC-12)', async ({
   page,
 }) => {
@@ -83,6 +119,41 @@ test('a percentage and a print size apply exactly (AC-02, AC-03, AC-05, AC-12)',
   await expect(status(page, 192, 96)).toBeVisible();
 });
 
+test.describe('anchor', () => {
+  test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+
+  test('Resize Canvas by percentage places the image at the chosen anchor (AC-02)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'image', { width: 4, height: 4 });
+    // An opaque red image, so the added area tells itself apart.
+    await setColor(page, 'fg', '#ff0000ff');
+    await page.keyboard.press('g');
+    const box = await imageCanvas(page).boundingBox();
+    if (!box) throw new Error('canvas is not visible');
+    await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
+    const red = [255, 0, 0, 255];
+    for (const [anchor, kept, added] of [
+      ['Top left', [0, 0], [7, 7]],
+      ['Bottom right', [7, 7], [0, 0]],
+    ] as const) {
+      const dialog = await open(page, 'Resize Canvas…');
+      await dialog.getByLabel('Percentage', { exact: true }).fill('200');
+      await dialog.getByRole('button', { name: anchor, exact: true }).click();
+      await dialog.getByRole('button', { name: 'Resize' }).click();
+      await expect(status(page, 8, 8)).toBeVisible();
+      await clearClipboard(page);
+      await menu(page, 'Edit', 'Copy Merged');
+      const img = await copiedImage(page);
+      expect([img.width, img.height]).toEqual([8, 8]);
+      expect(pixelOf(img, kept[0], kept[1])).toEqual(red);
+      expect(pixelOf(img, added[0], added[1])).not.toEqual(red);
+      await page.keyboard.press('ControlOrMeta+z');
+      await expect(status(page, 4, 4)).toBeVisible();
+    }
+  });
+});
+
 test('an invalid used field blocks Apply and Enter (AC-07)', async ({ page }) => {
   await createDocument(page, 'image', { width: 40, height: 30 });
   const dialog = await open(page, 'Scale Image…');
@@ -100,6 +171,29 @@ test('an invalid used field blocks Apply and Enter (AC-07)', async ({ page }) =>
   await dialog.getByLabel('Width').fill('12.5');
   await expect(dialog.getByLabel('Width')).toHaveAttribute('aria-invalid', 'true');
   await expect(apply).toBeDisabled();
+  await dialog.getByLabel('Width').fill('20');
+  await expect(apply).toBeEnabled();
+  // The resolution counts in inches (and centimeters): above 10000 or zero
+  // blocks; in pixels it blocks nothing.
+  const resolution = dialog.getByLabel('Resolution');
+  await dialog.getByLabel('Unit').selectOption('in');
+  for (const bad of ['10001', '0']) {
+    await resolution.fill(bad);
+    await expect(resolution).toHaveAttribute('aria-invalid', 'true');
+    await expect(dialog.getByTestId('size-result')).toHaveText('—');
+    await expect(apply).toBeDisabled();
+    await resolution.press('Enter');
+    await expect(dialog).toBeVisible();
+  }
+  // In pixels the zero resolution stays, unmarked, and blocks nothing once
+  // the edges (left in inches by the switch) are whole pixels again.
+  await dialog.getByLabel('Unit').selectOption('px');
+  await dialog.getByLabel('Width').fill('20');
+  await dialog.getByLabel('Height').fill('15');
+  await expect(resolution).toHaveValue('0');
+  await expect(resolution).not.toHaveAttribute('aria-invalid', 'true');
+  await expect(dialog.getByTestId('size-result')).toHaveText('20 × 15 px');
+  await expect(apply).toBeEnabled();
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(status(page, 40, 30)).toBeVisible();
 });

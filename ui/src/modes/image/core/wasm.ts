@@ -28,6 +28,10 @@ import initWasm, {
   get_layer_thumbnail,
   undo,
   redo,
+  undo_kinds,
+  redo_kinds,
+  history_dropped,
+  jump_history,
   export_png,
   export_jpeg,
   export_webp,
@@ -239,8 +243,31 @@ export interface SmudgeStrokeCommand {
   stroke_id: number;
 }
 
-/** The five ramps a gradient drag can describe. */
-export type GradientKind = 'linear' | 'reflected' | 'radial' | 'conical' | 'diamond';
+/** A Clone Stamp stroke: copies the pixels `offset` away through the tip
+ *  (docs/specs/clone-stamp.md). */
+export interface CloneStrokeCommand {
+  type: 'clone_stroke';
+  layer: number;
+  size: number;
+  opacity: number;
+  shape: BrushShape;
+  hardness: number;
+  /** Source position minus destination position, in whole pixels. */
+  offset: [number, number];
+  sample: SampleSource;
+  points: Array<[number, number]>;
+  pressure: number[];
+  pressure_size: boolean;
+  pressure_opacity: boolean;
+  azimuth: Array<number | null>;
+  angle: number;
+  tilt_angle: boolean;
+  stroke_id: number;
+}
+
+/** The seven ramps a gradient drag can describe. */
+export type GradientKind =
+  'linear' | 'reflected' | 'radial' | 'conical' | 'diamond' | 'spiral_cw' | 'spiral_ccw';
 
 /** Whether the ramp paints color or fades alpha. */
 export type GradientChannel = 'color' | 'transparency';
@@ -271,6 +298,14 @@ export interface TranslateSelectionMaskCommand {
 export interface DeleteSelectionCommand {
   type: 'delete_selection';
   layer: number;
+}
+
+/** Fill the selected pixels of a layer with `color` — the whole layer when
+ * no selection is active (Edit ▸ Fill Selection). */
+export interface FillSelectionCommand {
+  type: 'fill_selection';
+  layer: number;
+  color: Rgba;
 }
 
 /** Layer-structure and -property commands (spec §5.2 / §7.3). */
@@ -518,11 +553,13 @@ export type ToolCommand =
   | EraserStrokeCommand
   | RecolorStrokeCommand
   | SmudgeStrokeCommand
+  | CloneStrokeCommand
   | FillBucketCommand
   | TranslateLayerCommand
   | TranslateSelectionCommand
   | TranslateSelectionMaskCommand
   | DeleteSelectionCommand
+  | FillSelectionCommand
   | LayerCommand
   | SelectionCommand
   | TransformCommand
@@ -690,6 +727,16 @@ export const core = {
     get_layer_thumbnail(handle, layerId) as Uint8ClampedArray<ArrayBuffer>,
   undo: (handle: number): boolean => undo(handle),
   redo: (handle: number): boolean => redo(handle),
+  /** Kind ids of the undo steps (oldest first) and the redo steps (next
+   *  redo first), and whether a step was dropped (history-panel AC-02). */
+  history: (handle: number): { undo: string[]; redo: string[]; dropped: boolean } => ({
+    undo: undo_kinds(handle),
+    redo: redo_kinds(handle),
+    dropped: history_dropped(handle),
+  }),
+  /** Undoes (`delta < 0`) or redoes `|delta|` steps in one call; throws
+   *  when a step fails, after the steps before it (history-panel AC-12). */
+  jumpHistory: (handle: number, delta: number): number => jump_history(handle, delta),
   exportPng: (handle: number, compression: number): Uint8Array => export_png(handle, compression),
   exportJpeg: (handle: number, quality: number): Uint8Array => export_jpeg(handle, quality),
   exportWebp: (handle: number): Uint8Array => export_webp(handle),

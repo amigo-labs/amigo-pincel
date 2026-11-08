@@ -1,6 +1,7 @@
 //! Several commands as one undo step — e.g. Move (layer) on a group, which
 //! moves every raster layer inside it (docs/specs/image-layer-groups.md AC-18).
 
+use super::HistoryKind;
 use super::{Command, Damage};
 use crate::document::Document;
 use crate::error::DocumentError;
@@ -10,15 +11,12 @@ use std::any::Any;
 /// apply rolls back the ones that already ran.
 pub(crate) struct Batch {
     cmds: Vec<Box<dyn Command>>,
-    label: String,
+    kind: HistoryKind,
 }
 
 impl Batch {
-    pub(crate) fn new(cmds: Vec<Box<dyn Command>>, label: &str) -> Self {
-        Self {
-            cmds,
-            label: label.to_string(),
-        }
+    pub(crate) fn new(cmds: Vec<Box<dyn Command>>, kind: HistoryKind) -> Self {
+        Self { cmds, kind }
     }
 }
 
@@ -42,8 +40,8 @@ impl Command for Batch {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        &self.label
+    fn kind(&self) -> HistoryKind {
+        self.kind
     }
 
     fn undo_bytes(&self) -> usize {

@@ -156,7 +156,7 @@ pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentErr
 }
 
 /// Image documents have one frame; `frame` may only name it.
-fn check_frame(args: &Args) -> Result<(), AgentError> {
+pub(crate) fn check_frame(args: &Args) -> Result<(), AgentError> {
     match args.u32("frame")? {
         None | Some(0) => Ok(()),
         Some(f) => Err(AgentError::tool(format!(
@@ -328,10 +328,18 @@ pub(crate) fn save(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
     let (path, format) = match (args.str("path"), &doc.path, &doc.source) {
         (Some(p), _, _) => {
             let format = save_format(p).ok_or_else(|| {
-                let hint = if layered { " (a .ora path keeps the layers)" } else { "" };
-                AgentError::tool(format!(
-                    "doc.save cannot write `{p}`: Image documents are saved as {SAVE_EXTENSIONS}{hint}"
-                ))
+                // A PSD source or several layers: `.ora` first, as the
+                // editor's Save As preselects it (AC-19).
+                let psd = matches!(&doc.source, Some((_, "PSD")));
+                AgentError::tool(if psd || layered {
+                    format!(
+                        "doc.save cannot write `{p}`: pass a `.ora` path (keeps the layers) or a path ending in {SAVE_EXTENSIONS}"
+                    )
+                } else {
+                    format!(
+                        "doc.save cannot write `{p}`: Image documents are saved as {SAVE_EXTENSIONS}"
+                    )
+                })
             })?;
             (p.to_owned(), format)
         }
@@ -522,5 +530,57 @@ mod tests {
         assert_eq!(flat_format(&[0xFF, 0xD8, 0xFF]), "JPEG");
         assert_eq!(flat_format(b"RIFF\0\0\0\0WEBPVP8L"), "WebP");
         assert_eq!(flat_format(b"nothing"), "image");
+    }
+
+    #[test]
+    fn psd_notice_names_the_layer_or_blend_key_of_each_item() {
+        // mcp-parity-export AC-21: one English line per notice, naming
+        // what it concerns.
+        let layer = || "Ink 2".to_owned();
+        for (notice, want) in [
+            (
+                PsdNotice::Adjustment { layer: layer() },
+                "adjustment or fill layer \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Text { layer: layer() },
+                "text layer \"Ink 2\" opened as pixels",
+            ),
+            (
+                PsdNotice::SmartObject { layer: layer() },
+                "smart object \"Ink 2\" opened as pixels",
+            ),
+            (
+                PsdNotice::Effects { layer: layer() },
+                "layer effects of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Mask { layer: layer() },
+                "mask of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Clipping { layer: layer() },
+                "clipping mask of \"Ink 2\" left out",
+            ),
+            (
+                PsdNotice::Blend {
+                    layer: layer(),
+                    key: "hLit".to_owned(),
+                },
+                "blend mode \"hLit\" of \"Ink 2\" opened as Normal",
+            ),
+            (
+                PsdNotice::PassThrough { group: layer() },
+                "pass-through group \"Ink 2\" opened as an isolated Normal group",
+            ),
+            (
+                PsdNotice::Fallback {
+                    reason: PsdFallback::Compressed,
+                },
+                "opened as one flattened layer: the layers are ZIP-compressed",
+            ),
+        ] {
+            assert_eq!(psd_notice(&notice), want);
+        }
     }
 }

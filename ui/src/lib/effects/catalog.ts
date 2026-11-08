@@ -27,8 +27,9 @@ export const EFFECT_SUBMENUS = [
 /** One submenu of the Effects menu. */
 export type EffectSubmenu = (typeof EFFECT_SUBMENUS)[number];
 
-/** Where an entry lives: an Effects submenu, or the Adjustments menu. */
-export type EffectGroup = EffectSubmenu | 'adjust';
+/** Where an entry lives: an Effects submenu, the Adjustments menu, or the
+ *  Layer menu (Rotate / Zoom, which no effect menu lists). */
+export type EffectGroup = EffectSubmenu | 'adjust' | 'layer';
 
 /** The editor mode a menu is built for. */
 export type EffectMode = 'pixel' | 'image';
@@ -755,6 +756,22 @@ export const EFFECTS: EffectDef[] = [
       angle('angle', 'Angle', 0),
       num('quality', 'Quality', 1, 5, 2),
       bool('invert', 'Invert colors'),
+    ],
+  },
+  // docs/specs/image-transform-handles-rotate-zoom.md: Layer ▸ Rotate / Zoom
+  // runs as an effect; the Layer menu opens it. Pans in percent of the
+  // canvas, the quality as option index (0 = Nearest).
+  {
+    id: 'rotate_zoom',
+    label: 'Rotate / Zoom',
+    group: 'layer',
+    modes: IMAGE,
+    params: [
+      num('angle', 'Angle', -180, 180, 0, 0.1),
+      num('pan_x', 'Pan X', -100, 100, 0, 0.1),
+      num('pan_y', 'Pan Y', -100, 100, 0, 0.1),
+      num('zoom', 'Zoom', 0.1, 10, 1, 0.01),
+      choice('quality', 'Quality', ['Nearest', 'Bilinear', 'Bicubic'], 1),
     ],
   },
 ];

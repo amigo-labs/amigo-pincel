@@ -370,8 +370,13 @@ pub(super) const TILE_READ_PIXELS: Tool = Tool {
         };
         if !crate::args::inside_canvas(r, tw, th) {
             return Err(AgentError::tool(format!(
-                "region ({}, {}, {}×{}) lies outside the {tw}×{th} tile",
-                r.x, r.y, r.width, r.height
+                "region ({}, {}, {}×{}) lies outside the {tw}×{th} tile; give a `region` inside 0–{} × 0–{}",
+                r.x,
+                r.y,
+                r.width,
+                r.height,
+                tw - 1,
+                th - 1
             )));
         }
         if r.width > READ_MAX || r.height > READ_MAX {

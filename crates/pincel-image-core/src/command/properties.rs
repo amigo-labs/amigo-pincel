@@ -2,6 +2,7 @@
 //! (spec §5.2 / §7.3). Each remembers the prior value on first apply so revert
 //! and redo restore it exactly.
 
+use super::HistoryKind;
 use super::{Command, Damage};
 use crate::color::BlendMode;
 use crate::document::{Document, Layer};
@@ -47,8 +48,8 @@ impl Command for RenameLayer {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Rename Layer"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::RenameLayer
     }
 
     /// Layer names are not part of the composite.
@@ -96,8 +97,8 @@ impl Command for SetLayerOpacity {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Layer Opacity"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::LayerOpacity
     }
 
     fn merge_with(&mut self, newer: &dyn Command) -> bool {
@@ -148,8 +149,8 @@ impl Command for SetLayerBlendMode {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Layer Blend Mode"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::LayerBlendMode
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -189,8 +190,8 @@ impl Command for SetLayerVisible {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Layer Visibility"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::LayerVisibility
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -230,8 +231,8 @@ impl Command for SetLayerLocked {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        "Layer Lock"
+    fn kind(&self) -> HistoryKind {
+        HistoryKind::LayerLock
     }
 
     /// The lock flag is not part of the composite.

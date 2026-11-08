@@ -10,6 +10,7 @@
 use std::any::Any;
 use std::sync::Arc;
 
+use super::HistoryKind;
 use super::live_text::LiveText;
 use super::{Command, CommandBus, Damage, SetPixels};
 use crate::document::{Document, ImageBuffer};
@@ -239,12 +240,12 @@ impl LiveParams {
         }
     }
 
-    /// The history label of the object's tool ("Line", "Rectangle", …).
-    pub fn label(&self) -> &'static str {
+    /// The history kind of the object's tool (Line, Rectangle, …).
+    pub fn kind(&self) -> HistoryKind {
         match self {
-            LiveParams::Shape(s) => s.shape().label(),
-            LiveParams::Gradient(_) => "Gradient",
-            LiveParams::Text(_) => "Text",
+            LiveParams::Shape(s) => s.shape().kind(),
+            LiveParams::Gradient(_) => HistoryKind::Gradient,
+            LiveParams::Text(_) => HistoryKind::Text,
         }
     }
 
@@ -496,8 +497,8 @@ impl Command for LiveStep {
         Ok(())
     }
 
-    fn label(&self) -> &str {
-        self.after.params.label()
+    fn kind(&self) -> HistoryKind {
+        self.after.params.kind()
     }
 
     fn damage(&self) -> Damage {
@@ -658,7 +659,7 @@ impl CommandBus {
                 let before = base.copy_region(rect)?;
                 let after = self.document.layers[layer].pixels.copy_region(rect)?;
                 (before != after)
-                    .then(|| SetPixels::applied(layer, rect, before, drawn.params.label()))
+                    .then(|| SetPixels::applied(layer, rect, before, drawn.params.kind()))
             }
             None => None,
         };

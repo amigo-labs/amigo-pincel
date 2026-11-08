@@ -4,21 +4,20 @@
 //! thread-local arena, and JS only ever receives composited pixel buffers and
 //! exported bytes (ADR-001). Commands are passed as JSON strings.
 
-use pincel_effects::{EffectImage, EffectSpec};
+use pincel_effects::EffectSpec;
 use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
-use pincel_image_core::codec::{
-    to_bmp_bytes, to_jpeg_bytes, to_png_bytes, to_tiff_bytes, to_webp_bytes,
-};
+use pincel_image_core::codec::to_png_bytes;
 use pincel_image_core::command::live_spec::{
     TextLayoutRequest, live_object_spec, text_layout as layout_text,
 };
 use pincel_image_core::command::spec::{
     CommandSpec, StrokeScratch, layer_locked, parse_sample, run_command,
 };
-use pincel_image_core::command::{CommandBus, PasteLayer, SetPixels};
+use pincel_image_core::command::{CommandBus, HistoryKind, PasteLayer, SetPixels};
+use pincel_image_core::jobs::{self, EncodeFormat, JobError, decode_region, encode_region};
 use pincel_image_core::{
     BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
-    compose, copy_selection as copy_selection_pixels, delete_selection, masked_region,
+    compose, copy_selection as copy_selection_pixels, delete_selection,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -26,7 +25,11 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod history;
 mod vectorize;
+
+#[cfg(test)]
+mod rotate_zoom_tests;
 
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
 
@@ -257,8 +260,7 @@ fn rgba_key(width: u32, height: u32, rgba: &[u8]) -> String {
 #[wasm_bindgen]
 pub fn save_project(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        pincel_image_core::codec::to_ora_bytes(&bus.document, compression)
-            .map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Ora, compression, 0).map_err(job_js)
     })
 }
 
@@ -428,23 +430,12 @@ pub fn live_object(handle: u32) -> Result<JsValue, JsError> {
     })
 }
 
-/// Reads the pixels of the layer at `index` into an [`EffectImage`].
-fn layer_effect_image(doc: &Document, index: usize) -> Result<(EffectImage, u32, u32), JsError> {
-    let layer = doc
-        .layers()
-        .get(index)
-        .ok_or_else(|| JsError::new("layer index out of bounds"))?;
-    let (w, h) = (layer.pixels.width(), layer.pixels.height());
-    let img = EffectImage::from_rgba8(w, h, layer.pixels.data().to_vec())
-        .map_err(|e| JsError::new(&e.to_string()))?;
-    Ok((img, w, h))
-}
-
 /// Runs the effect `name` with the positional `params` (the shared
 /// `pincel_effects::EffectSpec` wire format, also used by Pixel mode — see
 /// `EFFECT_NAMES` and `ui/src/lib/effects/catalog.ts`) on the layer at
 /// `layer`, limited to the selection, and commits it as one undoable
-/// `SetPixels`. Returns `false` (no undo step) when the selection is empty.
+/// `SetPixels`. Returns `false` (no undo step) when the selection is empty,
+/// or when Rotate / Zoom changes no pixel.
 #[wasm_bindgen]
 pub fn apply_effect(
     handle: u32,
@@ -458,24 +449,51 @@ pub fn apply_effect(
             return Err(JsError::new(LOCKED));
         }
         let region = effect_region(&bus.document, layer, &spec)?;
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, &spec, region)
     })
 }
 
-/// Commits an effect's region as one undoable `SetPixels` labelled like
-/// the effect; `false` (no undo step) for `None`.
+/// Commits the region of the effect `name` as one undoable `SetPixels` of
+/// that effect's history kind; `false` (no undo step) for `None`, and for a
+/// Rotate / Zoom region the layer already holds
+/// (docs/specs/image-transform-handles-rotate-zoom.md AC-05). Every other
+/// effect stays one step per Apply, changed or not (effect-panel AC-04).
 fn commit_region(
     bus: &mut CommandBus,
     layer: usize,
+    name: &str,
     spec: &EffectSpec,
     region: Option<(Rect, ImageBuffer)>,
 ) -> Result<bool, JsError> {
     let Some((region, after)) = region else {
         return Ok(false);
     };
-    let cmd = SetPixels::new(layer, region, after).with_label(spec.label());
-    bus.apply(Box::new(cmd)).map_err(to_js)?;
+    let unchanged = matches!(spec, EffectSpec::RotateZoom(_))
+        && bus
+            .document
+            .layers()
+            .get(layer)
+            .and_then(|l| l.pixels.copy_region(region).ok())
+            .is_some_and(|now| now.data() == after.data());
+    if unchanged {
+        return Ok(false);
+    }
+    bus.apply(Box::new(effect_step(layer, region, after, name)?))
+        .map_err(to_js)?;
     Ok(true)
+}
+
+/// The undo step of an effect's region: a `SetPixels` of the history kind
+/// of the effect `name` (e.g. `effect.rotate_zoom`).
+fn effect_step(
+    layer: usize,
+    region: Rect,
+    after: ImageBuffer,
+    name: &str,
+) -> Result<SetPixels, JsError> {
+    let kind = HistoryKind::effect(name)
+        .ok_or_else(|| JsError::new(&format!("unknown effect `{name}`")))?;
+    Ok(SetPixels::new(layer, region, after).with_kind(kind))
 }
 
 /// Runs effect `name` / `params` on the layer at `layer` the way
@@ -501,7 +519,7 @@ pub fn effect_region_bytes(
 /// Commits `region` (bytes from [`effect_region_bytes`] for the same
 /// effect, layer and document state) to the layer at `layer` as the one
 /// undoable step [`apply_effect`] makes. Returns `false` (no undo step)
-/// for an empty region.
+/// for an empty region, or a Rotate / Zoom region that changes no pixel.
 #[wasm_bindgen]
 pub fn apply_effect_region(
     handle: u32,
@@ -510,66 +528,24 @@ pub fn apply_effect_region(
     params: &[f64],
     region: &[u8],
 ) -> Result<bool, JsError> {
+    // Validates the effect name and parameters before touching the document.
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
-    let region = decode_region(region).map_err(|e| JsError::new(&e))?;
+    let region = decode_region(region).map_err(job_js)?;
     with_bus(handle, |bus| {
         if layer_locked(&bus.document, layer) {
             return Err(JsError::new(LOCKED));
         }
-        commit_region(bus, layer, &spec, region)
+        commit_region(bus, layer, name, &spec, region)
     })
 }
 
-/// The wire form of an effect region (see [`effect_region_bytes`]).
-fn encode_region(region: Option<(Rect, ImageBuffer)>) -> Vec<u8> {
-    let Some((rect, pixels)) = region else {
-        return Vec::new();
-    };
-    let mut out = Vec::with_capacity(16 + pixels.data().len());
-    out.extend_from_slice(&rect.x.to_le_bytes());
-    out.extend_from_slice(&rect.y.to_le_bytes());
-    out.extend_from_slice(&rect.w.to_le_bytes());
-    out.extend_from_slice(&rect.h.to_le_bytes());
-    out.extend_from_slice(pixels.data());
-    out
-}
-
-/// Reads [`encode_region`]'s wire form back.
-fn decode_region(bytes: &[u8]) -> Result<Option<(Rect, ImageBuffer)>, String> {
-    if bytes.is_empty() {
-        return Ok(None);
-    }
-    let field = |i: usize| -> Result<[u8; 4], String> {
-        bytes
-            .get(i * 4..i * 4 + 4)
-            .and_then(|b| b.try_into().ok())
-            .ok_or_else(|| "effect region header is truncated".to_string())
-    };
-    let rect = Rect {
-        x: i32::from_le_bytes(field(0)?),
-        y: i32::from_le_bytes(field(1)?),
-        w: u32::from_le_bytes(field(2)?),
-        h: u32::from_le_bytes(field(3)?),
-    };
-    let pixels =
-        ImageBuffer::from_raw(rect.w, rect.h, bytes[16..].to_vec()).map_err(|e| e.to_string())?;
-    Ok(Some((rect, pixels)))
-}
-
-/// Runs `spec` on the layer at `layer` and keeps the result inside the
-/// selection (spec §8.1): the changed region and its new pixels, or `None`
-/// when the selection is empty.
+/// [`jobs::effect_region`], the function every job backend runs.
 fn effect_region(
     doc: &Document,
     layer: usize,
     spec: &EffectSpec,
 ) -> Result<Option<(Rect, ImageBuffer)>, JsError> {
-    let (src, w, h) = layer_effect_image(doc, layer)?;
-    let selection = doc.selection.as_ref();
-    let out = spec.run_in(&src, |x, y| selection.is_none_or(|m| m.coverage(x, y) > 0));
-    let after = ImageBuffer::from_raw(w, h, out.into_raw()).map_err(to_js)?;
-    let before = &doc.layers()[layer].pixels;
-    Ok(masked_region(before, &after, selection))
+    jobs::effect_region(doc, layer, spec).map_err(job_js)
 }
 
 /// Renders a live preview of effect `name` / `params` on the layer at
@@ -585,15 +561,8 @@ pub fn preview_effect(
 ) -> Result<Clamped<Vec<u8>>, JsError> {
     let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
     with_bus(handle, |bus| {
-        let region = effect_region(&bus.document, layer, &spec)?;
-        let mut layers = bus.document.layers().to_vec();
-        if let Some((rect, after)) = region {
-            layers[layer]
-                .pixels
-                .paste_region(rect, &after)
-                .map_err(to_js)?;
-        }
-        Ok(Clamped(compose(&layers).into_raw()))
+        let out = jobs::preview_effect(&bus.document, layer, &spec).map_err(job_js)?;
+        Ok(Clamped(out.into_raw()))
     })
 }
 
@@ -645,8 +614,7 @@ pub fn composite_region(
 #[wasm_bindgen]
 pub fn export_png(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_png_bytes(&compose(bus.document.layers()), compression)
-            .map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Png, compression, 0).map_err(job_js)
     })
 }
 
@@ -654,8 +622,7 @@ pub fn export_png(handle: u32, compression: u8) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_jpeg(handle: u32, quality: u8) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_jpeg_bytes(&compose(bus.document.layers()), quality)
-            .map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Jpeg, 0, quality).map_err(job_js)
     })
 }
 
@@ -663,7 +630,7 @@ pub fn export_jpeg(handle: u32, quality: u8) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_webp(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_webp_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Webp, 0, 0).map_err(job_js)
     })
 }
 
@@ -671,7 +638,7 @@ pub fn export_webp(handle: u32) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_bmp_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Bmp, 0, 0).map_err(job_js)
     })
 }
 
@@ -679,7 +646,7 @@ pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_tiff(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_tiff_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Tiff, 0, 0).map_err(job_js)
     })
 }
 
@@ -834,6 +801,10 @@ pub fn get_selection_mask(handle: u32) -> Result<Clamped<Vec<u8>>, JsError> {
 
 /// Converts a core error into a JS error.
 fn to_js(e: pincel_image_core::DocumentError) -> JsError {
+    JsError::new(&e.to_string())
+}
+
+fn job_js(e: JobError) -> JsError {
     JsError::new(&e.to_string())
 }
 
@@ -1296,7 +1267,8 @@ mod render_tests {
             let bus = layered();
             let before = bus.document.layers()[0].pixels.clone();
             let other = bus.document.layers()[1].pixels.clone();
-            let src = EffectImage::from_rgba8(W, H, before.data().to_vec()).expect("img");
+            let src =
+                pincel_effects::EffectImage::from_rgba8(W, H, before.data().to_vec()).expect("img");
             let full = ImageBuffer::from_raw(
                 W,
                 H,

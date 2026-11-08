@@ -14,14 +14,16 @@
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
-  import { readCompositeRegion, renderText, undo } from '../../core/controller';
+  import { readCompositeRegion, undo } from '../../core/controller';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
+  import CloneCrosshair from './CloneCrosshair.svelte';
   import PixelGrid from './PixelGrid.svelte';
   import LiveHandles from './LiveHandles.svelte';
+  import TextBox from './TextBox.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
   // store-free element covering the document inside the transformed stage
@@ -29,11 +31,6 @@
   let canvas: HTMLCanvasElement;
   let surface: HTMLDivElement;
   let viewport: HTMLDivElement;
-
-  // In-progress text entry (Text tool). `cx`/`cy` are canvas-space; the floating
-  // textarea lives inside the transformed stage, so it is positioned in those
-  // same document pixels and the stage transform scales it (spec §9.2).
-  let textEntry = $state<{ cx: number; cy: number; text: string } | null>(null);
 
   function redraw(): void {
     if (!canvas || editor.handle === null) {
@@ -332,44 +329,6 @@
     }
   }
 
-  /** Opens a text-entry box at a click, committing any prior entry first. */
-  function placeText(cx: number, cy: number): void {
-    commitText();
-    textEntry = { cx, cy, text: '' };
-  }
-
-  /** Rasterizes the current entry to pixels (no-op if empty), then clears it. */
-  function commitText(): void {
-    const entry = textEntry;
-    if (!entry) {
-      return;
-    }
-    textEntry = null; // clear first so a trailing blur does not double-commit
-    if (entry.text.trim().length > 0) {
-      void renderText(entry.cx, entry.cy, entry.text)
-        .then(redraw)
-        .catch(() => {});
-    }
-  }
-
-  function onEntryKeydown(e: KeyboardEvent): void {
-    if (e.key === 'Escape' || (e.key === 'Enter' && (e.ctrlKey || e.metaKey))) {
-      e.preventDefault();
-      e.stopPropagation();
-      commitText();
-    }
-  }
-
-  function autofocus(node: HTMLTextAreaElement): void {
-    node.focus();
-  }
-
-  // The core anchors center/right-aligned text about `x` (tools/text.rs), so
-  // the preview box shifts by the same fraction of its own width.
-  const entryShift = $derived(
-    tool.textAlign === 'center' ? '-50%' : tool.textAlign === 'right' ? '-100%' : '0',
-  );
-
   const toolCursors: Record<string, string> = {
     pencil: 'crosshair',
     eraser: 'crosshair',
@@ -377,6 +336,7 @@
     gradient: 'crosshair',
     recolor: 'crosshair',
     smudge: 'crosshair',
+    clone: 'crosshair',
     eyedropper: 'copy',
     move: 'move',
     move_selection: 'move',
@@ -422,7 +382,7 @@
     viewCommands.zoomOut = () => setZoom(view.zoom / 1.25);
     viewCommands.fit = fitView;
     viewCommands.actual = () => setZoom(1);
-    const detach = attachTools(surface, viewport, redraw, placeText);
+    const detach = attachTools(surface, viewport, redraw);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
       if (view.fit) {
@@ -494,10 +454,11 @@
     </p>
   {/if}
 
-  <!-- The stage carries the view transform: the pointer surface and the text
-       entry live in document pixels inside it (pointer coords come from the
-       surface's getBoundingClientRect). Pixels are drawn by the viewport-sized
-       canvas above, the marching ants by the overlay below. -->
+  <!-- The stage carries the view transform: the pointer surface lives in
+       document pixels inside it (pointer coords come from the surface's
+       getBoundingClientRect). Pixels are drawn by the viewport-sized canvas
+       above, the marching ants, handles and live text box by the overlays
+       below. -->
   <div
     class="absolute left-0 top-0 origin-top-left"
     style="transform: {stageTransform}; {editor.handle === null ? 'display:none' : ''}"
@@ -510,24 +471,13 @@
       data-ready={ready}
       style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
     ></div>
-    {#if textEntry}
-      <textarea
-        use:autofocus
-        bind:value={textEntry.text}
-        onkeydown={onEntryKeydown}
-        onblur={commitText}
-        spellcheck="false"
-        class="absolute z-10 resize-none overflow-hidden whitespace-pre border border-dashed border-pc-accent bg-transparent p-0 leading-none outline-none"
-        style="left: {textEntry.cx}px; top: {textEntry.cy}px; transform: translateX({entryShift}); text-align: {tool.textAlign}; font-size: {tool.fontSize}px; color: {tool.foreground}; font-family: 'Liberation Sans', Arial, sans-serif; font-weight: {tool.textBold
-          ? 'bold'
-          : 'normal'}; font-style: {tool.textItalic ? 'italic' : 'normal'}; min-width: 4ch;"
-      ></textarea>
-    {/if}
   </div>
 
   <PixelGrid />
   <CanvasOverlay />
+  <CloneCrosshair />
   <LiveHandles />
+  <TextBox />
 
   {#if zoomRect}
     <div

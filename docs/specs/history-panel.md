@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: both
@@ -40,24 +40,24 @@ What counts as one step, what merges and what adds no step (selection in Pixel m
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Pixel mode and Image mode both have a panel titled "History" in the sidebar (and in the drawer and the bottom sheet of the smaller layouts); on first use it is collapsed, and whether it is collapsed is remembered per mode like the other panels' state.
-- [ ] AC-02 (always): The panel lists the start entry first, then one row per step from the oldest to the newest undoable step, then the redoable steps in the order Redo would restore them. The row of the current state is marked as selected; the redoable rows are dimmed.
-- [ ] AC-03 (always): The start entry is named after how the document began: "New" for a document created in the app, "Open" for one opened from a file, "Paste" for one made by Paste as New Image, "Recovered" for one restored by autosave recovery, and "Start" for any other origin. Once any step has been dropped from the undo history (by the 100-step limit, or in Image mode by the undo memory budget of `performance-image-undo-memory`), it is named "Oldest available state".
-- [ ] AC-04 (always): Every row names the action that made the step, in the UI language — for example "Pencil", "Brush", "Add Layer", "Merge Down", "Resize Canvas"; an effect or adjustment step is named after that effect ("Gaussian Blur"), as the effect menus name it. Every kind of step either mode can produce has its own name in English and German, so no row shows an empty name, a raw kind id, or a catch-all such as "Edit" that does not say which action it was.
-- [ ] AC-05 (event): When the user clicks a row, or presses Enter or Space on a focused row, then the document becomes exactly the state after that step (the state before the oldest step for the start entry), as the same number of Undo or Redo presses would make it; that row becomes the current state, the rows after it are dimmed, and the undo / redo buttons and depths elsewhere in the UI match.
-- [ ] AC-06 (event): When the user makes a new edit while rows are dimmed, then the dimmed rows disappear and the new step's row follows the current state's row, because a new edit after an Undo discards the redo steps in both modes (`pixel-undo-history` AC-03, `image-editing` AC-26).
-- [ ] AC-07 (event): When the user presses the panel's Rewind, Undo, Redo or Fast-forward button, then the document jumps to the start entry, one step back, one step forward, or the newest step; each button is disabled while it cannot change anything (Rewind and Undo with nothing to undo, Redo and Fast-forward with nothing to redo).
-- [ ] AC-08 (event): When a step is added, undone, redone or dropped in any way — a tool, a menu command, a shortcut, the header's undo / redo buttons, the memory budget — then the panel shows the new list and current state by the time the canvas shows the new document state, and the current state's row is scrolled into view; redo steps the memory budget drops disappear from the list.
-- [ ] AC-09 (event): When the user switches to another document tab, then the panel shows that document's history; each open document keeps its own history.
-- [ ] AC-10 (always): The step list is one keyboard tab stop: Arrow Up / Down move the focus between rows without jumping, Home / End to the first / last row, Enter or Space jump (AC-05). The list has the accessible role `listbox`, each row the role `option` with its name, and the current state's row `aria-selected="true"`.
-- [ ] AC-11 (state): While an effect is open, the panel is inert like the other panels (`effect-panel` AC-03); while a stroke or another pointer gesture is in progress, or a jump is running, a click, Enter or Space on a row and the panel's buttons do nothing (the request is ignored, not queued). While a text entry or another uncommitted edit is open, a jump does to it first what Undo does in that state today.
-- [ ] AC-12 (error): If an undo or redo fails during a jump, then the jump stops at the last state it reached, the panel marks that state as current, the failed step stays on the side it was on (undo or redo), the error shows where the mode shows errors (status bar in Pixel mode, notice in Image mode), and no step is lost.
-- [ ] AC-13 (event): When a jump crosses several steps, then the canvas is redrawn once, with the target state, and shows no state in between.
-- [ ] AC-14 (always): A jump adds no step and writes no file on disk; the document's dirty state and its autosave after a jump equal those after the same number of Undo or Redo presses.
-- [ ] AC-15 (always): Each core reports, for every step in its undo and redo history, a kind id from a fixed set it documents, so that steps made without the UI (MCP calls, batches) are named too. A step that combines several commands (a merged stroke, a batch) reports one kind: the kind of the action that made it. An MCP tool call reports the kind of the editor action it mirrors (e.g. `layer.duplicate` → Duplicate Layer); a tool without an editor counterpart (e.g. `draw.pixels`) has a kind of its own.
-- [ ] AC-16 (option): Where the UI language is German, the panel title ("Verlauf"), the start entry names, the four buttons' accessible names and every step name are German.
-- [ ] AC-17 (error): If a step reports a kind the UI has no name for, then its row reads "Unknown step" followed by the kind id, and the panel keeps working; the AC-04 test keeps such a build from shipping.
-- [ ] AC-18 (event): When a row has keyboard focus and the user presses Space, then the jump of AC-05 happens and the canvas does not start a Space-pan.
+- [x] AC-01 (always): Pixel mode and Image mode both have a panel titled "History" in the sidebar (and in the drawer and the bottom sheet of the smaller layouts); on first use it is collapsed, and whether it is collapsed is remembered per mode like the other panels' state.
+- [x] AC-02 (always): The panel lists the start entry first, then one row per step from the oldest to the newest undoable step, then the redoable steps in the order Redo would restore them. The row of the current state is marked as selected; the redoable rows are dimmed.
+- [x] AC-03 (always): The start entry is named after how the document began: "New" for a document created in the app, "Open" for one opened from a file, "Paste" for one made by Paste as New Image, "Recovered" for one restored by autosave recovery, and "Start" for any other origin. Once any step has been dropped from the undo history (by the 100-step limit, or in Image mode by the undo memory budget of `performance-image-undo-memory`), it is named "Oldest available state".
+- [x] AC-04 (always): Every row names the action that made the step, in the UI language — for example "Pencil", "Brush", "Add Layer", "Merge Down", "Resize Canvas"; an effect or adjustment step is named after that effect ("Gaussian Blur"), as the effect menus name it. Every kind of step either mode can produce has its own name in English and German, so no row shows an empty name, a raw kind id, or a catch-all such as "Edit" that does not say which action it was.
+- [x] AC-05 (event): When the user clicks a row, or presses Enter or Space on a focused row, then the document becomes exactly the state after that step (the state before the oldest step for the start entry), as the same number of Undo or Redo presses would make it; that row becomes the current state, the rows after it are dimmed, and the undo / redo buttons and depths elsewhere in the UI match.
+- [x] AC-06 (event): When the user makes a new edit while rows are dimmed, then the dimmed rows disappear and the new step's row follows the current state's row, because a new edit after an Undo discards the redo steps in both modes (`pixel-undo-history` AC-03, `image-editing` AC-26).
+- [x] AC-07 (event): When the user presses the panel's Rewind, Undo, Redo or Fast-forward button, then the document jumps to the start entry, one step back, one step forward, or the newest step; each button is disabled while it cannot change anything (Rewind and Undo with nothing to undo, Redo and Fast-forward with nothing to redo).
+- [x] AC-08 (event): When a step is added, undone, redone or dropped in any way — a tool, a menu command, a shortcut, the header's undo / redo buttons, the memory budget — then the panel shows the new list and current state by the time the canvas shows the new document state, and the current state's row is scrolled into view; redo steps the memory budget drops disappear from the list.
+- [x] AC-09 (event): When the user switches to another document tab, then the panel shows that document's history; each open document keeps its own history.
+- [x] AC-10 (always): The step list is one keyboard tab stop: Arrow Up / Down move the focus between rows without jumping, Home / End to the first / last row, Enter or Space jump (AC-05). The list has the accessible role `listbox`, each row the role `option` with its name, and the current state's row `aria-selected="true"`.
+- [x] AC-11 (state): While an effect is open, the panel is inert like the other panels (`effect-panel` AC-03); while a stroke or another pointer gesture is in progress, or a jump is running, a click, Enter or Space on a row and the panel's buttons do nothing (the request is ignored, not queued). While a text entry or another uncommitted edit is open, a jump does to it first what Undo does in that state today.
+- [x] AC-12 (error): If an undo or redo fails during a jump, then the jump stops at the last state it reached, the panel marks that state as current, the failed step stays on the side it was on (undo or redo), the error shows where the mode shows errors (status bar in Pixel mode, notice in Image mode), and no step is lost.
+- [x] AC-13 (event): When a jump crosses several steps, then the canvas is redrawn once, with the target state, and shows no state in between.
+- [x] AC-14 (always): A jump adds no step and writes no file on disk; the document's dirty state and its autosave after a jump equal those after the same number of Undo or Redo presses.
+- [x] AC-15 (always): Each core reports, for every step in its undo and redo history, a kind id from a fixed set it documents, so that steps made without the UI (MCP calls, batches) are named too. A step that combines several commands (a merged stroke, a batch) reports one kind: the kind of the action that made it. An MCP tool call reports the kind of the editor action it mirrors (e.g. `layer.duplicate` → Duplicate Layer); a tool without an editor counterpart (e.g. `draw.pixels`) has a kind of its own.
+- [x] AC-16 (option): Where the UI language is German, the panel title ("Verlauf"), the start entry names, the four buttons' accessible names and every step name are German.
+- [x] AC-17 (error): If a step reports a kind the UI has no name for, then its row reads "Unknown step" followed by the kind id, and the panel keeps working; the AC-04 test keeps such a build from shipping.
+- [x] AC-18 (event): When a row has keyboard focus and the user presses Space, then the jump of AC-05 happens and the canvas does not start a Space-pan.
 
 ## Technical notes
 
@@ -98,27 +98,46 @@ Hints, not contracts. Grep for the names, because line numbers drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |  | open |  |
-| AC-04 |  | open |  |
-| AC-05 |      | open   |        |
-| AC-06 |  | open |  |
-| AC-07 |      | open   |        |
-| AC-08 |  | open |  |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |  | open |  |
-| AC-12 |  | open |  |
-| AC-13 |  | open |  |
-| AC-14 |  | open |  |
-| AC-15 |  | open |  |
-| AC-16 |      | open   |        |
-| AC-17 |  | open |  |
-| AC-18 |  | open |  |
+| AC-01 | `ui/e2e/history-panel.spec.ts` › both modes have a History panel, collapsed at first, its state kept per mode; › phone › the History panel is a tab of the bottom sheet; › tablet › the History panel is in the drawer | verified | 70288e05 |
+| AC-02 | `ui/e2e/history-panel.spec.ts` › rows list the start entry, the undo steps and the dimmed redo steps …; `ui/e2e/history-panel-image.spec.ts` › Image steps are named after their tools and menu commands …; `crates/pincel-core/src/command/bus.rs` `kinds_list_undo_oldest_first_and_redo_in_redo_order`; `crates/pincel-image-core/src/command/history.rs` `kinds_list_undo_oldest_first_and_redo_in_redo_order` | verified | 609be13f |
+| AC-03 | `ui/e2e/history-panel-image.spec.ts` › pixel / image: the start entry names a new and an opened document; › clipboard › … Paste as New Image is "Paste"; › … a recovered document starts with "Recovered"; › … once the 100-step limit drops a step …; `ui/e2e/history-names.spec.ts` › the start entry is named after how the document began …; `bus.rs` `dropped_steps_is_set_once_the_cap_drops_the_oldest`; image `history.rs` `dropped_steps_is_set_when_the_capacity_or_the_byte_cap_drops_a_step`; `crates/pincel-wasm/src/history.rs` `history_dropped_turns_true_when_the_cap_drops_a_step` | verified | b7350aea |
+| AC-04 | `crates/pincel-wasm/src/history.rs` and `crates/pincel-image-wasm/src/history.rs` `every_history_kind_has_an_english_and_a_german_name`; `ui/e2e/history-panel.spec.ts` › an effect step is named like the effect menu names it; › rows list the start entry …; `ui/e2e/history-panel-image.spec.ts` › Image steps are named …; `ui/e2e/history-names.spec.ts` › an effect step is named as the effect menu names it | verified | 658856a4 |
+| AC-05 | `ui/e2e/history-panel.spec.ts` › a click, Enter or Space on a row jumps there as that many Undo / Redo presses would; `ui/e2e/history-panel-image.spec.ts` › Image steps are named … a row click jumps; `bus.rs` `jump_matches_the_same_number_of_undos_and_redos`; image `history.rs` `jump_matches_the_same_number_of_undos_and_redos`; `crates/pincel-wasm/src/history.rs` `jump_history_equals_repeated_undo_and_queues_one_event` | verified | b7350aea |
+| AC-06 | `ui/e2e/history-panel.spec.ts` › rows list the start entry … a new edit drops the redo rows; `ui/e2e/history-panel-image.spec.ts` › Image steps are named … (Select All after a jump back) | verified | 97b76313 |
+| AC-07 | `ui/e2e/history-panel.spec.ts` › Rewind, Undo, Redo and Fast-forward jump and are disabled when they cannot change anything | verified | 609be13f |
+| AC-08 | `ui/e2e/history-panel.spec.ts` › the panel follows steps from tools, menus, shortcuts and the header buttons, with the current row in view; `bus.rs` `revision_moves_with_the_step_list_but_not_with_a_merge` | verified | 8d7f2b0e |
+| AC-09 | `ui/e2e/history-panel.spec.ts` › each document tab keeps its own history; `ui/e2e/history-panel-image.spec.ts` › Image: each document tab keeps its own history | verified | 70288e05 |
+| AC-10 | `ui/e2e/history-panel.spec.ts` › the list is one tab stop with listbox / option roles; arrows, Home and End move the focus without jumping | verified | 609be13f |
+| AC-11 | `ui/e2e/history-panel.spec.ts` › requests are ignored while a stroke is in progress and the panel is inert while an effect is open; `ui/e2e/history-panel-image.spec.ts` › Image: a click mid-stroke is ignored; › Image: a jump in a live text puts the caret where Undo does | verified | 70288e05 |
+| AC-12 | `ui/e2e/history-panel.spec.ts` › a jump that fails stops at the last state reached and reports in the status bar; `bus.rs` `jump_stops_at_a_failing_redo_and_keeps_the_failed_step`; image `history.rs` `jump_stops_at_a_failing_step_and_keeps_it` | verified | b7350aea |
+| AC-13 | `ui/e2e/history-panel.spec.ts` › a jump of many steps redraws the canvas once; `bus.rs` `jump_of_several_steps_reports_the_whole_canvas_dirty`; `crates/pincel-wasm/src/history.rs` `jump_history_equals_repeated_undo_and_queues_one_event` | verified | b7350aea |
+| AC-14 | `ui/e2e/history-panel.spec.ts` › a jump writes no file and leaves the dirty state of as many undos; › a jump autosaves as the same undos and redos would | verified | 70288e05 |
+| AC-15 | `crates/pincel-agent/src/tests/history.rs` `pixel_calls_name_their_step_after_the_editor_action`, `image_calls_name_their_step_after_the_editor_action`; `bus.rs` `default_kinds_name_the_tool_or_menu_command`, `execute_as_names_the_step_and_a_merge_keeps_the_top_kind`; `crates/pincel-wasm/src/history.rs` `undo_and_redo_kinds_name_tool_and_menu_steps`; `crates/pincel-image-wasm/src/history.rs` `kinds_and_jump_follow_the_documents_history`; image `history.rs` `a_pixel_edit_reports_the_kind_it_was_given`; both `history.rs` `all_ids_are_unique_snake_case` | verified | b7350aea |
+| AC-16 | `ui/e2e/history-panel.spec.ts` › in German, title, start entry, buttons and step names are German; both wasm `every_history_kind_has_an_english_and_a_german_name` | verified | 658856a4 |
+| AC-17 | `ui/e2e/history-names.spec.ts` › a kind the UI has no name for reads "Unknown step" and its id; both wasm `every_history_kind_has_an_english_and_a_german_name` (the build-blocking half) | verified | 609be13f |
+| AC-18 | `ui/e2e/history-panel.spec.ts` › Space on a focused row jumps and starts no Space-pan | verified | 609be13f |
+
+## Summary
+
+> Completed: 2026-11-06
+
+- Both cores report a kind id for every undo and redo step (`HistoryKind` in `pincel-core` and `pincel-image-core`, effects as `effect.<name>`), including MCP calls and batches, and a multi-step jump that stops at a failing step without losing it
+- `pincel-wasm` and `pincel-image-wasm` expose the kinds, a dropped-steps flag, the jump and (Pixel) a history revision; a Rust test fails when a kind has no English or German name
+- A History panel in both modes (sidebar, drawer, bottom sheet), collapsed by default: a start entry named after the document origin, dimmed redo rows, a listbox with keyboard navigation, and Rewind / Undo / Redo / Fast-forward
+- A jump redraws once, adds no step, keeps dirty state and autosave as the same undos would, is ignored mid-gesture, and in Image mode resets a live text as Undo does
 
 ## Decisions
 
 - 2026-11-05: Sidebar panel in both modes, collapsed by default — owner's choice, because a collapsed panel costs one header row and the list is consulted, not watched.
 - 2026-11-05: Step names come from the cores as kind ids that the UI translates (Decision Log 2026-11-05) — owner's choice, because a name given by the UI would leave steps from paths without UI (MCP, recovery) unnamed and could drift from what the command really did.
 - 2026-11-05: paint.net behavior: a start entry, dimmed redo rows, Rewind / Undo / Redo / Fast-forward — owner's choice, because users switching from paint.net expect it.
+- 2026-11-06: Pixel kinds live in `pincel-core` `HistoryKind`, Image kinds in `pincel-image-core` `HistoryKind` (the Image `Command::label` English text became `Command::kind`); effects are `effect.<name>` over `pincel_effects::EFFECT_NAMES` — one fixed, documented list per core, as the Decision Log entry asks, and the effect menu's existing `effect.<name>` strings name them (AC-04).
+- 2026-11-06: `Bus::execute` derives a kind from the command; `Bus::execute_as` / `Doc::commit_as` / `ImageDoc::apply_as` name it where one command type serves several actions (effects, Cut, Crop to Selection, MCP draw tools, frame duplicate) — the smallest change that names every step without touching every caller.
+- 2026-11-06: MCP `layer.set` / `tag.set` that change more than one property at once are one step named "Layer Properties" / "Tag Properties" (new kinds), because no single editor action changes several at once; a single property keeps that property's name.
+- 2026-11-06: Image `move_layer` (stack order) reads "Reorder Layer", the Move tool's `translate_layer` reads "Move Layer", so the two never share a name.
+- 2026-11-06: `Bus::revision` (wasm `historyRevision`) tells Pixel mode when to re-read the kinds, so the per-frame `syncMeta` does not copy 100 strings during a stroke while the list cannot change (AC-08); Image mode re-reads in `syncInfo`, which runs after every command.
+- 2026-11-06: A jump keeps a step that fails on its side in both cores (Pixel `Bus::redo` now always does; Image only in `CommandBus::jump`, whose plain `undo` / `redo` keep dropping a failed step as `performance-image-undo-memory` built it).
+- 2026-11-06: `OpenedFile.origin = 'paste'` (set by `pastedImageFile`) carries Paste as New Image to both editors' open paths; every other way into a tab sets its origin there (New, Open / recent / drop, Recovered).
+- 2026-11-06: AC-11's "uncommitted edit": Pixel text is not in the history until committed and Undo does a plain undo then. In Image mode Undo / Redo first call `gestureControl.historyMoved()` (a live text's caret to the end, selection and typing burst dropped, image-live-text AC-13) after `cancelLiveDrag()`; `jumpHistory` now does both first too (found by the independent check: the first build skipped them, and a jump left the caret and selection where they were). A jump is synchronous, so "a jump is running" is guarded by a re-entry flag no test can reach. Red run: without the two calls `Image: a jump in a live text puts the caret where Undo does` failed (selection marks 1, expected 0); green with them.
+- 2026-11-06: AC-12's Image notice has no e2e test: no Image step fails to redo through the UI (selections are steps there); the core's keep-and-stop is tested in `pincel-image-core`, the Pixel status-bar path end to end.
+- 2026-11-06: Red runs (temporary breaks, then reverted): core — redo dropping a failed step, no `dropped` flag, no dirty widening, unreversed redo kinds, `execute_as` ignoring its kind, a one-step jump, Eraser read as Pencil; Image core — same plus a failed step not pushed back and `with_kind` ignored; wasm — Cut / effect / crop / eraser kinds replaced by the defaults, a dropped flag stuck at false, a one-step jump, a missing `history-de.ts` name; agent — `commit_as` / `apply_as` ignoring the kind; revision not bumped by undo. UI batch A (panel expanded by default, buttons never disabled, busy ignored, no status message, jump marking dirty, English title in German, Space not consumed, raw ids for unknown kinds, no scroll into view) turned AC-01, 07, 08, 10, 11 (both), 12, 14, 16, 17, 18 red; batch B (no dimming, origins / dropped ignored, first tab's history everywhere, one redraw per step, arrows jumping) turned AC-02, 03 (all eight), 09 (both), 10, 13 red; batch C (one step per jump, effect kinds not mapped to the effect menu) turned AC-04 (three tests) and AC-05 red. The AC-14 autosave test stayed green under a jump that marked the document dirty: autosave keys off the core's undo depth, which only the jump itself moves, so it is a regression guard the jump cannot break.

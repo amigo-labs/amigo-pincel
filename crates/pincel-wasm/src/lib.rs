@@ -25,8 +25,10 @@ mod effects;
 mod events;
 mod gradient;
 mod grid;
+mod history;
 mod import;
 mod layer_ops;
+mod rotate;
 mod selection_ops;
 mod shapes;
 mod stroke;
@@ -44,6 +46,7 @@ pub use text::register_font;
 pub use vectorize::{VectorizeResult, Vectorizer};
 
 use events::EventQueue;
+use pincel_core::HistoryKind;
 use pincel_core::{
     AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTile, AddTilemapLayer, AddTileset,
     AsepriteReadOutput, AtlasOptions, Bus, Cel, CelData, CelMap, ClearRegion, ColorMode,
@@ -640,8 +643,13 @@ impl Document {
         let frame = self.current_frame;
         self.ensure_paint_cel(layer, frame);
         let cmd = SetPixel::new(layer, frame, x, y, rgba);
+        let kind = if tool_id == "eraser" {
+            HistoryKind::Eraser
+        } else {
+            HistoryKind::Pencil
+        };
         self.bus
-            .execute(cmd.into(), &mut self.sprite, &mut self.cels)
+            .execute_as(kind, cmd.into(), &mut self.sprite, &mut self.cels)
             .map_err(|e| format!("failed to apply {tool_id}: {e}"))?;
         self.events
             .push(Event::dirty_rect(layer.0, frame.0, x, y, 1, 1));
@@ -3054,13 +3062,13 @@ mod tests {
     }
 
     #[test]
-    fn apply_bucket_outside_canvas_is_a_noop_paint_but_joins_bus() {
+    fn apply_bucket_outside_canvas_is_a_noop_without_undo_step() {
         // Out-of-canvas seeds do not raise (matching pickColor's natural
-        // semantics) — the underlying FillRegion treats them as no-op.
-        // The command still joins the bus for undo symmetry.
+        // semantics) — the underlying FillRegion treats them as no-op,
+        // and a fill that writes no pixel adds no undo step.
         let mut doc = Document::new(2, 2).expect("dims");
         doc.apply_bucket(10, 10, 0xff0000ff).expect("bucket ok");
-        assert_eq!(doc.undo_depth(), 1);
+        assert_eq!(doc.undo_depth(), 0);
         let pixels = doc.compose(0, 1).expect("compose ok").pixels();
         for y in 0..2u32 {
             for x in 0..2u32 {
