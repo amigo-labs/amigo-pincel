@@ -157,3 +157,31 @@ fn select_ellipse_and_polygon_commands_take_the_setting_and_combine() {
         Some(&SelectionMask::ellipse(30, 20, Rect::new(3, 2, 21, 15)))
     );
 }
+
+#[test]
+fn feather_applies_on_top_of_an_anti_aliased_outline() {
+    let mut b = bus(30, 20);
+    run(
+        &mut b,
+        r#"{"type":"select_ellipse","x":3,"y":2,"w":21,"h":15,"feather":3,"anti_alias":true}"#,
+    );
+    let mut want = SelectionMask::ellipse_aa(30, 20, Rect::new(3, 2, 21, 15));
+    want.feather(3);
+    assert_eq!(b.document.selection.as_ref(), Some(&want));
+    let mut c = bus(30, 20);
+    run(
+        &mut c,
+        r#"{"type":"select_polygon","points":[[2,2],[25,4],[9,17]],"feather":2,"anti_alias":false}"#,
+    );
+    let mut hard = SelectionMask::polygon(
+        30,
+        20,
+        &[
+            pincel_image_core::Point::new(2.0, 2.0),
+            pincel_image_core::Point::new(25.0, 4.0),
+            pincel_image_core::Point::new(9.0, 17.0),
+        ],
+    );
+    hard.feather(2);
+    assert_eq!(c.document.selection.as_ref(), Some(&hard));
+}
