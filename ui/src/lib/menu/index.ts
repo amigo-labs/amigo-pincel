@@ -31,6 +31,7 @@ export type EditorMenuId =
   | 'menu:exportSheet'
   | 'menu:exportAnimation'
   | 'menu:exportSvg'
+  | 'menu:print'
   | 'menu:undo'
   | 'menu:redo'
   | 'menu:zoomIn'

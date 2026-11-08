@@ -26,6 +26,8 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { printComposite, type PrintPlacement } from './core/print';
+  import PrintDialog from './components/dialogs/PrintDialog.svelte';
   import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
   import { closeTextBox, installLiveText } from './core/live-text.svelte';
@@ -199,6 +201,39 @@
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   // The open effect (effect-panel spec), shown in the frame's sidebar.
   let effectOpen = $state<EffectSession | null>(null);
+  // File ▸ Print… (docs/specs/image-formats-more-print.md).
+  let printOpen = $state(false);
+
+  /** Print needs a document and no dialog over the editor (AC-09); the
+   *  shell's dialogs are found by their role. */
+  function canPrint(): boolean {
+    return (
+      editor.handle !== null &&
+      !ui.modalOpen &&
+      !helpDialogOpen() &&
+      savePrompt.value === null &&
+      document.querySelector('[role="dialog"], [role="alertdialog"]') === null
+    );
+  }
+
+  /** Opens the Print dialog; `false` when Print is not available, so
+   *  Ctrl+P stays the browser's (AC-02, AC-09). */
+  function openPrint(): boolean {
+    if (!canPrint()) return false;
+    printOpen = true;
+    return true;
+  }
+
+  async function runPrint(placement: PrintPlacement): Promise<void> {
+    printOpen = false;
+    const handle = editor.handle;
+    if (handle === null) return;
+    try {
+      await printComposite(handle, editor.width, editor.height, placement);
+    } catch (e) {
+      editor.notice = t('print.failed', { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
@@ -811,6 +846,7 @@
       'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
       'menu:exportSvg': openSvgExport,
+      'menu:print': () => void openPrint(),
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': () => viewCommands.zoomIn(),
@@ -972,6 +1008,8 @@
       case 'export':
         runExport('png');
         return true;
+      case 'print':
+        return openPrint();
       case 'undo':
         undo();
         return true;
@@ -1104,6 +1142,7 @@
       transformDialog !== null ||
       jpegDialogOpen ||
       svgOpen ||
+      printOpen ||
       radiusOp !== null ||
       pasteDialog !== null;
   });
@@ -1270,6 +1309,12 @@
             { label: t('menu.exportWebp'), run: () => runExport('webp') },
             { label: t('menu.exportSvg'), run: openSvgExport },
           ],
+        },
+        {
+          label: t('menu.print'),
+          shortcut: hint('print'),
+          disabled: !hasDoc || ui.modalOpen,
+          run: () => void openPrint(),
         },
       ]),
     },
@@ -1701,6 +1746,9 @@
 {/if}
 
 <SaveDialogs />
+{#if printOpen}
+  <PrintDialog onPrint={(p) => void runPrint(p)} onClose={() => (printOpen = false)} />
+{/if}
 
 {#if svgOpen}
   <SvgExportDialog
