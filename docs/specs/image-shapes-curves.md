@@ -146,7 +146,7 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 | AC-19 | `draw_shape_refuses_bad_curve_arguments` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-20 | `tools_list_describes_curves` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-21 | `image_shapes/curve_64pts_w20_dashdot_arrows_4k` (crates/pincel-image-core/benches/compose.rs); budget ≤ 40 ms `pending` in `ui/e2e-perf/budgets.json` and the `performance-benchmarks` budget table | built |        |
-| AC-22 | `the grip sits beside the curve’s midpoint and moves the whole line as one step (AC-22)` (ui/e2e/image-curves.spec.ts) | built |        |
+| AC-22 | `the grip sits beside the curve’s midpoint and moves the whole line as one step (AC-22)` (ui/e2e/image-curves.spec.ts); `the_grip_sits_on_the_arc_length_midpoint_with_the_curve_normal` (crates/pincel-image-core/tests/live_curves.rs) | built |        |
 
 ## Decisions
 

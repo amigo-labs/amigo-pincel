@@ -63,6 +63,65 @@ fn expected(points: &[[f32; 2]], start: LineCap, end: LineCap, style: ShapeStyle
 
 const BEGIN: &str = r#"{"type":"begin_live_shape","layer":0,"shape":"line","points":[[8,50],[88,12]],"stroke_width":3,"stroke_color":[200,0,0,255],"anti_alias":true}"#;
 
+/// AC-22: the move grip sits on the curve's midpoint by arc length, its
+/// normal perpendicular to the curve there — on an asymmetric curve, where
+/// that point is neither the control point nor the parameter midpoint.
+#[test]
+fn the_grip_sits_on_the_arc_length_midpoint_with_the_curve_normal() {
+    let mut b = bus();
+    run(&mut b, BEGIN).expect("begin");
+    run(
+        &mut b,
+        r#"{"type":"edit_live","gesture":1,"control":[[20,10]]}"#,
+    )
+    .expect("add point");
+    let Some(LiveObjectSpec::Shape {
+        polyline,
+        grip_anchor,
+        grip_normal,
+        ..
+    }) = live_object_spec(&b)
+    else {
+        panic!("a live line")
+    };
+    let len = |(dx, dy): (f32, f32)| (dx * dx + dy * dy).sqrt();
+    let segs: Vec<([f32; 2], (f32, f32))> = polyline
+        .windows(2)
+        .map(|w| (w[0], (w[1][0] - w[0][0], w[1][1] - w[0][1])))
+        .collect();
+    let total: f32 = segs.iter().map(|&(_, d)| len(d)).sum();
+    // Walk half the arc length along the polyline.
+    let mut left = total / 2.0;
+    let mut mid = None;
+    for &(a, d) in &segs {
+        let l = len(d);
+        if left <= l && l > 0.0 {
+            let t = left / l;
+            mid = Some(([a[0] + d.0 * t, a[1] + d.1 * t], (d.0 / l, d.1 / l)));
+            break;
+        }
+        left -= l;
+    }
+    let (mid, dir) = mid.expect("a midpoint");
+    let off = len((grip_anchor[0] - mid[0], grip_anchor[1] - mid[1]));
+    assert!(
+        off <= 0.5,
+        "grip {grip_anchor:?} is {off} px from the arc midpoint {mid:?}"
+    );
+    assert!(
+        (len((grip_normal[0], grip_normal[1])) - 1.0).abs() < 1e-3,
+        "{grip_normal:?}"
+    );
+    let dot = grip_normal[0] * dir.0 + grip_normal[1] * dir.1;
+    assert!(
+        dot.abs() < 0.02,
+        "the normal {grip_normal:?} is not perpendicular to {dir:?}"
+    );
+    // The curve is asymmetric: the parameter midpoint of its two spans is
+    // the control point, well away from the arc midpoint.
+    assert!(len((mid[0] - 20.0, mid[1] - 10.0)) > 5.0);
+}
+
 #[test]
 fn control_points_and_caps_edit_the_live_line_and_the_commit_uses_them() {
     let mut b = bus();
