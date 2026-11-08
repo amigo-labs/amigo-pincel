@@ -6,6 +6,7 @@
 // Save asks flatten and quality together (AC-10, AC-17). Prompts are
 // answered by `SaveDialogs`.
 import {
+  editor,
   savePrompt,
   tabs,
   type FlattenChoice,
@@ -25,6 +26,14 @@ import {
   type DocSaveFormat,
 } from './document-file';
 import type { SaveTarget } from '../../../lib/fs';
+import { t } from '../../../lib/i18n/index.svelte';
+
+/** Largest ICO image edge, px (the core's `ICO_MAX_SIDE`). */
+const ICO_MAX_SIDE = 256;
+
+/** Whether the document is too large for an ICO (AC-08). */
+const icoTooLarge = (tab: ImageTab): boolean =>
+  tab.doc.width > ICO_MAX_SIDE || tab.doc.height > ICO_MAX_SIDE;
 
 /** What a Save wrote. */
 export interface SaveResult {
@@ -54,7 +63,13 @@ export async function saveDocument(
   tab: ImageTab | null = tabs.active,
 ): Promise<SaveResult | null> {
   if (tab === null || tab.doc.handle === null) return null;
-  const own = saveFormat(tab);
+  // ICO holds at most 256 × 256 px: Save of a larger ICO document goes to
+  // Save As, with a notice (docs/specs/image-formats-more.md AC-08).
+  let own = saveFormat(tab);
+  if (!forceAs && own === 'ico' && icoTooLarge(tab)) {
+    editor.notice = t('save.icoTooLarge');
+    own = null;
+  }
   if (forceAs || own === null) return saveAs(tab, own);
   const format = own;
   const flattened = format !== 'ora' && flatteningLoses(tab);
@@ -101,6 +116,11 @@ async function saveAs(tab: ImageTab, own: DocSaveFormat | null): Promise<SaveRes
   }));
   if (choice === null) return null;
   const { format } = choice;
+  if (format === 'ico' && icoTooLarge(tab)) {
+    // Nothing is written; Save As can run again with another format.
+    editor.notice = t('save.icoTooLarge');
+    return null;
+  }
   const quality = format === 'jpeg' ? choice.quality : undefined;
   const target = await writeDocument(tab, format, { forceAs: true, quality });
   return target === null ? null : { target, flattened: format !== 'ora' && loses };

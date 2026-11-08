@@ -15,7 +15,7 @@ export const en = {
   'shell.unsavedIn': 'Unsaved changes in {n} images:',
   'shell.dropSkipped': '{n} dropped file(s) could not be opened',
   'shell.unsupported':
-    '{name}: not a supported file (sprite, OpenRaster, PSD or PNG / JPEG / WebP / BMP / GIF / TIFF)',
+    '{name}: not a supported file (sprite, OpenRaster, PSD or PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
   'shell.openFailed': 'Open failed: {error}',
   'shell.permissionDenied': '{name}: permission denied',
   'shell.noHandle': '{name}: no handle / path',
@@ -1027,6 +1027,8 @@ export const en = {
   'save.mergeLayers': 'Merge layers in the file',
   'save.mergeLayersHint': 'The file is saved flattened; the document keeps its layers.',
   'save.fmtOra': 'OpenRaster (.ora)',
+  'save.fmtIco': 'ICO (Windows icon)',
+  'save.icoTooLarge': 'ICO holds at most 256 × 256 px. Choose another format.',
   'save.noEncoder': '{format} files cannot be written back. Choose a format to save in.',
   // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)
   'psd.notice': 'Opened with changes: {items}',

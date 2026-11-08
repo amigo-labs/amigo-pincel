@@ -638,7 +638,9 @@ export async function openBytes(
     handle = opened.handle;
     notice = psdNotice(opened.notices);
   } else {
-    handle = core.openImage(bytes, mime || 'image/png');
+    // The file name is the hint for TGA, which has no signature and often
+    // no MIME type (docs/specs/image-formats-more.md AC-04).
+    handle = core.openImage(bytes, formatFromName(name) === 'tga' ? name : mime || 'image/png');
   }
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));

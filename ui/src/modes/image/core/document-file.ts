@@ -18,7 +18,7 @@ import {
 export type DocSaveFormat = 'ora' | ImageSaveFormat;
 
 /** Formats an Image-mode document can come from; `null` when unknown. */
-export type DocFormat = DocSaveFormat | 'gif' | 'psd';
+export type DocFormat = DocSaveFormat | 'gif' | 'psd' | 'dds';
 
 /** The document's file: where Save writes, in which format, and the
  *  per-document answers that later Saves reuse. */
@@ -66,7 +66,7 @@ export function docFormat(format: FileFormat | null): DocFormat | null {
 
 /** `true` for the formats Save can write. */
 export function isWritable(format: DocFormat | null): format is DocSaveFormat {
-  return format !== null && format !== 'gif' && format !== 'psd';
+  return format !== null && format !== 'gif' && format !== 'psd' && format !== 'dds';
 }
 
 /** The file of a document that came from `name` in `format`; `target`
@@ -109,7 +109,19 @@ export function fileFormat(tab: ImageTab | null = tabs.active): DocFormat | null
   return fileOf(tab).format;
 }
 
-const DOC_FORMATS: readonly DocFormat[] = ['ora', 'png', 'jpeg', 'webp', 'bmp', 'tiff', 'gif', 'psd'];
+const DOC_FORMATS: readonly DocFormat[] = [
+  'ora',
+  'png',
+  'jpeg',
+  'webp',
+  'bmp',
+  'tiff',
+  'tga',
+  'ico',
+  'gif',
+  'psd',
+  'dds',
+];
 
 /** Narrows a stored format string back to a `DocFormat`; `null` when it
  *  is missing or unknown. */
@@ -170,6 +182,8 @@ const EXTENSION: Record<DocSaveFormat, string> = {
   webp: 'webp',
   bmp: 'bmp',
   tiff: 'tiff',
+  tga: 'tga',
+  ico: 'ico',
 };
 
 /** Writes the document as `format`: in place when it is the file's own

@@ -39,6 +39,9 @@
   !insertmacro ${OP} "gif" "GIF Image"
   !insertmacro ${OP} "tif" "TIFF Image"
   !insertmacro ${OP} "tiff" "TIFF Image"
+  !insertmacro ${OP} "tga" "TGA Image"
+  !insertmacro ${OP} "dds" "DirectDraw Surface"
+  !insertmacro ${OP} "ico" "Windows Icon"
   !insertmacro ${OP} "psd" "Photoshop Image"
 !macroend
 

@@ -139,7 +139,14 @@
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { toggleUi } from '../../lib/components/layout/chrome.svelte';
-  import { formatFromName, hasFsAccess, sameFile, type OpenedFile } from '../../lib/fs';
+  import {
+    formatFromName,
+    hasFsAccess,
+    mimeFor,
+    sameFile,
+    sniffFormat,
+    type OpenedFile,
+  } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
   import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
@@ -212,6 +219,13 @@
 
   /** Source tag of the in-app copy record; handles are never reused. */
   const docSource = (handle: number): string => `image:${handle}`;
+
+  /** Dropped formats the browser cannot size: decoded by the core first. */
+  const CORE_DECODED: ReadonlySet<string> = new Set([
+    mimeFor('tga'),
+    mimeFor('dds'),
+    mimeFor('ico'),
+  ]);
 
   /** Runs a pixel edit on the active layer unless it is refused — the layer
    *  or a group it sits in is locked, or it is a group — and shows the
@@ -305,6 +319,13 @@
   async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
     const handle = editor.handle;
     if (handle === null) return;
+    // TGA / DDS / ICO go through the core's decoder as PNG, so sizing and
+    // the expand prompt work as for the browser's own formats
+    // (docs/specs/image-formats-more.md AC-13).
+    if (CORE_DECODED.has(mime)) {
+      bytes = core.imageToPng(bytes, mime);
+      mime = 'image/png';
+    }
     const size = await imageSize(new Blob([bytes.slice()], { type: mime || 'image/png' }));
     if (editor.handle !== handle) return;
     const canvas = { width: editor.width, height: editor.height };
@@ -820,8 +841,13 @@
         !ui.modalOpen &&
         renaming === null &&
         savePrompt.value === null,
-      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
-      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico'],
+      addLayer: (opened) => {
+        // A dropped file often has no MIME type: the content, else the
+        // name, tells the format (TGA needs it as the decoder's hint).
+        const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
+        return pasteFile(opened.bytes, format ? mimeFor(format) : opened.mime);
+      },
     });
   });
 

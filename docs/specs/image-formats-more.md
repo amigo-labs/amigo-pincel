@@ -123,22 +123,22 @@ Verified against the code and the `image` 0.25.10 sources on 2026-11-05; line nu
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-01 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`; `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | built | |
+| AC-02 | `crates/pincel-image-core/tests/formats_more.rs` `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | built | |
+| AC-03 | `crates/pincel-image-core/tests/formats_more.rs` `ico_opens_the_deepest_then_largest_entry`; `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | built | |
+| AC-04 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`, `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | built | |
+| AC-05 | `crates/pincel-image-core/tests/formats_more.rs` `tga_and_ico_round_trip_exactly` (proptest), `tga_and_ico_round_trip_a_single_transparent_pixel` | built | |
+| AC-06 | `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | built | |
+| AC-07 | `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | built | |
+| AC-08 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `crates/pincel-image-core/tests/formats_more.rs` `ico_refuses_more_than_256_px_and_garbage_fails_to_decode` | built | |
+| AC-09 | `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | built | |
+| AC-10 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one" | built | |
+| AC-11 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason`; `ui/e2e/image-formats-more.spec.ts` "DDS variants outside BC1 – BC3 and odd sizes fail with their own reason (AC-11)" | built | |
+| AC-12 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason` (cut-off data), `ico_refuses_more_than_256_px_and_garbage_fails_to_decode`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | built | |
+| AC-13 | `ui/e2e/image-formats-more.spec.ts` "a dropped TGA, DDS or ICO lands as a new layer (AC-13)" | built | |
+| AC-14 | `ui/e2e/file-access.spec.ts` "AC-01: Open… shows the picker restricted to the document types" (browser picker); desktop associations in `src-tauri/tauri.conf.json`, checked by `nsis_hooks_cover_every_file_association` and `mime_types_match_tauri_conf` (pincel-tauri, CI) | built | |
+| AC-15 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | built | |
+| AC-16 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | built | |
 
 ## Decisions
 
@@ -147,3 +147,10 @@ Verified against the code and the `image` 0.25.10 sources on 2026-11-05; line nu
 - 2026-11-05: TGA is always written as 32-bit true-color RGBA with RLE, whatever the source (24-bit, grayscale or color-mapped), because the document is RGBA and keeping the alpha channel matters more than reproducing the source's layout; RLE is `TgaEncoder`'s default and every TGA reader handles it.
 - 2026-11-05: DDS size and variant errors get their own messages, because "not supported" for a merely mis-sized texture sends the user looking for the wrong fix; anything else is the generic undecodable-image message.
 - 2026-11-05: Enable the `image` features `tga`, `dds` and `ico` (owner's choice), because they add no crate to the lockfile, cost a few tens of KB of wasm, and DDS read covers the common legacy texture files paint.net users expect in the Open dialog.
+- 2026-11-08 (spec-build) — AC-11's two reasons come from a header pre-check in `pincel-image-core::codec` (`check_dds`: FourCC / DXGI format and width / height at their DDS offsets) before the `image` decoder runs, because the decoder reports both as the same generic `Unsupported` error.
+- 2026-11-08 (spec-build) — The editor passes the file name as the decoder's hint when the name ends in `.tga` (Open), and a dropped file's format comes from its content, else its name (Drop): browsers report an empty or generic MIME type for TGA, DDS and ICO.
+- 2026-11-08 (spec-build) — A dropped TGA / DDS / ICO is first converted to PNG by the core (`image_to_png`), so the existing paste path — which sizes the image through the browser — and its expand prompt work unchanged.
+- 2026-11-08 (spec-build) — The desktop file associations use the shared-mime-info names (`image/x-tga`, `image/x-dds`, `image/vnd.microsoft.icon`), so Linux desktops recognise them; the in-app decoder hints keep the `image` crate's names (`image/x-targa`, `image/vnd-ms.dds`, `image/x-icon`).
+- 2026-11-08 (spec-build) — The wasm size before / after was not measured: this container has no `wasm-opt`, and a size without it would not be the figure the Technical notes ask for. The Cloudflare build (which runs `wasm-opt`) reports the release size on the next deploy.
+- 2026-11-08 (spec-build) — The fixtures are built byte by byte inside the tests (Rust and e2e) instead of committed binary files, so no `.gitattributes` change was needed.
+

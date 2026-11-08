@@ -16,7 +16,7 @@ export const de: Record<MessageKey, string> = {
   'shell.unsavedIn': 'Ungespeicherte Änderungen in {n} Bildern:',
   'shell.dropSkipped': '{n} abgelegte Datei(en) konnten nicht geöffnet werden',
   'shell.unsupported':
-    '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF)',
+    '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
   'shell.permissionDenied': '{name}: Zugriff verweigert',
   'shell.noHandle': '{name}: kein Datei-Handle / Pfad',
@@ -1032,6 +1032,8 @@ export const de: Record<MessageKey, string> = {
   'save.mergeLayers': 'Ebenen in der Datei zusammenführen',
   'save.mergeLayersHint': 'Die Datei wird auf eine Ebene reduziert gespeichert; das Dokument behält seine Ebenen.',
   'save.fmtOra': 'OpenRaster (.ora)',
+  'save.fmtIco': 'ICO (Windows-Symbol)',
+  'save.icoTooLarge': 'ICO fasst höchstens 256 × 256 px. Wähle ein anderes Format.',
   'save.noEncoder':
     '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',
   'psd.notice': 'Mit Änderungen geöffnet: {items}',

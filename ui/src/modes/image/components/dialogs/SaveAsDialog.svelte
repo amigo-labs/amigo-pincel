@@ -30,6 +30,8 @@
     { id: 'webp', label: () => t('menu.exportWebp') },
     { id: 'bmp', label: () => 'BMP' },
     { id: 'tiff', label: () => 'TIFF' },
+    { id: 'tga', label: () => 'TGA' },
+    { id: 'ico', label: () => t('save.fmtIco') },
   ];
 
   // The user's picks; until then the preselected format and quality.

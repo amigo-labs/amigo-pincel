@@ -121,6 +121,27 @@
         "mimeType": "image/tiff"
       },
       {
+        "ext": ["tga"],
+        "name": "TGA Image",
+        "description": "TGA image",
+        "role": "Editor",
+        "mimeType": "image/x-tga"
+      },
+      {
+        "ext": ["dds"],
+        "name": "DirectDraw Surface",
+        "description": "DDS texture",
+        "role": "Viewer",
+        "mimeType": "image/x-dds"
+      },
+      {
+        "ext": ["ico"],
+        "name": "Windows Icon",
+        "description": "Windows icon",
+        "role": "Editor",
+        "mimeType": "image/vnd.microsoft.icon"
+      },
+      {
         "ext": [
           "psd"
         ],

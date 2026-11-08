@@ -81,6 +81,17 @@ const GIF_TYPES: FilePickerAcceptType[] = [
   { description: 'GIF image', accept: { 'image/gif': ['.gif'] } },
 ];
 
+// docs/specs/image-formats-more.md: TGA and ICO open and save, DDS opens.
+const TGA_TYPES: FilePickerAcceptType[] = [
+  { description: 'TGA image', accept: { 'image/x-targa': ['.tga'] } },
+];
+const ICO_TYPES: FilePickerAcceptType[] = [
+  { description: 'Windows icon', accept: { 'image/x-icon': ['.ico'] } },
+];
+const DDS_TYPES: FilePickerAcceptType[] = [
+  { description: 'DirectDraw surface', accept: { 'image/vnd-ms.dds': ['.dds'] } },
+];
+
 // Every raster format the Image mode decodes (pincel-image-core codec).
 const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...PNG_TYPES,
@@ -89,6 +100,9 @@ const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...BMP_TYPES,
   ...GIF_TYPES,
   ...TIFF_TYPES,
+  ...TGA_TYPES,
+  ...DDS_TYPES,
+  ...ICO_TYPES,
 ];
 
 // Photoshop files, opened (never written) in Image mode
@@ -108,7 +122,19 @@ const OPEN_TYPES: FilePickerAcceptType[] = [
   ...PSD_TYPES,
 ];
 
-const IMAGE_EXTENSIONS = ['png', 'jpg', 'jpeg', 'webp', 'bmp', 'gif', 'tif', 'tiff'];
+const IMAGE_EXTENSIONS = [
+  'png',
+  'jpg',
+  'jpeg',
+  'webp',
+  'bmp',
+  'gif',
+  'tif',
+  'tiff',
+  'tga',
+  'dds',
+  'ico',
+];
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS, 'psd'];
 
 /** What a picker asks for: a document to edit, a palette or a keymap file. */
@@ -176,13 +202,16 @@ export type FileFormat =
   | 'bmp'
   | 'gif'
   | 'tiff'
+  | 'tga'
+  | 'dds'
+  | 'ico'
   | 'psd';
 
 /** Project formats: one per editor mode. */
 export type ProjectFormat = 'aseprite' | 'ora';
 
 /** Raster formats an Image-mode document is saved back to (no GIF encoder). */
-export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff';
+export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico';
 
 /** Everything `writeTarget` writes: the project formats and, for Image-mode
  *  Save back to the opened file, its raster formats. */
@@ -196,6 +225,8 @@ const SAVE_TYPES: Record<SaveFormat, FilePickerAcceptType[]> = {
   webp: WEBP_TYPES,
   bmp: BMP_TYPES,
   tiff: TIFF_TYPES,
+  tga: TGA_TYPES,
+  ico: ICO_TYPES,
 };
 
 const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> = {
@@ -206,6 +237,8 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
   webp: { name: 'WebP image', extensions: ['webp'] },
   bmp: { name: 'BMP image', extensions: ['bmp'] },
   tiff: { name: 'TIFF image', extensions: ['tif', 'tiff'] },
+  tga: { name: 'TGA image', extensions: ['tga'] },
+  ico: { name: 'Windows icon', extensions: ['ico'] },
 };
 
 /** Encoded-export formats of the Image mode (WebP is lossless). */
@@ -273,6 +306,9 @@ export function sniffFormat(bytes: Uint8Array): FileFormat | null {
     return 'tiff';
   }
   if (startsWith(bytes, [0x38, 0x42, 0x50, 0x53])) return 'psd'; // `8BPS`
+  if (startsWith(bytes, [0x44, 0x44, 0x53, 0x20])) return 'dds'; // `DDS `
+  if (startsWith(bytes, [0x00, 0x00, 0x01, 0x00])) return 'ico';
+  // TGA has no signature: only its name tells (`formatFromName`).
   return null;
 }
 
@@ -301,6 +337,12 @@ export function formatFromName(name: string): FileFormat | null {
       return 'tiff';
     case 'psd':
       return 'psd';
+    case 'tga':
+      return 'tga';
+    case 'dds':
+      return 'dds';
+    case 'ico':
+      return 'ico';
     default:
       return null;
   }
@@ -325,6 +367,13 @@ export function mimeFor(format: FileFormat): string {
       return 'image/tiff';
     case 'psd':
       return PSD_MIME;
+    // The names `image::ImageFormat::from_mime_type` maps.
+    case 'tga':
+      return 'image/x-targa';
+    case 'dds':
+      return 'image/vnd-ms.dds';
+    case 'ico':
+      return 'image/x-icon';
     default:
       return `image/${format}`;
   }

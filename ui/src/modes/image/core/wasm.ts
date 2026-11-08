@@ -37,6 +37,9 @@ import initWasm, {
   export_webp,
   export_bmp,
   export_tiff,
+  export_tga,
+  export_ico,
+  image_to_png,
   get_document_info,
   document_dpi,
   get_selection_mask,
@@ -742,6 +745,13 @@ export const core = {
   exportWebp: (handle: number): Uint8Array => export_webp(handle),
   exportBmp: (handle: number): Uint8Array => export_bmp(handle),
   exportTiff: (handle: number): Uint8Array => export_tiff(handle),
+  /** RLE-compressed 32-bit TGA of the composite (image-formats-more). */
+  exportTga: (handle: number): Uint8Array => export_tga(handle),
+  /** A one-image ICO of the composite; throws above 256 × 256 px. */
+  exportIco: (handle: number): Uint8Array => export_ico(handle),
+  /** Decodes `data` (MIME type or name as the TGA hint) and re-encodes it
+   *  as PNG, so a dropped TGA / DDS / ICO pastes like a browser format. */
+  imageToPng: (data: Uint8Array, hint: string): Uint8Array => image_to_png(data, hint),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
   /** Line boxes and caret positions of a text as a live text draws it
    *  with font `fontId` (docs/specs/image-live-text.md AC-22). */
