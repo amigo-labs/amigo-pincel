@@ -763,7 +763,6 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
     }
 }
 
-
 /// docs/specs/image-formats-more.md AC-15, AC-16: `doc.open` reads TGA (by
 /// its extension), DDS and ICO (by content) like the editor's Open.
 #[test]
@@ -913,5 +912,138 @@ fn anti_alias_reaches_strokes_and_selections_like_the_editor() {
             e.contains("anti_alias") && e.contains("Pixel document"),
             "{tool}: {e}"
         );
+    }
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-14, AC-16 (Blending).
+#[test]
+fn blend_reaches_the_painting_tools_like_the_editor() {
+    // Each case paints over an opaque blue layer with a semi-transparent
+    // paint, so Overwrite and Normal differ everywhere they paint.
+    let cases = [
+        (
+            "draw.stroke",
+            json!({ "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "color": "#FF000066", "anti_alias": true }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 9, "color": [255, 0, 0, 102], "opacity": 1.0,
+                    "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": true, "stroke_id": 1 }),
+        ),
+        (
+            "draw.fill",
+            json!({ "x": 3, "y": 3, "color": "#FF000066" }),
+            json!({ "type": "fill_bucket", "layer": 0, "color": [255, 0, 0, 102], "opacity": 1.0,
+                    "tolerance": 32, "contiguous": true, "x": 3.0, "y": 3.0 }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 2, "y0": 2, "x1": 18, "y1": 12, "fill": "#00FF0078", "stroke": "#FF00003C" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rectangle", "points": [[2.0, 2.0], [18.0, 12.0]],
+                    "corner_radius": 16.0, "mode": "fill_and_outline", "stroke_width": 3.0,
+                    "stroke_color": [255, 0, 0, 60], "fill_color": [0, 255, 0, 120], "anti_alias": true }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "Wl", "x": 1, "y": 1, "size": 14, "color": "#FF000064" }),
+            json!({ "type": "draw_text", "layer": 0, "font_id": 0, "text": "Wl", "x": 1.0, "y": 1.0, "size": 14.0,
+                    "color": [255, 0, 0, 100], "anti_alias": true }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 20, "y1": 0, "from": "#FF0000", "to": "#00FF0000" }),
+            json!({ "type": "draw_gradient", "layer": 0, "x0": 0.0, "y0": 0.0, "x1": 20.0, "y1": 0.0,
+                    "from": [255, 0, 0, 255], "to": [0, 255, 0, 0], "opacity": 1.0 }),
+        ),
+    ];
+    for blend in ["normal", "overwrite"] {
+        for (tool, args, cmd) in &cases {
+            let mut s = S::new();
+            let id = s.new_image(24, 16);
+            s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#0000FF" }));
+            let mut cmd = cmd.clone();
+            cmd["blend"] = json!(blend);
+            let want = editor(&s, &id, vec![cmd]);
+            let mut args = args.clone();
+            args["blend"] = json!(blend);
+            s.ok(tool, args);
+            assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0), "{tool} {blend}");
+        }
+    }
+    // Default normal.
+    let mut s = S::new();
+    let id = s.new_image(24, 16);
+    let want = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "fill_bucket", "layer": 0, "color": [255, 0, 0, 102], "opacity": 1.0,
+                     "tolerance": 32, "contiguous": true, "x": 3.0, "y": 3.0, "blend": "normal" }),
+        ],
+    );
+    s.ok("draw.fill", json!({ "x": 3, "y": 3, "color": "#FF000066" }));
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+
+    // Refused: an unknown value and where the spec gives no blend.
+    let before = state(&s, &id);
+    for (tool, args) in [
+        (
+            "draw.fill",
+            json!({ "x": 3, "y": 3, "color": "#FF0000", "blend": "multiply" }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[3, 3]], "tool": "eraser", "blend": "overwrite" }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 9, "y1": 0, "from": "#000000", "to": "#FFFFFF",
+                    "channel": "transparency", "blend": "overwrite" }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(e.contains("blend"), "{tool}: {e}");
+        assert_eq!(state(&s, &id), before, "{tool}");
+    }
+    let pid = s.new_doc(8, 8);
+    for (tool, args) in [
+        (
+            "draw.fill",
+            json!({ "doc": pid, "x": 1, "y": 1, "color": "#FF0000", "blend": "normal" }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[1, 1]], "blend": "overwrite" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "doc": pid, "shape": "rect", "x0": 0, "y0": 0, "x1": 4, "y1": 4, "fill": "#FF0000", "blend": "normal" }),
+        ),
+        (
+            "draw.text",
+            json!({ "doc": pid, "text": "a", "x": 0, "y": 0, "blend": "overwrite" }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "doc": pid, "x0": 0, "y0": 0, "x1": 4, "y1": 0, "from": "#000000", "to": "#FFFFFF", "blend": "normal" }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(
+            e.contains("blend") && e.contains("Pixel document"),
+            "{tool}: {e}"
+        );
+    }
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-17.
+#[test]
+fn guide_describes_anti_alias_and_blend() {
+    let guide = crate::resources::GUIDE;
+    for needle in [
+        "`anti_alias`",
+        "`blend`",
+        "`overwrite` replaces the pixels, alpha included",
+        "`select.ellipse`",
+        "`draw.gradient` with `channel: \"color\"`",
+    ] {
+        assert!(guide.contains(needle), "{needle}");
     }
 }

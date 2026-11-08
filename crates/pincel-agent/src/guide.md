@@ -86,6 +86,18 @@ and so does an argument only the other mode's editor offers.
   both as they were before the call; pixels whose source lies outside the
   canvas stay. It takes the brush arguments of `draw.stroke` and no
   `color`.
+- Antialiasing and Blending (Image documents only, the editor's two shared
+  tool options): `anti_alias` (default true) smooths the hard round tip of
+  `draw.stroke` (brush and eraser) and the edge of `select.ellipse` /
+  `select.polygon`; `false` gives hard edges decided by each pixel's
+  centre. `blend` `normal` (default) composites the paint over the layer;
+  `overwrite` replaces the pixels, alpha included, so a semi-transparent
+  paint lowers the alpha and a transparent one erases (partly covered
+  pixels move toward the paint by their coverage, and a stroke never
+  builds up where its dabs overlap). `blend` is taken by `draw.stroke`
+  with `tool: "brush"`, `draw.fill`, `draw.shape`, `draw.text` and
+  `draw.gradient` with `channel: "color"`; elsewhere, and on Pixel
+  documents, either argument is refused.
 - Effect defaults follow the document's mode, as each editor's effect
   dialog does: `pincel://effects` lists `defaults` per mode where they
   differ (e.g. `pixelate` and `drop_shadow`).

@@ -99,6 +99,39 @@ fn refuse_pixel_args(ctx: &Ctx<'_>, args: &Args, keys: &[&str]) -> Result<(), Ag
     Ok(())
 }
 
+/// The `blend` property of the painting tools
+/// (docs/specs/image-edit-extras-tool-options.md AC-14).
+pub(crate) fn blend_prop() -> Value {
+    choice(
+        &["normal", "overwrite"],
+        "Image: normal (default) composites over the layer; overwrite replaces the pixels, alpha included",
+    )
+}
+
+/// The `blend` argument: `normal` (default) or `overwrite`.
+pub(crate) fn blend_arg(args: &Args) -> Result<String, AgentError> {
+    match args.get("blend") {
+        None => Ok("normal".to_owned()),
+        Some(v) => match v.as_str() {
+            Some(b @ ("normal" | "overwrite")) => Ok(b.to_owned()),
+            _ => Err(AgentError::tool(format!(
+                "argument `blend` must be \"normal\" or \"overwrite\", got {v}"
+            ))),
+        },
+    }
+}
+
+/// Refuses `blend` on a Pixel document, whose inks replace the paint.
+pub(crate) fn refuse_pixel_blend(ctx: &Ctx<'_>, args: &Args) -> Result<(), AgentError> {
+    if args.get("blend").is_some() {
+        let id = ctx.ws.resolve(args)?;
+        return Err(AgentError::tool(format!(
+            "argument `blend` works on Image documents only; document `{id}` is a Pixel document"
+        )));
+    }
+    Ok(())
+}
+
 /// A shared color argument: Image documents take `#RRGGBB` /
 /// `#RRGGBBAA`, Pixel documents also `{"index": n}`.
 fn shared_color(description: &str) -> Value {
@@ -154,7 +187,7 @@ pub(super) fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true), `blend` normal (default) / overwrite for the brush; the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
     schema: || {
         edit_schema(
             json!({
@@ -183,6 +216,7 @@ pub(crate) const STROKE: Tool = Tool {
                 "background": shared_color("Image eraser with to_background: the color; default #FFFFFF"),
                 "angle": angle_prop(),
                 "anti_alias": { "type": "boolean", "description": "Image: anti-aliased edge of the hard round tip; default true" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
@@ -190,7 +224,14 @@ pub(crate) const STROKE: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::stroke(ctx, args);
+        }
+        let blend = blend_arg(args)?;
+        if args.str("tool") == Some("eraser") && args.get("blend").is_some() {
+            return Err(AgentError::tool(
+                "argument `blend` does not apply to `tool: \"eraser\"`, which removes paint instead of compositing it",
+            ));
         }
         refuse_pixel_args(
             ctx,
@@ -260,6 +301,7 @@ pub(crate) const STROKE: Tool = Tool {
                     angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
                     anti_alias: args.bool("anti_alias").unwrap_or(true),
+                    blend: blend.clone(),
                     stroke_id,
                 }
             })
@@ -392,7 +434,7 @@ fn color_prop_image(description: &str) -> Value {
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted, `anti_alias` (default true). Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted, `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
@@ -412,6 +454,7 @@ pub(crate) const SHAPE: Tool = Tool {
                 "stroke_width": { "type": "number", "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
                 "dash": choice(&["solid", "dashed", "dotted"], "Image: outline dash pattern; default solid"),
                 "anti_alias": { "type": "boolean", "description": "Image: smooth edges; default true" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["shape"],
@@ -419,8 +462,10 @@ pub(crate) const SHAPE: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::shape(ctx, args);
         }
+        let blend = blend_arg(args)?;
         edit_checked(ctx, args, |layer, _| {
             let kind = args.req_str("shape")?;
             let stroke = args
@@ -487,6 +532,7 @@ pub(crate) const SHAPE: Tool = Tool {
                 fill_color: fill.unwrap_or_default(),
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 dash: str_or(args, "dash", "solid").to_owned(),
+                blend: blend.clone(),
             })
         })
     },
@@ -494,7 +540,7 @@ pub(crate) const SHAPE: Tool = Tool {
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true). Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
@@ -509,6 +555,7 @@ pub(crate) const TEXT: Tool = Tool {
                 "anti_alias": { "type": "boolean", "description": "Smooth glyph edges; default true (Image) / false (Pixel)" },
                 "underline": { "type": "boolean", "description": "Image: a stroke below each line; default false" },
                 "strikethrough": { "type": "boolean", "description": "Image: a stroke through each line; default false" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["text", "x", "y"],
@@ -516,8 +563,10 @@ pub(crate) const TEXT: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::text(ctx, args);
         }
+        let blend = blend_arg(args)?;
         let size = image_ranged(args, "size", 1.0, Some(999.0), TEXT_SIZE)?;
         edit_checked(ctx, args, |layer, _| {
             let color = match args.get("color") {
@@ -538,6 +587,7 @@ pub(crate) const TEXT: Tool = Tool {
                 align: str_or(args, "align", "left").to_owned(),
                 underline: args.bool("underline").unwrap_or(false),
                 strikethrough: args.bool("strikethrough").unwrap_or(false),
+                blend: blend.clone(),
             })
         })
     },
@@ -545,6 +595,7 @@ pub(crate) const TEXT: Tool = Tool {
 
 /// `draw.fill` on an Image document: the editor's Bucket tool.
 pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let blend = blend_arg(args)?;
     edit_checked(ctx, args, |layer, _| {
         let tolerance = args.i64("tolerance").map_or(TOLERANCE, |t| t as u64);
         Ok(CommandSpec::FillBucket {
@@ -557,13 +608,14 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
             sample: str_or(args, "sample", "current_layer").to_owned(),
             x: num(args, "x")?,
             y: num(args, "y")?,
+            blend: blend.clone(),
         })
     })
 }
 
 pub(crate) const GRADIENT: Tool = Tool {
     name: "draw.gradient",
-    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond / spiral_cw (spiral winding clockwise) / spiral_ccw (counter-clockwise); `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100). Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
+    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond / spiral_cw (spiral winding clockwise) / spiral_ccw (counter-clockwise); `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100), `blend` normal (default) / overwrite with the color channel. Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
     schema: || {
         edit_schema(
             json!({
@@ -576,6 +628,7 @@ pub(crate) const GRADIENT: Tool = Tool {
                 "kind": choice(&["linear", "reflected", "radial", "conical", "diamond", "spiral_cw", "spiral_ccw"], "Gradient shape; default linear (Pixel: linear / radial)"),
                 "channel": choice(&["color", "transparency"], "Image: what the gradient paints; default color"),
                 "opacity": percent_prop("Image: gradient opacity"),
+                "blend": blend_prop(),
                 "dither": { "type": "integer", "description": "Pixel: Bayer matrix size 0, 2, 4 (default) or 8" },
                 "frame": crate::pixel::frame_prop(),
             }),
@@ -584,9 +637,16 @@ pub(crate) const GRADIENT: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::gradient(ctx, args);
         }
         refuse_pixel_args(ctx, args, &["dither"])?;
+        let blend = blend_arg(args)?;
+        if args.str("channel") == Some("transparency") && args.get("blend").is_some() {
+            return Err(AgentError::tool(
+                "argument `blend` does not apply to `channel: \"transparency\"`, which fades the existing alpha",
+            ));
+        }
         edit_checked(ctx, args, |layer, _| {
             Ok(CommandSpec::DrawGradient {
                 layer,
@@ -599,6 +659,7 @@ pub(crate) const GRADIENT: Tool = Tool {
                 from: color_arg(args, "from")?,
                 to: color_arg(args, "to")?,
                 opacity: percent(args, "opacity"),
+                blend: blend.clone(),
             })
         })
     },
