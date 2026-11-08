@@ -231,9 +231,15 @@
 {#snippet sidebarBody()}
   <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
     {#each sidePanels as p (p.id)}
+      <!-- A growing panel (Layers) shrinks with the space left, but not
+           below a floor that keeps its header, list and buttons inside it:
+           with less room the sidebar scrolls instead of the panel's
+           buttons spilling over the panel below. -->
       <div
-        class="flex min-h-0 flex-col border-b border-pc-border"
+        class="flex flex-col border-b border-pc-border"
         class:flex-1={p.grow && !(isCollapsed(p))}
+        class:min-h-40={p.grow && !(isCollapsed(p))}
+        class:min-h-0={!p.grow || (isCollapsed(p))}
         class:shrink-0={!p.grow || (isCollapsed(p))}
       >
         {@render hosted(p, 'side')}
