@@ -245,7 +245,15 @@ impl Shapes {
         let dash_segments = match (draws_outline, self.style.dash.runs(stroke_width)) {
             (true, Some(runs)) => {
                 let (verts, closed) = self.shape.outline_polyline();
-                Some(dash_segments(&verts, closed, &runs))
+                Some(match geom.mirrors() {
+                    // A symmetric shape dashes its low side only, from a
+                    // point on the axis; the pixels mirror it (AC-10).
+                    Some((mx, my)) => {
+                        let verts = start_on_axis(verts, mx, my);
+                        clip_low(dash_segments(&verts, closed, &runs), mx, my)
+                    }
+                    None => dash_segments(&verts, closed, &runs),
+                })
             }
             _ => None,
         };
@@ -633,9 +641,14 @@ impl ShapeGeom {
         dash: Option<&[(Point, Point)]>,
     ) -> (f32, f32) {
         let draws_outline = matches!(mode, ShapeMode::Outline | ShapeMode::FillAndOutline);
-        // Dashed stroke: band around the nearest on-segment, common to all kinds.
+        // Dashed stroke: band around the nearest on-segment, common to all
+        // kinds; a symmetric shape's segments lie on its low side.
         if draws_outline && let Some(segs) = dash {
-            let stroke = band_coverage(min_dist_segments(px, py, segs), half_stroke, aa);
+            let (qx, qy) = match self.mirrors() {
+                Some((mx, my)) => fold(px, py, mx, my),
+                None => (px, py),
+            };
+            let stroke = band_coverage(min_dist_segments(qx, qy, segs), half_stroke, aa);
             let fill = self.fill_coverage(px, py, mode, aa);
             return (fill, stroke);
         }
@@ -658,6 +671,16 @@ impl ShapeGeom {
                 let d = sd_polygon(px, py, verts);
                 Self::area_coverage(d, half_stroke, mode, aa)
             }
+        }
+    }
+
+    /// The mirror axes of a symmetric polygon, if it has any.
+    fn mirrors(&self) -> Option<(Option<f32>, Option<f32>)> {
+        match self {
+            ShapeGeom::Polygon {
+                mirror_x, mirror_y, ..
+            } if mirror_x.is_some() || mirror_y.is_some() => Some((*mirror_x, *mirror_y)),
+            _ => None,
         }
     }
 
@@ -707,6 +730,53 @@ impl SdfShape {
             SdfShape::Ellipse { cx, cy, ax, ay } => sd_ellipse(px - cx, py - cy, ax, ay),
         }
     }
+}
+
+/// The closed outline `verts` restarted at a vertex on a mirror axis and
+/// wound into the low side first, so the dash pattern starts on the axis
+/// and the mirrored halves meet there in one centered dash; unchanged when
+/// no vertex lies on an axis.
+fn start_on_axis(verts: Vec<Point>, mx: Option<f32>, my: Option<f32>) -> Vec<Point> {
+    let on_axis = |q: &Point| mx.is_some_and(|m| q.x == m) || my.is_some_and(|m| q.y == m);
+    let Some(start) = verts.iter().position(on_axis) else {
+        return verts;
+    };
+    let n = verts.len();
+    let mut out: Vec<Point> = (0..n).map(|i| verts[(start + i) % n]).collect();
+    // Low side: x below a vertical axis, else y below a horizontal one.
+    let high = |q: &Point| match (mx, my) {
+        (Some(m), _) => q.x > m,
+        (None, Some(m)) => q.y > m,
+        (None, None) => false,
+    };
+    if out.get(1).is_some_and(high) {
+        out[1..].reverse();
+    }
+    out
+}
+
+/// `segs` cut to the low side of the mirror axes (x ≤ `mx`, y ≤ `my`).
+fn clip_low(segs: Vec<(Point, Point)>, mx: Option<f32>, my: Option<f32>) -> Vec<(Point, Point)> {
+    // Keeps the part of a→b where `f` (affine along the segment) is ≤ 0.
+    fn cut(a: Point, b: Point, fa: f32, fb: f32) -> Option<(Point, Point)> {
+        let at = |t: f32| Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+        match (fa <= 0.0, fb <= 0.0) {
+            (true, true) => Some((a, b)),
+            (false, false) => None,
+            (true, false) => Some((a, at(fa / (fa - fb)))),
+            (false, true) => Some((at(fa / (fa - fb)), b)),
+        }
+    }
+    segs.into_iter()
+        .filter_map(|(a, b)| match mx {
+            Some(m) => cut(a, b, a.x - m, b.x - m),
+            None => Some((a, b)),
+        })
+        .filter_map(|(a, b)| match my {
+            Some(m) => cut(a, b, a.y - m, b.y - m),
+            None => Some((a, b)),
+        })
+        .collect()
 }
 
 /// `(px, py)` reflected onto the low side of the mirror axes, if any.

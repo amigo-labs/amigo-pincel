@@ -404,14 +404,35 @@ fn symmetric_shapes_paint_mirror_symmetric_pixels() {
             end: p(8.0, 14.0),
         },
     ];
+    // Solid and dashed outlines alike (AC-08 offers the dash patterns on
+    // every shape).
+    let mut styles = Vec::new();
     for aa in [true, false] {
         for mode in [
             ShapeMode::Fill,
             ShapeMode::Outline,
             ShapeMode::FillAndOutline,
         ] {
+            styles.push(style(mode, 3.0, aa));
+        }
+        for dash in [
+            DashPattern::Dashed,
+            DashPattern::Dotted,
+            DashPattern::DashDot,
+            DashPattern::DashDotDot,
+        ] {
+            for mode in [ShapeMode::Outline, ShapeMode::FillAndOutline] {
+                let mut st = style(mode, 3.0, aa);
+                st.dash = dash;
+                styles.push(st);
+            }
+        }
+    }
+    for st in styles {
+        let (mode, aa) = (st.mode, st.anti_alias);
+        {
             for shape in vertical {
-                let px = draw(shape, style(mode, 3.0, aa));
+                let px = draw(shape, st);
                 let axis2 = match shape {
                     Shape::BlockArrow { start, end } => (start.x + end.x) as u32,
                     Shape::Star { center, .. } => (2.0 * center.x) as u32,
@@ -424,14 +445,15 @@ fn symmetric_shapes_paint_mirror_symmetric_pixels() {
                             assert_eq!(
                                 px[(y * W + x) as usize],
                                 px[(y * W + mx as u32) as usize],
-                                "{shape:?} {mode:?} aa={aa} ({x}, {y})"
+                                "{shape:?} {mode:?} {:?} aa={aa} ({x}, {y})",
+                                st.dash
                             );
                         }
                     }
                 }
             }
             for shape in horizontal {
-                let px = draw(shape, style(mode, 3.0, aa));
+                let px = draw(shape, st);
                 let axis2 = match shape {
                     Shape::BlockArrow { start, end } => (start.y + end.y) as u32,
                     _ => (a.y + b.y) as u32,
@@ -445,7 +467,8 @@ fn symmetric_shapes_paint_mirror_symmetric_pixels() {
                         assert_eq!(
                             px[(y * W + x) as usize],
                             px[(my as u32 * W + x) as usize],
-                            "{shape:?} {mode:?} aa={aa} ({x}, {y})"
+                            "{shape:?} {mode:?} {:?} aa={aa} ({x}, {y})",
+                            st.dash
                         );
                     }
                 }
