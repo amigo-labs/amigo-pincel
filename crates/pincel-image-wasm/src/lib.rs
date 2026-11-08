@@ -6,7 +6,7 @@
 
 use pincel_effects::EffectSpec;
 use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
-use pincel_image_core::codec::to_png_bytes;
+use pincel_image_core::codec::{to_ico_bytes, to_png_bytes, to_tga_bytes};
 use pincel_image_core::command::live_spec::{
     TextLayoutRequest, live_object_spec, text_layout as layout_text,
 };
@@ -110,9 +110,11 @@ pub fn create_document(width: u32, height: u32) -> Result<u32, JsError> {
 /// Opens an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a single-layer
 /// document. `mime_type` is accepted for API parity but format is auto-detected.
 #[wasm_bindgen]
-pub fn open_image(data: &[u8], _mime_type: &str) -> Result<u32, JsError> {
-    let buffer =
-        pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
+pub fn open_image(data: &[u8], mime_type: &str) -> Result<u32, JsError> {
+    // The MIME type (or file name) is the hint for TGA, which has no
+    // signature (docs/specs/image-formats-more.md AC-04).
+    let buffer = pincel_image_core::codec::decode_hinted(data, Some(mime_type))
+        .map_err(|e| JsError::new(&e.to_string()))?;
     let doc = Document::from_pixels(buffer).map_err(to_js)?;
     Ok(insert(CommandBus::new(doc)))
 }
@@ -640,6 +642,34 @@ pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
         jobs::encode(&bus.document, EncodeFormat::Bmp, 0, 0).map_err(job_js)
     })
+}
+
+/// Exports the flattened composite as RLE-compressed 32-bit TGA bytes
+/// (docs/specs/image-formats-more.md).
+#[wasm_bindgen]
+pub fn export_tga(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_tga_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
+/// Exports the flattened composite as a one-image ICO; fails above
+/// 256 × 256 px (docs/specs/image-formats-more.md AC-08).
+#[wasm_bindgen]
+pub fn export_ico(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_ico_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
+/// Decodes `data` (a format `hint` — MIME type or file name — for TGA) and
+/// re-encodes it as PNG, so a dropped TGA / DDS / ICO goes through the
+/// same paste path as the browser's own formats (AC-13).
+#[wasm_bindgen]
+pub fn image_to_png(data: &[u8], hint: &str) -> Result<Vec<u8>, JsError> {
+    let buffer = pincel_image_core::codec::decode_hinted(data, Some(hint))
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    to_png_bytes(&buffer, 1).map_err(|e| JsError::new(&e.to_string()))
 }
 
 /// Exports the flattened composite as lossless RGBA TIFF bytes.
@@ -1447,6 +1477,18 @@ mod region_tests {
 mod export_tests {
     use super::*;
     use pincel_image_core::codec::decode;
+
+    #[test]
+    fn export_tga_ico_and_image_to_png_round_trip() {
+        let handle = insert(CommandBus::new(Document::new(5, 3).expect("doc")));
+        let tga = export_tga(handle).expect("tga");
+        let back = pincel_image_core::codec::decode_hinted(&tga, Some("a.tga")).expect("decode");
+        assert_eq!((back.width(), back.height()), (5, 3));
+        let ico = export_ico(handle).expect("ico");
+        assert!(ico.starts_with(&[0, 0, 1, 0]));
+        let png = image_to_png(&tga, "image/x-targa").expect("png");
+        assert!(png.starts_with(b"\x89PNG"));
+    }
 
     #[test]
     fn export_bmp_and_export_tiff_write_the_composite() {
