@@ -59,6 +59,20 @@ fn recognize_line_empty_or_uniform_returns_no_words() {
 }
 
 #[test]
+fn recognize_line_beyond_int16_returns_no_words() {
+    // Tesseract refuses images wider or higher than 32 767 px.
+    let model = Model::from_bytes(ENG).expect("eng loads");
+    let width = 32_768u32;
+    let rgba: Vec<u8> = (0..width * 2)
+        .flat_map(|i| if i % 7 < 3 { [0, 0, 0, 255] } else { [255; 4] })
+        .collect();
+    assert_eq!(
+        model.recognize_line(width, 2, &rgba),
+        Ok(RecognizedLine::default())
+    );
+}
+
+#[test]
 fn recognize_line_wrong_buffer_length_returns_bad_image() {
     let model = Model::from_bytes(ENG).expect("eng loads");
     assert_eq!(

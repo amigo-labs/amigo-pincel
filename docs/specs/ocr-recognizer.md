@@ -104,15 +104,15 @@ Terms used below:
 | ----- | ---- | ------ | ------ |
 | AC-01 | `from_bytes_eng_reports_charset_size_and_input_height`, `from_bytes_deu_reports_charset_size_and_input_height` (`crates/pincel-ocr/tests/load.rs`) | built |        |
 | AC-02 | `from_bytes_text_returns_not_traineddata`, `from_bytes_cut_short_returns_truncated`, `from_bytes_huge_size_field_returns_truncated`, `from_bytes_without_lstm_returns_no_lstm`, `from_bytes_without_charsets_returns_charset_unreadable`, `from_bytes_charsets_of_other_model_returns_charset_mismatch`, `from_bytes_unknown_layer_returns_unsupported_layer`, `from_bytes_float_weights_returns_float_weights` (`tests/load.rs`) | built |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-03 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`crates/pincel-ocr/tests/golden.rs`) | built |        |
+| AC-04 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`tests/golden.rs`): word count, text and boxes within 2 px | built |        |
 | AC-05 | `recognize_line_confidences_in_range_and_words_ordered` (`tests/recognize.rs`) | built |        |
 | AC-06 | `recognize_line_empty_or_uniform_returns_no_words` (`tests/recognize.rs`) | built |        |
 | AC-07 | `recognize_line_wrong_buffer_length_returns_bad_image` (`tests/recognize.rs`) | built |        |
-| AC-08 |      | open   |        |
+| AC-08 | `recognize_line_one_to_seven_pixels_high_returns_without_error` (`tests/recognize.rs`); corpus lines `short_8`, `tall_400`, `wide_20000` in `tests/golden.rs` | built |        |
 | AC-09 | `recognize_line_random_images_never_panics`, `from_bytes_corrupted_models_never_panic` (`tests/robustness.rs`) | built |        |
 | AC-10 | `recognize_line_shared_model_on_threads_matches_sequential` (`tests/recognize.rs`) | built |        |
-| AC-11 |      | open   |        |
+| AC-11 | corpus lines `dark_white`, `dark_blue`, `transparent` in `tests/golden.rs` | built |        |
 
 ## Decisions
 
@@ -122,7 +122,7 @@ Terms used below:
 - 2026-11-08 (build): The reference is Tesseract 5.5.4 with Leptonica 1.82.0, built from source (`tests/golden/reference.txt`). The corpus PNGs are RGB, never grey or RGBA, so the reference takes the same Leptonica 32-bpp path (opaque alpha byte) that the recognizer follows for its RGBA input; the transparent line is stored as RGBA and flattened by `make_corpus.py` with the recognizer's own integer arithmetic before the reference reads it.
 - 2026-11-08 (build): Flattening uses Rec. 601 luma (299/587/114 per mille) for the alpha-weighted mean and rounds the composite as `(c·a + bg·(255 − a) + 127) / 255`. The spec names no formula; this is the common one.
 - 2026-11-08 (build): Loading maps a malformed network (impossible sizes, a null char outside the softmax, old float-scale weight format) to `NoLstm`, and a big-endian file to `NotTraineddata`; every published model is little-endian.
-- 2026-11-08 (build): The network, the activation tables, the recode beam search, the confidences, the Otsu binarization and Leptonica's scaling are exact ports (network outputs bit-identical with an instrumented Tesseract; the scaling matched Leptonica 1.82 in 119 578 cases). Tesseract's page layout for `--psm 7` (`textord`: outline extraction, noise filtering, spline baseline, word spacing) is not ported line by line; `layout.rs` reproduces its line size, x-height, ascender and descender estimate and the crop exactly, and approximates the rest: blobs are 8-connected components, accents merge with the letter they overlap, the baseline is the least-median-of-squares level of the blob bottoms, and words are grouped like `ROW_RES` merges them. Word boxes take the blobs whose x middle falls in each word's share of the line. A full textord port is several specs' worth of code.
-- 2026-11-08 (build): Images wider or higher than 32 767 px are recognized; Tesseract refuses them, so no reference exists.
+- 2026-11-08 (build): The network, the activation tables, the recode beam search, the confidences, the Otsu binarization and Leptonica's scaling are exact ports (network outputs bit-identical with an instrumented Tesseract; the scaling matched Leptonica 1.82 in 119 578 cases). Tesseract's `--psm 7` page layout is ported too (`src/textord/`: outline extraction, blob filtering, straight and spline baselines, x-height, `tospace` word spacing, noise cleanup, word combos, crop and `ReplaceCurrentWord` word boxes), after a first approximation missed 5 of 71 corpus lines on tiny text; the owner chose the exact port. Every intermediate stage matched an instrumented Tesseract on 119 lines. Not ported: fixed-pitch word segmentation (`compute_fixed_pitch`), so monospace rows that Tesseract judges fixed pitch may get different word boxes (1 of 400 random English lines in a check), and the rotation before the underline test, which is exact for unrotated lines.
+- 2026-11-08 (build): Images wider or higher than 32 767 px return no words, as Tesseract's thresholder refuses them; the page layout keeps Tesseract's int16 coordinate range.
 - 2026-11-08 (build): The property test spreads its 1 000 images over threads (each image has its own seed) to stay inside the test budget (AGENTS.md §7.5); the crate itself stays single-threaded.
 - 2026-11-08 (build): New public API: `Model` (`from_bytes`, `character_set_size`, `input_height`, `version`, `recognize_line`), `RecognizedLine`, `Word`, `WordBox`, `LoadError`, `RecognizeError`.

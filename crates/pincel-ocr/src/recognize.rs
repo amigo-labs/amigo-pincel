@@ -6,13 +6,17 @@ use crate::beam::BeamSearch;
 use crate::functions::TRand;
 use crate::image::scale::{Rgb32, rgb_to_luminance};
 use crate::image::{channel_bytes, crop, flatten, invert, network_input, prescale};
-use crate::layout::{self, Blob, TBox};
 use crate::network::NetworkIo;
+use crate::textord::{self, TBox, clip_to_range};
 use crate::{Model, RecognizeError, RecognizedLine, Word, WordBox};
 
 /// `invert_threshold`: below this mean output confidence the inverted line
 /// is tried as well.
 const INVERT_THRESHOLD: f32 = 0.7;
+/// `UNICHAR_SPACE`: the id of the space in every unicharset.
+const UNICHAR_SPACE: i32 = 0;
+/// The largest width or height Tesseract recognizes (`INT16_MAX`).
+const MAX_SIDE: usize = i16::MAX as usize;
 /// `kCertaintyScale` in `linerec.cpp`.
 const CERTAINTY_SCALE: f32 = 7.0;
 
@@ -75,7 +79,9 @@ pub(crate) fn recognize_line(
     if rgba.len() != expected {
         return Err(RecognizeError::BadImage);
     }
-    if w == 0 || h == 0 {
+    // Tesseract's thresholder refuses images beyond INT16_MAX in either
+    // direction, and its page layout stores coordinates as int16.
+    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
         return Ok(RecognizedLine::default());
     }
     let Some(flat) = flatten(w, h, rgba) else {
@@ -85,18 +91,58 @@ pub(crate) fn recognize_line(
     if flat.data.iter().all(|&p| p >> 8 == first) {
         return Ok(RecognizedLine::default());
     }
-    let black = layout::binarize(&channel_bytes(&flat), w, h);
-    let blobs = layout::components(&black, w, h);
-    let mut words = Vec::new();
-    for (line_box, members) in layout::line_boxes(&blobs, width as i32, height as i32) {
-        words.extend(recognize_group(
-            model,
-            &flat,
-            &line_box,
-            &members,
-            height as i32,
-        ));
+    let black = textord::binarize(&channel_bytes(&flat), w, h);
+    let (iw, ih) = (width as i32, height as i32);
+    // Each row's words with their certainties (`recog_all_words`, pass 1).
+    let mut rows: Vec<Vec<(bool, Word, f32)>> = Vec::new();
+    for row in textord::page_layout(&black, w, h) {
+        let mut words = Vec::new();
+        for input in textord::recog_words(&row) {
+            let Some(line_box) = textord::lstm_box(&row, input.word.bounding_box(), iw, ih) else {
+                continue;
+            };
+            let found = recognize_group(model, &flat, &line_box);
+            if found.is_empty() {
+                continue;
+            }
+            let chars: Vec<Vec<TBox>> = found.iter().map(|f| f.chars.clone()).collect();
+            let boxes = textord::replace_current_word(&input, &chars);
+            for (f, b) in found.into_iter().zip(boxes) {
+                words.push((
+                    f.all_spaces,
+                    Word {
+                        text: f.text,
+                        bbox: to_word_box(&b, iw, ih),
+                        confidence: f.confidence,
+                    },
+                    f.certainty,
+                ));
+            }
+        }
+        rows.push(words);
     }
+    // Textord::CleanupSingleRowResult: keep the row with the best mean
+    // certainty; then recog_all_words drops the words that are all spaces.
+    let mut best: Option<(usize, f32)> = None;
+    for (i, r) in rows.iter().enumerate() {
+        if r.is_empty() {
+            continue;
+        }
+        let mean = r.iter().map(|w| w.2).sum::<f32>() / r.len() as f32;
+        if best.is_none_or(|(_, b)| b < mean) {
+            best = Some((i, mean));
+        }
+    }
+    let mut words: Vec<Word> = match best {
+        Some((i, _)) => rows
+            .swap_remove(i)
+            .into_iter()
+            .filter(|w| !w.0)
+            .map(|w| w.1)
+            .collect(),
+        None => Vec::new(),
+    };
+    // Tesseract's word order, made strictly left to right.
     words.sort_by_key(|wd| wd.bbox.left);
     let text = words
         .iter()
@@ -106,15 +152,21 @@ pub(crate) fn recognize_line(
     Ok(RecognizedLine { words, text })
 }
 
-/// Recognizes one group of words: crops it, runs the network (and on the
-/// inverted crop when the outputs are unsure) and decodes the best path.
-fn recognize_group(
-    model: &Model,
-    flat: &Rgb32,
-    line_box: &TBox,
-    blobs: &[Blob],
-    image_height: i32,
-) -> Vec<Word> {
+/// A word the LSTM read: its text, confidence and certainty, and the
+/// boxes of its characters (`RecodeBeamSearch::InitializeWord`).
+struct FoundWord {
+    text: String,
+    /// Every character is `UNICHAR_SPACE` (`WERD_CHOICE::IsAllSpaces`).
+    all_spaces: bool,
+    confidence: u8,
+    certainty: f32,
+    chars: Vec<TBox>,
+}
+
+/// Recognizes one crop (`LSTMRecognizer::RecognizeLine`): runs the
+/// network (and on the inverted crop when the outputs are unsure) and
+/// decodes the best path into words.
+fn recognize_group(model: &Model, flat: &Rgb32, line_box: &TBox) -> Vec<FoundWord> {
     let cropped = crop(flat, line_box);
     if cropped.width == 0 || cropped.height == 0 {
         return Vec::new();
@@ -139,87 +191,49 @@ fn recognize_group(
         .collect();
     search.decode(&flat_outputs, outputs.features);
     let path = search.best_path();
-    let path_words = search.words(&path);
-    let boxes = word_boxes(&path_words, line_box, scale_factor, blobs);
-    path_words
+    search
+        .words(&path)
         .iter()
-        .zip(boxes)
-        .map(|(pw, bbox)| {
+        .map(|pw| {
             let text: String = pw
                 .ids
                 .iter()
                 .map(|&id| model.unicharset.text(id as usize))
                 .collect();
-            let confidence = (100.0 + 5.0 * pw.certainty * CERTAINTY_SCALE).clamp(0.0, 100.0);
-            Word {
+            let certainty = pw.certainty * CERTAINTY_SCALE;
+            let confidence = (100.0 + 5.0 * certainty).clamp(0.0, 100.0);
+            let chars = pw
+                .spans
+                .iter()
+                .map(|&(a, b)| TBox {
+                    left: i32::from((a as f32 * scale_factor).floor() as i16) + line_box.left,
+                    bottom: line_box.bottom,
+                    right: i32::from((b as f32 * scale_factor).ceil() as i16) + line_box.left,
+                    top: line_box.top,
+                })
+                .collect();
+            FoundWord {
                 text,
-                bbox: to_word_box(&bbox, image_height),
+                all_spaces: pw.ids.iter().all(|&id| id == UNICHAR_SPACE),
                 confidence: (confidence + 0.5) as u8,
+                certainty,
+                chars,
             }
         })
         .collect()
 }
 
-/// The pixel boxes of the words: the blobs whose x middle falls in each
-/// word's share of the line (`PAGE_RES_IT::ReplaceCurrentWord`), or the
-/// word's character cells when it has none.
-fn word_boxes(
-    words: &[crate::beam::PathWord],
-    line: &TBox,
-    scale_factor: f32,
-    blobs: &[Blob],
-) -> Vec<TBox> {
-    // Character cells (`InitializeWord`): output steps scaled back to pixels.
-    let cells: Vec<Option<TBox>> = words
-        .iter()
-        .map(|w| {
-            let first = w.spans.first()?;
-            let last = w.spans.last()?;
-            Some(TBox {
-                left: (first.0 as f32 * scale_factor).floor() as i16 as i32 + line.left,
-                bottom: line.bottom,
-                right: (last.1 as f32 * scale_factor).ceil() as i16 as i32 + line.left,
-                top: line.top,
-            })
-        })
-        .collect();
-    let mut out = Vec::with_capacity(words.len());
-    for (i, cell) in cells.iter().enumerate() {
-        let start = if i == 0 {
-            i32::MIN
-        } else {
-            boundary(cells[i - 1].as_ref(), cell.as_ref())
-        };
-        let end = if i + 1 == cells.len() {
-            i32::MAX
-        } else {
-            boundary(cell.as_ref(), cells[i + 1].as_ref())
-        };
-        let found = blobs
-            .iter()
-            .map(|b| b.bbox)
-            .filter(|b| (start..end).contains(&b.x_middle()))
-            .reduce(|a, b| a.union(&b));
-        out.push(found.or(*cell).unwrap_or(*line));
-    }
-    out
-}
-
-/// The x position between two neighbouring word cells.
-fn boundary(a: Option<&TBox>, b: Option<&TBox>) -> i32 {
-    match (a, b) {
-        (Some(a), Some(b)) => (a.right + b.left) / 2,
-        (Some(a), None) => a.right,
-        (None, Some(b)) => b.left,
-        (None, None) => 0,
-    }
-}
-
-fn to_word_box(b: &TBox, image_height: i32) -> WordBox {
+/// `PageIterator::BoundingBox` for a word: Tesseract's box in top-down
+/// image coordinates, clipped to the image.
+fn to_word_box(b: &TBox, width: i32, height: i32) -> WordBox {
+    let left = clip_to_range(b.left, 0, width);
+    let top = clip_to_range(height - b.top, 0, height);
+    let right = clip_to_range(b.right, left, width);
+    let bottom = clip_to_range(height - b.bottom, top, height);
     WordBox {
-        left: b.left.max(0) as u32,
-        top: (image_height - b.top).max(0) as u32,
-        width: b.width().max(0) as u32,
-        height: b.height().max(0) as u32,
+        left: left as u32,
+        top: top as u32,
+        width: (right - left) as u32,
+        height: (bottom - top) as u32,
     }
 }

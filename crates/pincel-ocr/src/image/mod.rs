@@ -9,8 +9,8 @@
 pub(crate) mod scale;
 
 use crate::functions::TRand;
-use crate::layout::TBox;
 use crate::network::{Map, NetworkIo};
+use crate::textord::TBox;
 use scale::{Grey8, Rgb32};
 
 /// Composites RGBA pixels over white or black, whichever contrasts more
@@ -20,7 +20,7 @@ use scale::{Grey8, Rgb32};
 pub(crate) fn flatten(width: usize, height: usize, rgba: &[u8]) -> Option<Rgb32> {
     let mut weighted = 0u64;
     let mut alpha_total = 0u64;
-    for p in rgba.chunks_exact(4) {
+    for p in rgba.as_chunks::<4>().0 {
         // Rec. 601 luma in 1/1000 steps.
         let luma = 299 * u64::from(p[0]) + 587 * u64::from(p[1]) + 114 * u64::from(p[2]);
         weighted += luma * u64::from(p[3]);
@@ -35,7 +35,9 @@ pub(crate) fn flatten(width: usize, height: usize, rgba: &[u8]) -> Option<Rgb32>
         255
     };
     let data = rgba
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|p| {
             let a = u32::from(p[3]);
             let mix = |c: u8| (u32::from(c) * a + background * (255 - a) + 127) / 255;

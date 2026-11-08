@@ -25,12 +25,12 @@ mod error;
 mod functions;
 mod functions_table;
 mod image;
-mod layout;
 mod network;
 mod reader;
 mod recoder;
 mod recognize;
 mod tessdata;
+mod textord;
 mod unicharset;
 
 pub use error::{LoadError, RecognizeError};
