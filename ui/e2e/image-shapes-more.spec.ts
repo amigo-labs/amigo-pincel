@@ -83,6 +83,36 @@ async function filled(page: Page, size = 200): Promise<void> {
 
 const RED = '#ff0000';
 
+/** Whether any pixel within `r` device px of a fractional canvas position
+ *  differs between two canvas screenshots. */
+async function differsNear(
+  page: Page,
+  a: Buffer,
+  b: Buffer,
+  [fx, fy]: [number, number],
+  r = 3,
+): Promise<boolean> {
+  return page.evaluate(
+    async ({ a64, b64, fx, fy, r }) => {
+      const read = async (b64: string) => {
+        const bitmap = await createImageBitmap(
+          await (await fetch(`data:image/png;base64,${b64}`)).blob(),
+        );
+        const canvas = new OffscreenCanvas(bitmap.width, bitmap.height);
+        const ctx = canvas.getContext('2d');
+        if (!ctx) throw new Error('no 2d context');
+        ctx.drawImage(bitmap, 0, 0);
+        const x = Math.floor(bitmap.width * fx);
+        const y = Math.floor(bitmap.height * fy);
+        return ctx.getImageData(x - r, y - r, 2 * r + 1, 2 * r + 1).data;
+      };
+      const [pa, pb] = [await read(a64), await read(b64)];
+      return pa.some((v, i) => v !== pb[i]);
+    },
+    { a64: a.toString('base64'), b64: b.toString('base64'), fx, fy, r },
+  );
+}
+
 test('U cycles the ten shapes; the flyout and the options bar list them in order with icons and names (AC-01)', async ({
   page,
 }) => {
@@ -135,6 +165,8 @@ test('the drag previews the shape’s own outline and leaves it live; the commit
   // A rectangle's preview runs through the box corner, a triangle's not.
   const corner: [number, number] = [0.3, 0.2];
   const before = await shown(page, corner);
+  const blank = await imageCanvas(page).screenshot();
+  let during = blank;
   const previewAt = async (name: string): Promise<string> => {
     await variant(page, name);
     const [ax, ay] = await at(page, [0.2, 0.2]);
@@ -143,6 +175,7 @@ test('the drag previews the shape’s own outline and leaves it live; the commit
     await page.mouse.down();
     await page.mouse.move(bx, by, { steps: 6 });
     const color = await shown(page, corner);
+    during = await imageCanvas(page).screenshot();
     await page.mouse.up();
     return color;
   };
@@ -150,6 +183,11 @@ test('the drag previews the shape’s own outline and leaves it live; the commit
   await undoButton(page).click();
   await expect(handles(page)).toHaveCount(0);
   expect(await previewAt('Triangle')).toBe(before);
+  // The triangle's own outline shows during the drag: the middle of its
+  // left slanted edge, (0.2, 0.8)–(0.5, 0.2), changed; the box's left edge
+  // did not.
+  expect(await differsNear(page, blank, during, [0.35, 0.5])).toBe(true);
+  expect(await differsNear(page, blank, during, [0.2, 0.5])).toBe(false);
   // Released: the triangle is live with its box handles.
   await expect(handles(page)).toHaveCount(8);
   expect(await shown(page, [0.5, 0.6])).toBe(RED);
