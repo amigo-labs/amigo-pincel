@@ -64,9 +64,15 @@ fn from_bytes_corrupted_models_never_panic() {
     for original in [ENG, DEU] {
         for _ in 0..1000 {
             let mut data = original.to_vec();
-            for _ in 0..1 + rng.below(16) {
+            // 1-16 distinct positions, each byte changed to a different value.
+            let mut changed: Vec<usize> = Vec::new();
+            let count = 1 + rng.below(16) as usize;
+            while changed.len() < count {
                 let at = rng.below(data.len() as u64) as usize;
-                data[at] = rng.next() as u8;
+                if !changed.contains(&at) {
+                    data[at] ^= 1 + rng.below(255) as u8;
+                    changed.push(at);
+                }
             }
             if let Ok(model) = Model::from_bytes(&data) {
                 let _ = model.recognize_line(48, 16, &probe);
