@@ -24,7 +24,7 @@ The owner chose all of the following (Decision Log 2026-11-08):
 Terms used below:
 
 - **OCR dialog**: the modal dialog titled "Recognize Text" this spec adds. While it is open, the rest of the editor is dimmed and inert, as with the effect dialog (Decision Log 2026-11-05): no edits, menus, shortcuts, tab switches or closing the document.
-- **Source area**: what is read. The pixels are the composite of the visible layers, the pixels of File ▸ Export ▸ PNG. With a selection, the area is the selection's bounding box clipped to the canvas. Pixels in it that are less than half selected count as transparent. Without a selection, the area is the whole canvas. Transparent pixels follow `ocr-page`'s flattening.
+- **Source area**: what is read. The pixels are the composite of the visible layers, the pixels of File ▸ Export ▸ PNG. With a selection, the area is the selection's bounding box clipped to the canvas. Pixels in it that are at least half selected keep their colour and alpha. The other pixels take the background around the selection: the median colour of the selected pixels along the selection's border. Without a selection, the area is the whole canvas. Remaining transparent pixels follow `ocr-page`'s flattening.
 - **Page text**: as defined in `ocr-page`.
 - **Language**: German or English, each backed by one model (`deu`, `eng` from `tessdata_fast` 4.1.0).
 - **Stored model**: a model already downloaded, checked against its pinned SHA-256 and kept on this device, unless the browser or the user clears the site's storage.
@@ -59,7 +59,7 @@ Terms used below:
 
 - [ ] AC-01 (always): Image mode's menu bar has a Tools menu between Effects and Help, holding "Recognize Text…". Pixel mode's menu bar has no Tools menu.
 - [ ] AC-02 (event): When the user picks Tools ▸ Recognize Text…, then the OCR dialog opens. The language is preselected: the language of the last recognition the user started, kept across sessions. On first use it is German if the interface language is German and English otherwise, the best guess for the text a user reads.
-- [ ] AC-03 (event): When the dialog opens, or the user picks another language, and that language's model is stored, then recognition of the source area starts without further input. While the layout is analysed, the dialog shows "Finding text…". After that it shows "Recognizing line n of m". A Cancel button is shown throughout.
+- [ ] AC-03 (event): When the dialog opens, or the user picks another language, and that language's model is stored, then recognition of the source area starts without further input. While the layout is analysed, the dialog shows "Finding text…". After that it shows "Recognizing line k of m", where k is the line being recognized (1 to m); with no lines found, it goes straight to AC-07. A Cancel button is shown throughout.
 - [ ] AC-04 (event): When the language's model is not stored, then the dialog downloads it from the model URL and shows "Downloading German model…" (or English) with the bytes downloaded and the total, or only the bytes downloaded when the server sends no total. It then stores the model and starts recognition. Later opens of the dialog download nothing while the stored model is present.
 - [ ] AC-05 (error): If the downloaded file does not match its pinned SHA-256, then it is discarded and not stored, and the dialog shows "The language model could not be verified." with Retry.
 - [ ] AC-06 (error): If the download fails (offline, server error, aborted connection), then the dialog shows "The language model could not be downloaded. Check the connection and try again." with Retry. Nothing partial is stored, and Retry starts the download again.
@@ -70,20 +70,20 @@ Terms used below:
 - [ ] AC-11 (always): Hidden layers do not contribute to the source area. In the test, a word on a hidden layer is not in the result, and a word on a visible layer above it is.
 - [ ] AC-12 (event): When the user presses Cancel during download or recognition, or presses Escape or Close at any time, then the work stops and the dialog closes. A download in progress is discarded, so that model is downloaded again next time. A model already stored stays stored.
 - [ ] AC-13 (always): Opening, using and closing the OCR dialog leaves the document, its selection, its undo history and its dirty state unchanged.
-- [ ] AC-14 (state): While recognition of the 1920 × 1080 screenshot from `ocr-page`'s corpus runs in the e2e test, a press on Cancel closes the dialog within 500 ms, and the progress line changes at least once per recognized line.
+- [ ] AC-14 (state): While recognition of `ocr-page`'s benchmark screenshot runs in the e2e test, a press on Cancel closes the dialog within 500 ms, and the progress line changes at least once per recognized line.
 - [ ] AC-15 (always): The PWA's precache manifest lists no model file; installing or updating the PWA downloads no model.
 - [ ] AC-16 (option): Where the interface language is German, the Tools menu reads "Extras" and its entry "Text erkennen…", and the dialog's title, labels, buttons and messages are German. The recognized text itself is never translated.
-- [ ] AC-17 (always): Recognizing the 1920 × 1080 screenshot from `ocr-page`'s corpus in the e2e test gives exactly the page text that the native `pincel-ocr` test records for that image, which shows the wasm build computes the same as the native one.
-- [ ] AC-18 (error): If recognition fails (the engine cannot start, runs out of memory, or stops with an error), then the dialog shows "Text recognition failed." with Retry, and the editor stays usable after Close.
+- [ ] AC-17 (always): Recognizing `ocr-page`'s benchmark screenshot in English in the e2e test gives exactly its committed page-text snapshot (`ocr-page` AC-14), which shows the wasm build computes the same as the native one.
+- [ ] AC-18 (error): If recognition fails (the engine cannot start, the model is rejected, memory runs out, or it stops with an error), then the dialog shows "Text recognition failed." with Retry, and the editor stays usable after Close. A stored model the engine rejects is removed, so Retry downloads it again.
 - [ ] AC-19 (error): If the device storage cannot be read or written (quota exceeded, storage blocked), then a model that cannot be read counts as not stored. A downloaded model that cannot be stored is still used for this recognition, without an error message.
 - [ ] AC-20 (error): If a stored model no longer matches its pinned SHA-256 when it is loaded, then it is removed and downloaded again as in AC-04.
-- [ ] AC-21 (always, manual: reference machine): Recognizing the 1920 × 1080 corpus screenshot in the PWA's release build takes at most 8 s on the reference machine (pincel.md §4.5). That is wasm without SIMD threads at most about 2.5 × the native budget of `ocr-page` AC-13.
+- [ ] AC-21 (always, manual: reference machine): Recognizing `ocr-page`'s benchmark screenshot in the PWA's release build takes at most 8 s on the reference machine (pincel.md §4.5). That is wasm without SIMD threads at most about 2.5 × the native budget of `ocr-page` AC-13.
 
 ## Technical notes
 
-- **Wasm surface**: `pincel-image-wasm` depends on `pincel-ocr` and exposes an OCR session created inside Rust from a document handle and the source area (no RGBA round trip through JavaScript). It takes the model bytes and reports progress. It runs in Image mode's job worker (`ui/src/modes/image/jobs`) on a document snapshot, so the main thread stays free. Cancel can end the worker. The generated TypeScript types follow the existing `export_command_spec` drift check.
+- **Wasm surface**: `pincel-image-wasm` depends on `pincel-ocr` and exposes an OCR session created inside Rust from a document snapshot (`snapshotDocument` bytes, as the job worker's effects get them) and the source area, so the pixels are composed in Rust, not in JavaScript. It takes the model bytes and reports progress. It runs in a worker of its own, not in the shared job worker (`ui/src/modes/image/jobs`), which also serves autosave, export and effects: Cancel ends the OCR worker and nothing else. The generated TypeScript types follow the existing `export_command_spec` drift check.
 - **Model storage**: an IndexedDB object store for model bytes keyed by language and `tessdata_fast` version, the same in the PWA and in the desktop app's webview. The last used language is a pref (`ui/src/lib/idb/prefs.ts`). No `localStorage` (AGENTS.md §9).
-- **Model URL and website**: the PWA fetches the model URL on its own origin. The desktop app fetches the absolute URL, so the website serves the models with `Access-Control-Allow-Origin` for the desktop app's origin and long-lived cache headers. `vite-plugin-pwa`'s `globPatterns` lists the file types to precache, and `.traineddata` is not among them. e2e tests serve the committed models through `page.route` and need no network.
+- **Model URL and website**: the PWA fetches the model URL on its own origin. The desktop app fetches the absolute URL, so the website serves the models with long-lived cache headers and an `Access-Control-Allow-Origin` that admits the desktop app's origins (`tauri://localhost` on macOS and Linux, `http://tauri.localhost` on Windows). `vite-plugin-pwa`'s `globPatterns` lists the file types to precache, and `.traineddata` is not among them. e2e tests serve the committed models through `page.route` and need no network.
 - **Concurrent downloads**: two windows that download the same model both store identical bytes; the second write replaces the first, without an error.
 - **Dialog**: built like the effect dialog, with `pc-*` tokens and `t()` strings. The menu entry is data in Image mode's menu definition (`EditorFrame`).
 
@@ -101,6 +101,8 @@ Terms used below:
 | An update pins a newer `tessdata_fast` version | The new version is downloaded on next use; the old one is removed once the new one is stored |
 | Field cleared by the user | Copy is disabled (AC-08) |
 | Browser evicted the stored model | Next use downloads it again (AC-04) |
+| Window or app closed during download or recognition | The work ends with the page; a model is stored in one transaction, so nothing half-written remains; the close guard for unsaved changes works as usual |
+| Lasso over dark text on a white page | Unselected pixels become white (the border's median), so the lasso's outline adds no ink |
 
 ## Assumptions
 
@@ -108,7 +110,7 @@ Terms used below:
 | ---------- | ------ | ---- |
 | IndexedDB holds a few MB per model | Both platforms grant at least this much without a prompt | Under storage pressure the browser may evict it; AC-04 downloads it again |
 | "Tools" is the right home for future entries (vectorize, AI) | Owner chose a Tools menu for OCR | Later specs may move OCR or add entries; no AC depends on other entries |
-| Ending the worker is an acceptable way to cancel | Recognition holds no state worth keeping | The next recognition pays the worker start again (about the time to instantiate the core) |
+| Ending the OCR worker is an acceptable way to cancel | It runs only OCR, which holds no state worth keeping | The next recognition pays the worker start again (about the time to instantiate the core) |
 
 ## Open questions
 
@@ -144,3 +146,4 @@ Terms used below:
 
 - 2026-11-08: The owner chose Image mode only, a Tools menu, a dialog with Copy, German and English, and models downloaded on first use from Pincel's website.
 - 2026-11-08 (clarification pass): The dialog is modal, the owner's choice, which removes edits and tab switches during recognition. Transparent and unselected pixels follow `ocr-page`'s flattening, also the owner's choice. "Nothing is stored" on cancel now means only the download in progress. AC-14 is measured in the e2e test. AC-17 to AC-21 were added: wasm equals native, recognition failure, storage failure, a damaged stored model, and the wasm time budget.
+- 2026-11-08 (second clarification pass): OCR runs in a worker of its own, so Cancel can end it without touching autosave or export. Unselected pixels take the background colour along the selection's border instead of transparency, so a lasso on a white page does not turn black. AC-17 compares with `ocr-page`'s committed snapshot.

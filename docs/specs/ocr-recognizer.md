@@ -24,8 +24,8 @@ Terms used below:
 - **Character set size**: the entry count on the first line of the model's LSTM unicharset component, which includes Tesseract's special entries (space, `Joined`, and so on).
 - **Line image**: an RGBA buffer of `width × height × 4` bytes that holds a single line of text, the kind of image `tesseract --psm 7` reads.
 - **Flattening**: before anything else, each pixel is composited over a background that is white or black, whichever contrasts more with the line's ink. That is black when the alpha-weighted mean luminance of the line's pixels is above 50 % (light text on transparency) and white otherwise. A fully opaque line image is unchanged by flattening.
-- **Recognized line**: the recognizer's result for a line image: the text, and the words in order, each with its axis-aligned bounding box in line-image pixels and an integer confidence from 0 to 100.
-- **Reference Tesseract**: the Tesseract 5.5 command-line tool (current stable; the patch version is recorded with the golden corpus and changes only by regenerating it), run on the flattened line image with the same model as `tesseract <line.png> - --psm 7 --oem 1 -c lstm_use_matrix=0 tsv`. `--oem 1` selects the LSTM engine only; `lstm_use_matrix=0` keeps Tesseract from loading the dictionary into the LSTM decoder.
+- **Recognized line**: the recognizer's result for a line image: the words in order, each with its axis-aligned bounding box in line-image pixels and an integer confidence from 0 to 100, and the line's text, which is its words joined by single spaces.
+- **Reference Tesseract**: the Tesseract 5.5 command-line tool (current stable; the patch version is recorded with the golden corpus and changes only by regenerating it), run on the flattened line image with the same model as `tesseract <line.png> - --psm 7 --oem 1 -c lstm_use_matrix=0 -c dotproduct=generic tsv`. `--oem 1` selects the LSTM engine only, `lstm_use_matrix=0` keeps Tesseract from loading the dictionary into the LSTM decoder, and `dotproduct=generic` makes it use its generic arithmetic instead of the CPU's SIMD path. The **reference text** of a line is the text of its TSV word rows (level 5), joined by single spaces.
 - **Golden corpus**: committed line images, each with the reference Tesseract's TSV for that image. The tests compare against these files, so CI needs no Tesseract.
 
 ## Scope
@@ -52,14 +52,14 @@ Terms used below:
 ## Acceptance criteria
 
 - [ ] AC-01 (event): When the recognizer is given the bytes of the `eng` or `deu` model, then it loads the model and reports its character set size and its network's input height. Both equal what the reference Tesseract's `combine_tessdata -d` and the unicharset show for that file.
-- [ ] AC-02 (error): If the model bytes are unusable, then loading fails with an error kind the caller can tell apart, and nothing panics. The kinds are: not a `.traineddata` file; truncated (a component's offset or size points past the end — detected before anything is allocated for it); no LSTM network; unicharset or recoder missing or unreadable; unicharset or recoder not matching the network's output size; a network layer type the crate does not implement; float weights (`tessdata_best`).
-- [ ] AC-03 (always): For every line of the golden corpus, the recognized line's text equals the reference Tesseract's text for that line image, character for character.
+- [ ] AC-02 (error): If the model bytes are unusable, then loading fails with an error kind the caller can tell apart, and nothing panics. The kinds are: not a `.traineddata` file; truncated (a component's offset or size points past the end; a size field claiming gigabytes gives this error instead of exhausting memory or aborting the process); no LSTM network; unicharset or recoder missing or unreadable; unicharset or recoder not matching the network's output size; a network layer type the crate does not implement; float weights (`tessdata_best`).
+- [ ] AC-03 (always): For every line of the golden corpus, the recognized line's text equals the line's reference text, character for character.
 - [ ] AC-04 (always): For every line of the golden corpus, the recognized line has the same number of words as the reference TSV's word rows, with the same text in the same order, and each word's box is within 2 px of the reference box on every side. The 2 px cover the rounding when boxes are scaled back from the network's input height.
 - [ ] AC-05 (always): Word confidences are integers from 0 to 100, and words are ordered by the left edge of their box.
 - [ ] AC-06 (event): When a line image has zero width or height, or all its pixels have the same colour after flattening, then the recognized line has no words and empty text, without an error.
-- [ ] AC-07 (error): If the pixel buffer's length is not `width × height × 4`, then recognition fails with a "bad image" error.
+- [ ] AC-07 (error): If the pixel buffer's length is not `width × height × 4`, or that product overflows the platform's integer size (as it can on wasm32), then recognition fails with a "bad image" error.
 - [ ] AC-08 (always): Line images 1 to 7 px high return a result without an error, possibly with no words. The golden corpus has lines 8 px and 400 px high, and a line 20 000 px wide made by repeating a corpus line, and these are recognized per AC-03.
-- [ ] AC-09 (always): A seeded property test with 1 000 random line images and 1 000 copies of each committed model with random bytes changed finds no input on which loading or recognizing panics.
+- [ ] AC-09 (always): A seeded property test finds no input on which loading or recognizing panics or aborts. Its inputs: 1 000 random line images 1–512 px wide and 1–128 px high with random pixels, and 1 000 copies of each committed model with 1–16 random bytes changed.
 - [ ] AC-10 (always): One loaded model can be used for several recognitions at the same time on different threads, and each gives the same result as when run alone.
 - [ ] AC-11 (always): A light-on-dark line and a line of white text on a transparent background in the golden corpus are recognized per AC-03. The reference runs on the flattened image.
 
@@ -88,7 +88,7 @@ Terms used below:
 
 | Assumption | Reason | Risk |
 | ---------- | ------ | ---- |
-| Following the generic integer path makes the text identical (AC-03) | Tesseract's fast models are integer networks with lookup-table activations, so the arithmetic is deterministic | A float step in the normalization may round differently; then AC-03 needs a documented tolerance, which is a spec revision |
+| Following the generic integer path makes the text identical (AC-03) | Tesseract's fast models are integer networks with lookup-table activations, and the reference runs with `dotproduct=generic`, so both sides use the same arithmetic | A float step in the normalization may round differently; then AC-03 needs a documented tolerance, which is a spec revision |
 | `-c lstm_use_matrix=0` is the setting that keeps Tesseract 5.5's LSTM decoder free of dictionaries | With it off, Tesseract loads the LSTM recognizer without its language dictionary | If it does not, the corpus script uses the setting that does and records it; the spec's intent (no dictionary) stays |
 | Dropping dictionaries costs little on screenshots and print | Owner's decision; LSTM recognition on clean text depends little on the dictionary | Poor scans lose some accuracy; `ocr-page` measures it on its corpus |
 | Word confidences need not match the reference | The dialog shows no confidences in v1 | `ocr-page` may want them for filtering; it would then add a golden check |
