@@ -1,0 +1,336 @@
+# Pincel on amigo-labs.dev. Format: amigo-labs/website docs/project-data.md.
+# Versions, downloads and release notes come from the GitHub releases.
+schema: 1
+slug: pincel
+name: Pincel
+status: released
+accent: "#29adff"
+icon: icon.svg
+tagline:
+  en: Pixel-art and image editor
+  de: Pixel-Art- und Bildeditor
+summary:
+  en: >-
+    A pixel-art and image editor for the web and the desktop: Aseprite-compatible
+    sprites, tilemaps, slices and animation, plus layered editing of photos and
+    screenshots with brushes, selections and effects. Open source, free, no account,
+    no upload.
+  de: >-
+    Ein Pixel-Art- und Bildeditor für Web und Desktop: Aseprite-kompatible Sprites,
+    Tilemaps, Slices und Animation, dazu Bildbearbeitung mit Ebenen, Pinseln,
+    Auswahlen und Effekten für Fotos und Screenshots. Open Source, kostenlos, kein
+    Konto, kein Upload.
+about:
+  en: |
+    Pincel is two editors in one app, and the file decides which one opens.
+    **Pixel mode** is built for game developers and pixel artists: it reads and writes
+    the Aseprite file format, so your work fits into existing pipelines, with tilemaps,
+    slices, animation tags, palettes and indexed color — the things you actually need.
+    **Image mode** is a full paint.net-style editor for everything else — photos,
+    screenshots, UI mockups, artwork — with layers, blend modes, brushes, selections,
+    transforms, effects and adjustments; it opens PNG, JPEG, WebP, BMP, GIF and TIFF
+    and saves OpenRaster so GIMP and Krita open it too.
+
+    Both run offline as a PWA or as a desktop app, speak English and German, and work
+    on an iPad. Pincel is open source under MIT or Apache 2.0, and it will stay that
+    way. It uses Aseprite's documented file format and is not affiliated with the
+    Aseprite project.
+  de: |
+    Pincel sind zwei Editoren in einer App, und die Datei entscheidet, welcher sich
+    öffnet. Der **Pixel-Modus** ist für Spieleentwickler und Pixel-Künstler gemacht: Er
+    liest und schreibt das Aseprite-Format, sodass deine Arbeit in bestehende Pipelines
+    passt, mit Tilemaps, Slices, Animations-Tags, Paletten und indizierten Farben – das,
+    was man wirklich braucht. Der **Bild-Modus** ist ein vollwertiger Editor im Stil von
+    paint.net für alles andere – Fotos, Screenshots, UI-Entwürfe, Grafiken – mit Ebenen,
+    Mischmodi, Pinseln, Auswahlen, Transformationen, Effekten und Korrekturen; er öffnet
+    PNG, JPEG, WebP, BMP, GIF und TIFF und speichert OpenRaster, das auch GIMP und Krita
+    öffnen.
+
+    Beide laufen offline als PWA oder als Desktop-App, sprechen Deutsch und Englisch und
+    funktionieren auf dem iPad. Pincel ist Open Source unter MIT oder Apache 2.0, und das
+    bleibt so. Es nutzt das dokumentierte Dateiformat von Aseprite und ist nicht mit dem
+    Aseprite-Projekt verbunden.
+platforms: [windows, macos, linux, web]
+license: MIT OR Apache-2.0
+launch:
+  label: { en: Open the editor, de: Editor öffnen }
+  url: https://pincel.amigo-labs.dev/app/
+
+features:
+  - title: { en: The canvas, de: Die Arbeitsfläche }
+    text:
+      en: Smooth zoom and pan up to 64× with pixel-perfect rendering, cursor-anchored wheel zoom and auto-fit on open. WebGPU rendering with a Canvas2D fallback.
+      de: Flüssiges Zoomen und Verschieben bis 64×, pixelgenau dargestellt, mit Mausrad-Zoom am Cursor und automatischem Einpassen beim Öffnen. WebGPU-Rendering mit Canvas2D als Rückfallebene.
+  - title: { en: Tools, de: Werkzeuge }
+    text:
+      en: Pencil, eraser, bucket, line, rectangles, ellipses, rounded rectangles, polygons, eyedropper, move, text, and rectangle / ellipse / lasso / polygon / magic-wand selections. Each tool is small, focused and built around pixel-perfect input.
+      de: Stift, Radierer, Füllen, Linie, Rechtecke, Ellipsen, abgerundete Rechtecke, Polygone, Pipette, Verschieben, Text sowie Rechteck-, Ellipsen-, Lasso-, Polygon- und Zauberstab-Auswahl. Jedes Werkzeug ist klein, fokussiert und auf pixelgenaue Eingabe gebaut.
+  - title: { en: Layers, de: Ebenen }
+    text:
+      en: Image layers, group layers, blend modes, opacity, visibility and locking, with thumbnails and drag-to-reorder. The Aseprite layer model — round-trips through Pincel and back into Aseprite without loss.
+      de: Bildebenen, Gruppen, Mischmodi, Deckkraft, Sichtbarkeit und Sperre, mit Vorschaubildern und Umsortieren per Ziehen. Das Ebenenmodell von Aseprite – verlustfrei hin und zurück zwischen Pincel und Aseprite.
+  - title: { en: Frames and animation, de: Frames und Animation }
+    text:
+      en: A timeline with per-frame durations, named tags with forward / reverse / ping-pong playback, onion skin, and sprite-sheet export with Aseprite-format JSON. Everything round-trips through the .aseprite file.
+      de: Eine Zeitleiste mit Dauer pro Frame, benannte Tags mit Vorwärts-, Rückwärts- und Ping-Pong-Wiedergabe, Zwiebelhaut und Sprite-Sheet-Export mit JSON im Aseprite-Format. Alles bleibt in der .aseprite-Datei erhalten.
+  - title: Tilemaps
+    text:
+      en: First-class tilemap layers. Build a tileset, stamp tiles on the canvas, flip and rotate per tile, and edit a tile in place to update it everywhere it appears.
+      de: Vollwertige Tilemap-Ebenen. Ein Tileset anlegen, Kacheln auf die Fläche stempeln, einzelne Kacheln spiegeln und drehen und eine Kachel direkt bearbeiten, damit sie sich überall ändert.
+  - title: Slices
+    text:
+      en: Named rectangular regions, optionally with 9-patch borders and pivot points, for hitboxes, UI and game logic. Your engine reads them straight out of the .aseprite file.
+      de: Benannte rechteckige Bereiche, wahlweise mit 9-Patch-Rändern und Drehpunkten, für Hitboxen, UI und Spiellogik. Deine Engine liest sie direkt aus der .aseprite-Datei.
+  - title: { en: Palette, de: Palette }
+    text:
+      en: New sprites start with DB32; switch to DB16, PICO-8, Game Boy or NES in one click. Import and export GIMP .gpl palettes, and recolor, add, delete and drag-reorder entries.
+      de: Neue Sprites starten mit DB32; mit einem Klick zu DB16, PICO-8, Game Boy oder NES wechseln. GIMP-Paletten (.gpl) importieren und exportieren, Einträge umfärben, hinzufügen, löschen und per Ziehen umsortieren.
+  - title: { en: Open file formats, de: Offene Dateiformate }
+    text:
+      en: Aseprite read and write are the source of truth — layer flags, user data and grid settings survive the trip. PNG frame export and sprite sheets with Aseprite-compatible JSON; Image mode saves OpenRaster (.ora). No proprietary format lock-in, ever.
+      de: Lesen und Schreiben von Aseprite sind die Grundlage – Ebenen-Flags, Benutzerdaten und Rastereinstellungen bleiben erhalten. PNG-Export einzelner Frames und Sprite-Sheets mit Aseprite-kompatiblem JSON; der Bild-Modus speichert OpenRaster (.ora). Nie ein proprietäres Format.
+  - title: { en: Image mode, de: Bild-Modus }
+    text:
+      en: A paint.net-style editor in the same app for everything that is not pixel art. PNG, JPEG, WebP, BMP, GIF and TIFF open with layers, blend modes, brushes, shapes, text, selections, transforms and the full set of effects and adjustments. Save as OpenRaster to keep the layers, or export flat images.
+      de: Ein Editor im Stil von paint.net in derselben App für alles, was keine Pixel-Art ist. PNG, JPEG, WebP, BMP, GIF und TIFF öffnen mit Ebenen, Mischmodi, Pinseln, Formen, Text, Auswahlen, Transformationen und allen Effekten und Korrekturen. Als OpenRaster speichern, um die Ebenen zu behalten, oder flach exportieren.
+  - title: { en: Tablet and pen, de: Tablet und Stift }
+    text:
+      en: Two-finger pan and pinch-to-zoom in both modes. On-screen Shift and Alt toggles stand in for the keyboard, and the Image-mode brush follows pen pressure and tilt.
+      de: Verschieben und Pinch-Zoom mit zwei Fingern in beiden Modi. Umschalt- und Alt-Schalter auf dem Bildschirm ersetzen die Tastatur, und der Pinsel im Bild-Modus folgt Druck und Neigung des Stifts.
+    status: in-progress
+  - title: { en: Desktop app, de: Desktop-App }
+    text:
+      en: Native builds for Windows, macOS and Linux with the system file dialogs, file associations and "Open with" from Explorer, Finder or the file manager. It installs for you only, without administrator rights, and updates itself in the background — every update signature-checked.
+      de: Native Builds für Windows, macOS und Linux mit den Dateidialogen des Systems, Dateizuordnungen und „Öffnen mit“ aus Explorer, Finder oder Dateimanager. Er installiert sich nur für dich, ohne Administratorrechte, und hält sich im Hintergrund aktuell – jedes Update mit geprüfter Signatur.
+  - title: { en: Offline in the browser, de: Offline im Browser }
+    text:
+      en: Install Pincel from your browser as a PWA. It works offline, autosaves to IndexedDB and keeps your files on your device. The editor speaks English and German.
+      de: Pincel aus dem Browser als PWA installieren. Es funktioniert offline, speichert automatisch in IndexedDB und behält deine Dateien auf deinem Gerät. Der Editor spricht Deutsch und Englisch.
+  - title: { en: Embeddable, de: Einbettbar }
+    text:
+      en: An npm package to mount the same editor in any DOM element of your own tool, built on pincel-core (Rust → WASM). Read and write Aseprite files and listen for changes, no iframe.
+      de: Ein npm-Paket, um denselben Editor in jedes DOM-Element deines eigenen Tools einzuhängen, gebaut auf pincel-core (Rust → WASM). Aseprite-Dateien lesen und schreiben und auf Änderungen hören, ohne iframe.
+    status: in-progress
+  - title: { en: What's coming, de: Was als Nächstes kommt }
+    text:
+      en: Lua scripting. Custom brushes. A headless Node API for asset pipelines. A read-only viewer for embeds.
+      de: Lua-Skripte. Eigene Pinsel. Eine Node-API ohne Oberfläche für Asset-Pipelines. Ein reiner Betrachter zum Einbetten.
+    status: planned
+
+comparisons:
+  - title: { en: Honest comparison, de: Ehrlicher Vergleich }
+    # Cells trace to pincel.md §18 (researched 2026-10-28); the 2026-11-04 edits
+    # reworded two cells from that snapshot without re-checking the sources.
+    asOf: 2026-10-28
+    tools:
+      - { name: Pincel, own: true }
+      - { name: Aseprite, url: "https://www.aseprite.org" }
+      - { name: Piskel, url: "https://www.piskelapp.com" }
+    rows:
+      - feature: { en: Aseprite file format (read + write), de: Aseprite-Dateiformat (Lesen + Schreiben) }
+        cells:
+          - { mark: partial, note: { en: RGBA only, de: nur RGBA } }
+          - { mark: yes, note: { en: native, de: nativ } }
+          - no
+      - feature: Tilemaps
+        cells: [yes, yes, no]
+      - feature: { en: "Slices (9-patch, pivot)", de: "Slices (9-Patch, Drehpunkt)" }
+        cells: [yes, yes, no]
+      - feature: { en: Animation timeline + tags, de: Animations-Zeitleiste + Tags }
+        cells:
+          - yes
+          - yes
+          - { mark: yes, note: { en: basic, de: einfach } }
+      - feature: { en: Tablet / pen support, de: Tablet- / Stift-Unterstützung }
+        cells: [yes, yes, no]
+      - feature: { en: Runs in browser, de: Läuft im Browser }
+        cells: [yes, no, yes]
+      - feature: { en: "Layered image editing (photos, screenshots)", de: "Bildbearbeitung mit Ebenen (Fotos, Screenshots)" }
+        cells:
+          - { mark: yes, note: { en: Image mode, de: Bild-Modus } }
+          - { mark: no, note: { en: pixel art only, de: nur Pixel-Art } }
+          - no
+      - feature: { en: Native desktop app, de: Native Desktop-App }
+        cells:
+          - { mark: yes, note: Tauri }
+          - yes
+          - { mark: yes, note: { en: "via NW.js, ageing", de: "über NW.js, veraltet" } }
+      - feature: { en: Embeddable as a library, de: Als Bibliothek einbettbar }
+        cells: [yes, no, no]
+      - feature: { en: Lua scripting / extensions, de: Lua-Skripte / Erweiterungen }
+        cells:
+          - { mark: no, note: Phase 2 }
+          - yes
+          - no
+      - feature: { en: Custom brushes, de: Eigene Pinsel }
+        cells:
+          - { mark: no, note: Phase 2 }
+          - yes
+          - yes
+      - feature: { en: Price, de: Preis }
+        cells:
+          - { text: { en: Free, de: Kostenlos } }
+          - { text: { en: Paid, de: Kostenpflichtig } }
+          - { text: { en: Free, de: Kostenlos } }
+      - feature: Open source
+        cells:
+          - { mark: yes, note: MIT/Apache }
+          - { mark: partial, note: { en: "source-available, EULA forbids redistribution", de: "Quelltext einsehbar, EULA verbietet Weitergabe" } }
+          - { mark: yes, note: Apache 2.0 }
+      - feature: { en: Active development, de: Aktive Entwicklung }
+        cells:
+          - yes
+          - yes
+          - mark: partial
+            note: { en: "no tagged release since 0.15.0 (2018); master still gets fixes", de: "kein getaggtes Release seit 0.15.0 (2018); master bekommt noch Fixes" }
+            source: https://github.com/piskelapp/piskel
+    note:
+      en: Pincel is new and Aseprite has 14 years of features. We're catching up where it matters for game-dev workflows. Where it doesn't, we're not.
+      de: Pincel ist neu, Aseprite hat 14 Jahre an Funktionen. Wir holen dort auf, wo es für Spieleentwicklung zählt. Wo nicht, da nicht.
+    sources:
+      - { label: { en: "Aseprite: website (release notes, docs, buy, FAQ)", de: "Aseprite: Website (Versionshinweise, Doku, Kauf, FAQ)" }, url: "https://www.aseprite.org" }
+      - { label: { en: Aseprite releases, de: Aseprite-Releases }, url: "https://github.com/aseprite/aseprite/releases" }
+      - { label: { en: Piskel repository, de: Piskel-Repository }, url: "https://github.com/piskelapp/piskel" }
+
+sections:
+  - id: how-it-works
+    title: { en: How it works, de: So funktioniert es }
+    body:
+      en: |
+        1. **Open** — drag in a `.aseprite` file or start fresh.
+        2. **Edit** — paint, animate, build tilemaps, define slices.
+        3. **Save** — save back to `.aseprite`. Your engine hot-reloads.
+      de: |
+        1. **Öffnen** – eine `.aseprite`-Datei hineinziehen oder neu anfangen.
+        2. **Bearbeiten** – malen, animieren, Tilemaps bauen, Slices festlegen.
+        3. **Speichern** – zurück als `.aseprite` speichern. Deine Engine lädt neu.
+
+pages:
+  - slug: embed
+    title: { en: Embed Pincel in your tool, de: Pincel in dein Tool einbetten }
+    summary:
+      en: "For tool makers: the editor as a framework-agnostic npm package — not published yet."
+      de: "Für Tool-Entwickler: der Editor als Framework-unabhängiges npm-Paket – noch nicht veröffentlicht."
+    body: { en: pages/embed.md, de: pages/embed.de.md }
+  - slug: about
+    title: { en: About Pincel, de: Über Pincel }
+    summary:
+      en: A pixel-art editor — and an image editor — with a long view.
+      de: Ein Pixel-Art-Editor – und ein Bildeditor – mit langem Atem.
+    body: { en: pages/about.md, de: pages/about.de.md }
+
+downloads:
+  files:
+    - os: windows
+      label: Installer (.exe)
+      arch: x64
+      asset: pincel-windows-x64-setup.exe
+      note: { en: Windows 10 or 11; installs for you only, de: Windows 10 oder 11; installiert nur für dich }
+    - os: windows
+      label: { en: MSI package, de: MSI-Paket }
+      arch: x64
+      asset: pincel-windows-x64.msi
+      note: { en: For all users; needs administrator rights, de: Für alle Benutzer; braucht Administratorrechte }
+    - os: macos
+      label: { en: Disk image (.dmg), de: Disk-Image (.dmg) }
+      arch: universal
+      asset: pincel-macos-universal.dmg
+      note: { en: macOS 10.13 or newer; Apple silicon and Intel, de: macOS 10.13 oder neuer; Apple Silicon und Intel }
+    - os: linux
+      label: AppImage
+      arch: x64
+      asset: pincel-linux-x64.AppImage
+      note: { en: glibc 2.35 or newer (Ubuntu 22.04 and later), de: glibc 2.35 oder neuer (Ubuntu 22.04 und später) }
+    - os: linux
+      label: ".deb (Debian, Ubuntu)"
+      arch: x64
+      asset: pincel-linux-x64.deb
+    - os: linux
+      label: ".rpm (Fedora, openSUSE)"
+      arch: x64
+      asset: pincel-linux-x64.rpm
+    # The MCP server for AI agents (README.md, "Use Pincel from an AI agent").
+    - os: windows
+      label: MCP server (pincel-mcp)
+      arch: x64
+      asset: pincel-mcp-windows-x64.exe
+      note: &mcp-note
+        en: Lets Claude and other MCP clients create, draw and export documents
+        de: Lässt Claude und andere MCP-Clients Dokumente anlegen, bemalen und exportieren
+    - os: macos
+      label: MCP server (pincel-mcp)
+      arch: universal
+      asset: pincel-mcp-macos-universal
+      note: *mcp-note
+    - os: linux
+      label: MCP server (pincel-mcp)
+      arch: x64
+      asset: pincel-mcp-linux-x64
+      note: *mcp-note
+  checksums: SHA256SUMS
+  install:
+    - label: { en: Install the AppImage for you (Linux), de: AppImage für dich installieren (Linux) }
+      command: chmod +x pincel-linux-x64.AppImage && ./pincel-linux-x64.AppImage --install
+      note:
+        en: Run it where you downloaded the AppImage. No root needed.
+        de: Im Ordner des heruntergeladenen AppImage ausführen. Ohne root.
+      requiresRelease: true
+    - label: { en: Register pincel-mcp with Claude Code, de: pincel-mcp in Claude Code anmelden }
+      command: claude mcp add pincel -- pincel-mcp --workspace .
+      note:
+        en: After putting the downloaded pincel-mcp binary on your PATH; the current folder becomes the workspace.
+        de: Nachdem das heruntergeladene Programm pincel-mcp im PATH liegt; der aktuelle Ordner wird zum Arbeitsbereich.
+      requiresRelease: true
+  guide:
+    windows:
+      en: |
+        The installer sets Pincel up for you only, in `%LOCALAPPDATA%\Pincel`, without administrator rights, with a Start menu entry. It registers Pincel for `.aseprite`, PNG, JPEG, WebP, and the other formats it opens; Windows lets only you choose the default app, so the first install opens Settings → Default apps on Pincel's page. Uninstall: Settings → Apps → Installed apps. The MSI package installs for all users and needs administrator rights. Windows on ARM runs the x64 build through the built-in emulation.
+
+        **First start:** the installer is not signed with a code-signing certificate, so SmartScreen shows "Windows protected your PC". Click **More info**, then **Run anyway**.
+      de: |
+        Der Installer richtet Pincel nur für dich ein, in `%LOCALAPPDATA%\Pincel`, ohne Administratorrechte und mit einem Eintrag im Startmenü. Er meldet Pincel für `.aseprite`, PNG, JPEG, WebP und die übrigen Formate an, die es öffnet; die Standard-App wählst unter Windows nur du selbst, deshalb öffnet die erste Installation Einstellungen → Standard-Apps auf der Seite von Pincel. Deinstallieren: Einstellungen → Apps → Installierte Apps. Das MSI-Paket installiert für alle Benutzer und braucht Administratorrechte. Windows auf ARM führt den x64-Build über die eingebaute Emulation aus.
+
+        **Erster Start:** Der Installer ist nicht mit einem Code-Signing-Zertifikat signiert, deshalb zeigt SmartScreen „Der Computer wurde durch Windows geschützt“. Klicke auf **Weitere Informationen**, dann auf **Trotzdem ausführen**.
+    macos:
+      en: |
+        Open the disk image and drag Pincel into Applications. Finder then offers it under "Open With" for the formats it opens; make it the default through "Get Info" → "Open with" → "Change All".
+
+        **First start:** the app is not notarized by Apple, so macOS won't open it at first. Control-click it in Applications, choose **Open**, and confirm; on macOS 15 and newer, open it once, then go to System Settings → Privacy & Security → **Open Anyway**. Or in Terminal:
+
+        ```bash
+        xattr -dr com.apple.quarantine /Applications/Pincel.app
+        ```
+      de: |
+        Öffne das Disk-Image und ziehe Pincel in „Programme“. Der Finder bietet es dann unter „Öffnen mit“ für die Formate an, die es öffnet; zur Standard-App wird es über „Informationen“ → „Öffnen mit“ → „Alle ändern“.
+
+        **Erster Start:** Die App ist nicht von Apple notarisiert, deshalb öffnet macOS sie zunächst nicht. Klicke sie in „Programme“ mit gedrückter Ctrl-Taste an, wähle **Öffnen** und bestätige; ab macOS 15 öffnest du sie einmal und gehst dann zu Systemeinstellungen → Datenschutz & Sicherheit → **Dennoch öffnen**. Oder im Terminal:
+
+        ```bash
+        xattr -dr com.apple.quarantine /Applications/Pincel.app
+        ```
+    linux:
+      en: |
+        Requires x64 with glibc 2.35 or newer: Ubuntu 22.04, Debian 12, Fedora 36, and later.
+
+        The AppImage runs as downloaded once it is executable. Installed for you with `--install` (above), it gets a `pincel` command, an application-menu entry, and "Open with" for its formats: that copies it to `~/.local/share/pincel` and links `~/.local/bin/pincel`; uninstall with `pincel --uninstall`. On Ubuntu 24.04 and newer, AppImages need `libfuse2t64` (`sudo apt install libfuse2t64`). The .deb and .rpm packages install through your package manager instead and are updated with it.
+      de: |
+        Voraussetzung: x64 mit glibc 2.35 oder neuer: Ubuntu 22.04, Debian 12, Fedora 36 und später.
+
+        Das AppImage läuft so, wie es heruntergeladen wurde, sobald es ausführbar ist. Mit `--install` (oben) für dich installiert, bekommt es einen Befehl `pincel`, einen Eintrag im Anwendungsmenü und „Öffnen mit“ für seine Formate: Das kopiert es nach `~/.local/share/pincel` und verlinkt `~/.local/bin/pincel`; deinstallieren mit `pincel --uninstall`. Ab Ubuntu 24.04 brauchen AppImages `libfuse2t64` (`sudo apt install libfuse2t64`). Die Pakete .deb und .rpm installieren stattdessen über den Paketmanager und werden mit ihm aktualisiert.
+    all:
+      en: |
+        **Verify:** the checksums of all files are in `SHA256SUMS`. On Windows: `Get-FileHash pincel-windows-x64-setup.exe`; on macOS and Linux: `shasum -a 256` or `sha256sum`.
+
+        **Updates:** the desktop app asks GitHub at most once a day for a new version, downloads it in the background, and checks its signature before installing; it takes effect at the next start (on Windows once you quit Pincel). Help → **Check for Updates…** checks right away, Help → **Install Updates Automatically** turns it off. The .deb and .rpm packages and an AppImage that was not installed with `--install` leave updates to you.
+
+        **MCP server:** rename the downloaded `pincel-mcp-…` file to `pincel-mcp` (`pincel-mcp.exe` on Windows), make it executable (`chmod +x`) and put it on your `PATH`. Options: `--workspace <dir>` (default: the current folder; files are read and written only inside it) and `--read-only`.
+
+        **Or just use the browser:** nothing to install — the editor runs in any modern browser, works offline, and installs from there as an app (PWA). Your files stay on your device either way.
+      de: |
+        **Prüfen:** Die Prüfsummen aller Dateien stehen in `SHA256SUMS`. Unter Windows: `Get-FileHash pincel-windows-x64-setup.exe`, unter macOS und Linux: `shasum -a 256` bzw. `sha256sum`.
+
+        **Updates:** Die Desktop-App fragt höchstens einmal am Tag bei GitHub nach einer neuen Version, lädt sie im Hintergrund und prüft vor der Installation ihre Signatur; aktiv wird sie beim nächsten Start (unter Windows, sobald du Pincel beendest). Hilfe → **Nach Updates suchen…** prüft sofort, Hilfe → **Updates automatisch installieren** schaltet es ab. Die Pakete .deb und .rpm sowie ein AppImage, das nicht mit `--install` installiert wurde, überlassen Updates dir.
+
+        **MCP-Server:** Die heruntergeladene Datei `pincel-mcp-…` in `pincel-mcp` umbenennen (`pincel-mcp.exe` unter Windows), ausführbar machen (`chmod +x`) und in den `PATH` legen. Optionen: `--workspace <dir>` (Standard: der aktuelle Ordner; Dateien werden nur darin gelesen und geschrieben) und `--read-only`.
+
+        **Oder einfach im Browser:** Nichts zu installieren – der Editor läuft in jedem aktuellen Browser, funktioniert offline und lässt sich von dort als App (PWA) installieren. Deine Dateien bleiben so oder so auf deinem Gerät.

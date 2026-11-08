@@ -33,9 +33,10 @@ fi
 # --- wasm-opt (binaryen) ---------------------------------------------------
 # Both wasm crates switch wasm-pack's own wasm-opt pass off, and Cloudflare's
 # image has no binaryen: fetch a pinned release build (a static binary).
-# The release workflow's desktop job pins the same release; its web job
-# gets the tool from apt. The archive runs only if it matches the pinned
-# SHA-256 (the release's .sha256 file); a new version needs a new hash.
+# The release workflow downloads the same version (not Ubuntu's apt binaryen
+# 108, which breaks wasm-bindgen's externref table). The archive runs only if
+# it matches the pinned SHA-256 (the release's .sha256 file); a new version
+# needs a new hash.
 BINARYEN_VERSION=133
 BINARYEN_SHA256=2dc9c7813f5375db93d96ead4b78222fcc3e2677bbb832297af4797782a37489
 if ! command -v wasm-opt >/dev/null 2>&1; then

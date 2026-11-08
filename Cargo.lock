@@ -3183,6 +3183,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pincel-ocr"
+version = "1.7.0"
+dependencies = [
+ "png",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "pincel-tauri"
 version = "1.7.0"
 dependencies = [
