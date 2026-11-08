@@ -12,11 +12,13 @@ use crate::document::ImageBuffer;
 use crate::error::DocumentError;
 use crate::render::over_background;
 use image::codecs::bmp::BmpEncoder;
+use image::codecs::ico::IcoEncoder;
+use image::codecs::tga::TgaEncoder;
 use image::codecs::jpeg::JpegEncoder;
 use image::codecs::png::{CompressionType, FilterType, PngEncoder};
 use image::codecs::tiff::TiffEncoder;
 use image::codecs::webp::WebPEncoder;
-use image::{ExtendedColorType, ImageEncoder};
+use image::{ExtendedColorType, ImageEncoder, ImageFormat};
 use std::io::{Cursor, Seek, Write};
 pub mod ora;
 pub mod psd;
@@ -40,18 +42,98 @@ pub enum CodecError {
     /// The decoded pixels did not form a valid buffer.
     #[error(transparent)]
     Buffer(#[from] DocumentError),
+
+    /// A DDS file whose compression is not BC1 – BC3
+    /// (docs/specs/image-formats-more.md AC-11).
+    #[error("this DDS variant is not supported (only BC1, BC2 and BC3)")]
+    DdsUnsupported,
+
+    /// A DDS file whose width or height is not a multiple of 4 (AC-11).
+    #[error("DDS width and height must be multiples of 4 (this file is {width} × {height})")]
+    DdsSize {
+        /// Declared width.
+        width: u32,
+        /// Declared height.
+        height: u32,
+    },
+
+    /// ICO holds at most 256 × 256 px per image (AC-08).
+    #[error("ICO holds at most 256 × 256 px")]
+    IcoTooLarge,
 }
 
-/// Decodes image bytes (PNG/JPEG/WebP/BMP/GIF/TIFF) into an RGBA8 buffer.
+/// Largest ICO image edge, px.
+pub const ICO_MAX_SIDE: u32 = 256;
+
+/// A little-endian `u32` at `at`, if the bytes reach that far.
+fn le_u32(bytes: &[u8], at: usize) -> Option<u32> {
+    let b = bytes.get(at..at + 4)?;
+    Some(u32::from_le_bytes([b[0], b[1], b[2], b[3]]))
+}
+
+/// Refuses a DDS file Pincel cannot read with its own reason (AC-11): a
+/// compression other than BC1 – BC3 (FourCC `DXT1` / `DXT3` / `DXT5`, or a
+/// DX10 header with DXGI format 70 – 78), or a size that is not a multiple
+/// of 4. A header too short to tell is left to the decoder (AC-12).
+fn check_dds(bytes: &[u8]) -> Result<(), CodecError> {
+    let (Some(height), Some(width), Some(four_cc)) =
+        (le_u32(bytes, 12), le_u32(bytes, 16), bytes.get(84..88))
+    else {
+        return Ok(());
+    };
+    let supported = match four_cc {
+        b"DXT1" | b"DXT3" | b"DXT5" => true,
+        b"DX10" => match le_u32(bytes, 128) {
+            Some(dxgi) => (70..=78).contains(&dxgi),
+            None => return Ok(()),
+        },
+        _ => false,
+    };
+    if !supported {
+        return Err(CodecError::DdsUnsupported);
+    }
+    if width % 4 != 0 || height % 4 != 0 {
+        return Err(CodecError::DdsSize { width, height });
+    }
+    Ok(())
+}
+
+/// Whether `hint` (a MIME type or a file name) names a TGA file.
+fn hints_tga(hint: &str) -> bool {
+    let h = hint.to_ascii_lowercase();
+    h == "image/x-targa" || h == "image/x-tga" || h.ends_with(".tga")
+}
+
+/// Decodes image bytes like [`decode`], with a format `hint` (a MIME type
+/// or a file name) for formats without a signature: TGA is recognised only
+/// through its hint, and only when the bytes carry no known signature
+/// (docs/specs/image-formats-more.md AC-04).
+pub fn decode_hinted(bytes: &[u8], hint: Option<&str>) -> Result<ImageBuffer, CodecError> {
+    let format = match image::guess_format(bytes) {
+        Ok(f) => Some(f),
+        Err(_) if hint.is_some_and(hints_tga) => Some(ImageFormat::Tga),
+        Err(_) => None,
+    };
+    if format == Some(ImageFormat::Dds) {
+        check_dds(bytes)?;
+    }
+    let img = match format {
+        Some(f) => image::load_from_memory_with_format(bytes, f),
+        None => image::load_from_memory(bytes),
+    }
+    .map_err(CodecError::Decode)?;
+    let rgba = img.to_rgba8();
+    let (w, h) = rgba.dimensions();
+    Ok(ImageBuffer::from_raw(w, h, rgba.into_raw())?)
+}
+
+/// Decodes image bytes (PNG/JPEG/WebP/BMP/GIF/TIFF/DDS/ICO) into an RGBA8 buffer.
 ///
 /// The format is auto-detected from the byte signature. Animated GIFs yield the
 /// first frame; higher bit depths are down-converted to 8-bit. Metadata (EXIF
 /// etc.) is dropped.
 pub fn decode(bytes: &[u8]) -> Result<ImageBuffer, CodecError> {
-    let img = image::load_from_memory(bytes).map_err(CodecError::Decode)?;
-    let rgba = img.to_rgba8();
-    let (w, h) = rgba.dimensions();
-    Ok(ImageBuffer::from_raw(w, h, rgba.into_raw())?)
+    decode_hinted(bytes, None)
 }
 
 /// Maps a 0–9 compression request (spec §13.2) onto the `image` crate's levels.
@@ -135,6 +217,48 @@ pub fn encode_tiff<W: Write + Seek>(buf: &ImageBuffer, writer: W) -> Result<(), 
             ExtendedColorType::Rgba8,
         )
         .map_err(CodecError::Encode)
+}
+
+/// Encodes the buffer as RLE-compressed 32-bit TGA to `writer`.
+pub fn encode_tga<W: Write>(buf: &ImageBuffer, writer: W) -> Result<(), CodecError> {
+    TgaEncoder::new(writer)
+        .write_image(
+            buf.data(),
+            buf.width(),
+            buf.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .map_err(CodecError::Encode)
+}
+
+/// Encodes the buffer as an ICO holding one image (PNG-compressed) to
+/// `writer`; [`CodecError::IcoTooLarge`] above 256 × 256 px.
+pub fn encode_ico<W: Write>(buf: &ImageBuffer, writer: W) -> Result<(), CodecError> {
+    if buf.width() > ICO_MAX_SIDE || buf.height() > ICO_MAX_SIDE {
+        return Err(CodecError::IcoTooLarge);
+    }
+    IcoEncoder::new(writer)
+        .write_image(
+            buf.data(),
+            buf.width(),
+            buf.height(),
+            ExtendedColorType::Rgba8,
+        )
+        .map_err(CodecError::Encode)
+}
+
+/// Convenience: encode to TGA bytes.
+pub fn to_tga_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
+    let mut out = Vec::new();
+    encode_tga(buf, &mut out)?;
+    Ok(out)
+}
+
+/// Convenience: encode to ICO bytes.
+pub fn to_ico_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
+    let mut out = Vec::new();
+    encode_ico(buf, &mut out)?;
+    Ok(out)
 }
 
 /// Convenience: encode to PNG bytes.
