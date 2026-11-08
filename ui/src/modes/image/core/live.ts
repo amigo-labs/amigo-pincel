@@ -50,6 +50,7 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
     blend: tool.blend,
+    ...(shape === 'line' ? { start_cap: tool.lineStartCap, end_cap: tool.lineEndCap } : {}),
   });
   notePainted(before, shapeColors(shape));
 }

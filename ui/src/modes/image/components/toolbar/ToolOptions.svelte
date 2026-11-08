@@ -255,8 +255,23 @@
         <option value="solid">{t('opt.solid')}</option>
         <option value="dashed">{t('opt.dashed')}</option>
         <option value="dotted">{t('opt.dotted')}</option>
+        <option value="dash_dot">{t('opt.dashDot')}</option>
+        <option value="dash_dot_dot">{t('opt.dashDotDot')}</option>
       </select>
     </label>
+
+    {#if tool.kind === 'line'}
+      {#each [['opt.startCap', 'lineStartCap'], ['opt.endCap', 'lineEndCap']] as const as [label, key] (key)}
+        <label class="flex items-center gap-2">
+          <span class="text-pc-muted">{t(label)}</span>
+          <select bind:value={tool[key]} class="opt-field">
+            <option value="round">{t('opt.capRound')}</option>
+            <option value="flat">{t('opt.capFlat')}</option>
+            <option value="arrow">{t('opt.capArrow')}</option>
+          </select>
+        </label>
+      {/each}
+    {/if}
 
     {#if tool.kind === 'polygon'}
       <label class="flex items-center gap-2">

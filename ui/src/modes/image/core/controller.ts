@@ -538,6 +538,10 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
     dash: tool.shapeDash,
     blend: tool.blend,
   };
+  if (shape === 'line') {
+    cmd.start_cap = tool.lineStartCap;
+    cmd.end_cap = tool.lineEndCap;
+  }
   if (shape === 'polygon') {
     const w = Math.abs(b[0] - a[0]);
     const h = Math.abs(b[1] - a[1]);

@@ -79,7 +79,7 @@ test('one Antialiasing checkbox, shared by the edge tools and all tabs, on at st
     ['e', 'Eraser'],
     ['r', 'Recolor'],
     ['s', 'Smudge'],
-    ['l', 'Line'],
+    ['l', 'Line / Curve'],
     ['u', 'Rectangle'],
     ['u', 'Ellipse'],
     ['t', 'Text'],
@@ -192,7 +192,7 @@ test('an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing
 test('Line and shapes follow the shared Antialiasing setting (AC-05)', async ({ page }) => {
   await createDocument(page, 'image', { width: SIZE, height: SIZE });
   await setColor(page, 'fg', '#00ff00');
-  await useTool(page, 'l', 'Line');
+  await useTool(page, 'l', 'Line / Curve');
   await dragDoc(page, [3, 5], [29, 21]);
   await page.keyboard.press('Enter');
   expect(partialAlphas(await layerPixels(page)).length).toBeGreaterThan(0);

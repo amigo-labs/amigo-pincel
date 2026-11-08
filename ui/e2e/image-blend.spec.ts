@@ -61,7 +61,7 @@ test('one Blending control, shared by the painting tools and all tabs, Normal at
     ['b', 'Brush'],
     ['g', 'Fill'],
     ['n', 'Gradient'],
-    ['l', 'Line'],
+    ['l', 'Line / Curve'],
     ['u', 'Rectangle'],
     ['u', 'Ellipse'],
     ['t', 'Text'],

@@ -262,7 +262,7 @@ test('Shift squares a corner drag and snaps a line end to 45 degrees', async ({ 
   expect(await shown(page, [0.35, 0.65])).toBe('#0000ff');
 });
 
-test('the body moves a box, the grip moves a line, the stroke does nothing', async ({
+test('the body moves a box, the grip moves a line, the stroke adds a control point', async ({
   page,
 }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
@@ -282,13 +282,16 @@ test('the body moves a box, the grip moves a line, the stroke does nothing', asy
   await mouseDrag(page, grip, [grip[0], grip[1] - 100]);
   const end = await handleAt(page, 'end0');
   expect(end[1]).toBeLessThan((await at(page, [0.1, 0.8]))[1] - 80);
-  // A drag on the stroke neither moves, commits nor adds a step.
+  // A drag on the stroke neither moves nor commits the line: it adds a
+  // control point (docs/specs/image-shapes-curves.md AC-02).
   const [ax, ay] = await handleAt(page, 'end0');
   const [bx, by] = await handleAt(page, 'end1');
   const mid: [number, number] = [(ax + bx) / 2, (ay + by) / 2];
   await mouseDrag(page, mid, [mid[0], mid[1] + 60]);
-  await expect(handles(page)).toHaveCount(3);
+  await expect(handles(page)).toHaveCount(4);
   expect(await handleAt(page, 'end0')).toEqual([ax, ay]);
+  await undoButton(page).click(); // the control point
+  await expect(handles(page)).toHaveCount(3);
   await undoButton(page).click(); // the grip drag
   await undoButton(page).click(); // the line
   await undoButton(page).click(); // the committed box

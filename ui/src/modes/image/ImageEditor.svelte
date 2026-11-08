@@ -557,8 +557,8 @@
       },
       {
         id: 'line',
-        label: t('tool.line'),
-        tools: [{ id: 'line', label: t('tool.line'), icon: 'line' }],
+        label: t('tool.lineCurve'),
+        tools: [{ id: 'line', label: t('tool.lineCurve'), icon: 'line' }],
       },
       {
         id: 'shapes',

@@ -125,10 +125,10 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `a_two_point_round_line_is_todays_line` (crates/pincel-image-core/tests/curves.rs) — core; the editor commit follows with the live line | open |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-01 | `a_two_point_round_line_is_todays_line` (crates/pincel-image-core/tests/curves.rs); the live line draws through `CurveLine`, which hands a two-point Round line to `Shape::Line` — `control_points_and_caps_edit_the_live_line_and_the_commit_uses_them` / `draw_shape_draws_a_line_through_its_control_points_with_caps` (crates/pincel-image-core/tests/live_curves.rs) and the unchanged live-line e2e of `ui/e2e/image-live-objects.spec.ts` | built |        |
+| AC-02 | `a drag on the stroke adds a control point the curve passes through; a press alone adds nothing (AC-02)` (ui/e2e/image-curves.spec.ts); `the body moves a box, the grip moves a line, the stroke adds a control point` (ui/e2e/image-live-objects.spec.ts) | built |        |
+| AC-03 | `control points and endpoints drag; Shift snaps an end against its neighbour (AC-03)` (ui/e2e/image-curves.spec.ts) | built |        |
+| AC-04 | `a double-click removes a control point as one step; on an endpoint it does nothing (AC-04)` (ui/e2e/image-curves.spec.ts) | built |        |
 | AC-05 | `a_curve_paints_only_its_band_and_heads_and_fills_its_core` (crates/pincel-image-core/tests/curves.rs) | built |        |
 | AC-06 | `collinear_control_points_draw_the_straight_line` (crates/pincel-image-core/tests/curves.rs) | built |        |
 | AC-07 | `without_anti_alias_pixels_are_full_and_a_thin_curve_is_8_connected` (crates/pincel-image-core/tests/curves.rs) | built |        |
@@ -136,17 +136,17 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 | AC-09 | `flat_ends_stop_at_the_end_and_round_ends_are_half_discs` (crates/pincel-image-core/tests/curves.rs) | built |        |
 | AC-10 | `heads_longer_than_the_curve_shrink_to_fit`, `the_stroke_and_its_heads_join_without_a_seam` (crates/pincel-image-core/tests/curves.rs) | built |        |
 | AC-11 | `dash_dot_patterns_repeat_dash_gap_dot_gap` (crates/pincel-image-core/tests/curves.rs; line and rectangle outline) | built |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `caps and dash changes show on the live line at once; the commit folds into one step (AC-12, AC-13)` (ui/e2e/image-curves.spec.ts); `control_points_and_caps_edit_the_live_line_and_the_commit_uses_them` (crates/pincel-image-core/tests/live_curves.rs; width, color and anti-alias too) | built |        |
+| AC-13 | `caps and dash changes show on the live line at once; the commit folds into one step (AC-12, AC-13)` (ui/e2e/image-curves.spec.ts); `control_points_and_caps_edit_the_live_line_and_the_commit_uses_them`, `undo_while_live_takes_back_the_last_edit_and_escape_cancels` (crates/pincel-image-core/tests/live_curves.rs) | built |        |
 | AC-14 | `a_curve_changes_only_selected_pixels` (crates/pincel-image-core/tests/curves.rs) | built |        |
-| AC-15 |      | open   |        |
+| AC-15 | `a line with 64 points takes no more; moving points still works (AC-15)` (ui/e2e/image-curves.spec.ts); `a_line_holds_at_most_64_points` (crates/pincel-image-core/tests/live_curves.rs) | built |        |
 | AC-16 | `coincident_points_act_as_one` (crates/pincel-image-core/tests/curves.rs); `a_live_line_on_one_spot_with_a_flat_cap_commits_without_a_step` (crates/pincel-image-core/tests/live_curves.rs); `edit_live_to_degenerate_geometry_stays_live_and_draws_nothing` (crates/pincel-image-core/tests/live_objects.rs, Round dot / Flat nothing); `draw_shape_curves_match_the_editors_live_line` (`changed: false`, crates/pincel-agent/src/tests/image_draw.rs) | built |        |
-| AC-17 |      | open   |        |
+| AC-17 | `the options bar offers caps and five dash patterns; the tool reads Line / Curve (AC-17)` (ui/e2e/image-curves.spec.ts; English and German, rail and shortcut overview) | built |        |
 | AC-18 | `draw_shape_curves_match_the_editors_live_line` (crates/pincel-agent/src/tests/image_draw.rs); `draw_shape_draws_a_line_through_its_control_points_with_caps` (crates/pincel-image-core/tests/live_curves.rs) | built |        |
 | AC-19 | `draw_shape_refuses_bad_curve_arguments` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-20 | `tools_list_describes_curves` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-21 | `image_shapes/curve_64pts_w20_dashdot_arrows_4k` (crates/pincel-image-core/benches/compose.rs); budget ≤ 40 ms `pending` in `ui/e2e-perf/budgets.json` and the `performance-benchmarks` budget table | built |        |
-| AC-22 |      | open   |        |
+| AC-22 | `the grip sits beside the curve’s midpoint and moves the whole line as one step (AC-22)` (ui/e2e/image-curves.spec.ts) | built |        |
 
 ## Decisions
 
@@ -164,3 +164,4 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 - 2026-11-08 (spec-build): The live line's record (`LiveShape`) holds `control` (the interior points) and `start_cap` / `end_cap`; `edit_live` takes `control` (the whole list, so add, move and remove are one field) as a geometry edit and the caps as a parameter group of their own, and refuses either on a box shape (`LiveEditMismatch`), as it refuses more than 62 control points (AC-15's core half). `live_object_spec` reports the control points, the caps, the flattened polyline (for the editor's stroke hit-test) and the grip anchor and normal (AC-22). A curve's undo label is "Draw Curve" while its history kind stays the Line's (`draw_line`), during the live edits and after the commit.
 - 2026-11-08 (spec-build): AC-16 changes one rule of `image-live-objects`: a live line whose points were all edited onto one spot now shows today's zero-length dot with Round caps instead of drawing nothing (`edit_live_to_degenerate_geometry_stays_live_and_draws_nothing` was revised to say so, and checks that a Flat cap draws nothing); beginning such a line is still refused, and a line drawn as nothing still commits without a step (that spec's AC-12).
 - 2026-11-08 (spec-build): MCP `draw.shape` validates the curve arguments in its schema (`control` ≤ 62 points of two numbers, the cap and dash enums) and in the tool (line-only arguments on another kind — checked before the Pixel / Image split, so a Pixel call fails the same way —, non-finite coordinates); it builds the same `draw_shape` the editor's commit draws, with `points` = start, control points, end.
+- 2026-11-08 (spec-build): The editor hit-tests a live line on the polyline the core reports (`live-handles.ts`: handles first, then the grip, then the stroke within max(half the stroke width, 8 CSS px — 16 for touch and pen)); a press on the stroke becomes a control point only once the pointer has moved 2 CSS px, inserted between the two points of the line whose stretch of the polyline it hits. A second press on the same control point within 400 ms removes it (the first press, without movement, sends nothing). Image mode's tool reads "Line / Curve" through a new key `tool.lineCurve`; Pixel mode keeps "Line" (its lines are Bresenham strokes, Out of scope). The e2e specs that picked the Image tool as "Line" now name it "Line / Curve".

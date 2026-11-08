@@ -429,7 +429,10 @@ export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' |
 export type ShapeMode = 'outline' | 'fill' | 'fill_and_outline';
 
 /** Outline dash pattern (spec §9.2 Shapes). */
-export type DashPattern = 'solid' | 'dashed' | 'dotted';
+export type DashPattern = 'solid' | 'dashed' | 'dotted' | 'dash_dot' | 'dash_dot_dot';
+
+/** How a line ends (docs/specs/image-shapes-curves.md). */
+export type LineCap = 'round' | 'flat' | 'arrow';
 
 /** Horizontal text alignment about the placement point (spec §9.2 Text). */
 export type TextAlign = 'left' | 'center' | 'right';
@@ -456,6 +459,8 @@ export interface DrawShapeCommand {
   anti_alias: boolean;
   dash: DashPattern;
   blend: ToolBlend;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
 }
 
 /** Rasterize text onto a layer using a `registerFont` id (spec §9.2 Text). */
@@ -495,6 +500,10 @@ export interface BeginLiveShapeCommand {
   anti_alias?: boolean;
   dash?: DashPattern;
   blend?: ToolBlend;
+  /** A line's control points between the endpoints, in order. */
+  control?: Array<[number, number]>;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
 }
 
 /** Begins a live gradient (docs/specs/image-live-objects.md). */
@@ -542,6 +551,10 @@ export interface EditLiveCommand {
   strikethrough?: boolean;
   align?: TextAlign;
   blend?: ToolBlend;
+  /** A line's control points, all of them, in order. */
+  control?: Array<[number, number]>;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
 }
 
 /** Begins a live text whose box has its top-left at `(x, y)`

@@ -29,7 +29,19 @@ import {
 } from '../stores/editor.svelte';
 import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
-import { cursorOf, dragPoints, hitLive, wholeMove, type LiveHit, type Pt } from './live-handles';
+import {
+  cursorOf,
+  dragLine,
+  dragPoints,
+  hitLive,
+  insertIndex,
+  isLine,
+  MAX_LINE_POINTS,
+  wholeMove,
+  type LineGeom,
+  type LiveHit,
+  type Pt,
+} from './live-handles';
 import { editRefused } from '../core/layer-tree';
 import {
   caretToPoint,
@@ -189,16 +201,37 @@ export function attachTools(
     frame: number;
     /** A live text moves by whole document pixels (image-live-text AC-07). */
     whole: boolean;
+    /** A live line's geometry when the drag began, and its latest unsent
+     *  geometry (docs/specs/image-shapes-curves.md). */
+    line?: LineGeom | undefined;
+    pendingLine?: LineGeom | null;
+    /** A press on the line's stroke: the control point goes in at this
+     *  index once the pointer moves (AC-02); `null` once inserted. */
+    insert?: number | null;
   } | null = null;
   // A press-and-drag placing the caret and selecting characters in the live
   // text (image-live-text AC-06): the pointer that owns it.
   let textSelect: number | null = null;
   // A touch press held back while a live object is open (pointer-input.ts).
   const held = touchHold((down) => press(down));
+  // The last press on a control point: a second one soon after on the same
+  // point removes it (a double-click or double-tap, AC-04).
+  let lastCtrlPress: { index: number; time: number } | null = null;
+  const DOUBLE_PRESS_MS = 400;
 
   /** Sends the drag's latest points, at most once per frame. */
   const flushLive = (): void => {
-    if (liveDrag === null || liveDrag.pending === null) return;
+    if (liveDrag === null) return;
+    if (liveDrag.pendingLine) {
+      const geom = liveDrag.pendingLine;
+      liveDrag.pendingLine = null;
+      if (!editLive({ gesture: liveDrag.gesture, points: geom.points, control: geom.control })) {
+        endLiveDrag();
+      }
+      redraw();
+      return;
+    }
+    if (liveDrag.pending === null) return;
     const points = liveDrag.pending;
     liveDrag.pending = null;
     if (!editLive({ gesture: liveDrag.gesture, points })) {
@@ -265,7 +298,41 @@ export function attachTools(
     // The right button does nothing while an object is live.
     if (e.button !== 0) return true;
     const hit = hitLive(obj, point, view.zoom, e.pointerType !== 'mouse');
-    if (hit?.kind === 'stroke') return true;
+    const line: LineGeom | undefined = isLine(obj)
+      ? { points: obj.points, control: obj.control }
+      : undefined;
+    if (hit?.kind === 'stroke') {
+      // A drag on a line's stroke adds a control point (image-shapes-curves
+      // AC-02); a full line (AC-15) and a box shape's outline take nothing.
+      if (line === undefined || line.control.length + 2 >= MAX_LINE_POINTS) return true;
+      const index = insertIndex(obj, point);
+      liveDrag = {
+        pointer: e.pointerId,
+        hit: { kind: 'ctrl', index },
+        from: obj.points,
+        start: point,
+        gesture: nextStrokeId++,
+        pending: null,
+        frame: 0,
+        whole: false,
+        line,
+        pendingLine: null,
+        insert: index,
+      };
+      stage.setPointerCapture(e.pointerId);
+      return true;
+    }
+    if (hit?.kind === 'ctrl' && line !== undefined) {
+      const now = performance.now();
+      if (lastCtrlPress?.index === hit.index && now - lastCtrlPress.time < DOUBLE_PRESS_MS) {
+        // The second press of a double-click removes the point (AC-04).
+        lastCtrlPress = null;
+        editLive({ control: line.control.filter((_, i) => i !== hit.index) });
+        redraw();
+        return true;
+      }
+      lastCtrlPress = { index: hit.index, time: now };
+    }
     if (hit !== null) {
       liveDrag = {
         pointer: e.pointerId,
@@ -276,6 +343,9 @@ export function attachTools(
         pending: null,
         frame: 0,
         whole: false,
+        line,
+        pendingLine: null,
+        insert: null,
       };
       stage.setPointerCapture(e.pointerId);
       return true;
@@ -511,9 +581,24 @@ export function attachTools(
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
-      liveDrag.pending = liveDrag.whole
-        ? wholeMove(liveDrag.from, liveDrag.start, p)
-        : dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      if (liveDrag.whole) {
+        liveDrag.pending = wholeMove(liveDrag.from, liveDrag.start, p);
+      } else if (liveDrag.line) {
+        if (liveDrag.insert != null) {
+          // The press on the stroke becomes a control point once the pointer
+          // moves: a press without movement adds nothing (AC-02).
+          const moved = Math.hypot(p[0] - liveDrag.start[0], p[1] - liveDrag.start[1]) * view.zoom;
+          if (moved < 2) return;
+          const at = liveDrag.insert;
+          const control = [...liveDrag.line.control];
+          control.splice(at, 0, liveDrag.start);
+          liveDrag.line = { points: liveDrag.line.points, control };
+          liveDrag.insert = null;
+        }
+        liveDrag.pendingLine = dragLine(liveDrag.hit, liveDrag.line, liveDrag.start, p, shiftHeld(e));
+      } else {
+        liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      }
       if (liveDrag.frame === 0) {
         liveDrag.frame = requestAnimationFrame(() => {
           if (liveDrag !== null) liveDrag.frame = 0;

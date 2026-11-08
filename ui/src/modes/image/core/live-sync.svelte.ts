@@ -34,6 +34,12 @@ export function installLiveSync(): void {
   onChange(() => tool.antiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
   onChange(() => tool.cornerRadius, (obj, r) => shape({ corner_radius: r })(obj));
   onChange(() => tool.shapeSides, (obj, n) => shape({ sides: n })(obj));
+  // A live line's caps (docs/specs/image-shapes-curves.md AC-12).
+  const line = (fields: Parameters<typeof editLive>[0]) => (obj: LiveObjectSpec) => {
+    if (obj.type === 'shape' && obj.shape === 'line') editLive(fields);
+  };
+  onChange(() => tool.lineStartCap, (obj, cap) => line({ start_cap: cap })(obj));
+  onChange(() => tool.lineEndCap, (obj, cap) => line({ end_cap: cap })(obj));
   // Outline = foreground, fill = background, both at the tool opacity: one
   // colors group, so a swap or an opacity drag is one step.
   onChange(

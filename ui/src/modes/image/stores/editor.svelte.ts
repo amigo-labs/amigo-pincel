@@ -6,6 +6,7 @@ import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../.
 import type {
   BrushShape,
   DashPattern,
+  LineCap,
   EraserMode,
   GradientChannel,
   GradientKind,
@@ -317,6 +318,9 @@ export const tool = $state({
   strokeWidth: 3,
   /** Shapes: outline dash pattern. */
   shapeDash: 'solid' as DashPattern,
+  /** The Line / Curve tool's caps (docs/specs/image-shapes-curves.md). */
+  lineStartCap: 'round' as LineCap,
+  lineEndCap: 'round' as LineCap,
   /** Shapes: polygon side count, 3–100. */
   shapeSides: 5,
   /** Shapes: rounded-rectangle corner radius in pixels. */

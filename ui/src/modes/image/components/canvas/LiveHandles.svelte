@@ -23,26 +23,28 @@
               ? h.hit.handle
               : h.hit.kind === 'end'
                 ? `end${h.hit.index}`
-                : h.hit.kind,
+                : h.hit.kind === 'ctrl'
+                  ? `ctrl${h.hit.index}`
+                  : h.hit.kind,
           at: toScreen(h.at),
         })),
   );
-  // A Line or Gradient shows its body as a thin guide between its ends.
-  const guide = $derived(
-    obj === null || (obj.type === 'shape' && obj.shape !== 'line')
-      ? null
-      : { a: toScreen(obj.points[0]), b: toScreen(obj.points[1]) },
-  );
+  // A Line or Gradient shows its body as a thin guide between its ends; a
+  // curve's guide follows the curve (docs/specs/image-shapes-curves.md).
+  const guide = $derived.by(() => {
+    if (obj === null || (obj.type === 'shape' && obj.shape !== 'line')) return null;
+    const pts =
+      obj.type === 'shape' && obj.polyline.length > 1 ? obj.polyline : [obj.points[0], obj.points[1]];
+    return pts.map((p) => toScreen(p).join(',')).join(' ');
+  });
 </script>
 
 {#if obj !== null}
   <svg class="pointer-events-none absolute inset-0 h-full w-full overflow-visible" aria-hidden="true">
     {#if guide}
-      <line
-        x1={guide.a[0]}
-        y1={guide.a[1]}
-        x2={guide.b[0]}
-        y2={guide.b[1]}
+      <polyline
+        points={guide}
+        fill="none"
         class="stroke-pc-accent"
         stroke-width="1"
         stroke-dasharray="4 3"
