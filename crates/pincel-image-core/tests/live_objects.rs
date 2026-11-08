@@ -56,6 +56,8 @@ fn boxed(kind: BoxShape, a: Point, b: Point) -> LiveParams {
         style: style(),
         corner_radius: 4.0,
         sides: 6,
+        star_points: 5,
+        inner_ratio: 0.38,
         control: Vec::new(),
         start_cap: pincel_image_core::LineCap::Round,
         end_cap: pincel_image_core::LineCap::Round,
@@ -70,6 +72,8 @@ fn line(a: Point, b: Point) -> LiveParams {
         style: style(),
         corner_radius: 0.0,
         sides: 3,
+        star_points: 5,
+        inner_ratio: 0.38,
         control: Vec::new(),
         start_cap: pincel_image_core::LineCap::Round,
         end_cap: pincel_image_core::LineCap::Round,
@@ -114,6 +118,9 @@ fn immediate(doc: &Document, layer: usize, params: &LiveParams) -> ImageBuffer {
                         rotation: 0.0,
                     }
                 }
+                // The box shapes of docs/specs/image-shapes-curves-shapes.md
+                // (covered by tests/live_box_shapes.rs).
+                LiveShapeKind::Box(_) => s.shape(),
             };
             Shapes::new(shape, s.style).draw(layer, doc)
         }

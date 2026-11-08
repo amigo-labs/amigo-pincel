@@ -35,6 +35,19 @@ pub enum BoxShape {
     Ellipse,
     /// A regular polygon inscribed in the shorter side of the box, centred.
     Polygon,
+    /// An isosceles triangle filling the box
+    /// (docs/specs/image-shapes-curves-shapes.md).
+    Triangle,
+    /// A rhombus with its corners at the box's edge midpoints.
+    Diamond,
+    /// A star inscribed in the shorter side of the box, centred, one point up.
+    Star,
+    /// An arrow from the box's first corner (the drag start) toward the other.
+    BlockArrow,
+    /// A heart touching the box's four edges.
+    Heart,
+    /// A speech bubble whose tail tip is the box's first corner.
+    Callout,
 }
 
 /// A live shape's geometry kind.
@@ -61,6 +74,12 @@ pub struct LiveShape {
     pub corner_radius: f32,
     /// Sides of a polygon (kept for every kind, AC-07).
     pub sides: u32,
+    /// A star's points, 3–50, and its inner radius as a share of the outer
+    /// one, 0.1–0.9 (kept for every kind, like `sides`;
+    /// docs/specs/image-shapes-curves-shapes.md).
+    pub star_points: u32,
+    /// See `star_points`.
+    pub inner_ratio: f32,
     /// A Line's control points between `a` and `b`, in order
     /// (docs/specs/image-shapes-curves.md); empty for a straight line and
     /// for box shapes.
@@ -121,6 +140,10 @@ pub struct LiveEdit {
     pub corner_radius: Option<f32>,
     /// New polygon sides.
     pub sides: Option<u32>,
+    /// New star points.
+    pub star_points: Option<u32>,
+    /// New star inner radius ratio.
+    pub inner_ratio: Option<f32>,
     /// New outline color.
     pub stroke_color: Option<crate::Color>,
     /// New fill color.
@@ -188,6 +211,8 @@ mod group {
     pub const ALIGN: u32 = 1 << 20;
     pub const BLEND: u32 = 1 << 21;
     pub const CAPS: u32 = 1 << 22;
+    pub const STAR_POINTS: u32 = 1 << 23;
+    pub const INNER_RATIO: u32 = 1 << 24;
 
     /// What a Line or box shape accepts.
     pub const SHAPE_FIELDS: u32 = GEOMETRY
@@ -200,7 +225,9 @@ mod group {
         | SIDES
         | COLORS
         | BLEND
-        | CAPS;
+        | CAPS
+        | STAR_POINTS
+        | INNER_RATIO;
     /// What a gradient accepts.
     pub const GRADIENT_FIELDS: u32 =
         GEOMETRY | GRADIENT_KIND | GRADIENT_CHANNEL | GRADIENT_COLORS | GRADIENT_OPACITY | BLEND;
@@ -242,6 +269,8 @@ impl LiveEdit {
         add(self.anti_alias.is_some(), group::ANTI_ALIAS);
         add(self.corner_radius.is_some(), group::CORNER_RADIUS);
         add(self.sides.is_some(), group::SIDES);
+        add(self.star_points.is_some(), group::STAR_POINTS);
+        add(self.inner_ratio.is_some(), group::INNER_RATIO);
         add(
             self.stroke_color.is_some() || self.fill_color.is_some(),
             group::COLORS,
@@ -309,6 +338,8 @@ impl LiveParams {
             LiveParams::Shape(s) => {
                 s.style.stroke_width = s.style.stroke_width.clamp(1.0, 500.0);
                 s.sides = s.sides.clamp(3, 100);
+                s.star_points = s.star_points.clamp(3, 50);
+                s.inner_ratio = s.inner_ratio.clamp(0.1, 0.9);
                 s.corner_radius = s.corner_radius.max(0.0);
             }
             LiveParams::Gradient(g) => {
@@ -384,6 +415,8 @@ impl LiveParams {
                 st.blend = edit.blend.unwrap_or(st.blend);
                 s.corner_radius = edit.corner_radius.unwrap_or(s.corner_radius);
                 s.sides = edit.sides.unwrap_or(s.sides);
+                s.star_points = edit.star_points.unwrap_or(s.star_points);
+                s.inner_ratio = edit.inner_ratio.unwrap_or(s.inner_ratio);
             }
             LiveParams::Gradient(g) => {
                 if let Some([a, b]) = edit.points {
@@ -472,6 +505,19 @@ impl LiveShape {
                 sides: self.sides,
                 rotation: 0.0,
             },
+            LiveShapeKind::Box(BoxShape::Triangle) => Shape::Triangle { a, b },
+            LiveShapeKind::Box(BoxShape::Diamond) => Shape::Diamond { a, b },
+            LiveShapeKind::Box(BoxShape::Star) => Shape::Star {
+                center: Point::new((a.x + b.x) / 2.0, (a.y + b.y) / 2.0),
+                radius: (a.x - b.x).abs().min((a.y - b.y).abs()) / 2.0,
+                points: self.star_points,
+                inner_ratio: self.inner_ratio,
+                rotation: 0.0,
+            },
+            // `a` is the drag start: the arrow's tail and the callout's tip.
+            LiveShapeKind::Box(BoxShape::BlockArrow) => Shape::BlockArrow { start: a, end: b },
+            LiveShapeKind::Box(BoxShape::Heart) => Shape::Heart { a, b },
+            LiveShapeKind::Box(BoxShape::Callout) => Shape::Callout { start: a, end: b },
         }
     }
 }

@@ -263,6 +263,8 @@ fn bench_live(c: &mut Criterion) {
         },
         corner_radius: 0.0,
         sides: 5,
+        star_points: 5,
+        inner_ratio: 0.38,
         control: Vec::new(),
         start_cap: LineCap::Round,
         end_cap: LineCap::Round,

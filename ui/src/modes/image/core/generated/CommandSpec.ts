@@ -139,11 +139,28 @@ start_cap: string,
 /**
  * A line's end cap.
  */
-end_cap: string, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
+end_cap: string, 
+/**
+ * A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md);
+ * a star takes `center`, `radius` and `rotation` like `polygon`.
+ */
+star_points: number, 
+/**
+ * A star's inner radius as a share of `radius`, 0.1–0.9.
+ */
+inner_ratio: number, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "begin_live_shape", layer: number, shape: string, points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+blend: string, } | { "type": "begin_live_shape", layer: number, shape: string, points: [[number, number], [number, number]], corner_radius: number, sides: number, 
+/**
+ * A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md).
+ */
+star_points: number, 
+/**
+ * A star's inner radius as a share of the outer one, 0.1–0.9.
+ */
+inner_ratio: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
@@ -164,7 +181,7 @@ end_cap: string, } | { "type": "begin_live_gradient", layer: number, kind: strin
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, blend?: string, 
+blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, star_points?: number, inner_ratio?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, blend?: string, 
 /**
  * A line's control points, all of them, in order.
  */

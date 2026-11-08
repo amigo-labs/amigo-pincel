@@ -27,6 +27,9 @@ pub enum LiveObjectSpec {
         points: [[f32; 2]; 2],
         corner_radius: f32,
         sides: u32,
+        /// A star's points and inner radius ratio (kept for every kind).
+        star_points: u32,
+        inner_ratio: f32,
         mode: String,
         stroke_width: f32,
         stroke_color: [u8; 4],
@@ -101,6 +104,8 @@ pub fn live_object_spec(bus: &CommandBus) -> Option<LiveObjectSpec> {
                 points,
                 corner_radius: s.corner_radius,
                 sides: s.sides,
+                star_points: s.star_points,
+                inner_ratio: s.inner_ratio,
                 mode: shape_mode_str(s.style.mode).to_string(),
                 stroke_width: s.style.stroke_width,
                 stroke_color: bytes(s.style.stroke_color),
@@ -198,6 +203,12 @@ pub fn parse_live_shape(s: &str) -> Option<LiveShapeKind> {
         "rounded_rectangle" => LiveShapeKind::Box(BoxShape::RoundedRectangle),
         "ellipse" => LiveShapeKind::Box(BoxShape::Ellipse),
         "polygon" => LiveShapeKind::Box(BoxShape::Polygon),
+        "triangle" => LiveShapeKind::Box(BoxShape::Triangle),
+        "diamond" => LiveShapeKind::Box(BoxShape::Diamond),
+        "star" => LiveShapeKind::Box(BoxShape::Star),
+        "block_arrow" => LiveShapeKind::Box(BoxShape::BlockArrow),
+        "heart" => LiveShapeKind::Box(BoxShape::Heart),
+        "callout" => LiveShapeKind::Box(BoxShape::Callout),
         _ => return None,
     })
 }
@@ -209,6 +220,12 @@ fn live_shape_str(kind: LiveShapeKind) -> &'static str {
         LiveShapeKind::Box(BoxShape::RoundedRectangle) => "rounded_rectangle",
         LiveShapeKind::Box(BoxShape::Ellipse) => "ellipse",
         LiveShapeKind::Box(BoxShape::Polygon) => "polygon",
+        LiveShapeKind::Box(BoxShape::Triangle) => "triangle",
+        LiveShapeKind::Box(BoxShape::Diamond) => "diamond",
+        LiveShapeKind::Box(BoxShape::Star) => "star",
+        LiveShapeKind::Box(BoxShape::BlockArrow) => "block_arrow",
+        LiveShapeKind::Box(BoxShape::Heart) => "heart",
+        LiveShapeKind::Box(BoxShape::Callout) => "callout",
     }
 }
 
@@ -288,6 +305,8 @@ mod tests {
                 points: [[3.0, 3.0], [21.0, 12.0]],
                 corner_radius: 0.0,
                 sides: 5,
+                star_points: 5,
+                inner_ratio: 0.38,
                 mode: "fill".into(),
                 stroke_width: 2.0,
                 stroke_color: [1, 2, 3, 255],

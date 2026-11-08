@@ -733,6 +733,12 @@ pub enum CommandSpec {
         corner_radius: f32,
         #[serde(default)]
         sides: u32,
+        /// A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md).
+        #[serde(default = "default_star_points")]
+        star_points: u32,
+        /// A star's inner radius as a share of the outer one, 0.1–0.9.
+        #[serde(default = "default_inner_ratio")]
+        inner_ratio: f32,
         #[serde(default = "default_shape_mode")]
         mode: String,
         #[serde(default = "default_stroke_width")]
@@ -814,6 +820,12 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         sides: Option<u32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        star_points: Option<u32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        inner_ratio: Option<f32>,
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         stroke_color: Option<[u8; 4]>,
@@ -1654,6 +1666,8 @@ pub fn run_command(
             points,
             corner_radius,
             sides,
+            star_points,
+            inner_ratio,
             mode,
             stroke_width,
             stroke_color,
@@ -1691,6 +1705,8 @@ pub fn run_command(
                 },
                 corner_radius,
                 sides,
+                star_points,
+                inner_ratio,
                 control: control.iter().map(|q| Point::new(q[0], q[1])).collect(),
                 start_cap: parse_cap(&start_cap),
                 end_cap: parse_cap(&end_cap),
@@ -1734,6 +1750,8 @@ pub fn run_command(
             anti_alias,
             corner_radius,
             sides,
+            star_points,
+            inner_ratio,
             stroke_color,
             fill_color,
             kind,
@@ -1775,6 +1793,8 @@ pub fn run_command(
                 anti_alias,
                 corner_radius,
                 sides,
+                star_points,
+                inner_ratio,
                 stroke_color: stroke_color.map(rgba),
                 fill_color: fill_color.map(rgba),
                 gradient_kind: kind.as_deref().map(parse_gradient_kind),

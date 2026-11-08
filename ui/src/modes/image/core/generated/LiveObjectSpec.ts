@@ -16,7 +16,11 @@ shape: string,
 /**
  * Endpoints or opposite box corners.
  */
-points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+points: [[number, number], [number, number]], corner_radius: number, sides: number, 
+/**
+ * A star's points and inner radius ratio (kept for every kind).
+ */
+star_points: number, inner_ratio: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
 /**
  * A line's control points between the endpoints, in order
  * (docs/specs/image-shapes-curves.md); empty otherwise.
