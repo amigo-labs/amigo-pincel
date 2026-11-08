@@ -56,6 +56,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | Full recompose, Image 4K 10 layers (wasm, mid laptop) | ≤ 100 ms, off the input path | ≈ 4 s native, extrapolated | `performance-image-kernel` (≥ 10×), `performance-build-simd` |
 | Pixel: pencil drag on 256×256 at zoom 32 | 60 fps (M12 target), dab latency ≤ 8 ms | per-pixel wasm calls | `performance-input-path` |
 | Open a 4K PNG | ≤ 1 s to first paint | to measure | measure first; a new spec `performance-image-open` if missed |
+| Draw a 64-point Line / Curve (width 20, Dash-Dot, anti-aliased, Arrow caps) across a 4K layer (`image_shapes/curve_64pts_w20_dashdot_arrows_4k`) | ≤ 40 ms median, `pending` | ≈ 184 ms native in the dev container (2026-11-08) | `image-shapes-curves` |
 | Effect preview (Gaussian r = 10) on 4K | proxy ≤ 100 ms, full result ≤ 500 ms, UI never blocks | main thread | `performance-background-jobs` |
 | Autosave and export of a 4K multi-layer doc | zero UI jank (no frame > 50 ms) | ORA encode on main thread every 30 s | `performance-background-jobs` |
 | Cold start (no cache) → start screen interactive | ≤ 1.5 s mid laptop / 4G; warm ≤ 0.5 s | to measure | `performance-build-simd` |

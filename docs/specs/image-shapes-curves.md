@@ -125,27 +125,27 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `a_two_point_round_line_is_todays_line` (crates/pincel-image-core/tests/curves.rs) — core; the editor commit follows with the live line | open |        |
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-05 | `a_curve_paints_only_its_band_and_heads_and_fills_its_core` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-06 | `collinear_control_points_draw_the_straight_line` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-07 | `without_anti_alias_pixels_are_full_and_a_thin_curve_is_8_connected` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-08 | `an_arrow_head_sits_on_the_end_solid_and_sized_by_the_width`, `the_stroke_and_its_heads_join_without_a_seam` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-09 | `flat_ends_stop_at_the_end_and_round_ends_are_half_discs` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-10 | `heads_longer_than_the_curve_shrink_to_fit`, `the_stroke_and_its_heads_join_without_a_seam` (crates/pincel-image-core/tests/curves.rs) | built |        |
+| AC-11 | `dash_dot_patterns_repeat_dash_gap_dot_gap` (crates/pincel-image-core/tests/curves.rs; line and rectangle outline) | built |        |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-14 | `a_curve_changes_only_selected_pixels` (crates/pincel-image-core/tests/curves.rs) | built |        |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-16 | `coincident_points_act_as_one` (crates/pincel-image-core/tests/curves.rs) — core; the MCP `changed: false` follows with `draw.shape` | open |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-21 | `image_shapes/curve_64pts_w20_dashdot_arrows_4k` (crates/pincel-image-core/benches/compose.rs); budget ≤ 40 ms `pending` in `ui/e2e-perf/budgets.json` and the `performance-benchmarks` budget table | built |        |
 | AC-22 |      | open   |        |
 
 ## Decisions
@@ -158,3 +158,6 @@ Per Decision Log 2026-11-05 "MCP tool parity", every new capability is reachable
 - 2026-11-05: Caps apply to the line's two ends only, dashes keep round ends — because that changes no existing shape outline.
 - 2026-11-05, owner's choice: a plain drag on a live line's stroke inserts a control point, and the whole line moves by a dedicated move grip (AC-02, AC-22); area shapes keep the body drag that moves them (`image-live-objects-ui` AC-04) — because it is paint.net's gesture and makes curves discoverable without a modifier.
 - 2026-11-05, owner's choice: the line follows the shared live-object architecture — the core draws it into its layer at every change, its record sits beside the document on `CommandBus` (not in `.ora`), each edit is an ordinary undo step, the commit folds them into one, Escape cancels, Enter commits, and any other command or active-layer change commits it first — because one model for every live object keeps undo, autosave and MCP behavior identical across kinds.
+- 2026-11-08 (spec-build): The curve lives in its own module, `tools/curve.rs` (`Curve`, `CurveLine`, `LineCap`, `MAX_LINE_POINTS`), since `shapes.rs` is over the size limit; `DashPattern::runs` became a list of on / off runs, and the dash walker gives today's two-run patterns the same floats as before (the existing shape tests and snapshots are unchanged). A two-point line with Round caps, and a curve whose points are collinear in order, are handed to `Shapes`' `Shape::Line`, so AC-01 and AC-06 hold by construction; the flattening tolerance is 0.02 px (finer than the 0.1 px in Technical notes, so the band stays within AC-05's half pixel of the exact curve).
+- 2026-11-08 (spec-build): Where the stroke meets an arrow head, and where two shrunk heads meet, coverage is the clamped *sum* of the stroke's cut ramp and the heads — the two ramps are complementary, so the sum joins them without a lighter seam, and the clamp keeps overlapping heads from painting darker (Edge cases). Red run: with `max`, `the_stroke_and_its_heads_join_without_a_seam` failed with a 50 % column at the head's base.
+- 2026-11-08 (spec-build): The rasterizer fills a distance buffer only around each segment (walked in short pieces) and shades only pixels within reach of the band or a head; measuring every pixel of the region against every segment took 35 s for AC-21's scenario, now ≈ 184 ms in the dev container under load — the 40 ms budget stays `pending`.
