@@ -43,9 +43,9 @@ pub use tools::{
     Blend, Brush, BrushShape, CloneSnapshot, CloneStamp, Curve, CurveLine, DEFAULT_BRUSH_ANGLE,
     DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Gradient, GradientChannel,
     GradientKind, LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil,
-    PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape, ShapeMode,
-    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextLayout, TextStyle,
-    copy_selection, delete_selection, fill_selection,
+    PressureDynamics, Recolor, RecolorOrigins, STAR_INNER_RATIO, STAR_POINTS, SampleSize,
+    SampleSource, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
+    TextLayout, TextStyle, copy_selection, delete_selection, fill_selection,
 };
 pub use transform::{
     Interpolation, flip_horizontal, flip_vertical, rotate_90_ccw, rotate_90_cw, rotate_180, scale,

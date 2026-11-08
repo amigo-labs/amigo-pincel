@@ -62,6 +62,18 @@ history_kinds! {
     Ellipse => "ellipse",
     /// Polygon tool.
     Polygon => "polygon",
+    /// Triangle shape (docs/specs/image-shapes-curves-shapes.md).
+    Triangle => "triangle",
+    /// Diamond shape.
+    Diamond => "diamond",
+    /// Star shape.
+    Star => "star",
+    /// Block Arrow shape.
+    BlockArrow => "block_arrow",
+    /// Heart shape.
+    Heart => "heart",
+    /// Callout (speech bubble) shape.
+    Callout => "callout",
     /// Text tool.
     Text => "text",
     /// Pixels written without a tool.

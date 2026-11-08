@@ -7,6 +7,7 @@
 //! (spec §9.1) is deferred; tools keep this simpler "gesture → command" shape
 //! until a tool needs richer modifier/cursor state.
 
+mod box_shapes;
 mod clone_stamp;
 mod copy;
 mod curve;
@@ -22,6 +23,7 @@ mod shapes;
 mod smudge;
 mod text;
 
+pub use box_shapes::{STAR_INNER_RATIO, STAR_POINTS};
 pub use clone_stamp::{CloneSnapshot, CloneStamp};
 pub use copy::copy_selection;
 pub use curve::{Curve, CurveLine, LineCap, MAX_LINE_POINTS};

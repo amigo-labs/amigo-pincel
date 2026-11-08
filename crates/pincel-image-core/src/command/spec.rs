@@ -224,6 +224,14 @@ fn default_dash() -> String {
     "solid".to_string()
 }
 
+fn default_star_points() -> u32 {
+    crate::STAR_POINTS
+}
+
+fn default_inner_ratio() -> f32 {
+    crate::STAR_INNER_RATIO
+}
+
 fn default_cap() -> String {
     "round".to_string()
 }
@@ -682,6 +690,13 @@ pub enum CommandSpec {
         /// A line's end cap.
         #[serde(default = "default_cap")]
         end_cap: String,
+        /// A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md);
+        /// a star takes `center`, `radius` and `rotation` like `polygon`.
+        #[serde(default = "default_star_points")]
+        star_points: u32,
+        /// A star's inner radius as a share of `radius`, 0.1–0.9.
+        #[serde(default = "default_inner_ratio")]
+        inner_ratio: f32,
     },
     /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
     /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
@@ -1518,6 +1533,8 @@ pub fn run_command(
             blend,
             start_cap,
             end_cap,
+            star_points,
+            inner_ratio,
         } => {
             let corner = |i: usize| points.get(i).map(|q| Point::new(q[0], q[1]));
             // line / rectangle / rounded_rectangle / ellipse take `points[0..2]`.
@@ -1542,6 +1559,28 @@ pub fn run_command(
                     center: Point::new(center[0], center[1]),
                     radius,
                     sides,
+                    rotation,
+                }),
+                // The box shapes of docs/specs/image-shapes-curves-shapes.md;
+                // the first point is the drag start.
+                "triangle" => corner(0)
+                    .zip(corner(1))
+                    .map(|(a, b)| Shape::Triangle { a, b }),
+                "diamond" => corner(0)
+                    .zip(corner(1))
+                    .map(|(a, b)| Shape::Diamond { a, b }),
+                "heart" => corner(0).zip(corner(1)).map(|(a, b)| Shape::Heart { a, b }),
+                "block_arrow" => corner(0)
+                    .zip(corner(1))
+                    .map(|(start, end)| Shape::BlockArrow { start, end }),
+                "callout" => corner(0)
+                    .zip(corner(1))
+                    .map(|(start, end)| Shape::Callout { start, end }),
+                "star" => Some(Shape::Star {
+                    center: Point::new(center[0], center[1]),
+                    radius,
+                    points: star_points,
+                    inner_ratio,
                     rotation,
                 }),
                 _ => None,

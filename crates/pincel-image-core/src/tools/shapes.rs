@@ -8,7 +8,7 @@
 //! on-segments along the perimeter polyline. The Arrow shape (spec §9.2) is
 //! deferred to a follow-up task.
 
-use super::Blend;
+use super::{Blend, box_shapes};
 use crate::color::Color;
 use crate::command::HistoryKind;
 use crate::command::SetPixels;
@@ -75,6 +75,59 @@ pub enum Shape {
         sides: u32,
         /// Rotation in radians.
         rotation: f32,
+    },
+    /// An isosceles triangle filling the box `a`–`b`: apex at the middle of
+    /// the top edge, base along the bottom (docs/specs/image-shapes-curves-shapes.md).
+    Triangle {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A rhombus with its corners at the box's edge midpoints.
+    Diamond {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A star of `points` points (3–50) around `center`: outer radius
+    /// `radius`, inner radius `radius × inner_ratio` (0.1–0.9), rotated
+    /// `rotation` radians (0 puts a point up).
+    Star {
+        /// Center point.
+        center: Point,
+        /// Outer radius in pixels.
+        radius: f32,
+        /// Number of points, clamped to 3–50.
+        points: u32,
+        /// Inner radius as a share of the outer one, clamped to 0.1–0.9.
+        inner_ratio: f32,
+        /// Rotation in radians.
+        rotation: f32,
+    },
+    /// An arrow filling the box from `start` (where the drag began) toward
+    /// `end`, along the box's longer side (horizontal on a tie).
+    BlockArrow {
+        /// The drag start corner.
+        start: Point,
+        /// The opposite corner.
+        end: Point,
+    },
+    /// A heart touching all four edges of the box, point at the bottom.
+    Heart {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A speech bubble: a rounded body away from `start` and a tail whose
+    /// tip lies on `start`.
+    Callout {
+        /// The drag start corner (the tail's tip).
+        start: Point,
+        /// The opposite corner.
+        end: Point,
     },
 }
 
@@ -168,6 +221,11 @@ impl Shapes {
     /// region is the shape's clamped bounding box; prior pixels are captured for
     /// undo.
     pub fn draw(&self, layer_index: usize, doc: &Document) -> Option<SetPixels> {
+        // A box shape of zero width or height, or a star of radius 0,
+        // paints nothing (image-shapes-curves-shapes AC-14).
+        if self.shape.is_box_shape() && box_shapes::outline(&self.shape).is_none() {
+            return None;
+        }
         let layer = doc.layers.get(layer_index)?;
         let cw = doc.canvas.width();
         let ch = doc.canvas.height();
@@ -264,12 +322,19 @@ impl Shape {
             Shape::RoundedRectangle { a, b, .. } => {
                 (a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y))
             }
-            Shape::Polygon { center, radius, .. } => (
+            Shape::Polygon { center, radius, .. } | Shape::Star { center, radius, .. } => (
                 center.x - radius,
                 center.y - radius,
                 center.x + radius,
                 center.y + radius,
             ),
+            Shape::Triangle { a, b }
+            | Shape::Diamond { a, b }
+            | Shape::Heart { a, b }
+            | Shape::BlockArrow { start: a, end: b }
+            | Shape::Callout { start: a, end: b } => {
+                (a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y))
+            }
         }
     }
 
@@ -281,6 +346,12 @@ impl Shape {
             Shape::RoundedRectangle { .. } => HistoryKind::RoundedRectangle,
             Shape::Ellipse { .. } => HistoryKind::Ellipse,
             Shape::Polygon { .. } => HistoryKind::Polygon,
+            Shape::Triangle { .. } => HistoryKind::Triangle,
+            Shape::Diamond { .. } => HistoryKind::Diamond,
+            Shape::Star { .. } => HistoryKind::Star,
+            Shape::BlockArrow { .. } => HistoryKind::BlockArrow,
+            Shape::Heart { .. } => HistoryKind::Heart,
+            Shape::Callout { .. } => HistoryKind::Callout,
         }
     }
 
@@ -288,6 +359,9 @@ impl Shape {
     /// (ellipse, rounded-rectangle corners) are sampled finely enough that the
     /// dash run lengths stay visually even.
     fn outline_polyline(&self) -> (Vec<Point>, bool) {
+        if let Some(o) = box_shapes::outline(self) {
+            return (o.verts, true);
+        }
         match *self {
             Shape::Line { a, b } => (vec![a, b], false),
             Shape::Rectangle { a, b } => {
@@ -334,7 +408,29 @@ impl Shape {
                     .collect();
                 (verts, true)
             }
+            // Box shapes without area draw nothing (`Shapes::draw` returns
+            // before an outline is needed).
+            Shape::Triangle { .. }
+            | Shape::Diamond { .. }
+            | Shape::Star { .. }
+            | Shape::BlockArrow { .. }
+            | Shape::Heart { .. }
+            | Shape::Callout { .. } => (Vec::new(), true),
         }
+    }
+
+    /// Whether this is one of the box-fitted shapes of
+    /// docs/specs/image-shapes-curves-shapes.md.
+    pub(crate) fn is_box_shape(&self) -> bool {
+        matches!(
+            self,
+            Shape::Triangle { .. }
+                | Shape::Diamond { .. }
+                | Shape::Star { .. }
+                | Shape::BlockArrow { .. }
+                | Shape::Heart { .. }
+                | Shape::Callout { .. }
+        )
     }
 }
 
@@ -436,8 +532,14 @@ enum ShapeGeom {
     Line { a: Point, b: Point },
     /// A signed-distance area shape (negative inside): rect, rounded rect or ellipse.
     Sdf(SdfShape),
-    /// A regular polygon evaluated by its vertices.
-    Polygon { verts: Vec<Point> },
+    /// A polygon evaluated by its vertices; a shape mirror symmetric about
+    /// `mirror_x` (a vertical axis) or `mirror_y` evaluates one side only,
+    /// so its pixels are exactly symmetric.
+    Polygon {
+        verts: Vec<Point>,
+        mirror_x: Option<f32>,
+        mirror_y: Option<f32>,
+    },
 }
 
 /// The area-shape variants that share box/ellipse SDF math.
@@ -458,6 +560,13 @@ enum SdfShape {
 
 impl ShapeGeom {
     fn build(shape: &Shape) -> ShapeGeom {
+        if let Some(o) = box_shapes::outline(shape) {
+            return ShapeGeom::Polygon {
+                verts: o.verts,
+                mirror_x: o.mirror_x,
+                mirror_y: o.mirror_y,
+            };
+        }
         match *shape {
             Shape::Line { a, b } => ShapeGeom::Line { a, b },
             Shape::Rectangle { a, b } => {
@@ -495,8 +604,18 @@ impl ShapeGeom {
                         center.y + radius * ang.sin(),
                     ));
                 }
-                ShapeGeom::Polygon { verts }
+                ShapeGeom::Polygon {
+                    verts,
+                    mirror_x: None,
+                    mirror_y: None,
+                }
             }
+            // Degenerate box shapes: `Shapes::draw` returns before this.
+            _ => ShapeGeom::Polygon {
+                verts: Vec::new(),
+                mirror_x: None,
+                mirror_y: None,
+            },
         }
     }
 
@@ -530,7 +649,12 @@ impl ShapeGeom {
                 let d = s.sdf(px, py);
                 Self::area_coverage(d, half_stroke, mode, aa)
             }
-            ShapeGeom::Polygon { verts } => {
+            ShapeGeom::Polygon {
+                verts,
+                mirror_x,
+                mirror_y,
+            } => {
+                let (px, py) = fold(px, py, *mirror_x, *mirror_y);
                 let d = sd_polygon(px, py, verts);
                 Self::area_coverage(d, half_stroke, mode, aa)
             }
@@ -545,7 +669,14 @@ impl ShapeGeom {
         match self {
             ShapeGeom::Line { .. } => 0.0,
             ShapeGeom::Sdf(s) => inside_coverage(s.sdf(px, py), aa),
-            ShapeGeom::Polygon { verts } => inside_coverage(sd_polygon(px, py, verts), aa),
+            ShapeGeom::Polygon {
+                verts,
+                mirror_x,
+                mirror_y,
+            } => {
+                let (px, py) = fold(px, py, *mirror_x, *mirror_y);
+                inside_coverage(sd_polygon(px, py, verts), aa)
+            }
         }
     }
 
@@ -576,6 +707,13 @@ impl SdfShape {
             SdfShape::Ellipse { cx, cy, ax, ay } => sd_ellipse(px - cx, py - cy, ax, ay),
         }
     }
+}
+
+/// `(px, py)` reflected onto the low side of the mirror axes, if any.
+fn fold(px: f32, py: f32, mirror_x: Option<f32>, mirror_y: Option<f32>) -> (f32, f32) {
+    let x = mirror_x.map_or(px, |m| m - (px - m).abs());
+    let y = mirror_y.map_or(py, |m| m - (py - m).abs());
+    (x, y)
 }
 
 /// Center and half-extents of the rectangle spanning corners `a` and `b`.

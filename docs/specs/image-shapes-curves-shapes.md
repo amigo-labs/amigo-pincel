@@ -114,20 +114,20 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-02 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-03 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-04 | `a_star_has_its_points_and_inner_radius` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-05 | `a_block_arrow_points_from_the_drag_start_along_the_longer_side` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-06 | `a_heart_touches_its_box_with_lobes_up_and_its_point_down` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-07 | `a_callout_is_a_body_with_a_tail_to_the_start_corner_in_one_outline` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-08 | `new_shapes_paint_like_the_existing_ones` (crates/pincel-image-core/tests/box_shapes.rs; outline / fill colors, modes, dashes) | built |        |
+| AC-09 | `triangle_and_diamond_fill_their_box`, `a_star_has_its_points_and_inner_radius`, `a_block_arrow_points_from_the_drag_start_along_the_longer_side` (anti-aliased fill against the test's own polygons), `new_shapes_paint_like_the_existing_ones` (anti-alias off) (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-10 | `symmetric_shapes_paint_mirror_symmetric_pixels` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-13 | `new_shapes_change_only_selected_pixels` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-14 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
+| AC-15 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-16 |      | open   |        |
 | AC-17 |      | open   |        |
 | AC-18 |      | open   |        |
@@ -142,3 +142,4 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 - 2026-11-05: Callout's corner radius is fixed at 15 % — because the proportion works at every size and keeps the options bar to the Star's two extra controls.
 - 2026-11-05: A zero-area box or non-positive star radius over MCP reports `changed: false` instead of failing (AC-17) — because `draw.shape` already reports a draw that changes nothing as `changed: false`, and a degenerate box is not a malformed call.
 - 2026-11-05: Part 2 depends on `image-shapes-curves` — because AC-08 includes its Dash-Dot patterns.
+- 2026-11-08 (spec-build): The six shapes are `Shape` variants (`Triangle`, `Diamond`, `Star`, `BlockArrow`, `Heart`, `Callout`) whose outlines a new module, `tools/box_shapes.rs`, builds as one closed polygon each (Heart from two mirrored pairs of cubic Béziers scaled to fill the box, Callout's tail inserted into the flattened rounded body); `Shapes` fills, strokes, dashes and anti-aliases them through the polygon SDF it already used for Polygon. A shape symmetric about its box's center line evaluates the SDF on one side of the axis only (`fold` in `shapes.rs`), so its pixels are exactly mirror symmetric (AC-10) — without the fold, the up-pointing Block Arrow was off by one coverage step at the shaft's edge. Their undo labels are "Draw Triangle" … "Draw Callout" (listed kinds `draw_triangle` … `draw_callout`, English and German names).
