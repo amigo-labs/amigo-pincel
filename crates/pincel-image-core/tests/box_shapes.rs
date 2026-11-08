@@ -494,18 +494,24 @@ fn zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside() {
 
     // Boxes under 3 px and a 50-point star in a 6 px box: drawn without an
     // error and nothing beyond the box plus half the stroke and 1 px.
+    // Each case with its own box (x0, y0, x1, y1).
     let mut cases = Vec::new();
     for (w, h) in [(1.0, 1.0), (2.0, 1.0), (1.0, 2.0), (2.0, 2.0), (2.5, 1.5)] {
-        cases.extend(all_shapes(p(30.0, 30.0), p(30.0 + w, 30.0 + h)));
+        for shape in all_shapes(p(30.0, 30.0), p(30.0 + w, 30.0 + h)) {
+            cases.push((shape, (30.0, 30.0, 30.0 + w, 30.0 + h)));
+        }
     }
-    cases.push(Shape::Star {
-        center: p(33.0, 33.0),
-        radius: 3.0,
-        points: 50,
-        inner_ratio: 0.9,
-        rotation: 0.0,
-    });
-    for shape in cases {
+    cases.push((
+        Shape::Star {
+            center: p(33.0, 33.0),
+            radius: 3.0,
+            points: 50,
+            inner_ratio: 0.9,
+            rotation: 0.0,
+        },
+        (30.0, 30.0, 36.0, 36.0),
+    ));
+    for (shape, (x0, y0, x1, y1)) in cases {
         for (mode, width) in [(ShapeMode::Fill, 1.0), (ShapeMode::FillAndOutline, 3.0)] {
             let Some(px) = draw_sel(shape, style(mode, width, true), None) else {
                 continue;
@@ -513,8 +519,7 @@ fn zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside() {
             let reach = width / 2.0 + 1.0;
             for (i, c) in px.iter().enumerate() {
                 let (x, y) = ((i as u32 % W) as f32 + 0.5, (i as u32 / W) as f32 + 0.5);
-                let inside =
-                    x > 30.0 - reach && x < 36.0 + reach && y > 30.0 - reach && y < 36.0 + reach;
+                let inside = x > x0 - reach && x < x1 + reach && y > y0 - reach && y < y1 + reach;
                 assert!(c[3] == 0 || inside, "{shape:?}: stray pixel at ({x}, {y})");
             }
         }
