@@ -9,8 +9,8 @@
 pub(crate) mod scale;
 
 use crate::functions::TRand;
-use crate::layout::TBox;
 use crate::network::{Map, NetworkIo};
+use crate::textord::TBox;
 use scale::{Grey8, Rgb32};
 
 /// Composites RGBA pixels over white or black, whichever contrasts more

@@ -4,8 +4,8 @@ Copyright 2026 amigo-labs
 This crate is a Rust port of parts of Tesseract OCR
 (https://github.com/tesseract-ocr/tesseract), version 5.5.4:
 the LSTM recognizer, its network layers, the recoder, the recode beam
-search, the traineddata container and the line preparation before the
-network. Tesseract is licensed under the Apache License, Version 2.0.
+search, the traineddata container, the single-line page layout (textord)
+and the line preparation before the network. Tesseract is licensed under the Apache License, Version 2.0.
 
   Copyright 2006-2025 Google Inc. and the Tesseract OCR contributors
   (C) Copyright 2013-2017, Google Inc. (LSTM recognizer, Ray Smith)
