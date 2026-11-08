@@ -33,7 +33,8 @@ fi
 # --- wasm-opt (binaryen) ---------------------------------------------------
 # Both wasm crates switch wasm-pack's own wasm-opt pass off, and Cloudflare's
 # image has no binaryen: fetch a pinned release build (a static binary).
-# The release workflow gets the same tool from apt.
+# The release workflow downloads the same version (not Ubuntu's apt binaryen
+# 108, which breaks wasm-bindgen's externref table).
 BINARYEN_VERSION=133
 if ! command -v wasm-opt >/dev/null 2>&1; then
   binaryen_dir="$HOME/.local/binaryen-$BINARYEN_VERSION"
