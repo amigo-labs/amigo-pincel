@@ -97,7 +97,9 @@ and so does an argument only the other mode's editor offers.
   builds up where its dabs overlap). `blend` is taken by `draw.stroke`
   with `tool: "brush"`, `draw.fill`, `draw.shape`, `draw.text` and
   `draw.gradient` with `channel: "color"`; elsewhere, and on Pixel
-  documents, either argument is refused.
+  documents, `blend` is refused, and so is `anti_alias` on `draw.stroke` and
+  the selection tools (`draw.shape` and `draw.text` keep their own
+  `anti_alias`, as described above).
 - Effect defaults follow the document's mode, as each editor's effect
   dialog does: `pincel://effects` lists `defaults` per mode where they
   differ (e.g. `pixelate` and `drop_shadow`).

@@ -849,6 +849,32 @@ fn anti_alias_reaches_strokes_and_selections_like_the_editor() {
             "anti_alias {aa}"
         );
     }
+    // The eraser takes the setting too.
+    for aa in [true, false] {
+        let mut probe = S::new();
+        let pid = probe.new_image(24, 16);
+        probe.ok(
+            "draw.fill",
+            json!({ "doc": pid, "x": 0, "y": 0, "color": "#0000FF" }),
+        );
+        let want = editor(
+            &probe,
+            &pid,
+            vec![json!({
+                "type": "eraser_stroke", "layer": 0, "size": 9, "opacity": 1.0,
+                "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": aa, "stroke_id": 1
+            })],
+        );
+        probe.ok(
+            "draw.stroke",
+            json!({ "doc": pid, "tool": "eraser", "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "anti_alias": aa }),
+        );
+        assert_eq!(
+            agent_pixels(&probe, &pid, 0),
+            pixels(&want, 0),
+            "eraser anti_alias {aa}"
+        );
+    }
     // Default true: the stroke equals the editor's anti-aliased one.
     let want = editor(
         &s,
