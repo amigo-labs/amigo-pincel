@@ -79,6 +79,14 @@ pub(super) fn outline(shape: &Shape) -> Option<BoxOutline> {
     }
 }
 
+/// The outline polygon of a box shape (Triangle, Diamond, Star, Block
+/// Arrow, Heart, Callout) exactly as the Shapes tool draws it, for the
+/// editor's drag preview (docs/specs/image-shapes-curves-shapes.md AC-12);
+/// `None` for another shape or a box without area.
+pub fn box_outline(shape: &Shape) -> Option<Vec<Point>> {
+    outline(shape).map(|o| o.verts)
+}
+
 fn p(x: f32, y: f32) -> Point {
     Point::new(x, y)
 }

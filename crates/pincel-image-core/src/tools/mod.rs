@@ -23,7 +23,7 @@ mod shapes;
 mod smudge;
 mod text;
 
-pub use box_shapes::{STAR_INNER_RATIO, STAR_POINTS};
+pub use box_shapes::{STAR_INNER_RATIO, STAR_POINTS, box_outline};
 pub use clone_stamp::{CloneSnapshot, CloneStamp};
 pub use copy::copy_selection;
 pub use curve::{Curve, CurveLine, LineCap, MAX_LINE_POINTS};

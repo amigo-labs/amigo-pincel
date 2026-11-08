@@ -222,6 +222,43 @@ pub fn cut_selection(handle: u32) -> Result<Vec<u8>, JsError> {
     })
 }
 
+/// The outline polygon (`x, y` pairs) of the box shape `kind` (`triangle`,
+/// `diamond`, `star`, `block_arrow`, `heart`, `callout`) over the drag from
+/// `(x0, y0)` to `(x1, y1)`, exactly as the core draws it — for the editor's
+/// drag preview (docs/specs/image-shapes-curves-shapes.md AC-12). Empty for
+/// another kind or a box without area.
+#[wasm_bindgen]
+pub fn shape_outline(
+    kind: &str,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    star_points: u32,
+    inner_ratio: f32,
+) -> Vec<f32> {
+    let Some(kind) = pincel_image_core::command::live_spec::parse_live_shape(kind) else {
+        return Vec::new();
+    };
+    let shape = pincel_image_core::LiveShape {
+        kind,
+        a: pincel_image_core::Point::new(x0, y0),
+        b: pincel_image_core::Point::new(x1, y1),
+        style: pincel_image_core::ShapeStyle::default(),
+        corner_radius: 0.0,
+        sides: 5,
+        star_points,
+        inner_ratio,
+        control: Vec::new(),
+        start_cap: pincel_image_core::LineCap::Round,
+        end_cap: pincel_image_core::LineCap::Round,
+    }
+    .shape();
+    pincel_image_core::box_outline(&shape)
+        .map(|pts| pts.iter().flat_map(|p| [p.x, p.y]).collect())
+        .unwrap_or_default()
+}
+
 /// Clipboard identity of an encoded image: `"{w}x{h}:{hash}"` of its decoded
 /// pixels, hashed premultiplied so a clipboard that re-encodes the image
 /// (Chromium does) keeps the key. Tells Pincel's own copy apart.
@@ -1064,6 +1101,18 @@ mod paste_tests {
             pincel_image_core::codec::decode(&copy_selection(handle, true).expect("copy merged"))
                 .expect("decode");
         assert_eq!(merged.get_pixel(1, 1), Some(Color::rgba(255, 0, 0, 255)));
+    }
+
+    #[test]
+    fn shape_outline_gives_the_core_polygon_of_a_box_shape() {
+        let tri = shape_outline("triangle", 0.0, 0.0, 10.0, 8.0, 5, 0.38);
+        assert_eq!(tri, vec![0.0, 8.0, 5.0, 0.0, 10.0, 8.0]);
+        assert_eq!(
+            shape_outline("star", 0.0, 0.0, 10.0, 10.0, 7, 0.5).len(),
+            28
+        );
+        assert!(shape_outline("rectangle", 0.0, 0.0, 10.0, 8.0, 5, 0.38).is_empty());
+        assert!(shape_outline("heart", 0.0, 0.0, 0.0, 8.0, 5, 0.38).is_empty());
     }
 
     #[test]
