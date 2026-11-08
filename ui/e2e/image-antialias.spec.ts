@@ -209,15 +209,15 @@ test('Line and shapes follow the shared Antialiasing setting (AC-05)', async ({ 
 test('Text and the box shapes follow the shared Antialiasing setting (AC-05)', async ({ page }) => {
   await createDocument(page, 'image', { width: SIZE, height: SIZE });
   await setColor(page, 'fg', '#000000');
-  const field = page.locator('[data-live-text]');
+  const field = page.getByRole('textbox', { name: 'Live text', exact: true });
   const text = async (): Promise<ClipImage> => {
     await useTool(page, 't', 'Text');
-    await page.getByRole('slider', { name: /^Size/ }).fill('24');
+    await page.getByRole('slider', { name: 'Font size', exact: true }).fill('24');
     await page.mouse.click(...(await point(page, 2, 2)));
     await expect(field).toBeFocused();
     await page.keyboard.type('Wo');
     await page.getByRole('button', { name: 'Finish', exact: true }).click();
-    await expect(page.getByRole('button', { name: 'Finish', exact: true })).toHaveCount(0);
+    await expect(page.locator('[data-text-box]')).toHaveCount(0);
     const img = await layerPixels(page);
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     return img;
