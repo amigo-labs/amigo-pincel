@@ -66,7 +66,7 @@ This is part 2 of `image-shapes-curves` (part 1: Line / Curve, caps and dash pat
 | Diamond | Edge midpoints: top, right, bottom, left |
 | Star | 2n vertices alternating outer radius R = min(W, H) / 2 and inner radius r = R × inner ratio, first outer vertex up, centered in the box (the same center / radius convention as Polygon; MCP `rotation` 0 also puts a point up) |
 | Block Arrow | Along its axis of length A (W for horizontal, H for vertical) and thickness T (the other side): head length min(A / 2, T), head spanning the full thickness, shaft thickness T / 2 centered |
-| Heart | Two mirrored cubic Bézier halves meeting at the top-center notch (30 % of H below the top edge) and the bottom-center point, the lobes touching the top, left and right edges |
+| Heart | Two mirrored cubic Bézier halves meeting at the top-center notch (about 27 % of H below the top edge) and the bottom-center point, the lobes touching the top, left and right edges |
 | Callout | Body: rounded rectangle over the 80 % of H away from S, corner radius 15 % of the body's shorter side, fixed (the toolbar's Radius belongs to Rounded Rectangle). Tail: triangle with its tip on S and its base on the body edge facing S, from 15 % to 35 % of W measured from S's side; body and tail are united into one outline |
 
 Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Callout are flattened to a polygon whose distance to the exact boundary stays below 0.1 px, then use the same SDF, so fill, stroke, dash and anti-alias work as for the other shapes and the outline is one contour (AC-07). Vertex counts stay bounded (a star has at most 100 vertices, flattened curves at most a few hundred), so drawing costs no more than a 100-sided Polygon of the same box by more than a small factor.
@@ -84,7 +84,7 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 | Scenario | Expected behavior |
 | -------- | ----------------- |
 | Block Arrow dragged exactly diagonally (equal horizontal and vertical movement) | Horizontal wins: points right or left |
-| Block Arrow in a box taller than wide pointing right | Head length is half the width; the arrow is stubby but fills the box |
+| Block Arrow in a box less than twice as wide as tall, pointing right | Head length is half the width; the arrow is stubby but fills the box |
 | Callout dragged from the bottom-left corner to the top-right | Body at the top, tail pointing down-left to the start corner |
 | Star with inner radius 90 % and 3 points | A slightly indented triangle, still one contour |
 | Star with 50 points in a 6 px box | Drawn without error (AC-15); it reads as a disc |
