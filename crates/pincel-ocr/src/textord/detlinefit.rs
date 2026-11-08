@@ -187,26 +187,29 @@ impl DetLineFit {
     /// `DetLineFit::ComputeDistances`.
     fn compute_distances(&mut self, start: (i32, i32), end: (i32, i32)) {
         self.distances.clear();
-        let lv = (end.0 - start.0, end.1 - start.1);
-        self.square_length = f64::from((lv.0 * lv.0 + lv.1 * lv.1) as f32);
-        let line_length = int_cast_rounded(self.square_length.sqrt());
-        let mut prev_abs_dist = 0;
-        let mut prev_dot = 0;
+        // Tesseract computes these products in `int`; i64 gives the same
+        // values wherever that does not overflow and stays sound for any
+        // coordinates.
+        let lv = (i64::from(end.0 - start.0), i64::from(end.1 - start.1));
+        self.square_length = (lv.0 * lv.0 + lv.1 * lv.1) as f32 as f64;
+        let line_length = i64::from(int_cast_rounded(self.square_length.sqrt()));
+        let mut prev_abs_dist = 0i64;
+        let mut prev_dot = 0i64;
         for i in 0..self.pts.len() {
             let pt = self.pts[i].0;
-            let pv = (pt.0 - start.0, pt.1 - start.1);
+            let pv = (i64::from(pt.0 - start.0), i64::from(pt.1 - start.1));
             let dot = lv.0 * pv.0 + lv.1 * pv.1;
             let dist = lv.0 * pv.1 - lv.1 * pv.0;
             let abs_dist = dist.abs();
             if abs_dist > prev_abs_dist && i > 0 {
                 let separation = (dot - prev_dot).abs();
-                if separation < line_length * self.pts[i].1
-                    || separation < line_length * self.pts[i - 1].1
+                if separation < line_length * i64::from(self.pts[i].1)
+                    || separation < line_length * i64::from(self.pts[i - 1].1)
                 {
                     continue;
                 }
             }
-            self.distances.push((f64::from(dist), pt));
+            self.distances.push((dist as f64, pt));
             prev_abs_dist = abs_dist;
             prev_dot = dot;
         }

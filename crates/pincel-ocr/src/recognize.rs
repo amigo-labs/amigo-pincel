@@ -15,6 +15,8 @@ use crate::{Model, RecognizeError, RecognizedLine, Word, WordBox};
 const INVERT_THRESHOLD: f32 = 0.7;
 /// `UNICHAR_SPACE`: the id of the space in every unicharset.
 const UNICHAR_SPACE: i32 = 0;
+/// The largest width or height Tesseract recognizes (`INT16_MAX`).
+const MAX_SIDE: usize = i16::MAX as usize;
 /// `kCertaintyScale` in `linerec.cpp`.
 const CERTAINTY_SCALE: f32 = 7.0;
 
@@ -77,7 +79,9 @@ pub(crate) fn recognize_line(
     if rgba.len() != expected {
         return Err(RecognizeError::BadImage);
     }
-    if w == 0 || h == 0 {
+    // Tesseract's thresholder refuses images beyond INT16_MAX in either
+    // direction, and its page layout stores coordinates as int16.
+    if w == 0 || h == 0 || w > MAX_SIDE || h > MAX_SIDE {
         return Ok(RecognizedLine::default());
     }
     let Some(flat) = flatten(w, h, rgba) else {

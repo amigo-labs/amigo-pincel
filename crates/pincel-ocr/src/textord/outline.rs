@@ -294,16 +294,36 @@ struct Crack {
 /// `WHITE_PIX`; black is 0.
 const WHITE: u8 = 1;
 
-/// The state of `block_edges`: the crack arena and the finished outlines.
+/// The state of `block_edges`: the crack arena, its free slots and the
+/// finished outlines.
 struct EdgeScan {
     cracks: Vec<Crack>,
+    /// Slots of completed loops, reused like Tesseract's `free_cracks`, so
+    /// the arena holds only the open loops of the scan.
+    free: Vec<usize>,
     outlines: Vec<Outline>,
 }
 
 impl EdgeScan {
     fn alloc(&mut self, c: Crack) -> usize {
+        if let Some(slot) = self.free.pop() {
+            self.cracks[slot] = c;
+            return slot;
+        }
         self.cracks.push(c);
         self.cracks.len() - 1
+    }
+
+    /// Returns the cracks of a closed loop to the free list.
+    fn release_loop(&mut self, start: usize) {
+        let mut e = start;
+        loop {
+            self.free.push(e);
+            e = self.cracks[e].next;
+            if e == start {
+                break;
+            }
+        }
     }
 
     /// Links a new crack to `join` like `h_edge` / `v_edge` do.
@@ -388,9 +408,14 @@ impl EdgeScan {
     /// `complete_edge`: turns a closed loop into an outline when
     /// `check_path_legal` accepts it.
     fn complete_edge(&mut self, start: usize) {
-        if !self.path_legal(start) {
-            return;
+        if self.path_legal(start) {
+            self.push_outline(start);
         }
+        self.release_loop(start);
+    }
+
+    /// `loop_bounding_box` and the `C_OUTLINE` constructor for a legal loop.
+    fn push_outline(&mut self, start: usize) {
         // loop_bounding_box: the box and the top-left start.
         let s = self.cracks[start];
         let (mut left, mut bottom, mut right, mut top) = (s.x, s.y, s.x, s.y);
@@ -538,6 +563,7 @@ impl EdgeScan {
 pub(crate) fn extract_outlines(black: &[bool], width: usize, height: usize) -> Vec<Outline> {
     let mut scan = EdgeScan {
         cracks: Vec::new(),
+        free: Vec::new(),
         outlines: Vec::new(),
     };
     let mut prevline: Vec<Option<usize>> = vec![None; width + 1];
