@@ -357,6 +357,7 @@ export const en = {
   'menu.zoomActual': 'Actual Size',
   'menu.showPixelGrid': 'Show Pixel Grid',
   'menu.showGrid': 'Show Grid',
+  'menu.touchGestures': 'Touch Gestures',
   'menu.rulers': 'Rulers',
   'menu.pixelGrid': 'Pixel Grid',
   'menu.units': 'Units',

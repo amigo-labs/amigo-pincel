@@ -359,6 +359,7 @@ export const de: Record<MessageKey, string> = {
   'menu.zoomActual': 'Originalgröße',
   'menu.showPixelGrid': 'Pixelraster anzeigen',
   'menu.showGrid': 'Raster anzeigen',
+  'menu.touchGestures': 'Touch-Gesten',
   'menu.rulers': 'Lineale',
   'menu.pixelGrid': 'Pixelraster',
   'menu.units': 'Einheiten',

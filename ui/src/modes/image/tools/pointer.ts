@@ -46,6 +46,7 @@ import { wandClick } from './wand-link';
 import { azimuthOf, pressureOf, selectionModeOf, toCanvasPoint, touchHold } from './pointer-input';
 import { constrainShape, rectFromCorners, snappedCorners } from './drag-geometry';
 import { cloneStroke } from '../core/clone-stroke';
+import { TAP_LIMITS, isEraserEnd } from '../../../lib/view/taps';
 import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
@@ -74,6 +75,10 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'ellipse',
   'polygon',
 ]);
+
+/** Tools that write pixels on press: a touch press with them is held
+ *  (tablet-gestures AC-04). */
+const HOLD_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'recolor', 'smudge']);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -306,7 +311,7 @@ export function attachTools(
   };
 
   const onDown = (e: PointerEvent): void => {
-    if ((e.button !== 0 && e.button !== 2) || onControl(e)) {
+    if ((e.button !== 0 && e.button !== 2 && !isEraserEnd(e)) || onControl(e)) {
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
@@ -321,6 +326,15 @@ export function attachTools(
       if (textBoxOpen()) requestTextFocus();
       return;
     }
+    // A touch press with a tool that writes on press waits until it moves,
+    // stays or lifts, so the fingers of a two- or three-finger tap never
+    // commit anything and Redo keeps its step (tablet-gestures AC-02, AC-04).
+    if (e.pointerType === 'touch' && e.button === 0 && HOLD_TOOLS.has(tool.kind)) {
+      held.hold(e);
+      stage.setPointerCapture(e.pointerId);
+      setTimeout(() => held.lifted(e), TAP_LIMITS.landMs);
+      return;
+    }
     press(e);
   };
 
@@ -329,19 +343,22 @@ export function attachTools(
     if (pressLive(e, toCanvasPoint(canvas, e))) {
       return;
     }
+    // A pen's eraser end erases for this stroke, whatever tool is selected;
+    // the selected tool stays (docs/specs/tablet-gestures.md AC-07, AC-08).
+    const kind: ToolKind = isEraserEnd(e) ? 'eraser' : tool.kind;
     // Selection, shapes and text respond to the primary button only; the right
     // button is reserved for the background-color paint variants (spec §9.2).
     const selectionOrPlacement =
-      DRAG_SELECT.has(tool.kind) ||
-      tool.kind === 'polygon_lasso' ||
-      tool.kind === 'magic_wand' ||
-      isShapeTool(tool.kind) ||
-      tool.kind === 'text';
+      DRAG_SELECT.has(kind) ||
+      kind === 'polygon_lasso' ||
+      kind === 'magic_wand' ||
+      isShapeTool(kind) ||
+      kind === 'text';
     if (selectionOrPlacement && e.button !== 0) {
       return;
     }
     // Abandon any in-progress polygon when switching away from that tool.
-    if (tool.kind !== 'polygon_lasso' && polygonPoints.length > 0) {
+    if (kind !== 'polygon_lasso' && polygonPoints.length > 0) {
       polygonPoints = [];
       selectionPreview.value = null;
     }
@@ -350,34 +367,34 @@ export function attachTools(
     const inside = onCanvas(point);
     // Beside the canvas only the selection gestures and a text box start
     // (AC-32; image-live-text AC-01).
-    if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
+    if (!inside && !STAGE_TOOLS.has(kind) && kind !== 'text') {
       return;
     }
     // Ctrl / ⌘ or Set source sets the Clone Stamp's source, even on a
     // locked layer (docs/specs/clone-stamp.md AC-03, AC-04, AC-14).
-    if (tool.kind === 'clone' && pressCloneSource(e, point)) return;
+    if (kind === 'clone' && pressCloneSource(e, point)) return;
 
     // Pixel-writing tools refuse a locked layer, a layer in a locked group
     // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
     // AC-12); Move (layer) moves a group's content. Say why.
-    if (WRITES_PIXELS.has(tool.kind)) {
+    if (WRITES_PIXELS.has(kind)) {
       const layer = editor.layers[editor.activeLayer];
-      if (layer && editRefused(editor.layers, editor.activeLayer, tool.kind === 'move')) {
+      if (layer && editRefused(editor.layers, editor.activeLayer, kind === 'move')) {
         editor.notice = t('layers.locked', { name: layer.name });
         return;
       }
     }
     editor.notice = null;
-    if (tool.kind === 'clone' && !beginCloneStroke(point)) return;
+    if (kind === 'clone' && !beginCloneStroke(point)) return;
 
-    if (tool.kind === 'magic_wand') {
+    if (kind === 'magic_wand') {
       wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
       return;
     }
 
     // Text opens a box (image-live-text AC-01); inside an empty box the
     // press keeps it.
-    if (tool.kind === 'text') {
+    if (kind === 'text') {
       if (hitText(point, view.zoom, e.pointerType !== 'mouse') !== null) {
         startTextSelect(e, point);
       } else {
@@ -387,11 +404,11 @@ export function attachTools(
     }
 
     // The gradient drags like a shape and previews as the ramp's own line.
-    const shape = tool.kind === 'gradient' ? 'line' : shapeOf(tool.kind);
+    const shape = kind === 'gradient' ? 'line' : shapeOf(kind);
     if (shape !== null) {
       active = true;
       activePointer = e.pointerId;
-      gestureKind = tool.kind;
+      gestureKind = kind;
       start = point;
       last = point;
       stage.setPointerCapture(e.pointerId);
@@ -405,7 +422,7 @@ export function attachTools(
       return;
     }
 
-    if (tool.kind === 'polygon_lasso') {
+    if (kind === 'polygon_lasso') {
       // Click near the first vertex closes the polygon.
       const first = polygonPoints[0];
       if (polygonPoints.length >= 3 && first !== undefined) {
@@ -423,19 +440,19 @@ export function attachTools(
       return;
     }
 
-    if (DRAG_SELECT.has(tool.kind)) {
+    if (DRAG_SELECT.has(kind)) {
       active = true;
       activePointer = e.pointerId;
-      gestureKind = tool.kind;
+      gestureKind = kind;
       start = point;
       last = point;
       selMode = selectionModeOf(e);
       stage.setPointerCapture(e.pointerId);
-      if (tool.kind === 'lasso') {
+      if (kind === 'lasso') {
         lassoPath = [point];
         selectionPreview.value = { shape: 'lasso', points: lassoPath };
       } else {
-        const shape = tool.kind === 'ellipse_select' ? 'ellipse' : 'rect';
+        const shape = kind === 'ellipse_select' ? 'ellipse' : 'rect';
         selectionPreview.value = { shape, points: snappedCorners(point, point) };
       }
       return;
@@ -443,7 +460,7 @@ export function attachTools(
 
     active = true;
     activePointer = e.pointerId;
-    gestureKind = tool.kind;
+    gestureKind = kind;
     useBackground = e.button === 2;
     last = point;
     lastPressure = pressureOf(e);
@@ -452,7 +469,7 @@ export function attachTools(
     strokeId = nextStrokeId++;
     stage.setPointerCapture(e.pointerId);
 
-    switch (tool.kind) {
+    switch (kind) {
       // The press dab is its own command (a click is one dab); it shows in
       // the next frame together with whatever the drag adds by then.
       case 'pencil':

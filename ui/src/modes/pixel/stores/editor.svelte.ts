@@ -19,6 +19,7 @@ import type { EffectSession } from '../../../lib/effects/session.svelte';
 import { t } from '../../../lib/i18n/index.svelte';
 import type { CanvasRenderer, RenderBackend } from '../../../lib/render/types';
 import { PinchTracker } from '../../../lib/view/pinch';
+import { TapTracker } from '../../../lib/view/taps';
 import type { ResizeMode } from '../components/ResizeDialog.svelte';
 import type { OnionSettings } from '../playback';
 import type { RotateDialogState } from '../rotate-ops';
@@ -301,6 +302,11 @@ function liveInit() {
     panStartClient: null as Pt | null,
     panStartOffset: null as Pt | null,
     pinch: new PinchTracker(),
+    /** Two- / three-finger taps: Undo / Redo (tablet-gestures AC-01, AC-02). */
+    taps: new TapTracker(),
+    /** The tool a press uses instead of the selected one: the pen's eraser
+     *  end erases for that stroke (docs/specs/tablet-gestures.md AC-07). */
+    toolOverride: null as Tool | null,
     pinchZoom0: 1,
     gestureUndoDepth: 0,
     /** Symmetry axis handle being dragged (symmetry-tiled-mode AC-09). */

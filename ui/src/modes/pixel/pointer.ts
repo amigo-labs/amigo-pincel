@@ -15,12 +15,15 @@ import {
 } from './stores/editor.svelte';
 import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
+import { TAP_LIMITS, isEraserEnd } from '../../lib/view/taps';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
 import { applyPinch } from './view-ops';
 import { armStroke, onTiledArea } from './symmetry';
 import { discardStrokePoints, flushStrokePoints, queueStrokePoint } from './stroke-batch';
 import { wandClick } from './wand-link';
 import { notePainted } from './recent-colors';
+import { redo, undo } from './doc-ops';
+import { touchGestures } from '../../lib/shell/touch-gestures.svelte';
 
 export function selectionModeFor(e: { shiftKey: boolean; altKey: boolean }): SelectionMode {
   const shift = shiftHeld(e);
@@ -75,7 +78,14 @@ export function shapeFillColor(): number {
     : packColor(colors.bgColor, colors.bgAlpha);
 }
 
+/** The tool the current press uses: the eraser for a pen's eraser end,
+ *  else the selected tool (docs/specs/tablet-gestures.md AC-07, AC-08). */
+function activeTool(): Tool {
+  return live.toolOverride ?? toolState.tool;
+}
+
 export function cancelGesture() {
+  releaseHeld();
   discardStrokePoints();
   if (live.painting) {
     live.painting = false;
@@ -152,7 +162,7 @@ function offCanvas(x: number, y: number, w: number, h: number): boolean {
 // view gestures (pixel-selection-move AC-21 – AC-24). Space-drag pans
 // before this is asked.
 function startsOffCanvas(): boolean {
-  return toolState.tool.startsWith('selection') || (toolState.tool === 'move' && !ed.selection);
+  return activeTool().startsWith('selection') || (activeTool() === 'move' && !ed.selection);
 }
 
 // A selection shape that misses the canvas: deselect in replace mode,
@@ -238,10 +248,10 @@ export function paintAt(e: PointerEvent) {
   // Drag-shape tools (Line, Rectangle, …) have their own press /
   // drag / release pipeline below and commit on `pointerup`; a
   // mid-drag tool switch must not route a stroke through here.
-  if (isDragShapeTool(toolState.tool) || toolState.tool === 'move') return;
+  if (isDragShapeTool(activeTool()) || activeTool() === 'move') return;
   const point = spriteCoord(e);
   if (!point) return;
-  if (toolState.tool === 'eyedropper') {
+  if (activeTool() === 'eyedropper') {
     // The eyedropper is read-only: sample the composed pixel and
     // bind it to the foreground color picker. Drags keep sampling
     // so the user can scrub for the exact pixel they want.
@@ -261,7 +271,7 @@ export function paintAt(e: PointerEvent) {
     }
     return;
   }
-  if (!isBrushTool(toolState.tool)) return;
+  if (!isBrushTool(activeTool())) return;
   // Shift (key or latched toggle) constrains the stroke to a 45° ray from
   // the anchor: the press position, or the last point sent before Shift
   // went down (pixel-pencil AC-07). The first movement away from the
@@ -289,7 +299,7 @@ export function paintAt(e: PointerEvent) {
       // The core stamps the brush along the line between consecutive
       // points and skips off-canvas pixels; the whole drag is one undo
       // entry, closed by `endStroke` on pointerup.
-      if (toolState.tool === 'pencil' && toolState.pencilInk === 'shading') {
+      if (activeTool() === 'pencil' && toolState.pencilInk === 'shading') {
         // Left button steps toward the ramp's end, right toward its start.
         ed.doc.beginShadingStroke(
           shadingRamp(),
@@ -300,7 +310,7 @@ export function paintAt(e: PointerEvent) {
         );
       } else {
         ed.doc.beginStroke(
-          toolState.tool,
+          activeTool(),
           strokeColor(),
           clampBrushSize(toolState.brushSize),
           toolState.brushShape,
@@ -328,32 +338,60 @@ export function paintAt(e: PointerEvent) {
 export function lockedEditTarget(): string | null {
   if (!ed.doc) return null;
   if (
-    toolState.tool.startsWith('selection') ||
-    toolState.tool === 'eyedropper' ||
-    toolState.tool === 'slice'
+    activeTool().startsWith('selection') ||
+    activeTool() === 'eyedropper' ||
+    activeTool() === 'slice'
   )
     return null;
-  if (toolState.tool === 'move' && !ed.selection) return null;
-  const id = toolState.tool === 'tilemap-stamp' ? ed.activeLayerId : ed.doc.paintTargetLayer();
+  if (activeTool() === 'move' && !ed.selection) return null;
+  const id = activeTool() === 'tilemap-stamp' ? ed.activeLayerId : ed.doc.paintTargetLayer();
   if (id === null || id === 0xffffffff || !ed.doc.layerLocked(id)) return null;
   return ed.doc.layerName(id);
 }
 
+// A touch press with a tool that writes on press (brush, bucket) waits until
+// it moves, stays or lifts, so the fingers of a two- or three-finger tap
+// never commit anything and Redo keeps its step (tablet-gestures AC-02,
+// AC-04).
+let heldTouch: { e: PointerEvent; stage: Element; timer: ReturnType<typeof setTimeout> } | null =
+  null;
+
+/** Drops the held touch press; returns it when there was one. */
+function releaseHeld(): { e: PointerEvent; stage: Element } | null {
+  if (heldTouch === null) return null;
+  clearTimeout(heldTouch.timer);
+  const { e, stage } = heldTouch;
+  heldTouch = null;
+  return { e, stage };
+}
+
+/** Starts the held touch press for real. */
+function pressHeld(): void {
+  const held = releaseHeld();
+  if (held) pressDown(held.e, held.stage, true);
+}
+
 export function onPointerDown(e: PointerEvent) {
   if (!fromStage(e)) return;
+  // Capture on the stage that took the press: the canvas would split a
+  // double-click on the stage into two single clicks.
+  pressDown(e, e.currentTarget as Element, false);
+}
+
+function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
   // The Move tool decides on `ed.selection`, which otherwise catches up
   // on the next frame after a selection change.
   syncSelection();
-  // Capture on the stage that took the press: the canvas would split a
-  // double-click on the stage into two single clicks.
-  const stage = e.currentTarget as Element;
-  if (live.pinch.down(e)) {
-    stage.setPointerCapture(e.pointerId);
-    cancelGesture();
-    live.pinchZoom0 = view.zoom;
-    return;
+  if (!replay) {
+    live.taps.down(e);
+    if (live.pinch.down(e)) {
+      stage.setPointerCapture(e.pointerId);
+      cancelGesture();
+      live.pinchZoom0 = view.zoom;
+      return;
+    }
+    if (live.pinch.suppressing) return;
   }
-  if (live.pinch.suppressing) return;
   // Middle-button drag pans, like a Space drag (and as in Image mode).
   if (e.button === 1) {
     e.preventDefault();
@@ -366,14 +404,24 @@ export function onPointerDown(e: PointerEvent) {
   // While an effect is open the canvas only zooms and pans; no tool sees
   // the press (effect-panel AC-03).
   if (dialogs.effect && !view.spaceDown) return;
+  // A pen's eraser end erases for this press, whatever tool is selected
+  // (docs/specs/tablet-gestures.md AC-07, AC-08).
+  const eraserEnd = isEraserEnd(e);
+  live.toolOverride = eraserEnd ? 'eraser' : null;
   // Right button: the painting tools use the background color
   // (Aseprite / paint.net); every other tool ignores it.
-  if (e.button === 2 && !BG_TOOLS.has(toolState.tool)) return;
-  if (e.button !== 0 && e.button !== 2) return;
+  if (e.button === 2 && !BG_TOOLS.has(activeTool())) return;
+  if (e.button !== 0 && e.button !== 2 && !eraserEnd) return;
+  if (!replay && e.pointerType === 'touch' && (isBrushTool(activeTool()) || activeTool() === 'bucket')) {
+    // Nothing is written yet: a second finger rolls back to here.
+    live.gestureUndoDepth = ed.doc?.undoDepth ?? 0;
+    heldTouch = { e, stage, timer: setTimeout(pressHeld, TAP_LIMITS.landMs) };
+    return;
+  }
   // In tiled mode a Pencil / Eraser press on a repeated copy paints the
   // canvas pixel it shows (symmetry-tiled-mode AC-16); other tools clip.
   const press = spriteCoord(e);
-  const inside = onCanvas(press) || (isBrushTool(toolState.tool) && onTiledArea(press));
+  const inside = onCanvas(press) || (isBrushTool(activeTool()) && onTiledArea(press));
   if (!inside && !view.spaceDown && !startsOffCanvas()) return;
   live.useBg = e.button === 2;
   stage.setPointerCapture(e.pointerId);
@@ -397,7 +445,7 @@ export function onPointerDown(e: PointerEvent) {
   }
   if (live.lockNotice !== null && ed.status === live.lockNotice) ed.status = '';
   live.lockNotice = null;
-  if (toolState.tool === 'move') {
+  if (activeTool() === 'move') {
     if (ed.selection) {
       const point = spriteCoord(e);
       if (point) {
@@ -412,7 +460,7 @@ export function onPointerDown(e: PointerEvent) {
     live.panStartOffset = { x: view.panX, y: view.panY };
     return;
   }
-  if (toolState.tool === 'selection-lasso') {
+  if (activeTool() === 'selection-lasso') {
     const point = spriteCoord(e);
     if (!point) return;
     live.lassoPoints = [point];
@@ -420,7 +468,7 @@ export function onPointerDown(e: PointerEvent) {
     live.needsRecompose = true;
     return;
   }
-  if (toolState.tool === 'selection-polygon') {
+  if (activeTool() === 'selection-polygon') {
     const point = spriteCoord(e);
     if (!point) return;
     if (!toolState.polyPoints) {
@@ -436,35 +484,35 @@ export function onPointerDown(e: PointerEvent) {
     live.needsRecompose = true;
     return;
   }
-  if (toolState.tool === 'selection-wand') {
+  if (activeTool() === 'selection-wand') {
     if (inside) commitWand(e);
     else missedCanvas(selectionModeFor(e));
     return;
   }
-  if (toolState.tool === 'text') {
+  if (activeTool() === 'text') {
     const point = spriteCoord(e);
     if (point && !toolState.textAnchor) void openTextAt(point);
     return;
   }
-  if (isDragShapeTool(toolState.tool)) {
+  if (isDragShapeTool(activeTool())) {
     const point = spriteCoord(e);
     if (!point) return;
     live.dragStart = point;
     live.dragPreview = point;
-    live.dragTool = toolState.tool;
+    live.dragTool = activeTool();
     live.dragShift = shiftHeld(e);
     live.dragSelMode = selectionModeFor(e);
     live.needsRecompose = true;
     return;
   }
-  if (toolState.tool === 'bucket') {
+  if (activeTool() === 'bucket') {
     // Bucket commits once per click; entering painting mode would have
     // `pointermove` re-fire `applyBucket` and push a no-op fill onto
     // the bus on every pixel of the drag.
     commitBucket(e);
     return;
   }
-  if (toolState.tool === 'tilemap-stamp') {
+  if (activeTool() === 'tilemap-stamp') {
     // Stamp commits once per click for the same reason as Bucket.
     // Drag-to-paint over tiles can land alongside auto-tile mode
     // in Phase 2 (spec §5.3 / §13.2).
@@ -665,6 +713,12 @@ export function commitWand(e: PointerEvent) {
 
 export function onPointerMove(e: PointerEvent) {
   if (!fromStage(e)) return;
+  live.taps.move(e);
+  if (heldTouch !== null && heldTouch.e.pointerId === e.pointerId) {
+    const d = Math.hypot(e.clientX - heldTouch.e.clientX, e.clientY - heldTouch.e.clientY);
+    if (d <= TAP_LIMITS.moveCss) return;
+    pressHeld();
+  }
   const frame = live.pinch.move(e);
   if (frame) {
     applyPinch(frame);
@@ -708,7 +762,7 @@ export function onPointerMove(e: PointerEvent) {
     live.needsRecompose = true;
     return;
   }
-  if (toolState.tool === 'tilemap-stamp') {
+  if (activeTool() === 'tilemap-stamp') {
     // Update the hover indicator regardless of button state — the
     // overlay should follow the cursor whether or not the user is
     // mid-click. `dirty = true` triggers a recompose so the grid
@@ -729,7 +783,7 @@ export function onPointerMove(e: PointerEvent) {
 }
 
 export function onPointerLeave() {
-  if (toolState.tool === 'tilemap-stamp' && toolState.stampHover) {
+  if (activeTool() === 'tilemap-stamp' && toolState.stampHover) {
     toolState.stampHover = null;
     live.needsRecompose = true;
   }
@@ -741,14 +795,34 @@ export function onPointerCancel(e: PointerEvent) {
   const stage = e.currentTarget as Element;
   if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
   live.pinch.up(e);
+  live.taps.cancel(e);
   cancelGesture();
+  live.toolOverride = null;
 }
 
 export function onPointerUp(e: PointerEvent) {
+  // A held touch that lifts is a one-finger tap: press, then release.
+  if (heldTouch !== null && heldTouch.e.pointerId === e.pointerId) pressHeld();
+  try {
+    pointerUp(e);
+  } finally {
+    // The eraser end's stroke is over: the selected tool is back (AC-08).
+    live.toolOverride = null;
+  }
+}
+
+function pointerUp(e: PointerEvent) {
   const stage = e.currentTarget as Element;
   if (stage.hasPointerCapture(e.pointerId)) stage.releasePointerCapture(e.pointerId);
   const pinched = live.pinch.suppressing;
   live.pinch.up(e);
+  // The second finger already rolled back the first finger's stroke; the
+  // tap undoes or redoes one more step (tablet-gestures AC-05).
+  const tap = live.taps.up(e);
+  if (tap !== null && touchGestures.enabled) {
+    if (tap === 'undo') undo();
+    else redo();
+  }
   if (pinched) return;
   if (view.panning) {
     view.panning = false;
@@ -854,7 +928,7 @@ export function onPointerUp(e: PointerEvent) {
     // entry and the next stroke starts a fresh one.
     ed.doc?.endStroke();
     // The Eraser and the shading ink paint no chosen color.
-    if (toolState.tool === 'pencil' && toolState.pencilInk !== 'shading') {
+    if (activeTool() === 'pencil' && toolState.pencilInk !== 'shading') {
       notePainted(live.gestureUndoDepth, [strokeColor()]);
     }
   }

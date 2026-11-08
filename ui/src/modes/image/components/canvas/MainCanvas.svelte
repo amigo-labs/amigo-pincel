@@ -14,7 +14,9 @@
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
-  import { readCompositeRegion, undo } from '../../core/controller';
+  import { readCompositeRegion, redo, undo } from '../../core/controller';
+  import { TapTracker } from '../../../../lib/view/taps';
+  import { touchGestures } from '../../../../lib/shell/touch-gestures.svelte';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
   import { attachTools, gestureControl } from '../../tools/pointer';
@@ -91,6 +93,8 @@
   // finger cancels the first finger's gesture and rolls back the stroke
   // it had started; touch input is then ignored until every finger lifts.
   const pinch = new PinchTracker();
+  // Two- / three-finger taps: Undo / Redo (docs/specs/tablet-gestures.md).
+  const taps = new TapTracker();
   let pinchZoom0 = 1;
   let gestureUndoDepth = 0;
 
@@ -113,6 +117,7 @@
   }
 
   function onPointerDownCapture(e: PointerEvent): void {
+    taps.down(e);
     if (pinch.down(e)) {
       e.stopPropagation();
       endPick();
@@ -186,6 +191,7 @@
   }
 
   function onPointerMoveCapture(e: PointerEvent): void {
+    taps.move(e);
     if (pickPointer === e.pointerId) {
       e.stopPropagation();
       sendPick(e, 'move');
@@ -216,6 +222,16 @@
     // counted as a second finger and rolled back the previous edit.
     const pinched = pinch.suppressing;
     pinch.up(e);
+    // The second finger already rolled back the first finger's stroke; the
+    // tap undoes or redoes one more step (AC-05).
+    if (e.type === 'pointercancel') taps.cancel(e);
+    else {
+      const action = taps.up(e);
+      if (action !== null && touchGestures.enabled) {
+        if (action === 'undo') undo();
+        else redo();
+      }
+    }
     if (pickPointer === e.pointerId) {
       e.stopPropagation();
       // A cancelled pointer reports no position; keep the last one.

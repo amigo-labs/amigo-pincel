@@ -99,20 +99,20 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
+| AC-02 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
+| AC-03 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a slow second finger or a pinch does not undo (AC-03)" | built | |
+| AC-04 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
+| AC-05 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a tap whose first finger began a stroke undoes that stroke and the one before (AC-05)" | built | |
+| AC-06 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
+| AC-07 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
+| AC-08 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
+| AC-09 | `ui/e2e/gestures.spec.ts` "image: the eraser end follows pen pressure like the Eraser tool (AC-09)" | built | |
+| AC-10 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
+| AC-11 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-12 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-13 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-14 | `ui/e2e/gestures.spec.ts` "the Touch Gestures entry is German in the German UI (AC-14)" | built | |
 | AC-15 |      | open   |        |
 
 ## Decisions
@@ -123,3 +123,8 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-10-29: The Decision Log records two-finger tap = Undo and three-finger tap = Redo (touches within 150 ms, ≤ 10 CSS px, lifted within 300 ms, pinch ±2 %), View ▸ Touch Gestures (on by default, IndexedDB pref), the pen eraser end erasing per stroke, and that Apple Pencil squeeze / double-tap are not exposed to Safari web apps; the §9.4 touch sentence is updated with the Decision Log row — the values were already fixed in the ACs and only the record was missing (owner accepted the recommendation).
 - 2026-10-29: No eraser cursor badge in this spec — the erased pixels are the feedback, and neither mode has a cursor-badge system to hook it into (owner accepted the recommendation).
 - 2026-11-04: The out-of-scope line on long-press menus is narrowed to the canvas and panels — because `tool-variant-flyout` adds a long-press flyout on the tool rail; no AC changes.
+- 2026-11-08 (spec-build) — A touch press with a tool that writes on press (Image: Pencil, Eraser, Fill, Recolor, Smudge; Pixel: the brush tools and Bucket) is held until it moves more than 10 CSS px, stays 150 ms or lifts; a second finger drops it. Without the hold the first finger of a tap committed a dab that the pinch rollback left on the redo stack, and the three-finger tap's first finger cleared the redo stack before Redo could run (AC-02, AC-04). A one-finger tap still paints a dot, on release.
+- 2026-11-08 (spec-build) — The tap recogniser (`TapTracker` in `ui/src/lib/view/taps.ts`) and `isEraserEnd` are shared, rune-free helpers next to the `PinchTracker`; the setting lives in `ui/src/lib/shell/touch-gestures.svelte.ts` as the IndexedDB pref `touchGestures`, loaded at start like `droppedImages`.
+- 2026-11-08 (spec-build) — Pixel mode uses a per-press `live.toolOverride` read through `activeTool()` in the pointer module; Image mode latches the effective tool in the press handler (`kind`), as `gestureKind` already latched it for the drag.
+- 2026-11-08 (spec-build) — The e2e eraser-end strokes are dispatched as `PointerEvent`s (button 5, buttons 32): CDP's `Input.dispatchMouseEvent` has no eraser button and drops bit 32 of `buttons`.
+

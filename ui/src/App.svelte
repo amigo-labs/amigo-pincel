@@ -27,6 +27,7 @@
   import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
   import DropDialog from './lib/shell/DropDialog.svelte';
   import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
+  import { loadTouchGestures } from './lib/shell/touch-gestures.svelte';
   import { planDrop, type DroppedImage } from './lib/shell/editor-drop';
   import { watchFileDrops, type DroppedFile } from './lib/fs/drop';
   import {
@@ -613,6 +614,7 @@
     void initMotion();
     void loadKeymap();
     void loadDropChoice();
+    void loadTouchGestures();
     const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
     let unlistenOpenFile: UnlistenFn | null = null;

@@ -26,6 +26,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
   import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
@@ -1489,6 +1490,7 @@
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
+        touchGesturesItem(),
         { kind: 'separator' },
         languageMenu(),
       ],
