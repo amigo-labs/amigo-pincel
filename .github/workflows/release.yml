@@ -91,11 +91,26 @@ jobs:
       - name: build wasm packages (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
-      - name: optimize wasm (system binaryen)
+      # Ubuntu's apt binaryen (108) rebinds wasm-bindgen's exported
+      # `__wbindgen_externrefs` table to the funcref table, and the module
+      # then fails to load (`Table.grow()`); v1.6.0's web bundle and npm
+      # package shipped that way. Use the binaryen release that
+      # scripts/cf-build.sh pins (BINARYEN_VERSION there and here).
+      - name: install binaryen
+        env:
+          BINARYEN_VERSION: '133'
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y binaryen
+          dir="$RUNNER_TEMP/binaryen-$BINARYEN_VERSION"
+          mkdir -p "$dir"
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-x86_64-linux.tar.gz" |
+            tar -xzf - -C "$dir" --strip-components=2 "binaryen-version_$BINARYEN_VERSION/bin/wasm-opt"
+          echo "$dir" >> "$GITHUB_PATH"
+      - name: optimize wasm
+        run: |
+          set -euo pipefail
+          wasm-opt --version
           for wasm in crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-image-wasm/pkg/pincel_image_wasm_bg.wasm; do
             wasm-opt -O3 -o "$wasm" "$wasm"
             ls -lh "$wasm"
@@ -448,11 +463,26 @@ jobs:
       - name: build wasm package (release profile)
         working-directory: ui
         run: pnpm wasm:build:release
-      - name: optimize wasm (system binaryen)
+      # Ubuntu's apt binaryen (108) rebinds wasm-bindgen's exported
+      # `__wbindgen_externrefs` table to the funcref table, and the module
+      # then fails to load (`Table.grow()`); v1.6.0's web bundle and npm
+      # package shipped that way. Use the binaryen release that
+      # scripts/cf-build.sh pins (BINARYEN_VERSION there and here).
+      - name: install binaryen
+        env:
+          BINARYEN_VERSION: '133'
         run: |
           set -euo pipefail
-          sudo apt-get update
-          sudo apt-get install -y binaryen
+          dir="$RUNNER_TEMP/binaryen-$BINARYEN_VERSION"
+          mkdir -p "$dir"
+          curl --proto '=https' --tlsv1.2 -sSfL \
+            "https://github.com/WebAssembly/binaryen/releases/download/version_$BINARYEN_VERSION/binaryen-version_$BINARYEN_VERSION-x86_64-linux.tar.gz" |
+            tar -xzf - -C "$dir" --strip-components=2 "binaryen-version_$BINARYEN_VERSION/bin/wasm-opt"
+          echo "$dir" >> "$GITHUB_PATH"
+      - name: optimize wasm
+        run: |
+          set -euo pipefail
+          wasm-opt --version
           wasm-opt -O3 -o crates/pincel-wasm/pkg/pincel_wasm_bg.wasm crates/pincel-wasm/pkg/pincel_wasm_bg.wasm
       - name: check wasm is optimized
         run: node scripts/check-wasm-release.mjs crates/pincel-wasm/pkg
