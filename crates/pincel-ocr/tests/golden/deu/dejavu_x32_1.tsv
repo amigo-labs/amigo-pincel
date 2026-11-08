@@ -1,0 +1,8 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+1	1	0	0	0	0	0	0	906	82	-1	
+2	1	1	0	0	0	11	8	882	66	-1	
+3	1	1	1	0	0	11	8	882	66	-1	
+4	1	1	1	1	0	11	8	882	66	-1	
+5	1	1	1	1	1	11	8	205	61	91.755150	Öffnen,
+5	1	1	1	1	2	244	18	291	51	91.291359	Schließen,
+5	1	1	1	1	3	565	18	328	56	92.535851	Rückgängig

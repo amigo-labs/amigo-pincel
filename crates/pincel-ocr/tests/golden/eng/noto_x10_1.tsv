@@ -1,0 +1,8 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+1	1	0	0	0	0	0	0	299	42	-1	
+2	1	1	0	0	0	5	12	289	18	-1	
+3	1	1	1	0	0	5	12	289	18	-1	
+4	1	1	1	1	0	5	12	289	18	-1	
+5	1	1	1	1	1	5	13	44	17	92.000687	Open
+5	1	1	1	1	2	56	14	57	12	92.551331	recent:
+5	1	1	1	1	3	119	12	175	18	91.790817	sprite_sheet.aseprite

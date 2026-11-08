@@ -1,0 +1,9 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+1	1	0	0	0	0	0	0	816	87	-1	
+2	1	1	0	0	0	5	12	802	63	-1	
+3	1	1	1	0	0	5	12	802	63	-1	
+4	1	1	1	1	0	5	12	802	63	-1	
+5	1	1	1	1	1	5	12	225	59	91.628304	“Hello,”
+5	1	1	1	1	2	254	12	86	49	93.203644	she
+5	1	1	1	1	3	363	12	122	59	91.974106	said;
+5	1	1	1	1	4	534	12	273	63	85.941345	‘goodbye!’

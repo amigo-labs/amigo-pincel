@@ -102,16 +102,16 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | `from_bytes_eng_reports_charset_size_and_input_height`, `from_bytes_deu_reports_charset_size_and_input_height` (`crates/pincel-ocr/tests/load.rs`) | built |        |
+| AC-02 | `from_bytes_text_returns_not_traineddata`, `from_bytes_cut_short_returns_truncated`, `from_bytes_huge_size_field_returns_truncated`, `from_bytes_without_lstm_returns_no_lstm`, `from_bytes_without_charsets_returns_charset_unreadable`, `from_bytes_charsets_of_other_model_returns_charset_mismatch`, `from_bytes_unknown_layer_returns_unsupported_layer`, `from_bytes_float_weights_returns_float_weights` (`tests/load.rs`) | built |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-05 | `recognize_line_confidences_in_range_and_words_ordered` (`tests/recognize.rs`) | built |        |
+| AC-06 | `recognize_line_empty_or_uniform_returns_no_words` (`tests/recognize.rs`) | built |        |
+| AC-07 | `recognize_line_wrong_buffer_length_returns_bad_image` (`tests/recognize.rs`) | built |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-09 | `recognize_line_random_images_never_panics`, `from_bytes_corrupted_models_never_panic` (`tests/robustness.rs`) | built |        |
+| AC-10 | `recognize_line_shared_model_on_threads_matches_sequential` (`tests/recognize.rs`) | built |        |
 | AC-11 |      | open   |        |
 
 ## Decisions
@@ -119,3 +119,10 @@ Terms used below:
 - 2026-11-08: Port Tesseract's LSTM recognizer instead of using `tesseract.js` or `ocrs`. This was the owner's choice: one Rust engine for every surface, with Tesseract's mature German and English models.
 - 2026-11-08: No dictionaries in v1. This was the owner's choice (see Out of scope).
 - 2026-11-08 (clarification pass): Transparent pixels are flattened over white or black, whichever contrasts more. This was the owner's choice, because white text on transparency is common in dark UI exports. AC-01 dropped the language code: a model carries none, and only the file name holds it. AC-08 changed from a range claim to concrete corpus lines. AC-07, AC-10 and AC-11 were added. `tessdata` main-repository models moved from "rejected" to "untested". AC IDs were reassigned before any build: the old AC-07 (heights and widths) is now AC-08, the property test is AC-09, and the old AC-09 (same result twice) is covered by AC-10 and by `ocr-dialog` AC-17 (wasm equals native).
+- 2026-11-08 (build): The reference is Tesseract 5.5.4 with Leptonica 1.82.0, built from source (`tests/golden/reference.txt`). The corpus PNGs are RGB, never grey or RGBA, so the reference takes the same Leptonica 32-bpp path (opaque alpha byte) that the recognizer follows for its RGBA input; the transparent line is stored as RGBA and flattened by `make_corpus.py` with the recognizer's own integer arithmetic before the reference reads it.
+- 2026-11-08 (build): Flattening uses Rec. 601 luma (299/587/114 per mille) for the alpha-weighted mean and rounds the composite as `(c·a + bg·(255 − a) + 127) / 255`. The spec names no formula; this is the common one.
+- 2026-11-08 (build): Loading maps a malformed network (impossible sizes, a null char outside the softmax, old float-scale weight format) to `NoLstm`, and a big-endian file to `NotTraineddata`; every published model is little-endian.
+- 2026-11-08 (build): The network, the activation tables, the recode beam search, the confidences, the Otsu binarization and Leptonica's scaling are exact ports (network outputs bit-identical with an instrumented Tesseract; the scaling matched Leptonica 1.82 in 119 578 cases). Tesseract's page layout for `--psm 7` (`textord`: outline extraction, noise filtering, spline baseline, word spacing) is not ported line by line; `layout.rs` reproduces its line size, x-height, ascender and descender estimate and the crop exactly, and approximates the rest: blobs are 8-connected components, accents merge with the letter they overlap, the baseline is the least-median-of-squares level of the blob bottoms, and words are grouped like `ROW_RES` merges them. Word boxes take the blobs whose x middle falls in each word's share of the line. A full textord port is several specs' worth of code.
+- 2026-11-08 (build): Images wider or higher than 32 767 px are recognized; Tesseract refuses them, so no reference exists.
+- 2026-11-08 (build): The property test spreads its 1 000 images over threads (each image has its own seed) to stay inside the test budget (AGENTS.md §7.5); the crate itself stays single-threaded.
+- 2026-11-08 (build): New public API: `Model` (`from_bytes`, `character_set_size`, `input_height`, `version`, `recognize_line`), `RecognizedLine`, `Word`, `WordBox`, `LoadError`, `RecognizeError`.

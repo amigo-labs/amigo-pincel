@@ -1,0 +1,8 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+1	1	0	0	0	0	0	0	295	24	-1	
+2	1	1	0	0	0	4	2	285	20	-1	
+3	1	1	1	0	0	4	2	285	20	-1	
+4	1	1	1	1	0	4	2	285	20	-1	
+5	1	1	1	1	1	4	2	109	20	92.386482	Änderungen
+5	1	1	1	1	2	121	4	85	18	92.178596	speichern
+5	1	1	1	1	3	216	4	73	18	88.679245	(Strg+S)
