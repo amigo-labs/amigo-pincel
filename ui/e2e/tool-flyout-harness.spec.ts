@@ -35,7 +35,11 @@ test.afterAll(async () => {
 
 async function openHarness(page: Page): Promise<void> {
   await page.goto(url);
-  await expect(rail(page).locator('[data-group="variants"]')).toBeVisible();
+  // The first visit makes the dev server compile Svelte, Tailwind and the
+  // component on demand — seconds under a full parallel run, which the
+  // 5 s assertion default does not cover (the same start-up cost
+  // `waitForEditor` keeps off the assertions).
+  await expect(rail(page).locator('[data-group="variants"]')).toBeVisible({ timeout: 30_000 });
 }
 
 /** Runs one harness hook in the page. */
