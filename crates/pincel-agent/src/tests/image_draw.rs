@@ -1145,8 +1145,10 @@ fn draw_shape_refuses_bad_curve_arguments() {
     let cases = [
         (with("control", json!(many)), "control"),
         (with("control", json!([[1, 2, 3]])), "control"),
-        (with("x1", json!(1e39)), "finite"),
-        (with("control", json!([[4, 1e39]])), "finite"),
+        (with("x1", json!(1e39)), "x1"),
+        (with("x0", json!(-1e39)), "x0"),
+        (with("y0", json!(1e39)), "y0"),
+        (with("control", json!([[4, 1e39]])), "control"),
         (with("start_cap", json!("square")), "start_cap"),
         (with("end_cap", json!("chevron")), "end_cap"),
         (with("dash", json!("wavy")), "dash"),
@@ -1168,6 +1170,9 @@ fn draw_shape_refuses_bad_curve_arguments() {
         assert!(err.contains(named), "{args}: {err}");
         assert_eq!(state(&s, &id), before, "{args} changed the document");
     }
+    // A non-finite coordinate says so as well as naming it.
+    let err = s.err("draw.shape", with("x1", json!(1e39)));
+    assert!(err.contains("finite"), "{err}");
 }
 
 /// AC-20: `tools/list` describes the curve parameters and all five dash
