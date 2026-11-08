@@ -1073,3 +1073,129 @@ fn guide_describes_anti_alias_and_blend() {
         assert!(guide.contains(needle), "{needle}");
     }
 }
+
+/// docs/specs/image-shapes-curves.md AC-18: `draw.shape` with a line's
+/// control points, caps and a dash-dot pattern paints exactly what the
+/// editor commits for the same live line, in one undo step.
+#[test]
+fn draw_shape_curves_match_the_editors_live_line() {
+    let mut s = S::new();
+    let id = painted(&mut s, 48, 32);
+    let editor_line = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "begin_live_shape", "layer": 0, "shape": "line",
+                    "points": [[3.5, 28.0], [44.0, 5.0]], "control": [[14.0, 4.0], [30.0, 27.0]],
+                    "start_cap": "arrow", "end_cap": "flat", "dash": "dash_dot",
+                    "mode": "outline", "stroke_width": 3.0, "stroke_color": [255, 0, 0, 255],
+                    "anti_alias": true }),
+            json!({ "type": "commit_live" }),
+        ],
+    );
+    one_undo_step(
+        &mut s,
+        &id,
+        "draw.shape",
+        json!({ "shape": "line", "x0": 3.5, "y0": 28, "x1": 44, "y1": 5,
+                "control": [[14, 4], [30, 27]], "start_cap": "arrow", "end_cap": "flat",
+                "dash": "dash_dot", "stroke": "#FF0000", "stroke_width": 3 }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&editor_line, 0));
+    // Every other kind takes the new dash patterns too.
+    let rect = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rectangle",
+                     "points": [[4.0, 4.0], [40.0, 24.0]], "corner_radius": 16.0, "mode": "outline",
+                     "stroke_width": 2.0, "stroke_color": [0, 0, 255, 255], "anti_alias": true,
+                     "dash": "dash_dot_dot" }),
+        ],
+    );
+    s.ok(
+        "draw.shape",
+        json!({ "shape": "rect", "x0": 4, "y0": 4, "x1": 40, "y1": 24, "stroke": "#0000FF",
+                "stroke_width": 2, "dash": "dash_dot_dot" }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&rect, 0));
+    // All points on one spot with an Arrow cap paints nothing.
+    let out = s.ok(
+        "draw.shape",
+        json!({ "shape": "line", "x0": 10, "y0": 10, "x1": 10, "y1": 10, "control": [[10, 10]],
+                "end_cap": "arrow", "stroke": "#000000" }),
+    );
+    assert_eq!(out["changed"], json!(false), "{out}");
+}
+
+/// AC-19: bad curve arguments fail naming the argument and change nothing.
+#[test]
+fn draw_shape_refuses_bad_curve_arguments() {
+    let mut s = S::new();
+    let id = painted(&mut s, 32, 24);
+    let before = state(&s, &id);
+    let base =
+        json!({ "shape": "line", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000" });
+    let with = |key: &str, v: Value| {
+        let mut a = base.clone();
+        a[key] = v;
+        a
+    };
+    let many: Vec<Value> = (0..63).map(|i| json!([i % 30, 5])).collect();
+    let cases = [
+        (with("control", json!(many)), "control"),
+        (with("control", json!([[1, 2, 3]])), "control"),
+        (with("x1", json!(1e39)), "finite"),
+        (with("control", json!([[4, 1e39]])), "finite"),
+        (with("start_cap", json!("square")), "start_cap"),
+        (with("end_cap", json!("chevron")), "end_cap"),
+        (with("dash", json!("wavy")), "dash"),
+        (
+            json!({ "shape": "rect", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000", "control": [[5, 5]] }),
+            "control",
+        ),
+        (
+            json!({ "shape": "ellipse", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000", "start_cap": "arrow" }),
+            "start_cap",
+        ),
+        (
+            json!({ "shape": "polygon", "cx": 12, "cy": 12, "radius": 8, "stroke": "#000000", "end_cap": "flat" }),
+            "end_cap",
+        ),
+    ];
+    for (args, named) in cases {
+        let err = s.err("draw.shape", args.clone());
+        assert!(err.contains(named), "{args}: {err}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+}
+
+/// AC-20: `tools/list` describes the curve parameters and all five dash
+/// patterns.
+#[test]
+fn tools_list_describes_curves() {
+    let tools = crate::list_tools();
+    let shape = tools
+        .iter()
+        .find(|t| t.name == "draw.shape")
+        .expect("draw.shape");
+    let props = &shape.input_schema["properties"];
+    for key in ["control", "start_cap", "end_cap"] {
+        assert!(
+            props[key]["description"]
+                .as_str()
+                .is_some_and(|d| !d.is_empty()),
+            "{key}"
+        );
+    }
+    assert_eq!(
+        props["start_cap"]["enum"],
+        json!(["round", "flat", "arrow"])
+    );
+    assert_eq!(props["control"]["maxItems"], json!(62));
+    assert_eq!(
+        props["dash"]["enum"],
+        json!(["solid", "dashed", "dotted", "dash_dot", "dash_dot_dot"])
+    );
+    assert!(shape.description.contains("control"));
+}

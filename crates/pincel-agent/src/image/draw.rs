@@ -434,7 +434,7 @@ fn color_prop_image(description: &str) -> Value {
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted, `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted / dash_dot / dash_dot_dot, `anti_alias` (default true), `blend` normal (default) / overwrite. A line becomes a curve through `control` (0–62 points [x, y] between its ends, in order; a centripetal Catmull-Rom spline through all points) and takes start_cap / end_cap round (default) / flat / arrow (a filled head max(8, 4 × stroke_width) px long); control and the caps are line-only. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
@@ -452,7 +452,15 @@ pub(crate) const SHAPE: Tool = Tool {
                 "stroke": shared_color("Outline color"),
                 "fill": shared_color("Fill color"),
                 "stroke_width": { "type": "number", "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
-                "dash": choice(&["solid", "dashed", "dotted"], "Image: outline dash pattern; default solid"),
+                "dash": choice(&["solid", "dashed", "dotted", "dash_dot", "dash_dot_dot"], "Image: outline dash pattern; default solid"),
+                "control": {
+                    "type": "array",
+                    "maxItems": 62,
+                    "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+                    "description": "Image line: control points [x, y] between (x0, y0) and (x1, y1), in order; the line curves through them (0–62)"
+                },
+                "start_cap": choice(&["round", "flat", "arrow"], "Image line: cap at (x0, y0); default round"),
+                "end_cap": choice(&["round", "flat", "arrow"], "Image line: cap at (x1, y1); default round"),
                 "anti_alias": { "type": "boolean", "description": "Image: smooth edges; default true" },
                 "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
@@ -461,6 +469,17 @@ pub(crate) const SHAPE: Tool = Tool {
         )
     },
     run: |ctx, args| {
+        // Control points and caps belong to a line only
+        // (docs/specs/image-shapes-curves.md AC-19).
+        if args.req_str("shape")? != "line" {
+            for key in ["control", "start_cap", "end_cap"] {
+                if args.get(key).is_some() {
+                    return Err(AgentError::tool(format!(
+                        "argument `{key}` applies to shape `line` only"
+                    )));
+                }
+            }
+        }
         if !ctx.ws.is_image(args)? {
             refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::shape(ctx, args);
@@ -505,10 +524,14 @@ pub(crate) const SHAPE: Tool = Tool {
                     "rounded" => "rounded_rectangle",
                     other => other,
                 };
-                let pts = vec![
-                    [num(args, "x0")?, num(args, "y0")?],
-                    [num(args, "x1")?, num(args, "y1")?],
-                ];
+                let mut pts = vec![[num(args, "x0")?, num(args, "y0")?]];
+                pts.extend(control_points(args)?);
+                pts.push([num(args, "x1")?, num(args, "y1")?]);
+                if let Some(bad) = pts.iter().flatten().find(|v| !v.is_finite()) {
+                    return Err(AgentError::tool(format!(
+                        "draw.shape coordinates must be finite (got {bad})"
+                    )));
+                }
                 (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
             };
             let stroke_width = image_ranged(args, "stroke_width", 1.0, Some(500.0), STROKE_WIDTH)?;
@@ -533,10 +556,32 @@ pub(crate) const SHAPE: Tool = Tool {
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 dash: str_or(args, "dash", "solid").to_owned(),
                 blend: blend.clone(),
+                start_cap: str_or(args, "start_cap", "round").to_owned(),
+                end_cap: str_or(args, "end_cap", "round").to_owned(),
             })
         })
     },
 };
+
+/// A line's `control` points, `[x, y]` each (the schema checked the shape).
+fn control_points(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
+    let Some(list) = args.get("control").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    list.iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let xy = p.as_array().filter(|a| a.len() == 2);
+            let coord = |j: usize| xy.and_then(|a| a[j].as_f64()).map(|v| v as f32);
+            match (coord(0), coord(1)) {
+                (Some(x), Some(y)) => Ok([x, y]),
+                _ => Err(AgentError::tool(format!(
+                    "argument `control[{i}]` must be a point [x, y]"
+                ))),
+            }
+        })
+        .collect()
+}
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
