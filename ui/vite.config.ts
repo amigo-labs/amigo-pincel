@@ -62,13 +62,13 @@ export default defineConfig({
         display: 'standalone',
         background_color: '#0a0a0a',
         theme_color: '#0a0a0a',
+        // Copies of assets/brand/ (the pixel monogram, generated from
+        // docs/site/project.yml by amigo-labs/website scripts/monogram.ts).
+        // Not maskable: the frame reaches the edge of the icon.
         icons: [
-          {
-            src: 'favicon.svg',
-            sizes: 'any',
-            type: 'image/svg+xml',
-            purpose: 'any maskable',
-          },
+          { src: 'icon-256.png', sizes: '256x256', type: 'image/png', purpose: 'any' },
+          { src: 'icon-512.png', sizes: '512x512', type: 'image/png', purpose: 'any' },
+          { src: 'icon.svg', sizes: 'any', type: 'image/svg+xml', purpose: 'any' },
         ],
       },
       injectManifest: {
@@ -76,7 +76,7 @@ export default defineConfig({
         // emits into `assets/`. The wasm bundle is the heaviest
         // single asset; precaching it is the difference between
         // "offline reload works" and "white screen".
-        globPatterns: ['**/*.{js,css,html,wasm,svg,webmanifest,ttf}'],
+        globPatterns: ['**/*.{js,css,html,wasm,svg,png,ico,webmanifest,ttf}'],
         // Workbox refuses to precache files over 2 MiB by default. The
         // unoptimized dev-profile wasm files (CI builds them via `pnpm
         // wasm:build --dev`; wasm-opt is disabled there) are well above
