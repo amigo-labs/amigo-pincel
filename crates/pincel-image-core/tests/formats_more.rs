@@ -8,7 +8,14 @@ use pincel_image_core::{Color, ImageBuffer};
 use proptest::prelude::*;
 
 /// A TGA header for an image of `w` × `h` with origin at the top left.
-fn tga_header(kind: u8, cmap: Option<(u16, u8)>, w: u16, h: u16, bpp: u8, alpha_bits: u8) -> Vec<u8> {
+fn tga_header(
+    kind: u8,
+    cmap: Option<(u16, u8)>,
+    w: u16,
+    h: u16,
+    bpp: u8,
+    alpha_bits: u8,
+) -> Vec<u8> {
     let mut v = vec![0u8, u8::from(cmap.is_some()), kind];
     let (len, entry) = cmap.unwrap_or((0, 0));
     v.extend_from_slice(&0u16.to_le_bytes());
@@ -22,7 +29,12 @@ fn tga_header(kind: u8, cmap: Option<(u16, u8)>, w: u16, h: u16, bpp: u8, alpha_
     v
 }
 
-const PIXELS: [[u8; 4]; 4] = [[255, 0, 0, 255], [0, 255, 0, 128], [0, 0, 255, 0], [10, 20, 30, 255]];
+const PIXELS: [[u8; 4]; 4] = [
+    [255, 0, 0, 255],
+    [0, 255, 0, 128],
+    [0, 0, 255, 0],
+    [10, 20, 30, 255],
+];
 
 fn expect_pixels(buf: &ImageBuffer, want: &[[u8; 4]]) {
     assert_eq!((buf.width(), buf.height()), (2, 2));
@@ -56,14 +68,20 @@ fn tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only() {
     let mut gray = tga_header(3, None, 2, 2, 8, 0);
     gray.extend_from_slice(&[0, 85, 170, 255]);
     let g = |v: u8| [v, v, v, 255];
-    expect_pixels(&decode_hinted(&gray, Some("g.tga")).unwrap(), &[g(0), g(85), g(170), g(255)]);
+    expect_pixels(
+        &decode_hinted(&gray, Some("g.tga")).unwrap(),
+        &[g(0), g(85), g(170), g(255)],
+    );
 
     // Colour-mapped: a 24-bit palette of two entries.
     let mut mapped = tga_header(1, Some((2, 24)), 2, 2, 8, 0);
     mapped.extend_from_slice(&[0, 0, 255, 255, 0, 0]); // red, blue (BGR)
     mapped.extend_from_slice(&[0, 1, 1, 0]);
     let blue = [0, 0, 255, 255];
-    expect_pixels(&decode_hinted(&mapped, Some("m.tga")).unwrap(), &[red, blue, blue, red]);
+    expect_pixels(
+        &decode_hinted(&mapped, Some("m.tga")).unwrap(),
+        &[red, blue, blue, red],
+    );
 }
 
 /// A DDS file of `w` × `h` with FourCC `four_cc` (and a DX10 header with
@@ -117,7 +135,13 @@ fn dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason() {
     assert!(matches!(decode(&bc7), Err(CodecError::DdsUnsupported)));
     let blocks = BC1_RED.repeat(64);
     let odd = dds(30, 30, b"DXT1", None, &blocks);
-    assert!(matches!(decode(&odd), Err(CodecError::DdsSize { width: 30, height: 30 })));
+    assert!(matches!(
+        decode(&odd),
+        Err(CodecError::DdsSize {
+            width: 30,
+            height: 30
+        })
+    ));
     // Valid header, data cut off: an ordinary decode error (AC-12).
     let cut = dds(8, 8, b"DXT1", None, &BC1_RED);
     assert!(matches!(decode(&cut), Err(CodecError::Decode(_))));
@@ -154,7 +178,10 @@ fn ico_opens_the_deepest_then_largest_entry() {
         v.extend_from_slice(data);
     }
     let buf = decode_hinted(&v, Some("app.bin")).expect("ico");
-    assert_eq!((buf.width(), buf.get_pixel(0, 0)), (32, Some(Color::rgba(2, 2, 2, 255))));
+    assert_eq!(
+        (buf.width(), buf.get_pixel(0, 0)),
+        (32, Some(Color::rgba(2, 2, 2, 255)))
+    );
 }
 
 #[test]
@@ -191,6 +218,9 @@ proptest! {
 #[test]
 fn tga_and_ico_round_trip_a_single_transparent_pixel() {
     let img = ImageBuffer::from_raw(1, 1, vec![12, 34, 56, 0]).unwrap();
-    assert_eq!(decode_hinted(&to_tga_bytes(&img).unwrap(), Some("a.tga")).unwrap(), img);
+    assert_eq!(
+        decode_hinted(&to_tga_bytes(&img).unwrap(), Some("a.tga")).unwrap(),
+        img
+    );
     assert_eq!(decode(&to_ico_bytes(&img).unwrap()).unwrap(), img);
 }
