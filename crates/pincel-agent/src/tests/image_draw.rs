@@ -758,3 +758,64 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
         assert_eq!(s.state(&px), before, "{name}");
     }
 }
+
+
+/// docs/specs/image-formats-more.md AC-15, AC-16: `doc.open` reads TGA (by
+/// its extension), DDS and ICO (by content) like the editor's Open.
+#[test]
+fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
+    use pincel_image_core::codec::{decode_hinted, to_ico_bytes, to_tga_bytes};
+    let mut img = ImageBuffer::new_transparent(4, 4);
+    img.set_pixel(1, 2, pincel_image_core::Color::rgba(9, 8, 7, 255));
+    let tga = to_tga_bytes(&img).expect("tga");
+    let ico = to_ico_bytes(&img).expect("ico");
+    // A 4 × 4 DXT1 file of solid red.
+    let mut dds = b"DDS ".to_vec();
+    let mut header = [0u8; 124];
+    header[0..4].copy_from_slice(&124u32.to_le_bytes());
+    header[4..8].copy_from_slice(&0x0008_1007u32.to_le_bytes());
+    header[8..12].copy_from_slice(&4u32.to_le_bytes());
+    header[12..16].copy_from_slice(&4u32.to_le_bytes());
+    header[72..76].copy_from_slice(&32u32.to_le_bytes());
+    header[76..80].copy_from_slice(&4u32.to_le_bytes());
+    header[80..84].copy_from_slice(b"DXT1");
+    dds.extend_from_slice(&header);
+    dds.extend_from_slice(&[0x00, 0xF8, 0x00, 0x00, 0, 0, 0, 0]);
+
+    let mut s = S::new();
+    for (name, bytes) in [("art/Shot.TGA", &tga), ("tex", &dds), ("icon", &ico)] {
+        s.host.files.insert(name.into(), bytes.clone());
+        let out = s.ok("doc.open", json!({ "path": name }));
+        let id = out["doc"].as_str().expect("id").to_owned();
+        let want = decode_hinted(bytes, Some(name)).expect("decode");
+        assert_eq!(s.image(&id).document().layers()[0].pixels, want, "{name}");
+    }
+    // A TGA without its extension is not recognised.
+    s.host.files.insert("noext".into(), tga);
+    assert!(
+        s.err("doc.open", json!({ "path": "noext" }))
+            .contains("noext")
+    );
+    // Unsupported variant and bad size keep their own reasons.
+    let mut bc7 = dds.clone();
+    bc7[84..88].copy_from_slice(b"DX10");
+    bc7.truncate(128);
+    bc7.extend_from_slice(&98u32.to_le_bytes());
+    bc7.extend_from_slice(&[3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
+    bc7.extend_from_slice(&[0; 16]);
+    s.host.files.insert("bc7.dds".into(), bc7);
+    let before = s.ok("doc.list", json!({}));
+    assert!(
+        s.err("doc.open", json!({ "path": "bc7.dds" }))
+            .contains("DDS variant")
+    );
+    let mut odd = dds.clone();
+    odd[12..16].copy_from_slice(&30u32.to_le_bytes());
+    odd[16..20].copy_from_slice(&30u32.to_le_bytes());
+    s.host.files.insert("odd.dds".into(), odd);
+    assert!(
+        s.err("doc.open", json!({ "path": "odd.dds" }))
+            .contains("multiples of 4")
+    );
+    assert_eq!(s.ok("doc.list", json!({})), before);
+}

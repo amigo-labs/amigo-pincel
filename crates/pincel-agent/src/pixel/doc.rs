@@ -93,7 +93,7 @@ pub(super) const OPEN: Tool = Tool {
     schema: || {
         tool_schema(
             json!({
-                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF or TIFF file"),
+                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS or ICO file"),
                 "mode": { "type": "string", "description": "pixel (a PNG opens as a Pixel document) or image; default: the file decides" },
             }),
             &["path"],
