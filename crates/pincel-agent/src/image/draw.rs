@@ -434,21 +434,23 @@ fn color_prop_image(description: &str) -> Value {
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted / dash_dot / dash_dot_dot, `anti_alias` (default true), `blend` normal (default) / overwrite. A line becomes a curve through `control` (0–62 points [x, y] between its ends, in order; a centripetal Catmull-Rom spline through all points) and takes start_cap / end_cap round (default) / flat / arrow (a filled head max(8, 4 × stroke_width) px long); control and the caps are line-only. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); Box shapes take the box (x0, y0)–(x1, y1): triangle (apex at the top center), diamond (corners at the edge midpoints), heart (point at the bottom center), block_arrow (points from the first corner (x0, y0), the drag start, toward the other along the box's longer side) and callout (a speech bubble whose tail tip is the first corner (x0, y0)); star takes cx, cy, radius (the outer radius), star_points 3–50 (default 5), inner_ratio 0.1–0.9 (default 0.38) and rotation in degrees (0: a point up). A box of zero area or a star radius of 0 or less draws nothing. `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted / dash_dot / dash_dot_dot, `anti_alias` (default true), `blend` normal (default) / overwrite. A line becomes a curve through `control` (0–62 points [x, y] between its ends, in order; a centripetal Catmull-Rom spline through all points) and takes start_cap / end_cap round (default) / flat / arrow (a filled head max(8, 4 × stroke_width) px long); control and the caps are line-only. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
-                "shape": choice(&["rect", "rounded", "ellipse", "polygon", "line"], "Shape kind"),
+                "shape": choice(&["rect", "rounded", "ellipse", "polygon", "line", "triangle", "diamond", "star", "block_arrow", "heart", "callout"], "Shape kind; triangle, diamond, star, block_arrow, heart and callout are Image-only"),
                 "x0": number("First corner / start x"),
                 "y0": number("First corner / start y"),
                 "x1": number("Opposite corner / end x"),
                 "y1": number("Opposite corner / end y"),
                 "corner_radius": { "type": "number", "description": "rounded: corner radius in px; Image at least 0 (default 16), Pixel 0–256 (default 4)" },
-                "cx": number("polygon: center x"),
-                "cy": number("polygon: center y"),
-                "radius": { "type": "number", "minimum": 0, "description": "polygon: circumradius in px" },
+                "cx": number("polygon / star: center x"),
+                "cy": number("polygon / star: center y"),
+                "radius": { "type": "number", "description": "polygon: circumradius in px (at least 0); star: outer radius in px (0 or less draws nothing)" },
                 "sides": { "type": "integer", "description": "polygon: number of sides; Image 3–100 (default 5), Pixel 3–64 (default 6)" },
-                "rotation": number("polygon: rotation in degrees; default 0"),
+                "rotation": number("polygon / star: rotation in degrees; default 0 (a star's first point up)"),
+                "star_points": { "type": "integer", "minimum": 3, "maximum": 50, "description": "star: number of points, 3–50; default 5" },
+                "inner_ratio": { "type": "number", "minimum": 0.1, "maximum": 0.9, "description": "star: inner radius as a share of `radius`, 0.1–0.9; default 0.38" },
                 "stroke": shared_color("Outline color"),
                 "fill": shared_color("Fill color"),
                 "stroke_width": { "type": "number", "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
@@ -505,35 +507,51 @@ pub(crate) const SHAPE: Tool = Tool {
                     ));
                 }
             };
-            let (shape, points, center, radius, sides, rotation) = if kind == "polygon" {
-                let center = [num(args, "cx")?, num(args, "cy")?];
-                let sides =
-                    image_ranged(args, "sides", 3.0, Some(100.0), POLYGON_SIDES as f64)? as u32;
-                let rotation = num_or(args, "rotation", 0.0).to_radians();
-                (
-                    "polygon",
-                    Vec::new(),
-                    center,
-                    num(args, "radius")?,
-                    sides,
-                    rotation,
-                )
-            } else {
-                let core = match kind {
-                    "rect" => "rectangle",
-                    "rounded" => "rounded_rectangle",
-                    other => other,
+            let (shape, points, center, radius, sides, rotation) =
+                if kind == "polygon" || kind == "star" {
+                    let center = [finite(args, "cx")?, finite(args, "cy")?];
+                    let sides = if kind == "polygon" {
+                        image_ranged(args, "sides", 3.0, Some(100.0), POLYGON_SIDES as f64)? as u32
+                    } else {
+                        POLYGON_SIDES as u32
+                    };
+                    let rotation = finite_or(args, "rotation", 0.0)?.to_radians();
+                    if kind == "polygon" && num(args, "radius")? < 0.0 {
+                        return Err(AgentError::tool("argument `radius` must be at least 0"));
+                    }
+                    (
+                        kind,
+                        Vec::new(),
+                        center,
+                        finite(args, "radius")?,
+                        sides,
+                        rotation,
+                    )
+                } else {
+                    let core = match kind {
+                        "rect" => "rectangle",
+                        "rounded" => "rounded_rectangle",
+                        other => other,
+                    };
+                    let mut pts = vec![[num(args, "x0")?, num(args, "y0")?]];
+                    pts.extend(control_points(args)?);
+                    pts.push([num(args, "x1")?, num(args, "y1")?]);
+                    for (i, key) in [(0, "x0"), (1, "y0")] {
+                        if !pts[0][i].is_finite() {
+                            return Err(not_finite(key));
+                        }
+                    }
+                    let last = pts.len() - 1;
+                    for (i, key) in [(0, "x1"), (1, "y1")] {
+                        if !pts[last][i].is_finite() {
+                            return Err(not_finite(key));
+                        }
+                    }
+                    if pts.iter().flatten().any(|v| !v.is_finite()) {
+                        return Err(not_finite("control"));
+                    }
+                    (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
                 };
-                let mut pts = vec![[num(args, "x0")?, num(args, "y0")?]];
-                pts.extend(control_points(args)?);
-                pts.push([num(args, "x1")?, num(args, "y1")?]);
-                if let Some(bad) = pts.iter().flatten().find(|v| !v.is_finite()) {
-                    return Err(AgentError::tool(format!(
-                        "draw.shape coordinates must be finite (got {bad})"
-                    )));
-                }
-                (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
-            };
             let stroke_width = image_ranged(args, "stroke_width", 1.0, Some(500.0), STROKE_WIDTH)?;
             let corner_radius = if kind == "rounded" {
                 image_ranged(args, "corner_radius", 0.0, None, CORNER_RADIUS)?
@@ -558,10 +576,44 @@ pub(crate) const SHAPE: Tool = Tool {
                 blend: blend.clone(),
                 start_cap: str_or(args, "start_cap", "round").to_owned(),
                 end_cap: str_or(args, "end_cap", "round").to_owned(),
+                star_points: args
+                    .i64("star_points")
+                    .map_or(pincel_image_core::STAR_POINTS, |n| n as u32),
+                inner_ratio: num_or(
+                    args,
+                    "inner_ratio",
+                    f64::from(pincel_image_core::STAR_INNER_RATIO),
+                ),
             })
         })
     },
 };
+
+/// The error for an argument that is not a finite single-precision number.
+fn not_finite(key: &str) -> AgentError {
+    AgentError::tool(format!("argument `{key}` must be a finite number"))
+}
+
+/// A required number argument that is finite in single precision
+/// (docs/specs/image-shapes-curves-shapes.md AC-17).
+fn finite(args: &Args, key: &str) -> Result<f32, AgentError> {
+    let v = num(args, key)?;
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(not_finite(key))
+    }
+}
+
+/// An optional number argument, finite in single precision when given.
+fn finite_or(args: &Args, key: &str, default: f64) -> Result<f32, AgentError> {
+    let v = num_or(args, key, default);
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(not_finite(key))
+    }
+}
 
 /// A line's `control` points, `[x, y]` each (the schema checked the shape).
 fn control_points(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {

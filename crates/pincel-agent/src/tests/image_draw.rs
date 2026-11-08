@@ -1199,3 +1199,164 @@ fn tools_list_describes_curves() {
     );
     assert!(shape.description.contains("control"));
 }
+
+/// docs/specs/image-shapes-curves-shapes.md AC-16: each new kind paints
+/// exactly what the editor's matching shape commits, in one undo step; for
+/// block_arrow and callout the first corner is the drag start.
+#[test]
+fn draw_shape_box_shapes_match_the_editor() {
+    let box_kinds = ["triangle", "diamond", "block_arrow", "heart", "callout"];
+    for kind in box_kinds {
+        for (a, b) in [([4.0, 30.0], [44.0, 4.0]), ([44.0, 4.0], [4.0, 30.0])] {
+            let mut s = S::new();
+            let id = painted(&mut s, 48, 34);
+            let want = editor(
+                &s,
+                &id,
+                vec![
+                    json!({ "type": "begin_live_shape", "layer": 0, "shape": kind, "points": [a, b],
+                            "mode": "fill_and_outline", "stroke_width": 2.0,
+                            "stroke_color": [255, 0, 0, 255], "fill_color": [0, 0, 255, 255],
+                            "anti_alias": true }),
+                    json!({ "type": "commit_live" }),
+                ],
+            );
+            one_undo_step(
+                &mut s,
+                &id,
+                "draw.shape",
+                json!({ "shape": kind, "x0": a[0], "y0": a[1], "x1": b[0], "y1": b[1],
+                        "stroke": "#FF0000", "fill": "#0000FF", "stroke_width": 2 }),
+            );
+            assert_eq!(
+                agent_pixels(&s, &id, 0),
+                pixels(&want, 0),
+                "{kind} {a:?} → {b:?}"
+            );
+        }
+    }
+    // A star from its center and radius equals the editor's star inscribed
+    // in the box of that size.
+    let mut s = S::new();
+    let id = painted(&mut s, 48, 34);
+    let want = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "begin_live_shape", "layer": 0, "shape": "star", "points": [[8.0, 1.0], [40.0, 33.0]],
+                    "mode": "fill", "fill_color": [0, 0, 255, 255], "anti_alias": true,
+                    "star_points": 7, "inner_ratio": 0.5 }),
+            json!({ "type": "commit_live" }),
+        ],
+    );
+    one_undo_step(
+        &mut s,
+        &id,
+        "draw.shape",
+        json!({ "shape": "star", "cx": 24, "cy": 17, "radius": 16, "star_points": 7, "inner_ratio": 0.5,
+                "fill": "#0000FF" }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+}
+
+/// AC-17: bad arguments fail naming the argument, the document unchanged;
+/// a zero-area box or a star radius of 0 or less succeeds with
+/// `changed: false`.
+#[test]
+fn draw_shape_box_shapes_refuse_bad_arguments() {
+    let mut s = S::new();
+    let id = painted(&mut s, 32, 24);
+    let before = state(&s, &id);
+    let star = json!({ "shape": "star", "cx": 12, "cy": 12, "radius": 8, "fill": "#000000" });
+    let with = |key: &str, v: Value| {
+        let mut a = star.clone();
+        a[key] = v;
+        a
+    };
+    let cases = [
+        (with("star_points", json!(2)), "star_points"),
+        (with("star_points", json!(51)), "star_points"),
+        (with("inner_ratio", json!(0.05)), "inner_ratio"),
+        (with("inner_ratio", json!(0.95)), "inner_ratio"),
+        (with("radius", json!(1e39)), "radius"),
+        (with("cx", json!(-1e39)), "cx"),
+        (with("rotation", json!(1e39)), "rotation"),
+        (
+            json!({ "shape": "heart", "x0": 1e39, "y0": 2, "x1": 20, "y1": 20, "fill": "#000000" }),
+            "x0",
+        ),
+        (
+            json!({ "shape": "callout", "x0": 1, "y0": 2, "x1": 20, "y1": -1e39, "fill": "#000000" }),
+            "y1",
+        ),
+        (
+            json!({ "shape": "hexagon", "x0": 1, "y0": 2, "x1": 20, "y1": 20, "fill": "#000000" }),
+            "shape",
+        ),
+    ];
+    for (args, named) in cases {
+        let err = s.err("draw.shape", args.clone());
+        assert!(err.contains(named), "{args}: {err}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+    for args in [
+        json!({ "shape": "triangle", "x0": 5, "y0": 5, "x1": 5, "y1": 20, "fill": "#000000" }),
+        json!({ "shape": "block_arrow", "x0": 5, "y0": 9, "x1": 25, "y1": 9, "fill": "#000000" }),
+        with("radius", json!(0)),
+        with("radius", json!(-3)),
+    ] {
+        let out = s.ok("draw.shape", args.clone());
+        assert_eq!(out["changed"], json!(false), "{args}: {out}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+}
+
+/// AC-18: `tools/list` lists all eleven kinds, the star's parameters and
+/// what the first corner means for block_arrow and callout.
+#[test]
+fn tools_list_describes_the_box_shapes() {
+    let tools = crate::list_tools();
+    let shape = tools
+        .iter()
+        .find(|t| t.name == "draw.shape")
+        .expect("draw.shape");
+    let props = &shape.input_schema["properties"];
+    assert_eq!(
+        props["shape"]["enum"],
+        json!([
+            "rect",
+            "rounded",
+            "ellipse",
+            "polygon",
+            "line",
+            "triangle",
+            "diamond",
+            "star",
+            "block_arrow",
+            "heart",
+            "callout"
+        ])
+    );
+    assert_eq!(
+        (
+            props["star_points"]["minimum"].clone(),
+            props["star_points"]["maximum"].clone()
+        ),
+        (json!(3), json!(50))
+    );
+    assert_eq!(
+        (
+            props["inner_ratio"]["minimum"].clone(),
+            props["inner_ratio"]["maximum"].clone()
+        ),
+        (json!(0.1), json!(0.9))
+    );
+    for needle in [
+        "block_arrow (points from the first corner",
+        "callout (a speech bubble whose tail tip is the first corner",
+        "star_points",
+        "inner_ratio",
+    ] {
+        assert!(shape.description.contains(needle), "{needle}");
+    }
+}
