@@ -142,6 +142,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await open(page);
     await paintRed(page, mode, 0, 0);
     await useTool(page, 'q', 'Polygonal Lasso');
+    // Hard edges: the closing diagonal crosses pixel (0, 0), which an
+    // anti-aliased outline covers only partly (image-edit-extras-tool-options).
+    if (mode === 'image') await page.getByRole('checkbox', { name: 'Antialiasing' }).uncheck();
     const [sx, sy] = await stageTopLeft(page, mode);
     const right = await pt(page, mode, 6, 0);
     const corner = await pt(page, mode, 6, 6);
