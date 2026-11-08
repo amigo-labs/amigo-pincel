@@ -42,6 +42,14 @@
       tool.kind,
     ) || isShapeTool(tool.kind),
   );
+
+  // The tools that composite a paint color; the Gradient only on its Color
+  // channel (AC-08).
+  const showBlend = $derived(
+    ['pencil', 'fill', 'text'].includes(tool.kind) ||
+      isShapeTool(tool.kind) ||
+      (tool.kind === 'gradient' && tool.gradientChannel === 'color'),
+  );
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
@@ -329,6 +337,16 @@
     <label class="flex items-center gap-2">
       <input type="checkbox" bind:checked={tool.antiAlias} />
       <span class="text-pc-muted">{t('opt.antialiasing')}</span>
+    </label>
+  {/if}
+
+  {#if showBlend}
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.blending')}</span>
+      <select bind:value={tool.blend} class="opt-field">
+        <option value="normal">{t('opt.blendNormal')}</option>
+        <option value="overwrite">{t('opt.blendOverwrite')}</option>
+      </select>
     </label>
   {/if}
 

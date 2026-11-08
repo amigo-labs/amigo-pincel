@@ -79,4 +79,13 @@ export function installLiveSync(): void {
     () => `${tool.foreground}|${tool.foregroundAlpha}`,
     (obj) => text(obj, { color: colorWithOpacity(tool.foreground, tool.foregroundAlpha) }),
   );
+  // One Blending setting for every live object
+  // (docs/specs/image-edit-extras-tool-options.md AC-08).
+  onChange(
+    () => tool.blend,
+    (obj, blend) => {
+      if (obj.type === 'text') text(obj, { blend });
+      else editLive({ blend });
+    },
+  );
 }

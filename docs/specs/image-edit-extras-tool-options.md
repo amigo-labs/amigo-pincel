@@ -118,18 +118,19 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 | AC-05 | `Line and shapes follow the shared Antialiasing setting` (ui/e2e/image-antialias.spec.ts); `the colour, alignment and anti-alias restyle the live text without committing` (ui/e2e/image-live-text.spec.ts) | built |  |
 | AC-06 | `ellipse_and_lasso_outlines_blend_their_edge_only_when_on`, `select_ellipse_and_polygon_commands_take_the_setting_and_combine` (crates/pincel-image-core/tests/antialias.rs); `an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing` (ui/e2e/image-antialias.spec.ts) | built |  |
 | AC-07 | `one Antialiasing checkbox, …` (ui/e2e/image-antialias.spec.ts); `feather_applies_on_top_of_an_anti_aliased_outline` (crates/pincel-image-core/tests/antialias.rs) | built |  |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-08 | `one Blending control, shared by the painting tools and all tabs, Normal at start` (ui/e2e/image-blend.spec.ts); `live_shapes_gradients_and_texts_take_and_change_the_blend` (crates/pincel-image-core/tests/blend.rs) | built |  |
+| AC-09 | `normal_blending_paints_as_before_for_every_tool` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha the Brush and the Bucket leave, Normal does not` (ui/e2e/image-blend.spec.ts) | built |  |
+| AC-10 | `overwrite_replaces_fully_covered_pixels_alpha_included` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha …`, `a live gradient and a live shape follow Blending …` (ui/e2e/image-blend.spec.ts) | built |  |
+| AC-11 | `overwrite_moves_partially_covered_pixels_by_their_coverage` (crates/pincel-image-core/tests/blend.rs) | built |  |
+| AC-12 | `overwrite_stroke_takes_the_highest_coverage_and_never_builds_up` (crates/pincel-image-core/tests/blend.rs) | built |  |
+| AC-13 | `overwrite_keeps_undo_locks_and_the_selection` (crates/pincel-image-core/tests/blend.rs) | built |  |
+| AC-14 | `anti_alias_reaches_strokes_and_selections_like_the_editor`, `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | built |  |
+| AC-15 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | built |  |
+| AC-16 | `anti_alias_reaches_strokes_and_selections_like_the_editor`, `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | built |  |
+| AC-17 | `guide_describes_anti_alias_and_blend` (crates/pincel-agent/src/tests/image_draw.rs) | built |  |
 
 ## Decisions
 
 - 2026-11-05 (clarification pass): Rectangle Select gets no Antialiasing checkbox, because its corners are whole pixels and the switch would have no effect. `select.polygon` (now defined by `mcp-parity-selection-transform`) takes `anti_alias` here. Overwrite measures coverage per stroke (highest dab coverage against the pixels before the stroke), because per-dab interpolation would let overlapping soft dabs build up, which is what Overwrite exists to avoid. Both switches are per app start and shared by all Image tabs, because the Image tool store is shared and not persisted.
 - 2026-11-08 (build): The Clone Stamp gets no Antialiasing checkbox and keeps sending `anti_alias: false`, because AC-01 does not list it. The checkbox is labelled "Antialiasing" (new key `opt.antialiasing`); Pixel mode's text dialog keeps its own "Anti-alias" label, because Pixel mode is out of scope.
+- 2026-11-08 (build): Overwrite is one `Blend` enum in `pincel-image-core` (new public `Blend`, `OverwriteMemory`, `Pencil::stroke_with_memory`, `Brush::with_blend`, `Fill::with_blend`, and a `blend` field on `Gradient`, `ShapeStyle`, `TextStyle`), interpolating in premultiplied space. A Brush drag's pressure-opacity counts as coverage under Overwrite, so a light press moves a pixel only part of the way toward the paint. The live shape, gradient and text commands (`begin_live_*`, `edit_live`) take `blend` too, because the editor draws those tools as live objects. The German label is "Mischmodus" (Normal / Überschreiben).

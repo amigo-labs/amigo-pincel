@@ -536,6 +536,7 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
     fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
     anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
+    blend: tool.blend,
   };
   if (shape === 'polygon') {
     const w = Math.abs(b[0] - a[0]);
@@ -697,6 +698,7 @@ export function paintStroke(
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
     anti_alias: tool.antiAlias,
+    blend: tool.blend,
     points,
     ...penFields(pressure, azimuth),
     stroke_id: strokeId,
@@ -807,6 +809,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
     sample: tool.fillSample,
     x,
     y,
+    blend: tool.blend,
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
@@ -894,6 +897,7 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
     from: activeColor(false),
     to: activeColor(true),
     opacity: opacity01(),
+    blend: tool.blend,
   };
   const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);

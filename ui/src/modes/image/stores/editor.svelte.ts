@@ -15,6 +15,7 @@ import type {
   ShapeKind,
   ShapeMode,
   TextAlign,
+  ToolBlend,
 } from '../core/wasm';
 import type { DocSaveFormat, DocumentFile } from '../core/document-file';
 
@@ -303,6 +304,9 @@ export const tool = $state({
    *  setting for every tool that has the switch
    *  (docs/specs/image-edit-extras-tool-options.md AC-01). */
   antiAlias: true,
+  /** Blending: Normal or Overwrite; one setting for Brush, Bucket,
+   *  Gradient (Color), Line, shapes and Text (AC-08). */
+  blend: 'normal' as ToolBlend,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */

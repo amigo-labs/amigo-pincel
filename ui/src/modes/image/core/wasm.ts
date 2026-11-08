@@ -135,6 +135,10 @@ export type BlendMode =
   | 'difference'
   | 'exclusion';
 
+/** Normal composites the paint; Overwrite replaces the pixels, alpha
+ *  included (docs/specs/image-edit-extras-tool-options.md). */
+export type ToolBlend = 'normal' | 'overwrite';
+
 export interface PencilStrokeCommand {
   type: 'pencil_stroke';
   layer: number;
@@ -145,6 +149,7 @@ export interface PencilStrokeCommand {
   hardness: number;
   /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
   anti_alias: boolean;
+  blend: ToolBlend;
   points: Array<[number, number]>;
   /** Pen pressure in `[0, 1]` per point (spec §17.4); empty = full. */
   pressure: number[];
@@ -193,6 +198,7 @@ export interface FillBucketCommand {
   sample: SampleSource;
   x: number;
   y: number;
+  blend: ToolBlend;
 }
 
 export interface TranslateLayerCommand {
@@ -296,6 +302,7 @@ export interface DrawGradientCommand {
   from: [number, number, number, number];
   to: [number, number, number, number];
   opacity: number;
+  blend: ToolBlend;
 }
 
 /** Moves the selection outline, leaving the pixels under it alone. */
@@ -448,6 +455,7 @@ export interface DrawShapeCommand {
   fill_color: Rgba;
   anti_alias: boolean;
   dash: DashPattern;
+  blend: ToolBlend;
 }
 
 /** Rasterize text onto a layer using a `registerFont` id (spec §9.2 Text). */
@@ -466,6 +474,7 @@ export interface DrawTextCommand {
   align: TextAlign;
   underline?: boolean;
   strikethrough?: boolean;
+  blend?: ToolBlend;
 }
 
 /** Two canvas points: endpoints, box corners or a gradient's drag. */
@@ -485,6 +494,7 @@ export interface BeginLiveShapeCommand {
   fill_color?: Rgba;
   anti_alias?: boolean;
   dash?: DashPattern;
+  blend?: ToolBlend;
 }
 
 /** Begins a live gradient (docs/specs/image-live-objects.md). */
@@ -500,6 +510,7 @@ export interface BeginLiveGradientCommand {
   from?: Rgba;
   to?: Rgba;
   opacity?: number;
+  blend?: ToolBlend;
 }
 
 /** Edits the live object; absent fields keep their value. Edits sharing a
@@ -530,6 +541,7 @@ export interface EditLiveCommand {
   underline?: boolean;
   strikethrough?: boolean;
   align?: TextAlign;
+  blend?: ToolBlend;
 }
 
 /** Begins a live text whose box has its top-left at `(x, y)`
@@ -549,6 +561,7 @@ export interface BeginLiveTextCommand {
   align?: TextAlign;
   underline?: boolean;
   strikethrough?: boolean;
+  blend?: ToolBlend;
 }
 
 /** Begin, edit, commit or cancel the live object. */

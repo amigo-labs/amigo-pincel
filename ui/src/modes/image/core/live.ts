@@ -49,6 +49,7 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
     anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
+    blend: tool.blend,
   });
   notePainted(before, shapeColors(shape));
 }
@@ -70,6 +71,7 @@ export function beginGradient(a: [number, number], b: [number, number]): void {
     from: activeColor(false),
     to: activeColor(true),
     opacity: opacity01(),
+    blend: tool.blend,
   });
   notePainted(before, gradientColors());
 }
@@ -94,6 +96,7 @@ export function beginText(at: [number, number], text: string, fontId: number): b
     align: tool.textAlign,
     underline: tool.textUnderline,
     strikethrough: tool.textStrikethrough,
+    blend: tool.blend,
   });
   noteTextPainted(before);
   return ok && live.object?.type === 'text';
