@@ -332,8 +332,7 @@ fn choose_partition(
         }
     };
     let mut delta = diff - partdiffs[lastpart] - state.drift;
-    let bestpart;
-    if delta.abs() > jumplimit / 2.0 {
+    let bestpart = if delta.abs() > jumplimit / 2.0 {
         let mut bestdelta = diff - partdiffs[0] - state.drift;
         let mut best = 0usize;
         for (p, &pd) in partdiffs.iter().enumerate().take(*partcount).skip(1) {
@@ -350,10 +349,10 @@ fn choose_partition(
             partdiffs[best] = diff - state.drift;
             delta = 0.0;
         }
-        bestpart = best;
+        best
     } else {
-        bestpart = lastpart;
-    }
+        lastpart
+    };
     if bestpart == lastpart
         && ((delta - state.last_delta).abs() < jumplimit / 2.0 || delta.abs() < jumplimit / 2.0)
     {

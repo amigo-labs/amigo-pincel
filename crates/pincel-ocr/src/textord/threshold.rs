@@ -50,7 +50,7 @@ pub(crate) fn binarize(pixels: &[u8], width: usize, height: usize) -> Vec<bool> 
     let mut best_hi_dist = 0.0f64;
     for ch in 0..CHANNELS {
         let mut histogram = [0i32; 256];
-        for p in pixels.chunks_exact(CHANNELS).take(width * height) {
+        for p in pixels.as_chunks::<CHANNELS>().0.iter().take(width * height) {
             histogram[usize::from(p[ch])] += 1;
         }
         let (best_t, h, best_omega_0) = otsu_stats(&histogram);
@@ -82,7 +82,9 @@ pub(crate) fn binarize(pixels: &[u8], width: usize, height: usize) -> Vec<bool> 
         hi_values[best_hi_index] = best_hi_value;
     }
     pixels
-        .chunks_exact(CHANNELS)
+        .as_chunks::<CHANNELS>()
+        .0
+        .iter()
         .take(width * height)
         .map(|p| {
             (0..CHANNELS).any(|ch| {
