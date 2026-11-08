@@ -205,3 +205,38 @@ test('Line and shapes follow the shared Antialiasing setting (AC-05)', async ({ 
   expect(hard.data.some((v, i) => i % 4 === 3 && v === 255)).toBe(true);
   expect(partialAlphas(hard)).toEqual([]);
 });
+
+test('Text and the box shapes follow the shared Antialiasing setting (AC-05)', async ({ page }) => {
+  await createDocument(page, 'image', { width: SIZE, height: SIZE });
+  await setColor(page, 'fg', '#000000');
+  const field = page.locator('[data-live-text]');
+  const text = async (): Promise<ClipImage> => {
+    await useTool(page, 't', 'Text');
+    await page.getByRole('slider', { name: /^Size/ }).fill('24');
+    await page.mouse.click(...(await point(page, 2, 2)));
+    await expect(field).toBeFocused();
+    await page.keyboard.type('Wo');
+    await page.getByRole('button', { name: 'Finish', exact: true }).click();
+    await expect(page.getByRole('button', { name: 'Finish', exact: true })).toHaveCount(0);
+    const img = await layerPixels(page);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    return img;
+  };
+  const rect = async (): Promise<ClipImage> => {
+    await useTool(page, 'u', 'Ellipse');
+    await dragDoc(page, [3, 4], [28, 25]);
+    await page.keyboard.press('Enter');
+    const img = await layerPixels(page);
+    await page.getByRole('button', { name: 'Undo', exact: true }).click();
+    return img;
+  };
+  for (const draw of [text, rect]) {
+    expect(partialAlphas(await draw()).length).toBeGreaterThan(0);
+  }
+  await antiAlias(page).uncheck();
+  for (const draw of [text, rect]) {
+    const hard = await draw();
+    expect(hard.data.some((v, i) => i % 4 === 3 && v === 255)).toBe(true);
+    expect(partialAlphas(hard)).toEqual([]);
+  }
+});
