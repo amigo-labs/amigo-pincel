@@ -39,3 +39,4 @@
 *.otf           binary
 *.pdf           binary
 *.zip           binary
+*.traineddata   binary

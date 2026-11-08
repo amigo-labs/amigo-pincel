@@ -149,6 +149,16 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 | I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
 | I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
 
+### J — OCR
+
+Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of Tesseract's LSTM recognizer in a new crate `pincel-ocr` (Decision Log 2026-11-08). Shares no files with the other groups until J3 touches Image mode's menu and job worker.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| J1 | [ocr-recognizer](ocr-recognizer.md) | Image | L | — | Model reader, int8 LSTM, beam search for one line; golden tests against Tesseract 5.5 |
+| J2 | [ocr-page](ocr-page.md) | Image | L | ocr-recognizer | Binarization, skew, lines and blocks, page text; accuracy on a page corpus |
+| J3 | [ocr-dialog](ocr-dialog.md) | Image | L | ocr-page | Tools ▸ Recognize Text…, model download on first use, copy to clipboard |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)

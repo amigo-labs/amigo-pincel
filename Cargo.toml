@@ -7,6 +7,7 @@ members = [
   "crates/pincel-mcp",
   "crates/pincel-core",
   "crates/pincel-effects",
+  "crates/pincel-ocr",
   "crates/pincel-trace",
   "crates/pincel-wasm",
   "src-tauri",
@@ -56,4 +57,9 @@ all = { level = "warn", priority = -1 }
 # the benchmark images (docs/specs/vectorize-core.md AC-21) alone takes
 # about a minute. Optimised it fits the test budget (AGENTS.md §7.5).
 [profile.dev.package.pincel-trace]
+opt-level = 3
+
+# The recognizer runs an LSTM over every golden-corpus line; unoptimised the
+# golden tests alone would take minutes (AGENTS.md §7.5).
+[profile.dev.package.pincel-ocr]
 opt-level = 3

@@ -1,0 +1,9 @@
+level	page_num	block_num	par_num	line_num	word_num	left	top	width	height	conf	text
+1	1	0	0	0	0	0	0	397	35	-1	
+2	1	1	0	0	0	9	5	379	26	-1	
+3	1	1	1	0	0	9	5	379	26	-1	
+4	1	1	1	1	0	9	5	379	26	-1	
+5	1	1	1	1	1	9	5	91	26	92.674835	Zürich,
+5	1	1	1	1	2	112	5	56	22	92.468407	Köln
+5	1	1	1	1	3	180	5	48	22	91.419785	und
+5	1	1	1	1	4	242	5	146	22	90.000191	Düsseldorf
