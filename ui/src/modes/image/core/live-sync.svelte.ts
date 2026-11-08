@@ -31,7 +31,7 @@ export function installLiveSync(): void {
   onChange(() => tool.shapeMode, (obj, mode) => shape({ mode })(obj));
   onChange(() => tool.strokeWidth, (obj, w) => shape({ stroke_width: w })(obj));
   onChange(() => tool.shapeDash, (obj, dash) => shape({ dash })(obj));
-  onChange(() => tool.shapeAntiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
+  onChange(() => tool.antiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
   onChange(() => tool.cornerRadius, (obj, r) => shape({ corner_radius: r })(obj));
   onChange(() => tool.shapeSides, (obj, n) => shape({ sides: n })(obj));
   // Outline = foreground, fill = background, both at the tool opacity: one
@@ -74,7 +74,7 @@ export function installLiveSync(): void {
   onChange(() => tool.textUnderline, (obj, underline) => text(obj, { underline }));
   onChange(() => tool.textStrikethrough, (obj, strikethrough) => text(obj, { strikethrough }));
   onChange(() => tool.textAlign, (obj, align) => text(obj, { align }));
-  onChange(() => tool.textAntiAlias, (obj, aa) => text(obj, { anti_alias: aa }));
+  onChange(() => tool.antiAlias, (obj, aa) => text(obj, { anti_alias: aa }));
   onChange(
     () => `${tool.foreground}|${tool.foregroundAlpha}`,
     (obj) => text(obj, { color: colorWithOpacity(tool.foreground, tool.foregroundAlpha) }),

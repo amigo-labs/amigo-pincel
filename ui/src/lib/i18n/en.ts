@@ -730,6 +730,7 @@ export const en = {
   'opt.sides': 'Sides',
   'opt.radius': 'Radius',
   'opt.antiAlias': 'Anti-alias',
+  'opt.antialiasing': 'Antialiasing',
   'opt.shapeHint': 'Stroke = FG · Fill = BG · Shift = constrain',
   'opt.bold': 'Bold',
   'opt.italic': 'Italic',

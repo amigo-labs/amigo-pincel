@@ -111,13 +111,13 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-01 | `one Antialiasing checkbox, shared by the edge tools and all tabs, on at start` (ui/e2e/image-antialias.spec.ts) | built |  |
+| AC-02 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | built |  |
+| AC-03 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | built |  |
+| AC-04 | `soft_and_flat_tips_ignore_the_setting` (crates/pincel-image-core/tests/antialias.rs) | built |  |
+| AC-05 | `Line and shapes follow the shared Antialiasing setting` (ui/e2e/image-antialias.spec.ts); `the colour, alignment and anti-alias restyle the live text without committing` (ui/e2e/image-live-text.spec.ts) | built |  |
+| AC-06 | `ellipse_and_lasso_outlines_blend_their_edge_only_when_on`, `select_ellipse_and_polygon_commands_take_the_setting_and_combine` (crates/pincel-image-core/tests/antialias.rs); `an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing` (ui/e2e/image-antialias.spec.ts) | built |  |
+| AC-07 | `one Antialiasing checkbox, …` (ui/e2e/image-antialias.spec.ts); `feather_applies_on_top_of_an_anti_aliased_outline` (crates/pincel-image-core/tests/antialias.rs) | built |  |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
@@ -132,3 +132,4 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 ## Decisions
 
 - 2026-11-05 (clarification pass): Rectangle Select gets no Antialiasing checkbox, because its corners are whole pixels and the switch would have no effect. `select.polygon` (now defined by `mcp-parity-selection-transform`) takes `anti_alias` here. Overwrite measures coverage per stroke (highest dab coverage against the pixels before the stroke), because per-dab interpolation would let overlapping soft dabs build up, which is what Overwrite exists to avoid. Both switches are per app start and shared by all Image tabs, because the Image tool store is shared and not persisted.
+- 2026-11-08 (build): The Clone Stamp gets no Antialiasing checkbox and keeps sending `anti_alias: false`, because AC-01 does not list it. The checkbox is labelled "Antialiasing" (new key `opt.antialiasing`); Pixel mode's text dialog keeps its own "Anti-alias" label, because Pixel mode is out of scope.

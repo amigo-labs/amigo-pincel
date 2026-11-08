@@ -733,6 +733,7 @@ export const de: Record<MessageKey, string> = {
   'opt.sides': 'Seiten',
   'opt.radius': 'Radius',
   'opt.antiAlias': 'Kantenglättung',
+  'opt.antialiasing': 'Kantenglättung',
   'opt.shapeHint': 'Strich = VG · Füllung = HG · Umschalt = einrasten',
   'opt.bold': 'Fett',
   'opt.italic': 'Kursiv',

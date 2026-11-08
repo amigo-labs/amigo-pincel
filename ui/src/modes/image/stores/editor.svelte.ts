@@ -299,6 +299,10 @@ export const tool = $state({
   cloneSample: 'current_layer' as SampleSource,
   /** Clone Stamp: the next press on the canvas sets the source point. */
   cloneSetSource: false,
+  /** Antialiasing: smooth tip, shape, glyph and selection edges; one
+   *  setting for every tool that has the switch
+   *  (docs/specs/image-edit-extras-tool-options.md AC-01). */
+  antiAlias: true,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */
@@ -313,16 +317,12 @@ export const tool = $state({
   shapeSides: 5,
   /** Shapes: rounded-rectangle corner radius in pixels. */
   cornerRadius: 16,
-  /** Shapes: anti-alias shape edges. */
-  shapeAntiAlias: true,
   /** Text: font size in pixels, 6–999. */
   fontSize: 48,
   /** Text: synthetic bold. */
   textBold: false,
   /** Text: synthetic italic. */
   textItalic: false,
-  /** Text: anti-alias glyph edges. */
-  textAntiAlias: true,
   /** Text: per-line horizontal alignment. */
   textAlign: 'left' as TextAlign,
   /** Text: a stroke below the baseline (docs/specs/image-live-text.md AC-10). */

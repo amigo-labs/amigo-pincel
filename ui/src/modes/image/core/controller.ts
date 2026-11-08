@@ -314,12 +314,27 @@ export function selectEllipse(
   h: number,
   mode: SelectionMode,
 ): void {
-  applySelection({ type: 'select_ellipse', x, y, w, h, mode, feather: tool.selectionFeather });
+  applySelection({
+    type: 'select_ellipse',
+    x,
+    y,
+    w,
+    h,
+    mode,
+    feather: tool.selectionFeather,
+    anti_alias: tool.antiAlias,
+  });
 }
 
 /** Selects a polygon over the given canvas-space points, per `mode`. */
 export function selectPolygon(points: Array<[number, number]>, mode: SelectionMode): void {
-  applySelection({ type: 'select_polygon', points, mode, feather: tool.selectionFeather });
+  applySelection({
+    type: 'select_polygon',
+    points,
+    mode,
+    feather: tool.selectionFeather,
+    anti_alias: tool.antiAlias,
+  });
 }
 
 /** Magic-wand selection seeded at the given canvas-space point, per `mode`. */
@@ -519,7 +534,7 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
-    anti_alias: tool.shapeAntiAlias,
+    anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
   };
   if (shape === 'polygon') {
@@ -681,6 +696,7 @@ export function paintStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     points,
     ...penFields(pressure, azimuth),
     stroke_id: strokeId,
@@ -707,6 +723,7 @@ export function eraseStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     mode: tool.eraserMode,
     background: activeColor(true), // 'To Background' erases to the bg swatch
     points,
@@ -735,6 +752,7 @@ export function recolorStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     from: activeColor(true),
     to: activeColor(false),
     tolerance: tool.recolorTolerance,
@@ -763,6 +781,7 @@ export function smudgeStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     strength: Math.min(1, Math.max(0, tool.smudgeStrength / 100)),
     points,
     ...penFields(pressure, azimuth),

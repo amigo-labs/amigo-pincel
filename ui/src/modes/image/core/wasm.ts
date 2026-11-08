@@ -143,6 +143,8 @@ export interface PencilStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   points: Array<[number, number]>;
   /** Pen pressure in `[0, 1]` per point (spec §17.4); empty = full. */
   pressure: number[];
@@ -167,6 +169,8 @@ export interface EraserStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   mode: EraserMode;
   background: Rgba;
   points: Array<[number, number]>;
@@ -214,6 +218,8 @@ export interface RecolorStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   from: [number, number, number, number];
   to: [number, number, number, number];
   tolerance: number;
@@ -235,6 +241,8 @@ export interface SmudgeStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   strength: number;
   points: Array<[number, number]>;
   pressure: number[];
@@ -255,6 +263,7 @@ export interface CloneStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  anti_alias?: boolean;
   /** Source position minus destination position, in whole pixels. */
   offset: [number, number];
   sample: SampleSource;
@@ -354,12 +363,14 @@ export type SelectionCommand =
       h: number;
       mode: SelectionMode;
       feather: number;
+      anti_alias: boolean;
     }
   | {
       type: 'select_polygon';
       points: Array<[number, number]>;
       mode: SelectionMode;
       feather: number;
+      anti_alias: boolean;
     }
   | {
       type: 'select_wand';

@@ -34,6 +34,14 @@
     'polygon_lasso',
   ]);
   const isShapeSelect = $derived(shapeSelectTools.has(tool.kind));
+
+  // The tools that draw an edge Antialiasing can smooth; one shared setting
+  // (docs/specs/image-edit-extras-tool-options.md AC-01).
+  const showAntiAlias = $derived(
+    ['pencil', 'eraser', 'recolor', 'smudge', 'text', 'ellipse_select', 'lasso', 'polygon_lasso'].includes(
+      tool.kind,
+    ) || isShapeTool(tool.kind),
+  );
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
@@ -264,10 +272,6 @@
       <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
     </label>
 
-    <label class="flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.shapeAntiAlias} />
-      <span class="text-pc-muted">{t('opt.antiAlias')}</span>
-    </label>
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>
   {:else if tool.kind === 'text'}
     <label class="flex items-center gap-2">
@@ -312,10 +316,6 @@
       </select>
     </label>
 
-    <label class="flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textAntiAlias} />
-      <span class="text-pc-muted">{t('opt.antiAlias')}</span>
-    </label>
     <!-- Finishes the live text (docs/specs/image-live-text.md AC-11). -->
     <button
       class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
@@ -323,6 +323,13 @@
       onclick={commitText}>{t('opt.finish')}</button
     >
     <span class="text-pc-faint">{t('opt.textHint')}</span>
+  {/if}
+
+  {#if showAntiAlias}
+    <label class="flex items-center gap-2">
+      <input type="checkbox" bind:checked={tool.antiAlias} />
+      <span class="text-pc-muted">{t('opt.antialiasing')}</span>
+    </label>
   {/if}
 
   {#if isShapeSelect || tool.kind === 'magic_wand'}

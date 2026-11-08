@@ -47,7 +47,7 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
-    anti_alias: tool.shapeAntiAlias,
+    anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
   });
   notePainted(before, shapeColors(shape));
@@ -90,7 +90,7 @@ export function beginText(at: [number, number], text: string, fontId: number): b
     color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     bold: tool.textBold,
     italic: tool.textItalic,
-    anti_alias: tool.textAntiAlias,
+    anti_alias: tool.antiAlias,
     align: tool.textAlign,
     underline: tool.textUnderline,
     strikethrough: tool.textStrikethrough,
