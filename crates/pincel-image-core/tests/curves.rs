@@ -257,14 +257,13 @@ fn a_curve_paints_only_its_band_and_heads_and_fills_its_core() {
                     if d > half + 0.5 + 0.05 && !in_head {
                         assert_eq!(c[3], 0, "{dash:?} {start:?} {end:?}: ({x}, {y}) at {d}");
                     }
-                    let near_end = [BENT[0], BENT[3]]
-                        .iter()
-                        .any(|e| (e.x - x).hypot(e.y - y) <= half + 0.5 + len);
-                    let roundish = start == LineCap::Round && end == LineCap::Round;
-                    if dash == DashPattern::Solid
-                        && d < half - 0.5 - 0.05
-                        && (roundish || !near_end)
-                    {
+                    // Excused near an end: w / 2 + 0.5 px (AC-05), and the
+                    // length of an arrow head, which tapers to its tip.
+                    let near_end = [(BENT[0], start), (BENT[3], end)].iter().any(|(e, cap)| {
+                        let reach = half + 0.5 + if *cap == LineCap::Arrow { len } else { 0.0 };
+                        *cap != LineCap::Round && (e.x - x).hypot(e.y - y) <= reach
+                    });
+                    if dash == DashPattern::Solid && d < half - 0.5 - 0.05 && !near_end {
                         assert_eq!(c[3], 255, "{start:?} {end:?}: core ({x}, {y}) at {d}");
                     }
                 }
@@ -667,4 +666,68 @@ fn a_curve_is_scaled_by_the_selection_coverage() {
         }
     }
     assert!(seen > 100);
+}
+
+/// AC-11 across a control point: the dash pattern runs on through the
+/// control point of a bent curve — every on and off run, measured from the
+/// start along the whole curve, is where the pattern puts it.
+#[test]
+fn the_dash_phase_runs_on_through_a_control_point() {
+    // Width 6: dash 18, gap 9, dot 6, gap 9 (period 42); the control point
+    // sits about 33 px along, mid-period.
+    let pts = [p(8.0, 62.0), p(40.0, 52.0), p(112.0, 34.0)];
+    let c = curve(&pts, LineCap::Flat, LineCap::Flat);
+    let px = draw(&CurveLine::new(
+        c.clone(),
+        style(6.0, DashPattern::DashDot, true),
+    ));
+    let poly = c.polyline();
+    let at = |s: f32| -> (f32, f32) {
+        let mut walked = 0.0;
+        for w in poly.windows(2) {
+            let seg = w[0].distance(w[1]);
+            if walked + seg >= s {
+                let t = (s - walked) / seg;
+                return (
+                    w[0].x + (w[1].x - w[0].x) * t,
+                    w[0].y + (w[1].y - w[0].y) * t,
+                );
+            }
+            walked += seg;
+        }
+        let last = poly[poly.len() - 1];
+        (last.x, last.y)
+    };
+    let alpha = |(x, y): (f32, f32)| px[(y.floor() as u32 * W + x.floor() as u32) as usize][3];
+    let length = c.length();
+    // The control point's arc position is not on a period boundary.
+    let ctrl_at = poly
+        .windows(2)
+        .scan(0.0, |acc, w| {
+            *acc += w[0].distance(w[1]);
+            Some((*acc, w[1]))
+        })
+        .find(|(_, q)| q.distance(pts[1]) < 0.05)
+        .map(|(s, _)| s)
+        .expect("the control point is a vertex");
+    assert!(ctrl_at % 42.0 > 3.0 && ctrl_at % 42.0 < 39.0, "{ctrl_at}");
+    let (mut on, mut off) = (0, 0);
+    let mut period = 0.0;
+    while period + 42.0 <= length - 3.0 {
+        for (mid, painted) in [(9.0, true), (22.5, false), (30.0, true), (37.5, false)] {
+            let a = alpha(at(period + mid));
+            if painted {
+                assert!(a > 200, "on at {}: {a}", period + mid);
+                on += 1;
+            } else {
+                assert_eq!(a, 0, "off at {}", period + mid);
+                off += 1;
+            }
+        }
+        period += 42.0;
+    }
+    assert!(
+        on >= 4 && off >= 4,
+        "runs on both sides of the control point"
+    );
 }

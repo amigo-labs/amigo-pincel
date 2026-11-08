@@ -10,7 +10,8 @@ export type LiveObjectSpec = { "type": "shape",
  */
 layer: number, 
 /**
- * `line`, `rectangle`, `rounded_rectangle`, `ellipse` or `polygon`.
+ * `line`, `rectangle`, `rounded_rectangle`, `ellipse`, `polygon`,
+ * `triangle`, `diamond`, `star`, `block_arrow`, `heart` or `callout`.
  */
 shape: string, 
 /**
@@ -18,28 +19,41 @@ shape: string,
  */
 points: [[number, number], [number, number]], corner_radius: number, sides: number, 
 /**
- * A star's points and inner radius ratio (kept for every kind).
+ * A star's points, 3–50 (kept for every kind).
  */
-star_points: number, inner_ratio: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+star_points: number, 
+/**
+ * A star's inner radius as a share of the outer one, 0.1–0.9
+ * (kept for every kind).
+ */
+inner_ratio: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
 /**
  * A line's control points between the endpoints, in order
  * (docs/specs/image-shapes-curves.md); empty otherwise.
  */
 control: Array<[number, number]>, 
 /**
- * A line's caps: `round`, `flat` or `arrow`.
+ * A line's start cap: `round`, `flat` or `arrow`.
  */
-start_cap: string, end_cap: string, 
+start_cap: string, 
+/**
+ * A line's end cap: `round`, `flat` or `arrow`.
+ */
+end_cap: string, 
 /**
  * The line's curve as the core flattens and draws it, for the
  * editor's hit-testing of the stroke; empty for a box shape.
  */
 polyline: Array<[number, number]>, 
 /**
- * Where the line's move grip is anchored — the curve's midpoint by
- * arc length — and the unit normal there (AC-22); zero for a box.
+ * Where the line's move grip is anchored: the curve's midpoint by
+ * arc length (image-shapes-curves AC-22); zero for a box.
  */
-grip_anchor: [number, number], grip_normal: [number, number], } | { "type": "text", 
+grip_anchor: [number, number], 
+/**
+ * The curve's unit normal at `grip_anchor`; zero for a box.
+ */
+grip_normal: [number, number], } | { "type": "text", 
 /**
  * The layer it is drawn into.
  */

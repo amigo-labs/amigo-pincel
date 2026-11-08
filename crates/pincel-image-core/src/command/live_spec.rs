@@ -21,14 +21,17 @@ pub enum LiveObjectSpec {
     Shape {
         /// The layer it is drawn into.
         layer: usize,
-        /// `line`, `rectangle`, `rounded_rectangle`, `ellipse` or `polygon`.
+        /// `line`, `rectangle`, `rounded_rectangle`, `ellipse`, `polygon`,
+        /// `triangle`, `diamond`, `star`, `block_arrow`, `heart` or `callout`.
         shape: String,
         /// Endpoints or opposite box corners.
         points: [[f32; 2]; 2],
         corner_radius: f32,
         sides: u32,
-        /// A star's points and inner radius ratio (kept for every kind).
+        /// A star's points, 3–50 (kept for every kind).
         star_points: u32,
+        /// A star's inner radius as a share of the outer one, 0.1–0.9
+        /// (kept for every kind).
         inner_ratio: f32,
         mode: String,
         stroke_width: f32,
@@ -39,15 +42,17 @@ pub enum LiveObjectSpec {
         /// A line's control points between the endpoints, in order
         /// (docs/specs/image-shapes-curves.md); empty otherwise.
         control: Vec<[f32; 2]>,
-        /// A line's caps: `round`, `flat` or `arrow`.
+        /// A line's start cap: `round`, `flat` or `arrow`.
         start_cap: String,
+        /// A line's end cap: `round`, `flat` or `arrow`.
         end_cap: String,
         /// The line's curve as the core flattens and draws it, for the
         /// editor's hit-testing of the stroke; empty for a box shape.
         polyline: Vec<[f32; 2]>,
-        /// Where the line's move grip is anchored — the curve's midpoint by
-        /// arc length — and the unit normal there (AC-22); zero for a box.
+        /// Where the line's move grip is anchored: the curve's midpoint by
+        /// arc length (image-shapes-curves AC-22); zero for a box.
         grip_anchor: [f32; 2],
+        /// The curve's unit normal at `grip_anchor`; zero for a box.
         grip_normal: [f32; 2],
     },
     /// A live text: `x`, `y` are the top-left of its box.

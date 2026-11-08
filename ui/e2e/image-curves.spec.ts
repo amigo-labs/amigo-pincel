@@ -401,6 +401,34 @@ test.describe('touch', () => {
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
   }
 
+  async function tap(cdp: CDPSession, [x, y]: [number, number]): Promise<void> {
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [{ x, y, id: 1 }],
+    });
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+
+  test('a double-tap removes a control point as one step; on an endpoint it does nothing (AC-04)', async ({
+    page,
+  }) => {
+    await liveLine(page);
+    const cdp = await page.context().newCDPSession(page);
+    await touchDrag(cdp, await at(page, [0.5, 0.7]), await at(page, [0.5, 0.35]));
+    await expect(handles(page)).toHaveCount(4);
+    const end = await handleAt(page, 'end0');
+    await tap(cdp, end);
+    await tap(cdp, end);
+    await expect(handles(page)).toHaveCount(4);
+    expect(await handleAt(page, 'end0')).toEqual(end);
+    const ctrl = await handleAt(page, 'ctrl0');
+    await tap(cdp, ctrl);
+    await tap(cdp, ctrl);
+    await expect(handles(page)).toHaveCount(3);
+    await undoButton(page).click();
+    await expect(handles(page)).toHaveCount(4);
+  });
+
   test('a touch on the stroke reaches 16 CSS px (AC-02)', async ({ page }) => {
     await liveLine(page, 1);
     const cdp = await page.context().newCDPSession(page);

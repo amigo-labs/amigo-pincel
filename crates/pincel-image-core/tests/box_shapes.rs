@@ -4,7 +4,7 @@
 
 use pincel_image_core::{
     Color, CommandBus, DashPattern, Document, ImageBuffer, Point, Rect, SelectionMask, Shape,
-    ShapeMode, ShapeStyle, Shapes,
+    ShapeMode, ShapeStyle, Shapes, box_outline,
 };
 
 const W: u32 = 80;
@@ -215,6 +215,16 @@ fn a_block_arrow_points_from_the_drag_start_along_the_longer_side() {
             end: p(r, t),
         },
         &up,
+    );
+    // Dragged downward (start at the top), it points down: the mirror image
+    // of the up arrow.
+    let down: Vec<Point> = up.iter().map(|q| p(q.x, t + b - q.y)).collect();
+    fill_matches(
+        Shape::BlockArrow {
+            start: p(l, t),
+            end: p(r, b),
+        },
+        &down,
     );
     // A tie (square box) points horizontally.
     let px = draw(
@@ -507,6 +517,144 @@ fn zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside() {
                     x > 30.0 - reach && x < 36.0 + reach && y > 30.0 - reach && y < 36.0 + reach;
                 assert!(c[3] == 0 || inside, "{shape:?}: stray pixel at ({x}, {y})");
             }
+        }
+    }
+}
+
+/// AC-09 for the shapes flattened from curves, and with an outline: the
+/// anti-aliased band against the outline polygon the core draws (its
+/// distance to the exact curve stays below 0.1 px).
+#[test]
+fn heart_and_callout_fill_their_outline_and_outlines_stay_in_their_band() {
+    let (a, b) = (p(10.0, 6.0), p(70.0, 58.0));
+    for shape in [
+        Shape::Heart { a, b },
+        Shape::Callout { start: a, end: b },
+        Shape::Callout { start: b, end: a },
+    ] {
+        let v = box_outline(&shape).expect("an outline");
+        let px = draw(shape, fill(true));
+        let mut inside = 0;
+        for y in 0..H {
+            for x in 0..W {
+                let d = sd(x as f32 + 0.5, y as f32 + 0.5, &v);
+                let a = alpha(&px, x, y);
+                if d < -0.6 {
+                    assert_eq!(a, 255, "{shape:?}: ({x}, {y}) inside at {d}");
+                    inside += 1;
+                } else if d > 0.6 {
+                    assert_eq!(a, 0, "{shape:?}: ({x}, {y}) outside at {d}");
+                }
+            }
+        }
+        assert!(inside > 100);
+    }
+    // Outlined, every new shape stays within half the stroke width (+0.5)
+    // outside its boundary.
+    for shape in all_shapes(a, b) {
+        let v = box_outline(&shape).expect("an outline");
+        let px = draw(shape, style(ShapeMode::FillAndOutline, 3.0, true));
+        for y in 0..H {
+            for x in 0..W {
+                let d = sd(x as f32 + 0.5, y as f32 + 0.5, &v);
+                if d > 0.5 + 1.5 + 0.1 {
+                    assert_eq!(alpha(&px, x, y), 0, "{shape:?}: ({x}, {y}) at {d}");
+                }
+            }
+        }
+    }
+}
+
+/// AC-13 with partial coverage: a selection pixel at coverage 128 lets each
+/// new shape through at about half its coverage, coverage 0 not at all.
+#[test]
+fn new_shapes_are_scaled_by_the_selection_coverage() {
+    let mut data = vec![0u8; (W * H) as usize];
+    for y in 0..H {
+        for x in 0..40 {
+            data[(y * W + x) as usize] = 128;
+        }
+    }
+    let mask = SelectionMask::from_raw(W, H, data).expect("mask");
+    for shape in all_shapes(p(10.0, 6.0), p(70.0, 58.0)) {
+        let s = style(ShapeMode::Fill, 1.0, true);
+        let free = draw(shape, s);
+        let half = draw_sel(shape, s, Some(mask.clone())).expect("draws");
+        let mut seen = 0;
+        for (i, (f, h)) in free.iter().zip(&half).enumerate() {
+            if (i as u32 % W) < 40 {
+                let want = f32::from(f[3]) * 128.0 / 255.0;
+                assert!(
+                    (f32::from(h[3]) - want).abs() <= 1.0,
+                    "{shape:?} pixel {i}: {} vs {want}",
+                    h[3]
+                );
+                if f[3] > 0 {
+                    assert_eq!(&h[..3], &f[..3], "{shape:?} pixel {i}");
+                    seen += 1;
+                }
+            } else {
+                assert_eq!(h[3], 0, "{shape:?}: pixel {i} at coverage 0 changed");
+            }
+        }
+        assert!(seen > 20, "{shape:?}");
+    }
+}
+
+/// AC-08 at the tool opacity (which reaches the core as the colors' alpha):
+/// half-transparent outline and fill over an opaque background blend as they
+/// do for a Rectangle.
+#[test]
+fn new_shapes_blend_at_the_tool_opacity_like_the_existing_ones() {
+    let half_red = Color::rgba(220, 0, 0, 128);
+    let half_blue = Color::rgba(0, 0, 230, 128);
+    let paint = |shape: Shape, mode: ShapeMode| {
+        let mut doc = Document::from_pixels(
+            ImageBuffer::from_raw(W, H, [250, 250, 250, 255].repeat((W * H) as usize))
+                .expect("buffer"),
+        )
+        .expect("doc");
+        doc.selection = None;
+        let mut bus = CommandBus::new(doc);
+        let st = ShapeStyle {
+            mode,
+            stroke_width: 4.0,
+            stroke_color: half_red,
+            fill_color: half_blue,
+            anti_alias: false,
+            ..ShapeStyle::default()
+        };
+        let cmd = Shapes::new(shape, st)
+            .draw(0, &bus.document)
+            .expect("draws");
+        bus.apply(Box::new(cmd)).expect("apply");
+        bus.document.layers()[0]
+            .pixels
+            .data()
+            .as_chunks::<4>()
+            .0
+            .to_vec()
+    };
+    let colors = |px: &[[u8; 4]]| {
+        let mut c: Vec<[u8; 4]> = px
+            .iter()
+            .copied()
+            .filter(|c| c != &[250, 250, 250, 255])
+            .collect();
+        c.sort_unstable();
+        c.dedup();
+        c
+    };
+    let rect = Shape::Rectangle {
+        a: p(10.0, 6.0),
+        b: p(70.0, 58.0),
+    };
+    // Anti-alias off: each mode paints exactly the colors a Rectangle paints.
+    for mode in [ShapeMode::Fill, ShapeMode::Outline] {
+        let want = colors(&paint(rect, mode));
+        assert_eq!(want.len(), 1, "{mode:?}: one blended color");
+        for shape in all_shapes(p(10.0, 6.0), p(70.0, 58.0)) {
+            assert_eq!(colors(&paint(shape, mode)), want, "{shape:?} {mode:?}");
         }
     }
 }

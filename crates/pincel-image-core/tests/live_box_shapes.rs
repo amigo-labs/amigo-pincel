@@ -169,3 +169,32 @@ fn box_edits_of_an_arrow_or_a_callout_reapply_start_corner_and_axis() {
         }
     }
 }
+
+/// AC-04 in a box that is not square: the star is centred in the box with
+/// its outer radius half the shorter side.
+#[test]
+fn a_star_in_a_wide_box_takes_half_the_shorter_side() {
+    use pincel_image_core::{Point, Shape, ShapeMode, ShapeStyle, Shapes};
+    let live = begun("star", [12.0, 8.0], [80.0, 62.0]);
+    let mut b = bus();
+    let style = ShapeStyle {
+        mode: ShapeMode::FillAndOutline,
+        stroke_width: 3.0,
+        stroke_color: pincel_image_core::Color::rgba(200, 0, 0, 255),
+        fill_color: pincel_image_core::Color::rgba(0, 0, 200, 255),
+        anti_alias: true,
+        ..ShapeStyle::default()
+    };
+    let star = Shape::Star {
+        center: Point::new(46.0, 35.0),
+        radius: 27.0,
+        points: 7,
+        inner_ratio: 0.5,
+        rotation: 0.0,
+    };
+    let cmd = Shapes::new(star, style)
+        .draw(0, &b.document)
+        .expect("draws");
+    b.apply(Box::new(cmd)).expect("apply");
+    assert_eq!(live, pixels(&b));
+}
