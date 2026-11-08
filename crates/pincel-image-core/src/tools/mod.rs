@@ -119,6 +119,11 @@ pub struct Brush {
     /// The flat nib follows the pen's azimuth instead of `angle` wherever
     /// the pen reports tilt.
     pub follow_tilt: bool,
+    /// The hard round tip blends its edge pixels by how much of them it
+    /// covers; off, a pixel is painted exactly when its centre lies inside
+    /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03). Soft and
+    /// flat tips are unaffected (AC-04).
+    pub anti_alias: bool,
 }
 
 impl Brush {
@@ -133,6 +138,7 @@ impl Brush {
             dynamics: PressureDynamics::default(),
             angle: DEFAULT_BRUSH_ANGLE,
             follow_tilt: false,
+            anti_alias: false,
         }
     }
 
@@ -149,6 +155,12 @@ impl Brush {
     /// Lets the flat nib follow the pen's azimuth.
     pub fn with_follow_tilt(mut self, follow: bool) -> Self {
         self.follow_tilt = follow;
+        self
+    }
+
+    /// Returns this brush with its hard round edge anti-aliased or hard.
+    pub fn with_anti_alias(mut self, anti_alias: bool) -> Self {
+        self.anti_alias = anti_alias;
         self
     }
 
@@ -200,6 +212,11 @@ impl Brush {
     /// at offset `(dx, dy)` from its center.
     fn coverage(&self, dx: f32, dy: f32, radius: f32, (cos, sin): (f32, f32)) -> f32 {
         match self.shape {
+            BrushShape::HardRound if self.anti_alias => {
+                // The share of the pixel inside the circle, approximated by
+                // the centre's distance to the edge.
+                (radius - (dx * dx + dy * dy).sqrt() + 0.5).clamp(0.0, 1.0)
+            }
             BrushShape::HardRound => {
                 if dx * dx + dy * dy <= radius * radius {
                     1.0

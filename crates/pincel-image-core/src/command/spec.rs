@@ -302,6 +302,10 @@ pub enum CommandSpec {
         /// The flat nib follows the pen azimuth.
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         /// Identifies the pointer drag; segments sharing it merge into one undo
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
@@ -339,6 +343,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A smudge stroke: carries color along the stroke (spec §5.4).
@@ -367,6 +375,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A Clone Stamp stroke: copies the pixels `offset` away through the
@@ -399,6 +411,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// An eraser stroke over a polyline of `[x, y]` points.
@@ -429,6 +445,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A flood fill seeded at `[x, y]`.
@@ -513,6 +533,9 @@ pub enum CommandSpec {
         mode: String,
         #[serde(default)]
         feather: u32,
+        /// Anti-aliased outline (image-edit-extras-tool-options AC-06).
+        #[serde(default)]
+        anti_alias: bool,
     },
     /// Polygonal selection over `points` ([x, y] each) combined per `mode`.
     SelectPolygon {
@@ -521,6 +544,9 @@ pub enum CommandSpec {
         mode: String,
         #[serde(default)]
         feather: u32,
+        /// Anti-aliased outline (image-edit-extras-tool-options AC-06).
+        #[serde(default)]
+        anti_alias: bool,
     },
     /// Magic-wand selection seeded at `(x, y)` on `layer`, combined per `mode`.
     SelectWand {
@@ -933,6 +959,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let brush = Brush::new(
@@ -947,7 +974,8 @@ pub fn run_command(
                 opacity: pressure_opacity,
             })
             .with_angle(angle)
-            .with_follow_tilt(tilt_angle);
+            .with_follow_tilt(tilt_angle)
+            .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
@@ -975,6 +1003,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let replacement = Color::rgba(to[0], to[1], to[2], to[3]);
@@ -986,7 +1015,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
@@ -1021,6 +1051,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
@@ -1031,7 +1062,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
@@ -1067,6 +1099,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
@@ -1077,7 +1110,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let eraser = Eraser::new(brush, parse_eraser_mode(&mode)).with_background(Color::rgba(
                 background[0],
                 background[1],
@@ -1222,9 +1256,15 @@ pub fn run_command(
             h,
             mode,
             feather,
+            anti_alias,
         } => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
-            let mut shape = SelectionMask::ellipse(cw, ch, Rect::new(x, y, w, h));
+            let rect = Rect::new(x, y, w, h);
+            let mut shape = if anti_alias {
+                SelectionMask::ellipse_aa(cw, ch, rect)
+            } else {
+                SelectionMask::ellipse(cw, ch, rect)
+            };
             shape.feather(feather);
             apply_selection(
                 bus,
@@ -1237,10 +1277,15 @@ pub fn run_command(
             points,
             mode,
             feather,
+            anti_alias,
         } => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            let mut shape = SelectionMask::polygon(cw, ch, &pts);
+            let mut shape = if anti_alias {
+                SelectionMask::polygon_aa(cw, ch, &pts)
+            } else {
+                SelectionMask::polygon(cw, ch, &pts)
+            };
             shape.feather(feather);
             apply_selection(
                 bus,

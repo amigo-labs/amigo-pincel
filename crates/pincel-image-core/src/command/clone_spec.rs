@@ -28,6 +28,7 @@ pub(super) fn run(
         azimuth,
         angle,
         tilt_angle,
+        anti_alias,
         stroke_id,
     } = spec
     else {
@@ -41,7 +42,8 @@ pub(super) fn run(
             opacity: pressure_opacity,
         })
         .with_angle(angle)
-        .with_follow_tilt(tilt_angle);
+        .with_follow_tilt(tilt_angle)
+        .with_anti_alias(anti_alias);
     let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
     let azimuth = azimuth_samples(&azimuth);
     let pen = PenSamples {
