@@ -142,6 +142,9 @@ pub struct LiveEdit {
     pub strikethrough: Option<bool>,
     /// New text alignment.
     pub align: Option<crate::TextAlign>,
+    /// New Normal / Overwrite blending
+    /// (docs/specs/image-edit-extras-tool-options.md).
+    pub blend: Option<crate::Blend>,
 }
 
 /// Parameter groups whose consecutive edits merge into one step (AC-03).
@@ -167,13 +170,22 @@ mod group {
     pub const UNDERLINE: u32 = 1 << 18;
     pub const STRIKETHROUGH: u32 = 1 << 19;
     pub const ALIGN: u32 = 1 << 20;
+    pub const BLEND: u32 = 1 << 21;
 
     /// What a Line or box shape accepts.
-    pub const SHAPE_FIELDS: u32 =
-        GEOMETRY | SHAPE | MODE | STROKE_WIDTH | DASH | ANTI_ALIAS | CORNER_RADIUS | SIDES | COLORS;
+    pub const SHAPE_FIELDS: u32 = GEOMETRY
+        | SHAPE
+        | MODE
+        | STROKE_WIDTH
+        | DASH
+        | ANTI_ALIAS
+        | CORNER_RADIUS
+        | SIDES
+        | COLORS
+        | BLEND;
     /// What a gradient accepts.
     pub const GRADIENT_FIELDS: u32 =
-        GEOMETRY | GRADIENT_KIND | GRADIENT_CHANNEL | GRADIENT_COLORS | GRADIENT_OPACITY;
+        GEOMETRY | GRADIENT_KIND | GRADIENT_CHANNEL | GRADIENT_COLORS | GRADIENT_OPACITY | BLEND;
     /// What a text accepts.
     pub const TEXT_FIELDS: u32 = GEOMETRY
         | ANTI_ALIAS
@@ -184,7 +196,8 @@ mod group {
         | ITALIC
         | UNDERLINE
         | STRIKETHROUGH
-        | ALIGN;
+        | ALIGN
+        | BLEND;
 }
 
 impl LiveEdit {
@@ -223,6 +236,7 @@ impl LiveEdit {
         add(self.underline.is_some(), group::UNDERLINE);
         add(self.strikethrough.is_some(), group::STRIKETHROUGH);
         add(self.align.is_some(), group::ALIGN);
+        add(self.blend.is_some(), group::BLEND);
         g
     }
 }
@@ -323,6 +337,7 @@ impl LiveParams {
                 st.anti_alias = edit.anti_alias.unwrap_or(st.anti_alias);
                 st.stroke_color = edit.stroke_color.unwrap_or(st.stroke_color);
                 st.fill_color = edit.fill_color.unwrap_or(st.fill_color);
+                st.blend = edit.blend.unwrap_or(st.blend);
                 s.corner_radius = edit.corner_radius.unwrap_or(s.corner_radius);
                 s.sides = edit.sides.unwrap_or(s.sides);
             }
@@ -337,6 +352,7 @@ impl LiveParams {
                 gr.from = edit.gradient_from.unwrap_or(gr.from);
                 gr.to = edit.gradient_to.unwrap_or(gr.to);
                 gr.opacity = edit.gradient_opacity.unwrap_or(gr.opacity);
+                gr.blend = edit.blend.unwrap_or(gr.blend);
             }
             LiveParams::Text(t) => {
                 if let Some([at, _]) = edit.points {
@@ -355,6 +371,7 @@ impl LiveParams {
                 st.strikethrough = edit.strikethrough.unwrap_or(st.strikethrough);
                 st.align = edit.align.unwrap_or(st.align);
                 st.anti_alias = edit.anti_alias.unwrap_or(st.anti_alias);
+                st.blend = edit.blend.unwrap_or(st.blend);
             }
         }
         Ok(out.clamped())

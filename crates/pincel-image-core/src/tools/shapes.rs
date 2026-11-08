@@ -8,7 +8,7 @@
 //! on-segments along the perimeter polyline. The Arrow shape (spec §9.2) is
 //! deferred to a follow-up task.
 
-use super::src_over;
+use super::Blend;
 use crate::color::Color;
 use crate::command::HistoryKind;
 use crate::command::SetPixels;
@@ -117,6 +117,9 @@ pub struct ShapeStyle {
     pub anti_alias: bool,
     /// Outline dash pattern (solid by default).
     pub dash: DashPattern,
+    /// Normal or Overwrite (docs/specs/image-edit-extras-tool-options.md);
+    /// under Overwrite the outline overwrites the fill where they overlap.
+    pub blend: Blend,
 }
 
 impl Default for ShapeStyle {
@@ -128,6 +131,7 @@ impl Default for ShapeStyle {
             fill_color: Color::TRANSPARENT,
             anti_alias: true,
             dash: DashPattern::Solid,
+            blend: crate::tools::Blend::Normal,
         }
     }
 }
@@ -179,6 +183,7 @@ impl Shapes {
             _ => None,
         };
         let mut after = layer.pixels.copy_region(region).ok()?;
+        let blend = self.style.blend;
 
         for ly in 0..region.h {
             for lx in 0..region.w {
@@ -209,12 +214,12 @@ impl Shapes {
                 let dst = after.get_pixel(lx, ly).unwrap_or(Color::TRANSPARENT);
                 let mut out = dst;
                 if fill_cov > 0.0 {
-                    let sa = self.style.fill_color.a as f32 / 255.0 * fill_cov * sel;
-                    out = src_over(self.style.fill_color, sa, out);
+                    let pa = self.style.fill_color.a as f32 / 255.0;
+                    out = blend.paint(self.style.fill_color, pa, fill_cov * sel, out);
                 }
                 if stroke_cov > 0.0 {
-                    let sa = self.style.stroke_color.a as f32 / 255.0 * stroke_cov * sel;
-                    out = src_over(self.style.stroke_color, sa, out);
+                    let pa = self.style.stroke_color.a as f32 / 255.0;
+                    out = blend.paint(self.style.stroke_color, pa, stroke_cov * sel, out);
                 }
                 after.set_pixel(lx, ly, out);
             }
@@ -937,6 +942,7 @@ mod tests {
             stroke_width: 2.0,
             anti_alias: false,
             dash: DashPattern::Solid,
+            blend: crate::tools::Blend::Normal,
         };
         let mut cmd = Shapes::new(shape, style).draw(0, &doc).unwrap();
         cmd.apply(&mut doc).unwrap();
@@ -1048,6 +1054,7 @@ mod tests {
             stroke_width: 3.0,
             anti_alias: false,
             dash: DashPattern::Dashed,
+            blend: crate::tools::Blend::Normal,
         };
         let shape = Shape::Rectangle {
             a: Point::new(10.0, 10.0),

@@ -18,11 +18,12 @@ use super::{
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
-    BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode, Fill,
-    FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil,
-    Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask,
-    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
-    TextStyle, apply_mode, delete_selection, fill_selection, magic_wand,
+    Blend, BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode,
+    Fill, FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move,
+    OverwriteMemory, PenSamples, Pencil, Point, PressureDynamics, Recolor, RecolorOrigins, Rect,
+    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge,
+    SmudgeCarry, Text, TextAlign, TextStyle, apply_mode, delete_selection, fill_selection,
+    magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -33,6 +34,9 @@ pub struct StrokeScratch {
     smudge: SmudgeCarry,
     recolor: RecolorOrigins,
     pub(super) clone: CloneSnapshot,
+    /// An Overwrite Brush drag's pixels before it and highest coverage
+    /// (docs/specs/image-edit-extras-tool-options.md AC-11, AC-12).
+    overwrite: OverwriteMemory,
 }
 
 impl StrokeScratch {
@@ -43,6 +47,7 @@ impl StrokeScratch {
             self.smudge.clear();
             self.recolor.clear();
             self.clone.clear();
+            self.overwrite.clear();
         }
     }
 }
@@ -219,6 +224,19 @@ fn default_dash() -> String {
     "solid".to_string()
 }
 
+fn default_blend() -> String {
+    "normal".to_string()
+}
+
+/// Maps a blend string to a [`Blend`]; anything but `overwrite` is Normal.
+pub(super) fn parse_blend(s: &str) -> Blend {
+    if s == "overwrite" {
+        Blend::Overwrite
+    } else {
+        Blend::Normal
+    }
+}
+
 /// Maps a dash-pattern string to a [`DashPattern`], defaulting to solid.
 pub(super) fn parse_dash(s: &str) -> DashPattern {
     match s {
@@ -306,6 +324,9 @@ pub enum CommandSpec {
         /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
         #[serde(default)]
         anti_alias: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
         /// Identifies the pointer drag; segments sharing it merge into one undo
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
@@ -462,6 +483,9 @@ pub enum CommandSpec {
         sample: String,
         x: f32,
         y: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Translate a layer's contents by `(dx, dy)` pixels (the Move tool).
     TranslateLayer { layer: usize, dx: i32, dy: i32 },
@@ -635,6 +659,9 @@ pub enum CommandSpec {
         anti_alias: bool,
         #[serde(default = "default_dash")]
         dash: String,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
     /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
@@ -654,6 +681,9 @@ pub enum CommandSpec {
         to: [u8; 4],
         #[serde(default = "default_opacity")]
         opacity: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Begin a live Line or box shape (docs/specs/image-live-objects.md):
     /// drawn as `draw_shape` draws it, but editable until `commit_live`.
@@ -680,6 +710,9 @@ pub enum CommandSpec {
         anti_alias: bool,
         #[serde(default = "default_dash")]
         dash: String,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Begin a live gradient along `(x0, y0)` -> `(x1, y1)`, drawn as
     /// `draw_gradient` draws it (docs/specs/image-live-objects.md).
@@ -699,6 +732,9 @@ pub enum CommandSpec {
         to: [u8; 4],
         #[serde(default = "default_opacity")]
         opacity: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Edit the live object: absent fields keep their value. Edits sharing
     /// a `gesture` (one handle drag), or consecutive edits of one parameter
@@ -778,6 +814,9 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         align: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        blend: Option<String>,
     },
     /// Begin a live text (docs/specs/image-live-text.md): `(x, y)` is the
     /// top-left of its box for every alignment, `font_id` a `register_font`
@@ -804,6 +843,9 @@ pub enum CommandSpec {
         underline: bool,
         #[serde(default)]
         strikethrough: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Commit the live object: its steps become one (or none, if it changes
     /// no pixel).
@@ -840,6 +882,9 @@ pub enum CommandSpec {
         /// A stroke through each line's lowercase letters.
         #[serde(default)]
         strikethrough: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
 }
 
@@ -960,6 +1005,7 @@ pub fn run_command(
             angle,
             tilt_angle,
             anti_alias,
+            blend,
             stroke_id,
         } => {
             let brush = Brush::new(
@@ -982,7 +1028,16 @@ pub fn run_command(
                 pressure: &pressure,
                 azimuth: &azimuth,
             };
-            match Pencil::new(brush).stroke_with_pen(layer, &pts, pen, &bus.document) {
+            scratch.rewind(stroke_id);
+            let brush = brush.with_blend(parse_blend(&blend));
+            let painted = Pencil::new(brush).stroke_with_memory(
+                layer,
+                &pts,
+                pen,
+                &bus.document,
+                &mut scratch.overwrite,
+            );
+            match painted {
                 Some(cmd) => bus.apply(Box::new(cmd.with_stroke(stroke_id))),
                 None => Ok(()), // stroke missed the canvas — no-op
             }
@@ -1138,6 +1193,7 @@ pub fn run_command(
             sample,
             x,
             y,
+            blend,
         } => {
             let options = FillOptions {
                 tolerance,
@@ -1145,7 +1201,8 @@ pub fn run_command(
                 sample: parse_sample(&sample),
             };
             let fill = Fill::new(Color::rgba(color[0], color[1], color[2], color[3]), options)
-                .with_opacity(opacity);
+                .with_opacity(opacity)
+                .with_blend(parse_blend(&blend));
             match fill.fill(layer, Point::new(x, y), &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()),
@@ -1418,6 +1475,7 @@ pub fn run_command(
             fill_color,
             anti_alias,
             dash,
+            blend,
         } => {
             let corner = |i: usize| points.get(i).map(|q| Point::new(q[0], q[1]));
             // line / rectangle / rounded_rectangle / ellipse take `points[0..2]`.
@@ -1458,6 +1516,7 @@ pub fn run_command(
                 fill_color: Color::rgba(fill_color[0], fill_color[1], fill_color[2], fill_color[3]),
                 anti_alias,
                 dash: parse_dash(&dash),
+                blend: parse_blend(&blend),
             };
             match built.and_then(|s| Shapes::new(s, style).draw(layer, &bus.document)) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
@@ -1475,6 +1534,7 @@ pub fn run_command(
             from,
             to,
             opacity,
+            blend,
         } => {
             let tool = Gradient {
                 kind: parse_gradient_kind(&kind),
@@ -1482,6 +1542,7 @@ pub fn run_command(
                 from: Color::rgba(from[0], from[1], from[2], from[3]),
                 to: Color::rgba(to[0], to[1], to[2], to[3]),
                 opacity,
+                blend: parse_blend(&blend),
             };
             let a = Point::new(x0, y0);
             let b = Point::new(x1, y1);
@@ -1502,6 +1563,7 @@ pub fn run_command(
             fill_color,
             anti_alias,
             dash,
+            blend,
         } => {
             let Some(kind) = super::live_spec::parse_live_shape(&shape) else {
                 return Ok(()); // unknown shape: a no-op, as for draw_shape
@@ -1517,6 +1579,7 @@ pub fn run_command(
                     fill_color: rgba(fill_color),
                     anti_alias,
                     dash: parse_dash(&dash),
+                    blend: parse_blend(&blend),
                 },
                 corner_radius,
                 sides,
@@ -1534,6 +1597,7 @@ pub fn run_command(
             from,
             to,
             opacity,
+            blend,
         } => {
             let params = super::LiveParams::Gradient(super::LiveGradient {
                 gradient: Gradient {
@@ -1542,6 +1606,7 @@ pub fn run_command(
                     from: rgba(from),
                     to: rgba(to),
                     opacity,
+                    blend: parse_blend(&blend),
                 },
                 a: Point::new(x0, y0),
                 b: Point::new(x1, y1),
@@ -1573,6 +1638,7 @@ pub fn run_command(
             underline,
             strikethrough,
             align,
+            blend,
         } => {
             let shape = match shape {
                 Some(s) => Some(
@@ -1605,6 +1671,7 @@ pub fn run_command(
                 underline,
                 strikethrough,
                 align: align.as_deref().map(parse_text_align),
+                blend: blend.as_deref().map(parse_blend),
             };
             bus.edit_live(&edit, gesture)
         }
@@ -1622,6 +1689,7 @@ pub fn run_command(
             align,
             underline,
             strikethrough,
+            blend,
         } => {
             let Some(bytes) = fonts.get(font_id as usize) else {
                 return Ok(()); // unknown font: a no-op, as for draw_text
@@ -1639,6 +1707,7 @@ pub fn run_command(
                     align: parse_text_align(&align),
                     underline,
                     strikethrough,
+                    blend: parse_blend(&blend),
                 },
                 font: super::LiveFont {
                     id: font_id,
@@ -1664,6 +1733,7 @@ pub fn run_command(
             align,
             underline,
             strikethrough,
+            blend,
         } => {
             let style = TextStyle {
                 size,
@@ -1674,6 +1744,7 @@ pub fn run_command(
                 align: parse_text_align(&align),
                 underline,
                 strikethrough,
+                blend: parse_blend(&blend),
             };
             let cmd = fonts.get(font_id as usize).and_then(|bytes| {
                 Text::new(text, Point::new(x, y), style).render(layer, &bus.document, bytes)

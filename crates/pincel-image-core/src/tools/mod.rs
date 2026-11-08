@@ -124,6 +124,10 @@ pub struct Brush {
     /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03). Soft and
     /// flat tips are unaffected (AC-04).
     pub anti_alias: bool,
+    /// Normal composites the paint over the layer; Overwrite replaces the
+    /// pixels, alpha included (docs/specs/image-edit-extras-tool-options.md).
+    /// Only the Pencil (Brush) reads it.
+    pub blend: Blend,
 }
 
 impl Brush {
@@ -139,6 +143,7 @@ impl Brush {
             angle: DEFAULT_BRUSH_ANGLE,
             follow_tilt: false,
             anti_alias: false,
+            blend: Blend::Normal,
         }
     }
 
@@ -161,6 +166,12 @@ impl Brush {
     /// Returns this brush with its hard round edge anti-aliased or hard.
     pub fn with_anti_alias(mut self, anti_alias: bool) -> Self {
         self.anti_alias = anti_alias;
+        self
+    }
+
+    /// Sets how the Brush combines its paint with the layer.
+    pub fn with_blend(mut self, blend: Blend) -> Self {
+        self.blend = blend;
         self
     }
 
@@ -520,15 +531,111 @@ impl Pencil {
         pen: PenSamples,
         doc: &Document,
     ) -> Option<SetPixels> {
+        self.stroke_with_memory(
+            layer_index,
+            points,
+            pen,
+            doc,
+            &mut OverwriteMemory::default(),
+        )
+    }
+
+    /// [`Pencil::stroke_with_pen`] for a drag delivered in several calls:
+    /// under [`Blend::Overwrite`] `memory` keeps each pixel's value before
+    /// the drag and the highest coverage any dab gave it, so overlapping
+    /// dabs never build up (docs/specs/image-edit-extras-tool-options.md
+    /// AC-11, AC-12). Normal blending ignores it.
+    pub fn stroke_with_memory(
+        &self,
+        layer_index: usize,
+        points: &[Point],
+        pen: PenSamples,
+        doc: &Document,
+        memory: &mut OverwriteMemory,
+    ) -> Option<SetPixels> {
         let color = self.brush.color;
         let ca = color.a as f32 / 255.0 * self.brush.opacity;
-        let (region, after) = self
-            .brush
-            .rasterize(layer_index, points, pen, doc, ca, |p| {
-                src_over(color, p.eff, p.dst)
-            })?;
+        let (region, after) = match self.brush.blend {
+            Blend::Normal => self
+                .brush
+                .rasterize(layer_index, points, pen, doc, ca, |p| {
+                    src_over(color, p.eff, p.dst)
+                })?,
+            // Coverage alone drives the dabs; the paint alpha is the target.
+            Blend::Overwrite => self
+                .brush
+                .rasterize(layer_index, points, pen, doc, 1.0, |p| {
+                    let (before, c) = memory.reach(p.x, p.y, p.dst, p.eff);
+                    overwrite(before, color, ca, c)
+                })?,
+        };
         Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Brush))
     }
+}
+
+/// How a painting tool combines its paint with the layer
+/// (docs/specs/image-edit-extras-tool-options.md).
+#[derive(Debug, Clone, Copy, Default, PartialEq, Eq)]
+pub enum Blend {
+    /// Source-over of the paint at coverage × paint alpha.
+    #[default]
+    Normal,
+    /// Each pixel moves toward the paint, alpha included, by its coverage.
+    Overwrite,
+}
+
+impl Blend {
+    /// The paint at `pa` (0–1) over `dst` at `coverage` (0–1).
+    pub(crate) fn paint(self, paint: Color, pa: f32, coverage: f32, dst: Color) -> Color {
+        match self {
+            Self::Normal => src_over(paint, pa * coverage, dst),
+            Self::Overwrite => overwrite(dst, paint, pa, coverage),
+        }
+    }
+}
+
+/// What an Overwrite Brush drag remembers per pixel: its value before the
+/// drag and the highest coverage the drag has given it.
+#[derive(Debug, Default, Clone)]
+pub struct OverwriteMemory {
+    seen: std::collections::HashMap<(u32, u32), (Color, f32)>,
+}
+
+impl OverwriteMemory {
+    /// Forget everything; a fresh drag starts over.
+    pub fn clear(&mut self) {
+        self.seen.clear();
+    }
+
+    /// Records coverage `c` at `(x, y)` (whose current value is `now`) and
+    /// returns the pixel before the drag with the drag's highest coverage.
+    fn reach(&mut self, x: u32, y: u32, now: Color, c: f32) -> (Color, f32) {
+        let entry = self.seen.entry((x, y)).or_insert((now, 0.0));
+        entry.1 = entry.1.max(c);
+        *entry
+    }
+}
+
+/// `prev` moved toward `paint` with alpha `pa` (0–1) by coverage `c` (0–1),
+/// in premultiplied space so a transparent `prev` takes the paint's own hue.
+pub(crate) fn overwrite(prev: Color, paint: Color, pa: f32, c: f32) -> Color {
+    let c = c.clamp(0.0, 1.0);
+    let pa = pa.clamp(0.0, 1.0);
+    let da = f32::from(prev.a) / 255.0;
+    let a = da + (pa - da) * c;
+    if a <= 0.0 {
+        return Color::TRANSPARENT;
+    }
+    let ch = |d: u8, s: u8| -> u8 {
+        let premul = f32::from(d) * da * (1.0 - c) + f32::from(s) * pa * c;
+        (premul / a).round().clamp(0.0, 255.0) as u8
+    };
+    Color::rgba(
+        ch(prev.r, paint.r),
+        ch(prev.g, paint.g),
+        ch(prev.b, paint.b),
+        (a * 255.0).round().clamp(0.0, 255.0) as u8,
+    )
 }
 
 /// Straight-alpha source-over of `src` (with effective alpha `sa`) onto `dst`.

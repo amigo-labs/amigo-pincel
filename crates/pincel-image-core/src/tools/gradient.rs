@@ -19,7 +19,7 @@ use crate::command::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
 use crate::selection::masked_region;
-use crate::tools::src_over;
+use crate::tools::Blend;
 
 /// Which way the ramp runs away from the drag (spec §5.4).
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Default)]
@@ -70,6 +70,9 @@ pub struct Gradient {
     pub to: Color,
     /// Whole-gradient opacity, 0.0–1.0.
     pub opacity: f32,
+    /// Normal or Overwrite for the Color channel; the Transparency channel
+    /// ignores it (docs/specs/image-edit-extras-tool-options.md).
+    pub blend: Blend,
 }
 
 impl Default for Gradient {
@@ -80,6 +83,7 @@ impl Default for Gradient {
             from: Color::BLACK,
             to: Color::TRANSPARENT,
             opacity: 1.0,
+            blend: crate::tools::Blend::Normal,
         }
     }
 }
@@ -168,7 +172,7 @@ impl Gradient {
                 let alpha = (f32::from(self.from.a)
                     + (f32::from(self.to.a) - f32::from(self.from.a)) * t)
                     / 255.0;
-                src_over(color, alpha * self.opacity, dst)
+                self.blend.paint(color, alpha * self.opacity, 1.0, dst)
             }
             GradientChannel::Transparency => {
                 // t = 0 keeps the pixel, t = 1 clears it.
@@ -352,6 +356,7 @@ mod tests {
             from: Color::rgba(200, 30, 10, 255),
             to: Color::rgba(10, 60, 240, 128),
             opacity: 0.8,
+            blend: crate::tools::Blend::Normal,
         }
         .draw(0, Point::new(1.25, 2.5), Point::new(7.5, 5.75), &doc)
         .unwrap();

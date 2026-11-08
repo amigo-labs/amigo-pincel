@@ -44,6 +44,7 @@ fn style() -> ShapeStyle {
         fill_color: Color::rgba(10, 200, 10, 180),
         anti_alias: true,
         dash: DashPattern::Solid,
+        blend: pincel_image_core::Blend::Normal,
     }
 }
 
@@ -77,6 +78,7 @@ fn gradient(channel: GradientChannel, a: Point, b: Point) -> LiveParams {
             from: Color::rgba(255, 0, 0, 255),
             to: Color::rgba(0, 0, 255, 255),
             opacity: 0.8,
+            blend: pincel_image_core::Blend::Normal,
         },
         a,
         b,
