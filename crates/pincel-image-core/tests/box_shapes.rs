@@ -299,6 +299,21 @@ fn a_callout_is_a_body_with_a_tail_to_the_start_corner_in_one_outline() {
         // 20 % holds only the tail.
         assert_eq!(alpha(&px, 40, ((s.y + e.y) / 2.0) as u32), 255);
         assert_eq!(tip(56.0, 4.0), 0, "{start:?}: beside the tail is empty");
+        // The body starts at 20 % of H (10.4 px) from the start edge: away
+        // from the tail (15 %–35 % of W), a pixel 1 px before is empty, one
+        // 1 px past is full.
+        assert_eq!(tip(50.0, 8.9), 0, "{start:?}: before the body's edge");
+        assert_eq!(tip(50.0, 11.9), 255, "{start:?}: past the body's edge");
+        // Rounded corners (radius 15 % of the body's shorter side, 6.24 px):
+        // the pixel in each far-side corner a sharp corner would fill stays
+        // empty.
+        assert_eq!(tip(63.5, 51.5), 0, "{start:?}: far corner is rounded");
+        assert_eq!(tip(63.5, 10.9), 0, "{start:?}: near corner is rounded");
+        assert_eq!(
+            tip(1.5, 51.5),
+            0,
+            "{start:?}: far start-side corner is rounded"
+        );
         // One contour: an outline has no stroke across the tail's base.
         let outline = draw(shape, style(ShapeMode::Outline, 2.0, true));
         let base = tip(16.0, 0.2 * 52.0);
