@@ -1,4 +1,4 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
+import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test';
 import { createDocument, drag, imageCanvas, menu, setColor } from './helpers';
 
 // The Line / Curve tool in the editor (docs/specs/image-shapes-curves.md):
@@ -59,14 +59,15 @@ async function mouseDrag(
   if (shift) await page.keyboard.up('Shift');
 }
 
-/** A white 200 × 120 image with a live blue line, width 4, across it. */
-async function liveLine(page: Page): Promise<void> {
+/** A white 200 × 120 image with a live blue line, width 4 (or `width`),
+ *  across it. */
+async function liveLine(page: Page, width = 4): Promise<void> {
   await createDocument(page, 'image', { width: 200, height: 120 });
   await page.keyboard.press('l');
   await setColor(page, 'fg', '#0000ff');
   await options(page)
     .getByRole('slider', { name: /^Stroke/ })
-    .fill('4');
+    .fill(String(width));
   await drag(page, imageCanvas(page), [0.1, 0.7], [0.9, 0.7]);
   await expect(handles(page)).toHaveCount(3);
 }
@@ -315,4 +316,96 @@ test('a line with 64 points takes no more; moving points still works (AC-15)', a
   const c = await handleAt(page, 'ctrl10');
   await mouseDrag(page, c, [c[0], c[1] - 20]);
   expect((await handleAt(page, 'ctrl10'))[1]).toBeLessThan(c[1] - 15);
+});
+
+test('the stroke reaches 8 CSS px, or half the stroke width when wider (AC-02)', async ({
+  page,
+}) => {
+  // A thin line: 8 CSS px.
+  await liveLine(page, 1);
+  const mid = await at(page, [0.5, 0.7]);
+  await mouseDrag(page, [mid[0], mid[1] - 7], [mid[0], mid[1] - 40]);
+  await expect(page.locator('[data-live-handle="ctrl0"]')).toHaveCount(1);
+  await undoButton(page).click();
+  await expect(handles(page)).toHaveCount(3);
+  // 10 CSS px off misses the stroke: a press there commits the line.
+  await page.mouse.click(mid[0] + 40, mid[1] - 10);
+  await expect(handles(page)).toHaveCount(0);
+
+  // A wide line at this zoom: half its width is more than 8 CSS px.
+  await liveLine(page, 4);
+  const z = await zoomOf(page);
+  const half = 2 * z;
+  expect(half).toBeGreaterThan(8.5);
+  const m = await at(page, [0.5, 0.7]);
+  await mouseDrag(page, [m[0], m[1] - (half - 0.5)], [m[0], m[1] - 60]);
+  await expect(page.locator('[data-live-handle="ctrl0"]')).toHaveCount(1);
+});
+
+test('a drag on the stroke between two points inserts the new point between them (AC-02)', async ({
+  page,
+}) => {
+  await liveLine(page);
+  // A point near the right end first …
+  await mouseDrag(page, await at(page, [0.8, 0.7]), await at(page, [0.8, 0.4]));
+  const right = await handleAt(page, 'ctrl0');
+  // … then one on the stroke between the start and that point: the middle
+  // of the blue run in the column at x = 0.25.
+  const [cx, top] = await at(page, [0.25, 0.35]);
+  const [, bottom] = await at(page, [0.25, 0.85]);
+  const blue: number[] = [];
+  for (let y = top; y <= bottom; y += 2) {
+    if (blueish(await shownAt(page, [cx, y]))) blue.push(y);
+  }
+  expect(blue.length).toBeGreaterThan(2);
+  const onCurve: [number, number] = [cx, blue[Math.floor(blue.length / 2)]!];
+  const target = await at(page, [0.25, 0.95]);
+  await mouseDrag(page, onCurve, target);
+  await expect(handles(page)).toHaveCount(5);
+  const first = await handleAt(page, 'ctrl0');
+  const second = await handleAt(page, 'ctrl1');
+  expect(Math.hypot(first[0] - target[0], first[1] - target[1])).toBeLessThan(2);
+  expect(Math.hypot(second[0] - right[0], second[1] - right[1])).toBeLessThan(2);
+  // The curve passes through both.
+  expect(blueish(await shownAt(page, [first[0], first[1] + 6]))).toBe(true);
+  expect(blueish(await shownAt(page, [second[0], second[1] + 6]))).toBe(true);
+});
+
+test('Shift does not snap a control point (AC-03)', async ({ page }) => {
+  await liveLine(page);
+  await mouseDrag(page, await at(page, [0.5, 0.7]), await at(page, [0.5, 0.4]));
+  const c = await handleAt(page, 'ctrl0');
+  const to: [number, number] = [c[0] + 37, c[1] + 11];
+  await mouseDrag(page, c, to, true);
+  const moved = await handleAt(page, 'ctrl0');
+  expect(Math.hypot(moved[0] - to[0], moved[1] - to[1])).toBeLessThan(2);
+});
+
+test.describe('touch', () => {
+  test.use({ hasTouch: true });
+
+  async function touchDrag(
+    cdp: CDPSession,
+    from: [number, number],
+    to: [number, number],
+  ): Promise<void> {
+    const pt = ([x, y]: [number, number]) => [{ x, y, id: 1 }];
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: pt(from) });
+    for (let i = 1; i <= 6; i += 1) {
+      const p: [number, number] = [
+        from[0] + ((to[0] - from[0]) * i) / 6,
+        from[1] + ((to[1] - from[1]) * i) / 6,
+      ];
+      await cdp.send('Input.dispatchTouchEvent', { type: 'touchMove', touchPoints: pt(p) });
+    }
+    await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
+  }
+
+  test('a touch on the stroke reaches 16 CSS px (AC-02)', async ({ page }) => {
+    await liveLine(page, 1);
+    const cdp = await page.context().newCDPSession(page);
+    const mid = await at(page, [0.5, 0.7]);
+    await touchDrag(cdp, [mid[0], mid[1] - 14], [mid[0], mid[1] - 50]);
+    await expect(page.locator('[data-live-handle="ctrl0"]')).toHaveCount(1);
+  });
 });

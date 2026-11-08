@@ -599,3 +599,72 @@ fn the_stroke_and_its_heads_join_without_a_seam() {
         assert_eq!(two(x), 255, "heads meeting at x = {x}");
     }
 }
+
+/// AC-11: the dash phase runs from the start point whatever the caps — away
+/// from the ends (beyond a head and the stroke), Flat, Round and Arrow
+/// ends leave the same dashes.
+#[test]
+fn the_dash_phase_does_not_depend_on_the_caps() {
+    for dash in [
+        DashPattern::DashDot,
+        DashPattern::DashDotDot,
+        DashPattern::Dashed,
+    ] {
+        let s = style(3.0, dash, true);
+        let line = |cap| CurveLine::new(curve(&BENT, cap, cap), s);
+        let reach = line(LineCap::Arrow).head_length() + 3.0;
+        let flat = draw(&line(LineCap::Flat));
+        for cap in [LineCap::Round, LineCap::Arrow] {
+            let other = draw(&line(cap));
+            let mut compared = 0;
+            for (i, (a, b)) in flat.iter().zip(&other).enumerate() {
+                let (x, y) = centre(i);
+                let near_end = [BENT[0], BENT[3]]
+                    .iter()
+                    .any(|e| (e.x - x).hypot(e.y - y) <= reach);
+                if !near_end {
+                    assert_eq!(a, b, "{dash:?} {cap:?}: ({x}, {y})");
+                    compared += usize::from(a[3] > 0);
+                }
+            }
+            assert!(compared > 50, "{dash:?}: dashes away from the ends");
+        }
+    }
+}
+
+/// AC-14 with partial coverage: a selection pixel at coverage 128 lets the
+/// curve through at about half its coverage, coverage 0 not at all.
+#[test]
+fn a_curve_is_scaled_by_the_selection_coverage() {
+    let line = CurveLine::new(
+        curve(&BENT, LineCap::Arrow, LineCap::Flat),
+        style(5.0, DashPattern::Solid, true),
+    );
+    let free = draw(&line);
+    let mut data = vec![0u8; (W * H) as usize];
+    for y in 0..H {
+        for x in 0..60 {
+            data[(y * W + x) as usize] = 128;
+        }
+    }
+    let mask = SelectionMask::from_raw(W, H, data).expect("mask");
+    let half = draw_with(&line, Some(mask));
+    let mut seen = 0;
+    for (i, (f, h)) in free.iter().zip(&half).enumerate() {
+        if (i as u32 % W) < 60 {
+            let want = f32::from(f[3]) * 128.0 / 255.0;
+            assert!(
+                (f32::from(h[3]) - want).abs() <= 1.0,
+                "pixel {i}: {} vs {want}",
+                h[3]
+            );
+            if f[3] > 0 {
+                assert_eq!(&h[..3], &f[..3], "pixel {i}: the color is the curve's");
+                seen += 1;
+            }
+        } else {
+            assert_eq!(h[3], 0, "pixel {i} at coverage 0 changed");
+        }
+    }
+    assert!(seen > 100);
+}
