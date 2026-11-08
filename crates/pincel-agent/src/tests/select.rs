@@ -131,12 +131,12 @@ fn select_shapes_combine_like_the_editor_in_both_modes() {
         (
             "select.ellipse",
             json!({ "x": 3, "y": 0, "width": 6, "height": 7, "mode": "add" }),
-            r#"{"type":"select_ellipse","x":3,"y":0,"w":6,"h":7,"mode":"add","feather":0}"#,
+            r#"{"type":"select_ellipse","x":3,"y":0,"w":6,"h":7,"mode":"add","feather":0,"anti_alias":true}"#,
         ),
         (
             "select.polygon",
             json!({ "points": [[0, 0], [5.5, 0], [0, 5.5]], "mode": "subtract" }),
-            r#"{"type":"select_polygon","points":[[0,0],[5.5,0],[0,5.5]],"mode":"subtract","feather":0}"#,
+            r#"{"type":"select_polygon","points":[[0,0],[5.5,0],[0,5.5]],"mode":"subtract","feather":0,"anti_alias":true}"#,
         ),
         (
             "select.rect",
@@ -265,12 +265,12 @@ fn image_feather_matches_the_editors_coverage() {
         (
             "select.ellipse",
             json!({ "x": 0, "y": 0, "width": 6, "height": 6, "feather": 3, "mode": "add" }),
-            r#"{"type":"select_ellipse","x":0,"y":0,"w":6,"h":6,"mode":"add","feather":3}"#,
+            r#"{"type":"select_ellipse","x":0,"y":0,"w":6,"h":6,"mode":"add","feather":3,"anti_alias":true}"#,
         ),
         (
             "select.polygon",
             json!({ "points": [[1, 1], [9, 2], [4, 7]], "feather": 1 }),
-            r#"{"type":"select_polygon","points":[[1,1],[9,2],[4,7]],"mode":"replace","feather":1}"#,
+            r#"{"type":"select_polygon","points":[[1,1],[9,2],[4,7]],"mode":"replace","feather":1,"anti_alias":true}"#,
         ),
     ] {
         let want = image_editor(&s, &id, spec);

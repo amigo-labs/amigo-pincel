@@ -87,6 +87,7 @@ pub(crate) const CLONE: Tool = Tool {
                 azimuth: Vec::new(),
                 angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                 tilt_angle: false,
+                anti_alias: false,
                 stroke_id,
             })
         })

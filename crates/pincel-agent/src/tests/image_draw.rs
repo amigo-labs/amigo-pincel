@@ -74,7 +74,7 @@ fn draw_stroke_matches_brush_and_eraser() {
         &s,
         &id,
         vec![json!({
-            "type": "pencil_stroke", "layer": 0, "size": 5, "color": [200, 30, 40, 255],
+            "type": "pencil_stroke", "layer": 0, "size": 5, "color": [200, 30, 40, 255], "anti_alias": true,
             "opacity": 0.6, "shape": "soft_round", "hardness": 0.4, "points": points, "stroke_id": 1
         })],
     );
@@ -88,7 +88,7 @@ fn draw_stroke_matches_brush_and_eraser() {
         &s,
         &id,
         vec![json!({
-            "type": "eraser_stroke", "layer": 0, "size": 3, "opacity": 1.0,
+            "type": "eraser_stroke", "layer": 0, "size": 3, "opacity": 1.0, "anti_alias": true,
             "points": [[1, 1], [10, 10]], "stroke_id": 2
         })],
     );
@@ -123,9 +123,11 @@ fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
     // that changes no pixel reports `changed: false` and records nothing.
     let mut s = S::new();
     let id = s.new_image(16, 16);
+    // Hard dabs: an anti-aliased edge (the Image default) blends again
+    // on a repeat.
     s.ok(
         "draw.stroke",
-        json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+        json!({ "points": [[8, 8]], "color": "#000000", "size": 4, "anti_alias": false }),
     );
     for (name, args) in [
         // Erasing where nothing is painted.
@@ -136,7 +138,7 @@ fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
         // The same opaque dab again.
         (
             "draw.stroke",
-            json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+            json!({ "points": [[8, 8]], "color": "#000000", "size": 4, "anti_alias": false }),
         ),
         (
             "draw.shape",
@@ -182,12 +184,12 @@ fn image_drawing_defaults_are_the_image_editors_starting_options() {
         (
             "draw.stroke",
             json!({ "points": [[3, 4], [16, 9]] }),
-            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "anti_alias": true, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
         ),
         (
             "draw.stroke",
             json!({ "tool": "eraser", "points": [[3, 4], [16, 9]] }),
-            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "anti_alias": true, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
         ),
         (
             "draw.text",
@@ -408,7 +410,9 @@ fn select_tools_match_the_selection_tools_and_clear_removes_it() {
     let want = editor(
         &s,
         &id,
-        vec![json!({ "type": "select_ellipse", "x": 6, "y": 1, "w": 10, "h": 9, "mode": "add" })],
+        vec![
+            json!({ "type": "select_ellipse", "x": 6, "y": 1, "w": 10, "h": 9, "mode": "add", "anti_alias": true }),
+        ],
     );
     s.ok(
         "select.ellipse",
@@ -818,4 +822,96 @@ fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
             .contains("multiples of 4")
     );
     assert_eq!(s.ok("doc.list", json!({})), before);
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-14 – AC-16 (Antialiasing).
+#[test]
+fn anti_alias_reaches_strokes_and_selections_like_the_editor() {
+    let mut s = S::new();
+    let id = s.new_image(24, 16);
+    for aa in [true, false] {
+        let want = editor(
+            &s,
+            &id,
+            vec![json!({
+                "type": "pencil_stroke", "layer": 0, "size": 9, "color": [0, 0, 0, 255], "opacity": 1.0,
+                "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": aa, "stroke_id": 1
+            })],
+        );
+        let mut probe = S::new();
+        let pid = probe.new_image(24, 16);
+        probe.ok(
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "anti_alias": aa }),
+        );
+        assert_eq!(
+            agent_pixels(&probe, &pid, 0),
+            pixels(&want, 0),
+            "anti_alias {aa}"
+        );
+    }
+    // Default true: the stroke equals the editor's anti-aliased one.
+    let want = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "pencil_stroke", "layer": 0, "size": 9, "color": [0, 0, 0, 255], "opacity": 1.0,
+            "points": [[5.3, 6.6]], "anti_alias": true, "stroke_id": 1
+        })],
+    );
+    s.ok("draw.stroke", json!({ "points": [[5.3, 6.6]], "size": 9 }));
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+
+    // Selections.
+    for (tool, args, cmd) in [
+        (
+            "select.ellipse",
+            json!({ "x": 2, "y": 2, "width": 15, "height": 9 }),
+            json!({ "type": "select_ellipse", "x": 2, "y": 2, "w": 15, "h": 9, "mode": "replace", "anti_alias": true }),
+        ),
+        (
+            "select.polygon",
+            json!({ "points": [[1.5, 1.0], [20.0, 4.5], [7.0, 14.0]], "anti_alias": false }),
+            json!({ "type": "select_polygon", "points": [[1.5, 1.0], [20.0, 4.5], [7.0, 14.0]], "mode": "replace", "anti_alias": false }),
+        ),
+    ] {
+        let want = editor(&s, &id, vec![cmd]);
+        s.ok(tool, args);
+        assert_eq!(s.image(&id).document().selection, want.selection, "{tool}");
+    }
+
+    // Refused where the spec gives no anti_alias.
+    let before = state(&s, &id);
+    for (tool, args) in [
+        (
+            "select.rect",
+            json!({ "x": 0, "y": 0, "width": 4, "height": 4, "anti_alias": true }),
+        ),
+        ("select.wand", json!({ "x": 1, "y": 1, "anti_alias": true })),
+    ] {
+        let e = s.err(tool, args);
+        assert!(e.contains("anti_alias"), "{tool}: {e}");
+        assert_eq!(state(&s, &id), before);
+    }
+    let pid = s.new_doc(8, 8);
+    for (tool, args) in [
+        (
+            "select.ellipse",
+            json!({ "doc": pid, "x": 0, "y": 0, "width": 4, "height": 4, "anti_alias": true }),
+        ),
+        (
+            "select.polygon",
+            json!({ "doc": pid, "points": [[0, 0], [4, 0], [0, 4]], "anti_alias": false }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[1, 1]], "anti_alias": true }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(
+            e.contains("anti_alias") && e.contains("Pixel document"),
+            "{tool}: {e}"
+        );
+    }
 }

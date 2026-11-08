@@ -154,7 +154,7 @@ pub(super) fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
     schema: || {
         edit_schema(
             json!({
@@ -182,6 +182,7 @@ pub(crate) const STROKE: Tool = Tool {
                 "eraser_mode": choice(&["to_transparent", "to_background"], "Image eraser: erase to transparency (default) or paint `background`"),
                 "background": shared_color("Image eraser with to_background: the color; default #FFFFFF"),
                 "angle": angle_prop(),
+                "anti_alias": { "type": "boolean", "description": "Image: anti-aliased edge of the hard round tip; default true" },
                 "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
@@ -236,6 +237,7 @@ pub(crate) const STROKE: Tool = Tool {
                     azimuth: Vec::new(),
                     angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
+                    anti_alias: args.bool("anti_alias").unwrap_or(true),
                     stroke_id,
                 }
             } else {
@@ -257,6 +259,7 @@ pub(crate) const STROKE: Tool = Tool {
                     azimuth: Vec::new(),
                     angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
+                    anti_alias: args.bool("anti_alias").unwrap_or(true),
                     stroke_id,
                 }
             })
@@ -333,6 +336,7 @@ pub(crate) const RECOLOR: Tool = Tool {
                 azimuth: Vec::new(),
                 angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                 tilt_angle: false,
+                anti_alias: false,
                 stroke_id,
             })
         })
@@ -370,6 +374,7 @@ pub(crate) const SMUDGE: Tool = Tool {
                 azimuth: Vec::new(),
                 angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                 tilt_angle: false,
+                anti_alias: false,
                 stroke_id,
             })
         })

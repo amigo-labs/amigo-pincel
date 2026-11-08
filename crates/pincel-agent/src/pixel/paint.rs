@@ -201,7 +201,14 @@ pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
         refuse_image_args(
             &id,
             args,
-            &["opacity", "hardness", "eraser_mode", "background", "angle"],
+            &[
+                "opacity",
+                "hardness",
+                "eraser_mode",
+                "background",
+                "angle",
+                "anti_alias",
+            ],
         )?;
         if let Some(s @ ("hard_round" | "soft_round" | "flat")) = args.str("shape") {
             return Err(AgentError::tool(format!(
