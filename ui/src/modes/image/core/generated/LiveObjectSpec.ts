@@ -16,7 +16,26 @@ shape: string,
 /**
  * Endpoints or opposite box corners.
  */
-points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, } | { "type": "text", 
+points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+/**
+ * A line's control points between the endpoints, in order
+ * (docs/specs/image-shapes-curves.md); empty otherwise.
+ */
+control: Array<[number, number]>, 
+/**
+ * A line's caps: `round`, `flat` or `arrow`.
+ */
+start_cap: string, end_cap: string, 
+/**
+ * The line's curve as the core flattens and draws it, for the
+ * editor's hit-testing of the stroke; empty for a box shape.
+ */
+polyline: Array<[number, number]>, 
+/**
+ * Where the line's move grip is anchored — the curve's midpoint by
+ * arc length — and the unit normal there (AC-22); zero for a box.
+ */
+grip_anchor: [number, number], grip_normal: [number, number], } | { "type": "text", 
 /**
  * The layer it is drawn into.
  */

@@ -18,12 +18,12 @@ use super::{
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
-    Blend, BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode,
-    Fill, FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move,
-    OverwriteMemory, PenSamples, Pencil, Point, PressureDynamics, Recolor, RecolorOrigins, Rect,
-    SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge,
-    SmudgeCarry, Text, TextAlign, TextStyle, apply_mode, delete_selection, fill_selection,
-    magic_wand,
+    Blend, BlendMode, Brush, BrushShape, CloneSnapshot, Color, Curve, CurveLine, DashPattern,
+    Eraser, EraserMode, Fill, FillOptions, Gradient, GradientChannel, GradientKind, Interpolation,
+    LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil, Point, PressureDynamics,
+    Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode,
+    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, apply_mode,
+    delete_selection, fill_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -222,6 +222,16 @@ fn default_gradient_channel() -> String {
 /// Default shape dash pattern when JS omits it.
 fn default_dash() -> String {
     "solid".to_string()
+}
+
+fn default_cap() -> String {
+    "round".to_string()
+}
+
+/// Maps a cap string to a [`LineCap`] (docs/specs/image-shapes-curves.md),
+/// defaulting to Round.
+fn parse_cap(s: &str) -> LineCap {
+    LineCap::parse(s).unwrap_or_default()
 }
 
 fn default_blend() -> String {
@@ -664,6 +674,14 @@ pub enum CommandSpec {
         /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
         #[serde(default = "default_blend")]
         blend: String,
+        /// A line's start cap: `round` (default), `flat` or `arrow`
+        /// (docs/specs/image-shapes-curves.md). A line takes 2–64 `points`:
+        /// the start, the control points in order, the end.
+        #[serde(default = "default_cap")]
+        start_cap: String,
+        /// A line's end cap.
+        #[serde(default = "default_cap")]
+        end_cap: String,
     },
     /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
     /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
@@ -715,6 +733,16 @@ pub enum CommandSpec {
         /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
         #[serde(default = "default_blend")]
         blend: String,
+        /// A line's control points between the endpoints, in order
+        /// (docs/specs/image-shapes-curves.md).
+        #[serde(default)]
+        control: Vec<[f32; 2]>,
+        /// A line's start cap: `round` (default), `flat` or `arrow`.
+        #[serde(default = "default_cap")]
+        start_cap: String,
+        /// A line's end cap.
+        #[serde(default = "default_cap")]
+        end_cap: String,
     },
     /// Begin a live gradient along `(x0, y0)` -> `(x1, y1)`, drawn as
     /// `draw_gradient` draws it (docs/specs/image-live-objects.md).
@@ -819,6 +847,16 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         blend: Option<String>,
+        /// A line's control points, all of them, in order.
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        control: Option<Vec<[f32; 2]>>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        start_cap: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        end_cap: Option<String>,
     },
     /// Begin a live text (docs/specs/image-live-text.md): `(x, y)` is the
     /// top-left of its box for every alignment, `font_id` a `register_font`
@@ -1478,6 +1516,8 @@ pub fn run_command(
             anti_alias,
             dash,
             blend,
+            start_cap,
+            end_cap,
         } => {
             let corner = |i: usize| points.get(i).map(|q| Point::new(q[0], q[1]));
             // line / rectangle / rounded_rectangle / ellipse take `points[0..2]`.
@@ -1520,6 +1560,22 @@ pub fn run_command(
                 dash: parse_dash(&dash),
                 blend: parse_blend(&blend),
             };
+            if shape == "line" {
+                // 2–64 points: the start, the control points, the end
+                // (docs/specs/image-shapes-curves.md); more draw nothing.
+                if points.len() < 2 || points.len() > MAX_LINE_POINTS {
+                    return Ok(());
+                }
+                let curve = Curve {
+                    points: points.iter().map(|q| Point::new(q[0], q[1])).collect(),
+                    start_cap: parse_cap(&start_cap),
+                    end_cap: parse_cap(&end_cap),
+                };
+                return match CurveLine::new(curve, style).draw(layer, &bus.document) {
+                    Some(cmd) => bus.apply(Box::new(cmd)),
+                    None => Ok(()),
+                };
+            }
             match built.and_then(|s| Shapes::new(s, style).draw(layer, &bus.document)) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()), // invalid geometry or off-canvas — no-op
@@ -1566,10 +1622,21 @@ pub fn run_command(
             anti_alias,
             dash,
             blend,
+            control,
+            start_cap,
+            end_cap,
         } => {
             let Some(kind) = super::live_spec::parse_live_shape(&shape) else {
                 return Ok(()); // unknown shape: a no-op, as for draw_shape
             };
+            let line = kind == super::LiveShapeKind::Line;
+            let caps_set = start_cap != "round" || end_cap != "round";
+            if !line && (!control.is_empty() || caps_set) {
+                return Err(DocumentError::LiveEditMismatch);
+            }
+            if control.len() + 2 > MAX_LINE_POINTS {
+                return Err(DocumentError::LiveEditMismatch);
+            }
             let params = super::LiveParams::Shape(super::LiveShape {
                 kind,
                 a: Point::new(points[0][0], points[0][1]),
@@ -1585,6 +1652,9 @@ pub fn run_command(
                 },
                 corner_radius,
                 sides,
+                control: control.iter().map(|q| Point::new(q[0], q[1])).collect(),
+                start_cap: parse_cap(&start_cap),
+                end_cap: parse_cap(&end_cap),
             });
             bus.begin_live(layer, params).map(|_| ())
         }
@@ -1641,7 +1711,15 @@ pub fn run_command(
             strikethrough,
             align,
             blend,
+            control,
+            start_cap,
+            end_cap,
         } => {
+            let cap = |c: Option<String>| -> Result<Option<LineCap>, DocumentError> {
+                c.map(|c| LineCap::parse(&c).ok_or(DocumentError::LiveEditMismatch))
+                    .transpose()
+            };
+            let (start_cap, end_cap) = (cap(start_cap)?, cap(end_cap)?);
             let shape = match shape {
                 Some(s) => Some(
                     super::live_spec::parse_live_shape(&s)
@@ -1674,6 +1752,9 @@ pub fn run_command(
                 strikethrough,
                 align: align.as_deref().map(parse_text_align),
                 blend: blend.as_deref().map(parse_blend),
+                control: control.map(|c| c.iter().map(|q| Point::new(q[0], q[1])).collect()),
+                start_cap,
+                end_cap,
             };
             bus.edit_live(&edit, gesture)
         }

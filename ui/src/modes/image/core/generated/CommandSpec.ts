@@ -129,7 +129,17 @@ anti_alias: boolean, } | { "type": "select_wand", layer: number, x: number, y: n
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
+blend: string, 
+/**
+ * A line's start cap: `round` (default), `flat` or `arrow`
+ * (docs/specs/image-shapes-curves.md). A line takes 2–64 `points`:
+ * the start, the control points in order, the end.
+ */
+start_cap: string, 
+/**
+ * A line's end cap.
+ */
+end_cap: string, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
@@ -137,11 +147,28 @@ blend: string, } | { "type": "begin_live_shape", layer: number, shape: string, p
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "begin_live_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
+blend: string, 
+/**
+ * A line's control points between the endpoints, in order
+ * (docs/specs/image-shapes-curves.md).
+ */
+control: Array<[number, number]>, 
+/**
+ * A line's start cap: `round` (default), `flat` or `arrow`.
+ */
+start_cap: string, 
+/**
+ * A line's end cap.
+ */
+end_cap: string, } | { "type": "begin_live_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, blend?: string, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, 
+blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, blend?: string, 
+/**
+ * A line's control points, all of them, in order.
+ */
+control?: Array<[number, number]>, start_cap?: string, end_cap?: string, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */

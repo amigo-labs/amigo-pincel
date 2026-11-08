@@ -17,7 +17,8 @@ use crate::document::{Document, ImageBuffer};
 use crate::error::DocumentError;
 use crate::geometry::{Point, Rect};
 use crate::tools::{
-    DashPattern, Gradient, GradientChannel, GradientKind, Shape, ShapeMode, ShapeStyle, Shapes,
+    Curve, CurveLine, DashPattern, Gradient, GradientChannel, GradientKind, LineCap,
+    MAX_LINE_POINTS, Shape, ShapeMode, ShapeStyle, Shapes,
 };
 
 /// How far outside the canvas a live object's point may lie (AC-10).
@@ -46,7 +47,7 @@ pub enum LiveShapeKind {
 }
 
 /// The parameters of a live Line or box shape.
-#[derive(Debug, Clone, Copy, PartialEq)]
+#[derive(Debug, Clone, PartialEq)]
 pub struct LiveShape {
     /// Line or box shape.
     pub kind: LiveShapeKind,
@@ -60,6 +61,14 @@ pub struct LiveShape {
     pub corner_radius: f32,
     /// Sides of a polygon (kept for every kind, AC-07).
     pub sides: u32,
+    /// A Line's control points between `a` and `b`, in order
+    /// (docs/specs/image-shapes-curves.md); empty for a straight line and
+    /// for box shapes.
+    pub control: Vec<Point>,
+    /// A Line's cap at `a`.
+    pub start_cap: LineCap,
+    /// A Line's cap at `b`.
+    pub end_cap: LineCap,
 }
 
 /// The parameters of a live gradient.
@@ -145,6 +154,13 @@ pub struct LiveEdit {
     /// New Normal / Overwrite blending
     /// (docs/specs/image-edit-extras-tool-options.md).
     pub blend: Option<crate::Blend>,
+    /// A Line's new control points, all of them, in order
+    /// (docs/specs/image-shapes-curves.md).
+    pub control: Option<Vec<Point>>,
+    /// A Line's new start cap.
+    pub start_cap: Option<LineCap>,
+    /// A Line's new end cap.
+    pub end_cap: Option<LineCap>,
 }
 
 /// Parameter groups whose consecutive edits merge into one step (AC-03).
@@ -171,6 +187,7 @@ mod group {
     pub const STRIKETHROUGH: u32 = 1 << 19;
     pub const ALIGN: u32 = 1 << 20;
     pub const BLEND: u32 = 1 << 21;
+    pub const CAPS: u32 = 1 << 22;
 
     /// What a Line or box shape accepts.
     pub const SHAPE_FIELDS: u32 = GEOMETRY
@@ -182,7 +199,8 @@ mod group {
         | CORNER_RADIUS
         | SIDES
         | COLORS
-        | BLEND;
+        | BLEND
+        | CAPS;
     /// What a gradient accepts.
     pub const GRADIENT_FIELDS: u32 =
         GEOMETRY | GRADIENT_KIND | GRADIENT_CHANNEL | GRADIENT_COLORS | GRADIENT_OPACITY | BLEND;
@@ -209,7 +227,14 @@ impl LiveEdit {
                 g |= bit;
             }
         };
-        add(self.points.is_some(), group::GEOMETRY);
+        add(
+            self.points.is_some() || self.control.is_some(),
+            group::GEOMETRY,
+        );
+        add(
+            self.start_cap.is_some() || self.end_cap.is_some(),
+            group::CAPS,
+        );
         add(self.shape.is_some(), group::SHAPE);
         add(self.mode.is_some(), group::MODE);
         add(self.stroke_width.is_some(), group::STROKE_WIDTH);
@@ -273,6 +298,7 @@ impl LiveParams {
                 ..
             }) => a.x == b.x || a.y == b.y,
             LiveParams::Text(t) => t.text.is_empty(),
+            LiveParams::Shape(s) => s.control.iter().chain([&a, &b]).all(|p| *p == a),
             _ => a == b,
         }
     }
@@ -298,7 +324,11 @@ impl LiveParams {
     /// Whether every point lies within [`LIVE_REACH`] of the canvas (AC-10).
     fn within_reach(&self, doc: &Document) -> bool {
         let (w, h) = (doc.canvas.width() as f32, doc.canvas.height() as f32);
-        self.points().iter().all(|p| {
+        let control = match self {
+            LiveParams::Shape(s) => s.control.as_slice(),
+            _ => &[],
+        };
+        self.points().iter().chain(control).all(|p| {
             p.x.is_finite()
                 && p.y.is_finite()
                 && (-LIVE_REACH..=w + LIVE_REACH).contains(&p.x)
@@ -330,6 +360,20 @@ impl LiveParams {
                     s.a = a;
                     s.b = b;
                 }
+                let line_only =
+                    edit.control.is_some() || edit.start_cap.is_some() || edit.end_cap.is_some();
+                if line_only && s.kind != LiveShapeKind::Line {
+                    return Err(DocumentError::LiveEditMismatch);
+                }
+                if let Some(control) = &edit.control {
+                    // At most MAX_LINE_POINTS points, endpoints included (AC-15).
+                    if control.len() + 2 > MAX_LINE_POINTS {
+                        return Err(DocumentError::LiveEditMismatch);
+                    }
+                    s.control.clone_from(control);
+                }
+                s.start_cap = edit.start_cap.unwrap_or(s.start_cap);
+                s.end_cap = edit.end_cap.unwrap_or(s.end_cap);
                 let st = &mut s.style;
                 st.mode = edit.mode.unwrap_or(st.mode);
                 st.stroke_width = edit.stroke_width.unwrap_or(st.stroke_width);
@@ -380,10 +424,14 @@ impl LiveParams {
     /// The immediate draw of these parameters on `doc`, or `None` when it
     /// draws nothing.
     fn draw(&self, layer: usize, doc: &Document) -> Option<SetPixels> {
-        if self.degenerate() {
-            return None;
-        }
         match self {
+            // A line whose points were all dragged onto one spot still shows
+            // today's dot with Round caps (docs/specs/image-shapes-curves.md
+            // AC-16); `CurveLine` decides.
+            LiveParams::Shape(s) if s.kind == LiveShapeKind::Line => {
+                CurveLine::new(s.curve(), s.style).draw(layer, doc)
+            }
+            _ if self.degenerate() => None,
             LiveParams::Shape(s) => Shapes::new(s.shape(), s.style).draw(layer, doc),
             LiveParams::Gradient(g) => g.gradient.draw(layer, g.a, g.b, doc),
             LiveParams::Text(t) => t.draw(layer, doc),
@@ -392,6 +440,19 @@ impl LiveParams {
 }
 
 impl LiveShape {
+    /// A Line's curve: `a`, the control points, `b`, and the caps.
+    pub fn curve(&self) -> Curve {
+        let mut points = Vec::with_capacity(self.control.len() + 2);
+        points.push(self.a);
+        points.extend_from_slice(&self.control);
+        points.push(self.b);
+        Curve {
+            points,
+            start_cap: self.start_cap,
+            end_cap: self.end_cap,
+        }
+    }
+
     /// The core [`Shape`] these parameters draw; a polygon is inscribed in
     /// the shorter side of the box, centred, as the editor builds it.
     pub fn shape(&self) -> Shape {

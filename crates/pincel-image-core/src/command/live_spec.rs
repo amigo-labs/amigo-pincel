@@ -33,6 +33,19 @@ pub enum LiveObjectSpec {
         fill_color: [u8; 4],
         anti_alias: bool,
         dash: String,
+        /// A line's control points between the endpoints, in order
+        /// (docs/specs/image-shapes-curves.md); empty otherwise.
+        control: Vec<[f32; 2]>,
+        /// A line's caps: `round`, `flat` or `arrow`.
+        start_cap: String,
+        end_cap: String,
+        /// The line's curve as the core flattens and draws it, for the
+        /// editor's hit-testing of the stroke; empty for a box shape.
+        polyline: Vec<[f32; 2]>,
+        /// Where the line's move grip is anchored — the curve's midpoint by
+        /// arc length — and the unit normal there (AC-22); zero for a box.
+        grip_anchor: [f32; 2],
+        grip_normal: [f32; 2],
     },
     /// A live text: `x`, `y` are the top-left of its box.
     Text {
@@ -70,19 +83,42 @@ pub fn live_object_spec(bus: &CommandBus) -> Option<LiveObjectSpec> {
     let live = bus.live_object()?;
     let points = live.params.points().map(|p| [p.x, p.y]);
     Some(match live.params {
-        LiveParams::Shape(s) => LiveObjectSpec::Shape {
-            layer: live.layer,
-            shape: live_shape_str(s.kind).to_string(),
-            points,
-            corner_radius: s.corner_radius,
-            sides: s.sides,
-            mode: shape_mode_str(s.style.mode).to_string(),
-            stroke_width: s.style.stroke_width,
-            stroke_color: bytes(s.style.stroke_color),
-            fill_color: bytes(s.style.fill_color),
-            anti_alias: s.style.anti_alias,
-            dash: dash_str(s.style.dash).to_string(),
-        },
+        LiveParams::Shape(s) => {
+            let line = s.kind == LiveShapeKind::Line;
+            let curve = s.curve();
+            let (anchor, normal) = if line {
+                curve.midpoint()
+            } else {
+                (
+                    crate::geometry::Point::new(0.0, 0.0),
+                    crate::geometry::Point::new(0.0, 0.0),
+                )
+            };
+            let xy = |p: &crate::geometry::Point| [p.x, p.y];
+            LiveObjectSpec::Shape {
+                layer: live.layer,
+                shape: live_shape_str(s.kind).to_string(),
+                points,
+                corner_radius: s.corner_radius,
+                sides: s.sides,
+                mode: shape_mode_str(s.style.mode).to_string(),
+                stroke_width: s.style.stroke_width,
+                stroke_color: bytes(s.style.stroke_color),
+                fill_color: bytes(s.style.fill_color),
+                anti_alias: s.style.anti_alias,
+                dash: dash_str(s.style.dash).to_string(),
+                control: s.control.iter().map(xy).collect(),
+                start_cap: s.start_cap.name().to_string(),
+                end_cap: s.end_cap.name().to_string(),
+                polyline: if line {
+                    curve.polyline().iter().map(xy).collect()
+                } else {
+                    Vec::new()
+                },
+                grip_anchor: xy(&anchor),
+                grip_normal: xy(&normal),
+            }
+        }
         LiveParams::Text(t) => LiveObjectSpec::Text {
             layer: live.layer,
             text: t.text,
@@ -258,6 +294,12 @@ mod tests {
                 fill_color: [4, 5, 6, 255],
                 anti_alias: true,
                 dash: "dotted".into(),
+                control: vec![],
+                start_cap: "round".into(),
+                end_cap: "round".into(),
+                polyline: vec![],
+                grip_anchor: [0.0, 0.0],
+                grip_normal: [0.0, 0.0],
             })
         );
         run(&mut bus, r#"{"type":"commit_live"}"#).expect("commit");

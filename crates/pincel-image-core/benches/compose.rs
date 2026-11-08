@@ -263,6 +263,9 @@ fn bench_live(c: &mut Criterion) {
         },
         corner_radius: 0.0,
         sides: 5,
+        control: Vec::new(),
+        start_cap: LineCap::Round,
+        end_cap: LineCap::Round,
     });
     bus.begin_live(top, shape).expect("the ellipse begins");
     bus.take_damage();

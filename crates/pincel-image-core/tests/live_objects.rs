@@ -56,6 +56,9 @@ fn boxed(kind: BoxShape, a: Point, b: Point) -> LiveParams {
         style: style(),
         corner_radius: 4.0,
         sides: 6,
+        control: Vec::new(),
+        start_cap: pincel_image_core::LineCap::Round,
+        end_cap: pincel_image_core::LineCap::Round,
     })
 }
 
@@ -67,6 +70,9 @@ fn line(a: Point, b: Point) -> LiveParams {
         style: style(),
         corner_radius: 0.0,
         sides: 3,
+        control: Vec::new(),
+        start_cap: pincel_image_core::LineCap::Round,
+        end_cap: pincel_image_core::LineCap::Round,
     })
 }
 
@@ -747,7 +753,7 @@ fn edit_live_clamps_like_the_draw_command() {
         panic!("shape")
     };
     assert_eq!(s.style.stroke_width, 500.0);
-    let mut unclamped = *s;
+    let mut unclamped = s.clone();
     unclamped.style.stroke_width = 9_999.0;
     assert_eq!(
         pixels(&bus, 0),
@@ -767,8 +773,25 @@ fn edit_live_to_degenerate_geometry_stays_live_and_draws_nothing() {
     };
     bus.edit_live(&collapse, Some(1)).expect("collapse");
     assert!(live(&bus).is_some());
+    // A line on one spot shows today's zero-length dot with Round caps
+    // (docs/specs/image-shapes-curves.md AC-16) …
+    let dot = live(&bus).expect("live").params;
+    assert_eq!(pixels(&bus, 0), &immediate(&pre, 0, &dot));
+    assert_ne!(pixels(&bus, 0), &pre.layers()[0].pixels);
+    // … and nothing with a Flat cap.
+    let flat = LiveEdit {
+        start_cap: Some(pincel_image_core::LineCap::Flat),
+        ..LiveEdit::default()
+    };
+    bus.edit_live(&flat, Some(2)).expect("flat cap");
+    assert!(live(&bus).is_some());
     assert_eq!(pixels(&bus, 0), &pre.layers()[0].pixels);
-    bus.edit_live(&moved(&params, 0.0, 1.0), Some(1))
+    let round = LiveEdit {
+        start_cap: Some(pincel_image_core::LineCap::Round),
+        ..LiveEdit::default()
+    };
+    bus.edit_live(&round, Some(3)).expect("round cap");
+    bus.edit_live(&moved(&params, 0.0, 1.0), Some(4))
         .expect("out again");
     let now = live(&bus).expect("live").params;
     assert_eq!(pixels(&bus, 0), &immediate(&pre, 0, &now));
