@@ -192,6 +192,12 @@ export type ToolKind =
   | 'rounded_rect'
   | 'ellipse'
   | 'polygon'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'block_arrow'
+  | 'heart'
+  | 'callout'
   | 'text';
 
 /** The geometry each shape tool draws. The rail shows them as variants of
@@ -204,6 +210,12 @@ const SHAPE_OF: Partial<Record<ToolKind, ShapeKind>> = {
   rounded_rect: 'rounded_rectangle',
   ellipse: 'ellipse',
   polygon: 'polygon',
+  triangle: 'triangle',
+  diamond: 'diamond',
+  star: 'star',
+  block_arrow: 'block_arrow',
+  heart: 'heart',
+  callout: 'callout',
 };
 
 /** The shape `kind` draws, or `null` if it is not a shape tool. */
@@ -235,6 +247,9 @@ export type ShapePreview = {
   sides: number;
   /** Rounded-rectangle corner radius, mirrored so the preview matches commit. */
   cornerRadius: number;
+  /** Star points and inner radius (0–1), mirrored likewise. */
+  starPoints: number;
+  innerRatio: number;
 };
 
 /** The live Shapes-tool preview, or `null` when not drawing a shape. */
@@ -323,6 +338,10 @@ export const tool = $state({
   lineEndCap: 'round' as LineCap,
   /** Shapes: polygon side count, 3–100. */
   shapeSides: 5,
+  /** Star points (3–50) and inner radius in percent (10–90)
+   *  (docs/specs/image-shapes-curves-shapes.md AC-04). */
+  starPoints: 5,
+  starInner: 38,
   /** Shapes: rounded-rectangle corner radius in pixels. */
   cornerRadius: 16,
   /** Text: font size in pixels, 6–999. */

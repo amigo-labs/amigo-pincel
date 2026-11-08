@@ -32,6 +32,7 @@ import initWasm, {
   redo_kinds,
   history_dropped,
   jump_history,
+  shape_outline,
   export_png,
   export_jpeg,
   export_webp,
@@ -423,7 +424,18 @@ export type TransformCommand =
   | { type: 'auto_crop' };
 
 /** Geometric shape kinds the Shapes tool can draw (spec §9.2 Shapes). */
-export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' | 'polygon';
+export type ShapeKind =
+  | 'line'
+  | 'rectangle'
+  | 'rounded_rectangle'
+  | 'ellipse'
+  | 'polygon'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'block_arrow'
+  | 'heart'
+  | 'callout';
 
 /** How a shape's interior and border are painted (spec §9.2 Shapes). */
 export type ShapeMode = 'outline' | 'fill' | 'fill_and_outline';
@@ -461,6 +473,8 @@ export interface DrawShapeCommand {
   blend: ToolBlend;
   start_cap?: LineCap;
   end_cap?: LineCap;
+  star_points?: number;
+  inner_ratio?: number;
 }
 
 /** Rasterize text onto a layer using a `registerFont` id (spec §9.2 Text). */
@@ -493,6 +507,8 @@ export interface BeginLiveShapeCommand {
   points: PointPair;
   corner_radius?: number;
   sides?: number;
+  star_points?: number;
+  inner_ratio?: number;
   mode?: ShapeMode;
   stroke_width?: number;
   stroke_color?: Rgba;
@@ -535,6 +551,8 @@ export interface EditLiveCommand {
   anti_alias?: boolean;
   corner_radius?: number;
   sides?: number;
+  star_points?: number;
+  inner_ratio?: number;
   stroke_color?: Rgba;
   fill_color?: Rgba;
   kind?: GradientKind;
@@ -799,6 +817,21 @@ export const core = {
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,
+  /** The outline polygon of a box shape over a drag, as the core draws it
+   *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
+   *  kinds or a box without area. */
+  shapeOutline: (
+    kind: ShapeKind,
+    a: [number, number],
+    b: [number, number],
+    starPoints: number,
+    innerRatio: number,
+  ): Array<[number, number]> => {
+    const flat = shape_outline(kind, a[0], a[1], b[0], b[1], starPoints, innerRatio);
+    const out: Array<[number, number]> = [];
+    for (let i = 0; i + 1 < flat.length; i += 2) out.push([flat[i] ?? 0, flat[i + 1] ?? 0]);
+    return out;
+  },
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),
 };

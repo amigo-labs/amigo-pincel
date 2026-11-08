@@ -281,6 +281,19 @@
       </label>
     {/if}
 
+    {#if tool.kind === 'star'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.starPoints')}</span>
+        <input type="range" min="3" max="50" bind:value={tool.starPoints} class="w-24" />
+        <span class="w-8 tabular-nums text-pc-text">{tool.starPoints}</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.innerRadius')}</span>
+        <input type="range" min="10" max="90" bind:value={tool.starInner} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.starInner}%</span>
+      </label>
+    {/if}
+
     {#if tool.kind === 'rounded_rect'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.radius')}</span>

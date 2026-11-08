@@ -15,7 +15,19 @@ const PIXEL_SHAPES = [
   'Rounded Rectangle',
   'Polygon',
 ];
-const IMAGE_SHAPES = ['Rectangle', 'Rounded Rectangle', 'Ellipse', 'Polygon'];
+// Ten since docs/specs/image-shapes-curves-shapes.md AC-01.
+const IMAGE_SHAPES = [
+  'Rectangle',
+  'Rounded Rectangle',
+  'Ellipse',
+  'Polygon',
+  'Triangle',
+  'Diamond',
+  'Star',
+  'Block Arrow',
+  'Heart',
+  'Callout',
+];
 
 function rail(page: Page): Locator {
   return page.getByRole('toolbar', { name: 'Tools' });

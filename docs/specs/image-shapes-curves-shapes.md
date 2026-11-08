@@ -113,7 +113,7 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
+| AC-01 | `U cycles the ten shapes; the flyout and the options bar list them in order with icons and names (AC-01)` (ui/e2e/image-shapes-more.spec.ts); `image mode: a right-click on a group button lists its variants` (ui/e2e/tool-flyout.spec.ts) | built |        |
 | AC-02 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-03 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-04 | `a_star_has_its_points_and_inner_radius` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
@@ -123,16 +123,16 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 | AC-08 | `new_shapes_paint_like_the_existing_ones` (crates/pincel-image-core/tests/box_shapes.rs; outline / fill colors, modes, dashes) | built |        |
 | AC-09 | `triangle_and_diamond_fill_their_box`, `a_star_has_its_points_and_inner_radius`, `a_block_arrow_points_from_the_drag_start_along_the_longer_side` (anti-aliased fill against the test's own polygons), `new_shapes_paint_like_the_existing_ones` (anti-alias off) (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-10 | `symmetric_shapes_paint_mirror_symmetric_pixels` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-11 | `Shift squares the box of a new shape (AC-11)` (ui/e2e/image-shapes-more.spec.ts) | built |        |
+| AC-12 | `the drag previews the shape’s own outline and leaves it live; the commit is one undo step (AC-12)` (ui/e2e/image-shapes-more.spec.ts); `shape_outline_gives_the_core_polygon_of_a_box_shape` (crates/pincel-image-wasm/src/lib.rs) | built |        |
 | AC-13 | `new_shapes_change_only_selected_pixels` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-14 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-15 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | built |        |
 | AC-16 | `draw_shape_box_shapes_match_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-17 | `draw_shape_box_shapes_refuse_bad_arguments` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
 | AC-18 | `tools_list_describes_the_box_shapes` (crates/pincel-agent/src/tests/image_draw.rs) | built |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-19 | `another box shape converts the live one as one step and keeps it live (AC-19)` (ui/e2e/image-shapes-more.spec.ts); `every_box_shape_converts_to_every_other_keeping_box_and_style` (crates/pincel-image-core/tests/live_box_shapes.rs) | built |        |
+| AC-20 | `star options and a Block Arrow handle drag redraw the live shape (AC-20)` (ui/e2e/image-shapes-more.spec.ts); `a_star_keeps_its_options_through_a_conversion_and_redraws_on_a_change`, `box_edits_of_an_arrow_or_a_callout_reapply_start_corner_and_axis` (crates/pincel-image-core/tests/live_box_shapes.rs) | built |        |
 
 ## Decisions
 
@@ -144,3 +144,4 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 - 2026-11-05: Part 2 depends on `image-shapes-curves` — because AC-08 includes its Dash-Dot patterns.
 - 2026-11-08 (spec-build): The six shapes are `Shape` variants (`Triangle`, `Diamond`, `Star`, `BlockArrow`, `Heart`, `Callout`) whose outlines a new module, `tools/box_shapes.rs`, builds as one closed polygon each (Heart from two mirrored pairs of cubic Béziers scaled to fill the box, Callout's tail inserted into the flattened rounded body); `Shapes` fills, strokes, dashes and anti-aliases them through the polygon SDF it already used for Polygon. A shape symmetric about its box's center line evaluates the SDF on one side of the axis only (`fold` in `shapes.rs`), so its pixels are exactly mirror symmetric (AC-10) — without the fold, the up-pointing Block Arrow was off by one coverage step at the shaft's edge. Their undo labels are "Draw Triangle" … "Draw Callout" (listed kinds `draw_triangle` … `draw_callout`, English and German names).
 - 2026-11-08 (spec-build): The live box record (`LiveShape`) keeps `star_points` and `inner_ratio` for every kind, like `sides`, so a Star converted to another shape and back keeps its options; `edit_live` takes both as parameter groups of their own. The box keeps `a` as given — never normalized — so `a` is the drag start that Block Arrow's direction and Callout's tail read, also after a handle drag flips the box (the editor moves the start corner with the edge, AC-20). MCP `draw.shape` checks that coordinates, the radius and the rotation are finite in single precision and names the argument; `radius` lost its schema minimum so a star radius of 0 or less succeeds with `changed: false` (AC-17), while a negative polygon radius is still refused, by the tool.
+- 2026-11-08 (spec-build): The drag preview draws the core's own outline of the new shapes (`shape_outline` in `pincel-image-wasm`, from `box_outline` in the core), so it is the shape the release will draw (AC-12), without a second copy of the Heart and Callout geometry in TypeScript. A box handle drag keeps each corner point on the edges it started on (`dragPoints` in `live-handles.ts`), so the first point — the drag start — moves with a dragged edge, also past the opposite one (AC-20); for the other box shapes the order of the points does not change the pixels. Several conversions in a row merge into one undo step, as consecutive edits of one parameter group do (`image-live-objects` AC-03); each conversion on its own is one step (AC-19). The options bar shows Points (3–50) and Inner radius (10–90 %) for Star only.

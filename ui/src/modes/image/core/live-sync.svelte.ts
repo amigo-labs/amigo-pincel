@@ -34,6 +34,9 @@ export function installLiveSync(): void {
   onChange(() => tool.antiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
   onChange(() => tool.cornerRadius, (obj, r) => shape({ corner_radius: r })(obj));
   onChange(() => tool.shapeSides, (obj, n) => shape({ sides: n })(obj));
+  // A live star's options (docs/specs/image-shapes-curves-shapes.md AC-20).
+  onChange(() => tool.starPoints, (obj, n) => shape({ star_points: n })(obj));
+  onChange(() => tool.starInner, (obj, r) => shape({ inner_ratio: r / 100 })(obj));
   // A live line's caps (docs/specs/image-shapes-curves.md AC-12).
   const line = (fields: Parameters<typeof editLive>[0]) => (obj: LiveObjectSpec) => {
     if (obj.type === 'shape' && obj.shape === 'line') editLive(fields);

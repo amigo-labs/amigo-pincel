@@ -538,11 +538,15 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
     dash: tool.shapeDash,
     blend: tool.blend,
   };
+  if (shape === 'star') {
+    cmd.star_points = tool.starPoints;
+    cmd.inner_ratio = tool.starInner / 100;
+  }
   if (shape === 'line') {
     cmd.start_cap = tool.lineStartCap;
     cmd.end_cap = tool.lineEndCap;
   }
-  if (shape === 'polygon') {
+  if (shape === 'polygon' || shape === 'star') {
     const w = Math.abs(b[0] - a[0]);
     const h = Math.abs(b[1] - a[1]);
     cmd.center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];

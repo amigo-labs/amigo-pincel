@@ -283,6 +283,8 @@ export function dragPoints(
     return hit.index === 0 ? [end, [b[0], b[1]]] : [[a[0], a[1]], end];
   }
   if (hit.kind === 'stroke' || hit.kind === 'ctrl') return from;
+  // The edges as they started (x0 / y0 the low ones), moved by the drag; a
+  // dragged edge may cross the opposite one.
   let [x0, y0, x1, y1] = box(from);
   const h = hit.handle;
   if (h.includes('w')) x0 += dx;
@@ -292,13 +294,21 @@ export function dragPoints(
   if (shift && h.length === 2) {
     // Square anchored at the opposite corner.
     const anchor: Pt = [h.includes('w') ? x1 : x0, h.includes('n') ? y1 : y0];
-    const corner: Pt = [h.includes('w') ? x0 : x1, h.includes('n') ? y0 : y1];
-    return [anchor, square(anchor, corner)];
+    const corner = square(anchor, [h.includes('w') ? x0 : x1, h.includes('n') ? y0 : y1]);
+    if (h.includes('w')) x0 = corner[0];
+    else x1 = corner[0];
+    if (h.includes('n')) y0 = corner[1];
+    else y1 = corner[1];
   }
-  return [
-    [x0, y0],
-    [x1, y1],
+  // Each point keeps the edges it sat on, so the first point — the drag
+  // start that orients a Block Arrow or a Callout — moves with its edges,
+  // also past the opposite one (image-shapes-curves-shapes AC-20).
+  const onLow = (p: Pt, other: Pt, i: 0 | 1) => p[i] < other[i] || (p[i] === other[i] && p === a);
+  const place = (p: Pt, other: Pt): Pt => [
+    onLow(p, other, 0) ? x0 : x1,
+    onLow(p, other, 1) ? y0 : y1,
   ];
+  return [place(a, b), place(b, a)];
 }
 
 /** A live text's box corner moved by the drag `start` → `p`, rounded to

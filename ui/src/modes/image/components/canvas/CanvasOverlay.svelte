@@ -5,6 +5,7 @@
   // the document's pixels are never touched (ADR-001).
   import { onMount } from 'svelte';
   import { editor, selectionPreview, shapePreview, view } from '../../stores/editor.svelte';
+  import { core } from '../../core/wasm';
 
   // Marching ants for the committed selection and the in-progress
   // selection / shape gestures. The overlay covers the viewport (not the
@@ -103,6 +104,21 @@
         if (i === 0) path.moveTo(px, py);
         else path.lineTo(px, py);
       }
+      path.closePath();
+    } else if (
+      kind === 'triangle' ||
+      kind === 'diamond' ||
+      kind === 'star' ||
+      kind === 'block_arrow' ||
+      kind === 'heart' ||
+      kind === 'callout'
+    ) {
+      // The core's own outline, so the preview is the shape it will draw
+      // (docs/specs/image-shapes-curves-shapes.md AC-12).
+      core.shapeOutline(kind, a, b, sp.starPoints, sp.innerRatio).forEach(([px, py], i) => {
+        if (i === 0) path.moveTo(px, py);
+        else path.lineTo(px, py);
+      });
       path.closePath();
     } else if (kind === 'rounded_rectangle') {
       const r = Math.min(sp.cornerRadius, w / 2, h / 2);

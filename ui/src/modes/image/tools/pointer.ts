@@ -488,6 +488,8 @@ export function attachTools(
         b: point,
         sides: tool.shapeSides,
         cornerRadius: tool.cornerRadius,
+        starPoints: tool.starPoints,
+        innerRatio: tool.starInner / 100,
       };
       return;
     }
@@ -658,6 +660,8 @@ export function attachTools(
         b,
         sides: tool.shapeSides,
         cornerRadius: tool.cornerRadius,
+        starPoints: tool.starPoints,
+        innerRatio: tool.starInner / 100,
       };
       last = b;
       return;

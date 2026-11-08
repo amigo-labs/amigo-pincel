@@ -568,6 +568,12 @@
           { id: 'rounded_rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
           { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
           { id: 'polygon', label: t('tool.polygon'), icon: 'polygon' },
+          { id: 'triangle', label: t('tool.triangle'), icon: 'triangle' },
+          { id: 'diamond', label: t('tool.diamond'), icon: 'diamond' },
+          { id: 'star', label: t('tool.star'), icon: 'star' },
+          { id: 'block_arrow', label: t('tool.blockArrow'), icon: 'block-arrow' },
+          { id: 'heart', label: t('tool.heart'), icon: 'heart' },
+          { id: 'callout', label: t('tool.callout'), icon: 'callout' },
         ],
       },
       {

@@ -43,6 +43,8 @@ export function beginShape(a: [number, number], b: [number, number], shape: Shap
     points: [a, b],
     corner_radius: tool.cornerRadius,
     sides: tool.shapeSides,
+    star_points: tool.starPoints,
+    inner_ratio: tool.starInner / 100,
     mode: tool.shapeMode,
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
@@ -148,6 +150,13 @@ export function liveToolOf(): ToolKind | null {
       return 'ellipse';
     case 'polygon':
       return 'polygon';
+    case 'triangle':
+    case 'diamond':
+    case 'star':
+    case 'block_arrow':
+    case 'heart':
+    case 'callout':
+      return obj.shape;
     default:
       return 'rectangle';
   }
