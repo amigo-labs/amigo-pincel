@@ -320,6 +320,22 @@ test('typed values outside a range become the nearest bound; text keeps the valu
   expect(applied).toEqual(await activeLayer(page));
 });
 
+test('Enter on a typed out-of-range value applies it snapped, as a blur would (AC-09)', async ({
+  page,
+}) => {
+  await openGrid(page);
+  await menu(page, 'Image', 'Rotate 180°');
+  const reference = await activeLayer(page);
+  await undoButton(page).click();
+  await openRotateZoom(page);
+  await quality(page).selectOption('Nearest');
+  // Enter straight from the field: the typed 500° is clamped to 180°.
+  await field(page, 'Angle').fill('500');
+  await field(page, 'Angle').press('Enter');
+  await expect(dialog(page)).toHaveCount(0);
+  expect(await activeLayer(page)).toEqual(reference);
+});
+
 test.describe('German', () => {
   test.use({ locale: 'de-DE' });
 
