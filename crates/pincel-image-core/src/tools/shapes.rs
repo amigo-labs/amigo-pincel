@@ -88,16 +88,25 @@ pub enum DashPattern {
     Dashed,
     /// Dots (≈1× stroke width on, ≈1.5× off).
     Dotted,
+    /// Dash, gap, dot, gap (3×, 1.5×, 1×, 1.5× stroke width;
+    /// docs/specs/image-shapes-curves.md AC-11).
+    DashDot,
+    /// Dash, gap, dot, gap, dot, gap (3×, 1.5×, 1×, 1.5×, 1×, 1.5×).
+    DashDotDot,
 }
 
 impl DashPattern {
-    /// On/off run lengths in pixels for a given stroke width, or `None` if solid.
-    fn runs(self, stroke_width: f32) -> Option<(f32, f32)> {
+    /// Alternating on / off run lengths in pixels for a given stroke width
+    /// (starting with an "on" run), or `None` if solid.
+    pub(super) fn runs(self, stroke_width: f32) -> Option<Vec<f32>> {
         let w = stroke_width.max(1.0);
+        let (dash, dot, gap) = ((w * 3.0).max(1.0), w.max(1.0), (w * 1.5).max(1.0));
         match self {
             DashPattern::Solid => None,
-            DashPattern::Dashed => Some(((w * 3.0).max(1.0), (w * 2.0).max(1.0))),
-            DashPattern::Dotted => Some((w.max(1.0), (w * 1.5).max(1.0))),
+            DashPattern::Dashed => Some(vec![dash, (w * 2.0).max(1.0)]),
+            DashPattern::Dotted => Some(vec![dot, gap]),
+            DashPattern::DashDot => Some(vec![dash, gap, dot, gap]),
+            DashPattern::DashDotDot => Some(vec![dash, gap, dot, gap, dot, gap]),
         }
     }
 }
@@ -176,9 +185,9 @@ impl Shapes {
             ShapeMode::Outline | ShapeMode::FillAndOutline
         );
         let dash_segments = match (draws_outline, self.style.dash.runs(stroke_width)) {
-            (true, Some((on, off))) => {
+            (true, Some(runs)) => {
                 let (verts, closed) = self.shape.outline_polyline();
-                Some(dash_segments(&verts, closed, on, off))
+                Some(dash_segments(&verts, closed, &runs))
             }
             _ => None,
         };
@@ -363,13 +372,22 @@ fn rounded_rect_polyline(cx: f32, cy: f32, hx: f32, hy: f32, r: f32) -> (Vec<Poi
 /// Splits an outline polyline into the "on" sub-segments of a dash pattern.
 ///
 /// Walks the polyline (wrapping when `closed`) by global arc length, emitting
-/// the painted runs of length `on` separated by gaps of length `off`.
-fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point, Point)> {
+/// the painted runs: `runs` alternates on and off lengths, starting with on,
+/// and repeats.
+pub(super) fn dash_segments(verts: &[Point], closed: bool, runs: &[f32]) -> Vec<(Point, Point)> {
     let mut segs = Vec::new();
-    if verts.len() < 2 || on <= 0.0 {
+    if verts.len() < 2 || runs.first().is_none_or(|&on| on <= 0.0) {
         return segs;
     }
-    let period = on + off;
+    // Run boundaries within one period: ends[k] is where run k stops.
+    let ends: Vec<f32> = runs
+        .iter()
+        .scan(0.0_f32, |acc, &r| {
+            *acc += r;
+            Some(*acc)
+        })
+        .collect();
+    let period = ends[ends.len() - 1];
     let last = if closed { verts.len() } else { verts.len() - 1 };
     let mut traveled = 0.0_f32;
     for i in 0..last {
@@ -383,15 +401,19 @@ fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point
         let mut t = 0.0_f32;
         while t < seg_len {
             let phase = (traveled + t) % period;
-            if phase < on {
-                let end = (t + (on - phase)).min(seg_len);
+            let k = ends
+                .iter()
+                .position(|&e| phase < e)
+                .unwrap_or(ends.len() - 1);
+            if k % 2 == 0 {
+                let end = (t + (ends[k] - phase)).min(seg_len);
                 segs.push((
                     Point::new(p0.x + dir.x * t, p0.y + dir.y * t),
                     Point::new(p0.x + dir.x * end, p0.y + dir.y * end),
                 ));
                 t = end;
             } else {
-                t += period - phase;
+                t += ends[k] - phase;
             }
         }
         traveled += seg_len;
@@ -400,7 +422,7 @@ fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point
 }
 
 /// Minimum distance from `(px, py)` to any of the segments.
-fn min_dist_segments(px: f32, py: f32, segs: &[(Point, Point)]) -> f32 {
+pub(super) fn min_dist_segments(px: f32, py: f32, segs: &[(Point, Point)]) -> f32 {
     let mut best = f32::MAX;
     for &(a, b) in segs {
         best = best.min(dist_segment(px, py, a, b));
@@ -566,7 +588,7 @@ fn center_half(a: Point, b: Point) -> (f32, f32, f32, f32) {
 }
 
 /// Fill coverage from a signed distance: `aa` gives a 1px ramp across the edge.
-fn inside_coverage(d: f32, aa: bool) -> f32 {
+pub(super) fn inside_coverage(d: f32, aa: bool) -> f32 {
     if aa {
         (0.5 - d).clamp(0.0, 1.0)
     } else if d <= 0.0 {
@@ -577,7 +599,7 @@ fn inside_coverage(d: f32, aa: bool) -> f32 {
 }
 
 /// Centered-stroke coverage: a band of total width `2 * half` around the path.
-fn band_coverage(d: f32, half: f32, aa: bool) -> f32 {
+pub(super) fn band_coverage(d: f32, half: f32, aa: bool) -> f32 {
     // Distance outside the band's surface (negative inside the band).
     let edge = d.abs() - half;
     if aa {
@@ -611,7 +633,7 @@ fn sd_ellipse(px: f32, py: f32, ax: f32, ay: f32) -> f32 {
 }
 
 /// Distance from `(px, py)` to the segment `a`→`b`.
-fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
+pub(super) fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
     let ex = b.x - a.x;
     let ey = b.y - a.y;
     let wx = px - a.x;
@@ -629,7 +651,7 @@ fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
 
 /// Signed distance from `(px, py)` to the simple polygon `verts` (negative
 /// inside). Standard min-edge-distance with a winding-number sign test.
-fn sd_polygon(px: f32, py: f32, verts: &[Point]) -> f32 {
+pub(super) fn sd_polygon(px: f32, py: f32, verts: &[Point]) -> f32 {
     let n = verts.len();
     let mut d = {
         let dx = px - verts[0].x;

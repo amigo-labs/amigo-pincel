@@ -242,6 +242,8 @@ pub(super) fn parse_dash(s: &str) -> DashPattern {
     match s {
         "dashed" => DashPattern::Dashed,
         "dotted" => DashPattern::Dotted,
+        "dash_dot" => DashPattern::DashDot,
+        "dash_dot_dot" => DashPattern::DashDotDot,
         _ => DashPattern::Solid,
     }
 }

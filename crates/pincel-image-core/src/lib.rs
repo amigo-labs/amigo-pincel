@@ -40,11 +40,11 @@ pub use geometry::{Point, Rect, Size};
 pub use render::{RenderCache, compose, compose_over, compose_region};
 pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand, masked_region};
 pub use tools::{
-    Blend, Brush, BrushShape, CloneSnapshot, CloneStamp, DEFAULT_BRUSH_ANGLE, DashPattern, Eraser,
-    EraserMode, Eyedropper, Fill, FillOptions, Gradient, GradientChannel, GradientKind, Move,
-    OverwriteMemory,
-    PenSamples, Pencil, PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape,
-    ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextLayout, TextStyle,
+    Blend, Brush, BrushShape, CloneSnapshot, CloneStamp, Curve, CurveLine, DEFAULT_BRUSH_ANGLE,
+    DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Gradient, GradientChannel,
+    GradientKind, LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil,
+    PressureDynamics, Recolor, RecolorOrigins, SampleSize, SampleSource, Shape, ShapeMode,
+    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextLayout, TextStyle,
     copy_selection, delete_selection, fill_selection,
 };
 pub use transform::{

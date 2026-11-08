@@ -9,6 +9,7 @@
 
 mod clone_stamp;
 mod copy;
+mod curve;
 mod delete;
 mod eraser;
 mod eyedropper;
@@ -23,6 +24,7 @@ mod text;
 
 pub use clone_stamp::{CloneSnapshot, CloneStamp};
 pub use copy::copy_selection;
+pub use curve::{Curve, CurveLine, LineCap, MAX_LINE_POINTS};
 pub use delete::delete_selection;
 pub use eraser::{Eraser, EraserMode};
 pub use eyedropper::{Eyedropper, SampleSize};

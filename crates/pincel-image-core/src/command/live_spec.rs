@@ -189,6 +189,8 @@ fn dash_str(dash: DashPattern) -> &'static str {
         DashPattern::Solid => "solid",
         DashPattern::Dashed => "dashed",
         DashPattern::Dotted => "dotted",
+        DashPattern::DashDot => "dash_dot",
+        DashPattern::DashDotDot => "dash_dot_dot",
     }
 }
 
