@@ -5,13 +5,14 @@ import { t } from '../i18n/index.svelte';
 import { hasNativeMenu } from '../platform';
 import { hint } from '../shell/shortcuts';
 import { help, openAbout, runUpdateCheck, setAutoUpdate } from './state.svelte';
+import { startTour, type TourContext } from '../tour/tour.svelte';
 
 /**
  * The Help menu (Keyboard Shortcuts, About, the updater's entries), or nothing where the OS already draws one: on macOS the
  * native menu bar owns Help, and a second copy inside the window would be
  * the duplication this menu exists to avoid (spec §11.3).
  */
-export function helpMenus(openShortcuts: () => void): MenuDef[] {
+export function helpMenus(openShortcuts: () => void, tourContext?: TourContext): MenuDef[] {
   if (hasNativeMenu()) return [];
   const updater = help.updater;
   // No update entries where nothing can be installed: a browser, a debug
@@ -34,6 +35,9 @@ export function helpMenus(openShortcuts: () => void): MenuDef[] {
       label: t('menu.help'),
       items: tidy([
         { label: t('menu.shortcuts'), shortcut: hint('shortcuts'), run: openShortcuts },
+        ...(tourContext
+          ? [{ label: t('menu.tour'), run: () => startTour(tourContext) } satisfies MenuItem]
+          : []),
         { kind: 'separator' },
         { label: t('menu.about'), run: openAbout },
         ...updates,

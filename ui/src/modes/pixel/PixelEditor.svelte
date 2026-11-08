@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TourHint from '../../lib/tour/TourHint.svelte';
   import { onMount } from 'svelte';
   import { loadCore } from '../../lib/core';
   import {
@@ -1247,6 +1248,7 @@
     },
   ]}
 >
+  {#snippet headerHint()}<TourHint mode="pixel" {active} />{/snippet}
   {#snippet quick()}
     <IconButton
       icon="undo"

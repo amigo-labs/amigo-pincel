@@ -47,6 +47,9 @@ export interface ShellMenuHandlers {
   'menu:open': MenuHandler;
   /** macOS File ▸ Quit / Cmd+Q: a close request (unsaved-changes-prompt AC-09). */
   'menu:quit': MenuHandler;
+  /** Help ▸ Tour: the tour for the start screen or the mounted editor
+   *  (first-run-tutorial AC-12). */
+  'menu:tour': MenuHandler;
   recent: RecentHandler;
   /** Current editor handlers (`null` while the start screen shows). */
   editor: () => EditorMenuHandlers | null;
@@ -61,7 +64,12 @@ export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<Unlis
       void handlers.recent(id);
       return;
     }
-    if (payload === 'menu:new' || payload === 'menu:open' || payload === 'menu:quit') {
+    if (
+      payload === 'menu:new' ||
+      payload === 'menu:open' ||
+      payload === 'menu:quit' ||
+      payload === 'menu:tour'
+    ) {
       void handlers[payload]();
       return;
     }

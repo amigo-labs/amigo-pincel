@@ -55,6 +55,9 @@
     quick?: Snippet;
     /** Status bar content. */
     statusbar?: Snippet;
+    /** A short offer shown in the header's free space (the tour hint,
+     *  first-run-tutorial AC-10). */
+    headerHint?: Snippet;
     /** The open effect's panel, or `null`. */
     effectPanel?: { title: string; body: Snippet } | null;
     /** The open documents, drawn as a tab bar above the canvas. */
@@ -71,6 +74,7 @@
     viewport: stage,
     quick,
     statusbar,
+    headerHint,
     effectPanel = null,
     tabs,
   }: Props = $props();
@@ -260,7 +264,9 @@
     {#if size !== 'narrow'}
       <MenuBar {menus} restricted={effectOpen} />
     {/if}
-    <span class="min-w-0 flex-1"></span>
+    <span class="flex min-w-0 flex-1 justify-center overflow-hidden" inert={effectOpen}>
+      {@render headerHint?.()}
+    </span>
     <span
       class="min-w-0 shrink truncate text-xs text-pc-muted"
       class:max-w-40={size !== 'wide'}
@@ -269,7 +275,7 @@
     >
       {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
     </span>
-    <span class="ml-1 flex items-center" inert={effectOpen}>
+    <span class="ml-1 flex items-center" inert={effectOpen} data-tour="quick">
       {@render quick?.()}
       <IconButton
         icon={size === 'narrow' ? 'layers' : 'sidebar'}

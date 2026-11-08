@@ -320,6 +320,6 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         languageMenu(),
       ],
     },
-    ...helpMenus(c.openShortcuts),
+    ...helpMenus(c.openShortcuts, 'pixel'),
   ];
 }

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TourHint from '../../lib/tour/TourHint.svelte';
   import { hexToRgb, toHex } from '../../lib/color';
   import {
     colorDraft,
@@ -1566,7 +1567,7 @@
         languageMenu(),
       ],
     },
-    ...helpMenus(openOverview),
+    ...helpMenus(openOverview, 'image'),
   ]);
 </script>
 
@@ -1624,6 +1625,7 @@
     },
   ]}
 >
+  {#snippet headerHint()}<TourHint mode="image" {active} />{/snippet}
   {#snippet quick()}
     <IconButton
       icon="undo"

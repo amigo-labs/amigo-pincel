@@ -48,6 +48,8 @@
     unsaved,
   } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
+  import Tour from './lib/tour/Tour.svelte';
+  import { loadTourPrefs, startTour } from './lib/tour/tour.svelte';
   import {
     activateDocument,
     activateTab,
@@ -654,6 +656,7 @@
             console.error('open-file listen failed', err);
           })
       : Promise.resolve();
+    void loadTourPrefs();
     void Promise.all([loadAutoNew(), launchOpened])
       .then(([params]) => {
         // An OS-handed file that arrived meanwhile wins over the empty document.
@@ -697,6 +700,7 @@
         'menu:new': () => requestNew(activeMode ?? 'pixel'),
         'menu:open': () => void openFromPicker(),
         'menu:quit': () => requestClose(),
+        'menu:tour': () => startTour(activeMode ?? 'start'),
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
           // entries recorded by an editor are found too.
@@ -863,6 +867,8 @@
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
 {/if}
+
+<Tour />
 
 {#if help.shortcuts}
   <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
