@@ -287,6 +287,21 @@
     }
   }
 
+  /** Opens a bundled sample through the normal open path; it is precached
+   *  with the app, so it opens offline too (first-run-tutorial AC-13 – AC-15). */
+  async function openSample(sample: 'sprite' | 'image'): Promise<void> {
+    const name = sample === 'sprite' ? 'slime.aseprite' : 'postcard.ora';
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}samples/${name}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const mime = sample === 'sprite' ? 'application/x-aseprite' : 'image/openraster';
+      openFile({ name, bytes, mime, handle: null, path: null });
+    } catch (err) {
+      shellError = t('shell.openFailed', { error: errText(err) });
+    }
+  }
+
   function openFile(opened: OpenedFile, mode?: EditorMode): void {
     void serial(async () => {
       await routeFile(opened, mode === undefined ? {} : { mode });
@@ -741,6 +756,7 @@
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
+    onOpenSample={(s) => void openSample(s)}
     {dropHover}
   />
   {#if offer.image && !modalOpen && wasmSimd}

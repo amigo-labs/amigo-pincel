@@ -71,6 +71,9 @@ export const de: Record<MessageKey, string> = {
     'Dieser Browser ist zu alt für Pincel (benötigt Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',
   'start.openHint':
     '.aseprite öffnet im Pixel-Modus; .ora, PNG, JPEG, WebP, BMP, GIF, TIFF und PSD öffnen im Bild-Modus.',
+  'start.openSample': 'Beispiel öffnen',
+  'start.sampleSprite': 'Hüpfender Schleim (Pixel)',
+  'start.sampleImage': 'Postkarte (Bild)',
   'start.recent': 'Zuletzt geöffnet',
   'start.recentFiles': 'Zuletzt geöffnete Dateien',
   'start.language': 'Sprache',

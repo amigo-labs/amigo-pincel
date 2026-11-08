@@ -30,6 +30,7 @@
     onCreate,
     onOpen,
     onOpenRecent,
+    onOpenSample = () => {},
     dropHover = false,
   }: {
     recents: RecentFile[];
@@ -40,6 +41,9 @@
     onCreate: (params: NewDocParams) => void;
     onOpen: () => void;
     onOpenRecent: (recent: RecentFile) => void;
+    /** "Open a sample" picked the sprite or the image sample
+     *  (docs/specs/first-run-tutorial.md AC-13, AC-14). */
+    onOpenSample?: (sample: 'sprite' | 'image') => void;
     /** A file drag is over the screen: show the drop state. */
     dropHover?: boolean;
   } = $props();
@@ -53,6 +57,7 @@
 
   // The open New card and its size fields; `null` while both are closed.
   let expanded = $state<EditorMode | null>(null);
+  let samplesOpen = $state(false);
   let width = $state(0);
   let height = $state(0);
 
@@ -223,6 +228,23 @@
     <div class="mt-5 flex flex-col items-start gap-2">
       <button class="panel-btn shrink-0" onclick={onOpen} disabled={blocked}>{t('start.open')}</button>
       <span class="text-[13px] leading-relaxed text-pc-muted">{t('start.openHint')}</span>
+      <button
+        class="panel-btn shrink-0"
+        aria-expanded={samplesOpen}
+        disabled={blocked}
+        data-tour="samples"
+        onclick={() => (samplesOpen = !samplesOpen)}>{t('start.openSample')}</button
+      >
+      {#if samplesOpen}
+        <div class="flex flex-wrap gap-2" role="group" aria-label={t('start.openSample')}>
+          <button class="panel-btn" disabled={blocked} onclick={() => onOpenSample('sprite')}
+            >{t('start.sampleSprite')}</button
+          >
+          <button class="panel-btn" disabled={blocked} onclick={() => onOpenSample('image')}
+            >{t('start.sampleImage')}</button
+          >
+        </div>
+      {/if}
     </div>
 
     {#if recents.length > 0}
