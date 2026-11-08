@@ -101,19 +101,19 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | ----- | ---- | ------ | ------ |
 | AC-01 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
 | AC-02 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
-| AC-03 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a slow second finger or a pinch does not undo (AC-03)" | built | |
+| AC-03 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a slow second finger or a pinch does not undo (AC-03)"; "a two-finger touch still down after 300 ms does not undo (AC-03)" | built | |
 | AC-04 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
 | AC-05 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a tap whose first finger began a stroke undoes that stroke and the one before (AC-05)" | built | |
 | AC-06 | `ui/e2e/gestures.spec.ts` "{pixel,image}: a two-finger tap undoes, a three-finger tap redoes (AC-01, AC-02, AC-04, AC-06)" | built | |
-| AC-07 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
-| AC-08 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
+| AC-07 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)"; "an eraser reported only by bit 32 of `buttons` erases; a cancelled one keeps the tool (AC-07, AC-08)" | built | |
+| AC-08 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)"; "an eraser reported only by bit 32 of `buttons` erases; a cancelled one keeps the tool (AC-07, AC-08)" | built | |
 | AC-09 | `ui/e2e/gestures.spec.ts` "image: the eraser end follows pen pressure like the Eraser tool (AC-09)" | built | |
 | AC-10 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
 | AC-11 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
-| AC-12 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-12 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)"; "with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12)" | built | |
 | AC-13 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
 | AC-14 | `ui/e2e/gestures.spec.ts` "the Touch Gestures entry is German in the German UI (AC-14)" | built | |
-| AC-15 |      | open   |        |
+| AC-15 | manual check pending: two-finger tap on an iPad after a stroke; eraser end of a Surface / Wacom pen on a Windows tablet (record as `manual: {who} checked {what}, {date}`) | open |  |
 
 ## Decisions
 

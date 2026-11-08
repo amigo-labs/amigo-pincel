@@ -69,8 +69,13 @@ async function shown(page: Page, target: Locator, fx: number, fy: number): Promi
 /** A pen stroke across the middle with the eraser end (button 5, bit 32 of
  *  `buttons`), dispatched as pointer events: CDP has no eraser button. The
  *  mouse's pointer id keeps pointer capture valid. */
-async function eraserStroke(target: Locator, force = 0.8): Promise<void> {
-  await target.evaluate((el, force) => {
+async function eraserStroke(
+  target: Locator,
+  force = 0.8,
+  opts: { button?: number; end?: 'pointerup' | 'pointercancel' } = {},
+): Promise<void> {
+  const { button = 5, end = 'pointerup' } = opts;
+  await target.evaluate((el, [force, button, end]) => {
     const r = el.getBoundingClientRect();
     const at = (fx: number) => ({ clientX: r.left + r.width * fx, clientY: r.top + r.height * 0.52 });
     const fire = (type: string, fx: number, buttons: number) =>
@@ -79,9 +84,9 @@ async function eraserStroke(target: Locator, force = 0.8): Promise<void> {
           ...at(fx),
           pointerId: 1,
           pointerType: 'pen',
-          button: type === 'pointermove' ? -1 : 5,
+          button: type === 'pointermove' ? -1 : (button as number),
           buttons,
-          pressure: buttons ? force : 0,
+          pressure: buttons ? (force as number) : 0,
           bubbles: true,
           cancelable: true,
           composed: true,
@@ -90,8 +95,8 @@ async function eraserStroke(target: Locator, force = 0.8): Promise<void> {
     // Inside the sprite also in Pixel mode, whose canvas spans the stage.
     fire('pointerdown', 0.42, 32);
     for (const fx of [0.46, 0.5, 0.54, 0.58]) fire('pointermove', fx, 32);
-    fire('pointerup', 0.58, 0);
-  }, force);
+    fire(end as string, 0.58, 0);
+  }, [force, button, end] as const);
 }
 
 for (const mode of ['pixel', 'image'] as const) {
@@ -232,4 +237,79 @@ test('the Touch Gestures entry is German in the German UI (AC-14)', async ({ pag
   await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
   await page.getByRole('menubar').getByRole('menuitem', { name: 'Ansicht', exact: true }).click();
   await expect(page.getByRole('menuitemcheckbox', { name: 'Touch-Gesten' })).toBeVisible();
+});
+
+/** Two fingers that land together, wait `holdMs`, then lift. */
+async function slowTap(page: Page, target: Locator, holdMs: number): Promise<void> {
+  const cdp = await page.context().newCDPSession(page);
+  const pts = await points(target, [
+    [0.3, 0.3],
+    [0.6, 0.6],
+  ]);
+  await touch(cdp, 'touchStart', pts);
+  await page.waitForTimeout(holdMs);
+  await touch(cdp, 'touchEnd', []);
+  await cdp.detach();
+}
+
+test('a two-finger touch still down after 300 ms does not undo (AC-03)', async ({ page }) => {
+  await twoStrokes(page, 'image');
+  await slowTap(page, imageCanvas(page), 380);
+  await expect(redoButton(page)).toBeDisabled();
+});
+
+test('an eraser reported only by bit 32 of `buttons` erases; a cancelled one keeps the tool (AC-07, AC-08)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  await setColor(page, 'fg', '#ff0000');
+  await page.keyboard.press('g');
+  await imageCanvas(page).click();
+  const target = imageCanvas(page);
+  await expect.poll(() => shown(page, target, 0.5, 0.52)).toBe('#ff0000');
+  await page.keyboard.press('b');
+  const rail = page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
+  const tool = await rail.getAttribute('aria-label');
+  await eraserStroke(target, 0.8, { button: 0 });
+  await expect.poll(() => shown(page, target, 0.5, 0.52)).not.toBe('#ff0000');
+  await undoButton(page).click();
+  await eraserStroke(target, 0.8, { end: 'pointercancel' });
+  expect(await rail.getAttribute('aria-label')).toBe(tool);
+  // The Brush still paints after the cancelled eraser stroke.
+  await drag(page, target, [0.1, 0.1], [0.3, 0.1]);
+  await expect(undoButton(page)).toBeEnabled();
+});
+
+test('with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12)', async ({ page }) => {
+  await createDocument(page, 'image', { width: 32, height: 32 });
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+  await page.getByRole('menuitemcheckbox', { name: 'Touch Gestures' }).click();
+  const target = imageCanvas(page);
+  const zoom = page.getByRole('button', { name: 'Fit to window' });
+  const before = await zoom.textContent();
+  const cdp = await page.context().newCDPSession(page);
+  const [a, b] = await points(target, [
+    [0.45, 0.5],
+    [0.55, 0.5],
+  ]);
+  if (!a || !b) throw new Error('points');
+  await touch(cdp, 'touchStart', [a, b]);
+  for (let i = 1; i <= 5; i += 1) {
+    await touch(cdp, 'touchMove', [
+      [a[0] - 20 * i, a[1]],
+      [b[0] + 20 * i, b[1]],
+    ]);
+  }
+  await touch(cdp, 'touchEnd', []);
+  await cdp.detach();
+  await expect(zoom).not.toHaveText(before ?? '');
+
+  await setColor(page, 'fg', '#ff0000');
+  await page.getByRole('button', { name: 'Fit to window' }).click();
+  await page.keyboard.press('g');
+  await target.click();
+  await expect.poll(() => shown(page, target, 0.5, 0.52)).toBe('#ff0000');
+  await page.keyboard.press('b');
+  await eraserStroke(target);
+  await expect.poll(() => shown(page, target, 0.5, 0.52)).not.toBe('#ff0000');
 });
