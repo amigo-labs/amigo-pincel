@@ -449,7 +449,7 @@ Skills live in `.agents/skills/` — read by Codex, Gemini CLI, Copilot, Cursor 
 | ------- | --------- |
 | `/ui-polish` | Screenshot-scored UI improvement loop (Playwright) |
 
-Gate commands: `.agents/gates.json`. Hooks (`.claude/settings.json`, Claude Code only): SessionStart lists open feature specs, a guard refuses new suppressions (§9), and the Stop hook runs the fast gates for the areas a turn changed.
+Gate commands: `.agents/gates.json`. Hooks (`.claude/settings.json`, Claude Code only): SessionStart lists open feature specs, a guard refuses new suppressions (§9), the Stop hook runs the quick `stop` gates (rustfmt, clippy on the changed crates) after a turn that changed code, and the commit gate runs the `fast` gates before `git commit`.
 
 Skills still to create as the project matures:
 
@@ -539,11 +539,11 @@ Project knowledge belongs in the repository, not on one machine:
 
 ### Quality gates
 
-- **Run the `qa` skill before finishing any coding task** and report the result. The gate commands are in `.agents/gates.json`: `fast` (also run by the Claude Code Stop hook for the areas a turn changed) and `full` (mirrors CI). Run them with `node .agents/skills/qa/scripts/gates.mjs fast|full`.
+- **Run the `qa` skill before finishing any coding task** and report the result. The gate commands are in `.agents/gates.json`: `stop` (seconds: formatting, clippy on the changed crates — the Claude Code Stop hook runs it after every turn that changed code), `fast` (before every commit — the Claude Code commit gate refuses a commit while one is red; other agents run `node .agents/skills/qa/scripts/gates.mjs fast` before committing) and `full` (mirrors CI, `node .agents/skills/qa/scripts/gates.mjs full`).
 - **Fix the cause, never lower the gates.** No suppressions (the list is `suppressions` in `.agents/gates.json`), no weakened, skipped or ignored tests. The Claude Code guard hook refuses new suppressions; a justified one is added by the user.
 - **Don't loosen the gate configuration**: `.agents/gates.json`, `.agents/skills/qa/scripts/`, `.claude/settings.json` and `.claude/hooks/` change only on the user's explicit request.
 - Where a gate names a `fix` command (formatting, lint autofix), that fix is allowed; everything else is fixed in the code. Where a gate has a `note`, follow it.
-- `STOP_GATE=off` in the environment switches the Claude Code Stop hook off, e.g. for a bulk migration — only on the user's request.
+- `STOP_GATE=off` / `COMMIT_GATE=off` in the environment switch the Claude Code Stop hook / commit gate off, e.g. for a bulk migration — only on the user's request.
 
 <!-- amigo-skills:end spec-workflow -->
 
@@ -559,7 +559,7 @@ AGENTS.md                     This file — how to build it (CLAUDE.md only impo
 .gitattributes                Line endings (§6.4) — LF in index and working tree
 .agents/skills/               Skills for every agent (shared ones vendored from amigo-labs/skills)
 .agents/skills.json           Which shared skills; `node .agents/sync.mjs` updates, `--check` finds drift
-.agents/gates.json            Gate commands: fast (Stop hook, per path) and full (/qa, mirrors CI)
+.agents/gates.json            Gate commands: stop (Stop hook), fast (before a commit), full (/qa, mirrors CI)
 .claude/skills/               Mirror of .agents/skills for Claude Code — never edit it
 .claude/hooks/                Claude Code hooks: SessionStart / guard / Stop
 
