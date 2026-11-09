@@ -1,6 +1,6 @@
 # Specs
 
-Two kinds of spec live here (`.claude/rules/specs.md`):
+Two kinds of spec live here (AGENTS.md, "Spec-driven workflow"):
 
 - **Design specs** — architecture, data model and the Decision Log: [`pincel.md`](pincel.md) (§15 Decision Log, §18 competitive landscape), [`canvas.md`](canvas.md), [`cli.md`](cli.md), [`lessons.md`](lessons.md), [`mcp.md`](mcp.md). [`website-spec.md`](website-spec.md) is superseded (see "Superseded").
 - **Feature specs** — one feature each, with acceptance criteria and an Evidence table: written with `/spec`, built with `/spec-build`, accepted with `/spec-check` (the only step that sets `status: implemented`).
