@@ -235,3 +235,24 @@ test('a dropped TGA, DDS or ICO lands as a new layer (AC-13)', async ({ page }) 
     await expect(layerRows(page)).toHaveCount(before + 1);
   }
 });
+
+test('a dropped TGA, DDS or ICO that fails to open is an undecodable drop (AC-13)', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 8, height: 8 });
+  const before = await layerRows(page).count();
+  const brokenIco = ico([[4, 32, Buffer.from('not a png at all')]]);
+  await dragFiles(imageCanvas(page), 'drop', [
+    { name: 'good.tga', bytes: tga([1, 2, 3, 255]) },
+    { name: 'bc7.dds', bytes: dds('DX10', 98) },
+    { name: 'broken.ico', bytes: brokenIco },
+    { name: 'noext', bytes: tga([4, 5, 6, 255]) },
+  ]);
+  await page.getByRole('dialog').getByRole('button', { name: /Add as layer/ }).click();
+  // Each failing file gets its own notice (file-access AC-26); the good TGA
+  // is added and stays.
+  for (const name of ['bc7.dds', 'broken.ico', 'noext']) {
+    await expect(page.getByRole('alert').filter({ hasText: name })).toBeVisible();
+  }
+  await expect(layerRows(page)).toHaveCount(before + 1);
+});
