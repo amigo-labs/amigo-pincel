@@ -40,3 +40,7 @@
 *.pdf           binary
 *.zip           binary
 *.traineddata   binary
+
+# Mirrors written by .agents/sync.mjs (edit .agents/skills or amigo-labs/skills instead)
+.claude/skills/**          linguist-generated=true
+.agents/skills.lock.json   linguist-generated=true

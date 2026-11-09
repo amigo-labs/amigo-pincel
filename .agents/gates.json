@@ -1,5 +1,5 @@
 {
-  "$comment": "Quality gates for the hooks in .claude/hooks/ and the /qa, /spec-build, /spec-check skills. `full` mirrors .github/workflows/ci.yml (minus the pincel-tauri job, AGENTS.md §10); `fast` runs in the Stop hook, filtered by `paths` (prefixes of changed repository paths). `needs` lists the ids a gate waits for; gates without needs between them run in parallel.",
+  "$comment": "Quality gates for the qa, spec-build and spec-check skills (node .agents/skills/qa/scripts/gates.mjs fast|full) and the Claude Code hooks in .claude/hooks/. `full` mirrors .github/workflows/ci.yml (minus the pincel-tauri job, AGENTS.md §10); `fast` runs in the Stop hook, filtered by `paths` (prefixes of changed repository paths). `needs` lists the ids a gate waits for; gates without needs between them run in parallel. Optional per gate: `fix` (auto-fix command), `note` (guidance when it is red).",
   "fast": [
     {
       "id": "rust-fmt",
@@ -7,7 +7,11 @@
       "cwd": ".",
       "command": "cargo fmt --all -- --check",
       "fix": "cargo fmt --all",
-      "paths": ["crates/", "src-tauri/", "Cargo.toml"],
+      "paths": [
+        "crates/",
+        "src-tauri/",
+        "Cargo.toml"
+      ],
       "needs": []
     },
     {
@@ -15,7 +19,11 @@
       "name": "clippy",
       "cwd": ".",
       "command": "cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings",
-      "paths": ["crates/", "Cargo.toml", "Cargo.lock"],
+      "paths": [
+        "crates/",
+        "Cargo.toml",
+        "Cargo.lock"
+      ],
       "needs": []
     },
     {
@@ -24,7 +32,9 @@
       "cwd": "ui",
       "command": "pnpm lint",
       "fix": "pnpm lint --fix",
-      "paths": ["ui/"],
+      "paths": [
+        "ui/"
+      ],
       "needs": []
     },
     {
@@ -32,7 +42,9 @@
       "name": "ui type-check",
       "cwd": "ui",
       "command": "pnpm check",
-      "paths": ["ui/"],
+      "paths": [
+        "ui/"
+      ],
       "needs": []
     }
   ],
@@ -57,14 +69,19 @@
       "name": "cargo test",
       "cwd": ".",
       "command": "cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp",
-      "needs": ["rust-clippy"]
+      "needs": [
+        "rust-clippy"
+      ]
     },
     {
       "id": "generated-bindings",
       "name": "generated TS bindings current",
       "cwd": ".",
       "command": "git diff --exit-code -- ui/src/modes/image/core/generated/",
-      "needs": ["rust-test"]
+      "needs": [
+        "rust-test"
+      ],
+      "note": "Red when cargo test regenerated ui/src/modes/image/core/generated/: the regenerated files belong in the commit — review and include them, don't revert them."
     },
     {
       "id": "ui-wasm",
@@ -78,7 +95,9 @@
       "name": "ui install",
       "cwd": "ui",
       "command": "pnpm install --frozen-lockfile",
-      "needs": ["ui-wasm"]
+      "needs": [
+        "ui-wasm"
+      ]
     },
     {
       "id": "ui-lint",
@@ -86,29 +105,54 @@
       "cwd": "ui",
       "command": "pnpm lint",
       "fix": "pnpm lint --fix",
-      "needs": ["ui-install"]
+      "needs": [
+        "ui-install"
+      ]
     },
     {
       "id": "ui-check",
       "name": "ui type-check",
       "cwd": "ui",
       "command": "pnpm check",
-      "needs": ["ui-install"]
+      "needs": [
+        "ui-install"
+      ]
     },
     {
       "id": "ui-build",
       "name": "ui build",
       "cwd": "ui",
       "command": "pnpm build",
-      "needs": ["ui-install"]
+      "needs": [
+        "ui-install"
+      ]
     },
     {
       "id": "ui-e2e",
       "name": "ui e2e",
       "cwd": "ui",
       "command": "pnpm test:e2e",
-      "needs": ["ui-build"]
+      "needs": [
+        "ui-build"
+      ]
+    },
+    {
+      "id": "agent-skills",
+      "name": "agent skills in sync",
+      "cwd": ".",
+      "command": "node .agents/sync.mjs --check",
+      "note": "Shared skills are edited in amigo-labs/skills and synced with `node .agents/sync.mjs`; this repository's own skills are edited in .agents/skills, then `node .agents/sync.mjs --mirror`.",
+      "needs": []
     }
+  ],
+  "suppressionExtensions": [
+    ".rs",
+    ".ts",
+    ".mts",
+    ".js",
+    ".mjs",
+    ".svelte",
+    ".css"
   ],
   "suppressions": [
     "#[allow(",

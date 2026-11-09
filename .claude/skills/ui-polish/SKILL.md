@@ -9,7 +9,7 @@ Systematically improve the UI of the current application through iterative scree
 
 ## Prerequisites
 
-- Playwright MCP must be available (`claude mcp add playwright npx @playwright/mcp@latest`).
+- A browser the agent can drive: the Playwright MCP server (`npx @playwright/mcp@latest`, e.g. `claude mcp add playwright npx @playwright/mcp@latest` in Claude Code) or a Playwright script (`require("playwright")`).
 - Prefer a running local dev server. If none is running, start one if possible.
 
 ## Workflow
@@ -20,7 +20,7 @@ Systematically improve the UI of the current application through iterative scree
    - Include both light and dark mode when relevant.
 
 2. **Capture baseline screenshots**
-   - Use Playwright MCP to navigate to each target screen.
+   - Use the browser (Playwright MCP or a script) to navigate to each target screen.
    - Take full-page screenshots (and key component screenshots if useful).
    - Save them with clear names (e.g. `dashboard-light-round1.png`).
    - Note the current state.

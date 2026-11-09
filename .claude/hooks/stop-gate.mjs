@@ -1,5 +1,5 @@
 // Stop: before Claude may end a turn that changed code, the fast gates from
-// .claude/gates.json must be green. A red gate blocks the stop and hands
+// the gate configuration (.agents/gates.json) must be green. A red gate blocks the stop and hands
 // Claude the errors -- deterministic, unlike a rule that asks for the same
 // thing. Gates without `needs` between them run at the same time, and one
 // block names every red gate.
@@ -7,7 +7,7 @@
 // - Runs only when the working tree differs from the session start and from
 //   the last green run: a turn without changes costs nothing.
 // - Only gates whose `paths` match a path changed in this session run: a turn
-//   that touched only ui/ does not wait for clippy.
+//   that touched only docs/ does not wait for clippy.
 // - A new turn over the tree the last red run already reported is not checked
 //   again: the errors reached Claude once, and blocking every later answer
 //   would only repeat them. A change to the tree checks again.
@@ -30,7 +30,7 @@ import {
   runGates,
   saveState,
   treeState,
-} from './lib.mjs';
+} from './hook-lib.mjs';
 
 const MAX_BLOCKS = 3;
 const MAX_ERROR_LINES = 30;
