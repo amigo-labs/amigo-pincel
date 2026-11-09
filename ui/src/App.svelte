@@ -49,7 +49,7 @@
   } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
   import Tour from './lib/tour/Tour.svelte';
-  import { loadTourPrefs, startTour } from './lib/tour/tour.svelte';
+  import { loadTourPrefs, startTour } from './lib/tour/tour-state.svelte';
   import {
     activateDocument,
     activateTab,

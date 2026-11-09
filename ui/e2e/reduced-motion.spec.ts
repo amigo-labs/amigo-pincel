@@ -4,8 +4,8 @@ import { createDocument, gotoStart, imageCanvas, pixelCanvas, storedPref } from 
 // "Reduce motion" (docs/specs/reduced-motion.md): the selection outline and
 // the other marching outlines stand still while the system or View ▸ Reduce
 // Motion asks for it, UI transitions finish instantly, playback keeps
-// running. The canvas is compared through element screenshots taken 300 ms
-// apart (AGENTS.md §7.4); the app never reads canvas pixels.
+// running. The canvas is compared through series of element screenshots
+// (AGENTS.md §7.4); the app never reads canvas pixels.
 
 const MODES = ['pixel', 'image'] as const;
 type Mode = (typeof MODES)[number];
@@ -45,14 +45,18 @@ async function selectionDrag(
 /** An element screenshot of the canvas (overlays included). */
 const shot = (page: Page, mode: Mode) => canvasOf(page, mode).screenshot();
 
-/** Whether two canvas screenshots 300 ms apart are identical. */
-async function stillFor300ms(page: Page, mode: Mode): Promise<boolean> {
-  // The ants march in a short period: one pair of shots can land on the
-  // same phase by chance, so "still" needs every pair of a few shots 300 ms
-  // apart, at uneven extra offsets, to be identical.
+/** Whether a series of canvas screenshots over about a second are identical. */
+async function looksStill(page: Page, mode: Mode): Promise<boolean> {
+  // The ants cycle: Pixel mode steps every 7 frames (~117 ms) through 4
+  // phases (~467 ms), Image mode every frame through ~267 ms. Shots spaced
+  // close to a whole cycle all land on one phase and a marching outline
+  // looks still: 300 ms waits plus the CI runner's ~150 ms per screenshot
+  // did exactly that. Short waits keep every gap (screenshot included) well
+  // under three steps, and the series spans more than a cycle, so a march
+  // always shows as a difference.
   const first = await shot(page, mode);
-  for (const extra of [0, 70, 130]) {
-    await page.waitForTimeout(300 + extra);
+  for (const wait of [40, 90, 60, 110, 70, 130]) {
+    await page.waitForTimeout(wait);
     if (!(await shot(page, mode)).equals(first)) return false;
   }
   return true;
@@ -60,7 +64,7 @@ async function stillFor300ms(page: Page, mode: Mode): Promise<boolean> {
 
 /** Waits until the canvas stands still (`true`) or moves (`false`). */
 async function expectStill(page: Page, mode: Mode, still: boolean): Promise<void> {
-  await expect.poll(() => stillFor300ms(page, mode), { timeout: 10_000 }).toBe(still);
+  await expect.poll(() => looksStill(page, mode), { timeout: 10_000 }).toBe(still);
 }
 
 /** A document of `mode` with a rectangular selection whose outline is drawn. */
@@ -103,7 +107,7 @@ for (const mode of MODES) {
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await withSelection(page, mode);
-    expect(await stillFor300ms(page, mode)).toBe(true);
+    expect(await looksStill(page, mode)).toBe(true);
   });
 
   test(`${mode}: without reduced motion the selection outline marches (AC-02, AC-11)`, async ({
@@ -126,7 +130,7 @@ for (const mode of MODES) {
     const before = await shot(page, mode);
     await selectionDrag(page, mode, [2, 2], [12, 20]);
     await expect.poll(async () => (await shot(page, mode)).equals(before)).toBe(false);
-    expect(await stillFor300ms(page, mode)).toBe(true);
+    expect(await looksStill(page, mode)).toBe(true);
   });
 
   test(`${mode}: a switch of the system setting stops and starts the march without a reload (AC-05)`, async ({
@@ -153,7 +157,7 @@ for (const mode of MODES) {
     const before = await shot(page, mode);
     await selectionDrag(page, mode, [2, 2], [12, 20]);
     await expect.poll(async () => (await shot(page, mode)).equals(before)).toBe(false);
-    expect(await stillFor300ms(page, mode)).toBe(true);
+    expect(await looksStill(page, mode)).toBe(true);
   });
 
   test(`${mode}: under a system reduce request the entry stays unchecked and names the system setting (AC-13)`, async ({
@@ -177,7 +181,7 @@ test('pixel: under reduced motion a drag preview and the active slice outline st
   await createDocument(page, 'pixel', { width: SIZE, height: SIZE });
   // A Rectangle Select drag that is still in progress.
   await selectionDrag(page, 'pixel', [4, 4], [20, 20], false);
-  expect(await stillFor300ms(page, 'pixel')).toBe(true);
+  expect(await looksStill(page, 'pixel')).toBe(true);
   await page.mouse.up();
   await page.keyboard.press('ControlOrMeta+d');
   // A new slice is the active one; its outline marches unless reduced.

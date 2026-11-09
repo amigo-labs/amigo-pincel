@@ -3,7 +3,7 @@
   // (docs/specs/first-run-tutorial.md AC-10): shown on that editor's first
   // open only, never after No thanks on the start-screen banner.
   import { t } from '../i18n/index.svelte';
-  import { hintDue, markHinted, startTour, tour } from './tour.svelte';
+  import { hintDue, markHinted, startTour, tour } from './tour-state.svelte';
 
   let { mode, active }: { mode: 'pixel' | 'image'; active: boolean } = $props();
   let shown = $state(false);

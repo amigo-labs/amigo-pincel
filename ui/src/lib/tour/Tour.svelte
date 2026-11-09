@@ -7,7 +7,7 @@
   import { tick } from 'svelte';
   import { t } from '../i18n/index.svelte';
   import { TOUR_STEPS, type Anchor } from './steps';
-  import { endTour, tour } from './tour.svelte';
+  import { endTour, tour } from './tour-state.svelte';
 
   const steps = $derived(tour.context ? TOUR_STEPS[tour.context] : []);
   const step = $derived(steps[tour.step] ?? null);

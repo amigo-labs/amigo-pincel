@@ -5,7 +5,7 @@
 // by role and accessible name or a `data-tour` mark, never by CSS class.
 
 import type { MessageKey } from '../i18n/en';
-import type { TourContext } from './tour.svelte';
+import type { TourContext } from './tour-state.svelte';
 
 /** How a step finds its anchor; `null` centres the callout. */
 export type Anchor = { role: string; name?: MessageKey } | { tour: string } | null;

@@ -22,7 +22,7 @@
     prefillKeepingSelection,
   } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
-  import { answerBanner, bannerShown, startTour } from '../tour/tour.svelte';
+  import { answerBanner, bannerShown, startTour } from '../tour/tour-state.svelte';
 
   let {
     recents,
