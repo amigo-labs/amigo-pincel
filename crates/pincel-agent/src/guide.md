@@ -11,7 +11,7 @@ Each document has a mode, and the mode follows the file, as in the editor:
 | Mode | For | Created by | Saved as |
 | ---- | --- | ---------- | -------- |
 | Pixel | Sprites, tiles, animation with frames, tags and a palette (up to 4096 px per side) | `doc.new` with `mode: "pixel"`, `doc.open` of `.aseprite` / `.ase`, or of a PNG with `mode: "pixel"` | `.aseprite` (`doc.save`), PNG (`export.png`), sprite sheets (`export.sheet`), APNG / GIF animations (`export.apng`, `export.gif`), SVG (`export.svg`) |
-| Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF or TIFF | OpenRaster `.ora` (`doc.save`, keeps layers); PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered); `export.png`, `export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`, `export.svg` |
+| Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS or ICO | OpenRaster `.ora` (`doc.save`, keeps layers); PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered); `export.png`, `export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`, `export.svg` |
 
 Shared tools work on both: `doc.*`, `layer.*` (except the two below),
 `select.*` (except `select.feather`), `draw.stroke`, `draw.shape`,
@@ -157,7 +157,8 @@ These tools work on Pixel documents only: `slice.list`, `slice.add`,
 ## Files: open, save and export
 
 - `doc.open` reads `.aseprite` / `.ase` as Pixel documents and `.ora`,
-  Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF and TIFF as Image documents;
+  Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS and ICO as
+  Image documents (TGA by its extension, it has no signature);
   a PSD result lists `notices` of what was left out. A PNG opens as a
   Pixel document only with `mode: "pixel"`; `mode: "image"` or no `mode`
   lets the file decide, and a `mode` the file cannot open in fails.

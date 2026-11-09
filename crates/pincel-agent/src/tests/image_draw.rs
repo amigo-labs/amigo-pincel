@@ -826,9 +826,11 @@ fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
         .iter()
         .find(|t| t.name == "doc.open")
         .expect("doc.open");
-    let text = format!("{} {}", open.description, open.input_schema);
     for format in ["TGA", "DDS", "ICO"] {
-        assert!(text.contains(format), "doc.open does not name {format}");
+        assert!(
+            open.description.contains(format),
+            "doc.open's description does not name {format}"
+        );
     }
 }
 
