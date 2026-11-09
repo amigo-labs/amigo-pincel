@@ -115,8 +115,13 @@ fn overwrite_replaces_fully_covered_pixels_alpha_included() {
     let mut text = solid(24, 24, BLUE);
     run(&mut text, &with_blend(TEXT, "overwrite"));
     let data = pixels(&text);
-    assert!(data.chunks_exact(4).any(|p| p == [255, 0, 0, 100]));
-    assert!(data.chunks_exact(4).all(|p| p == BLUE || p[3] >= 100));
+    assert!(data.as_chunks::<4>().0.contains(&[255, 0, 0, 100]));
+    assert!(
+        data.as_chunks::<4>()
+            .0
+            .iter()
+            .all(|p| *p == BLUE || p[3] >= 100)
+    );
 }
 
 #[test]
@@ -158,12 +163,21 @@ fn overwrite_stroke_takes_the_highest_coverage_and_never_builds_up() {
     let mut normal = bus(30, 30);
     run(&mut normal, stroke);
     assert!(
-        pixels(&normal).chunks_exact(4).any(|p| p[3] > 140),
+        pixels(&normal)
+            .as_chunks::<4>()
+            .0
+            .iter()
+            .any(|p| p[3] > 140),
         "Normal builds up"
     );
     let mut over = bus(30, 30);
     run(&mut over, &with_blend(stroke, "overwrite"));
-    let alphas: Vec<u8> = pixels(&over).chunks_exact(4).map(|p| p[3]).collect();
+    let alphas: Vec<u8> = pixels(&over)
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .map(|p| p[3])
+        .collect();
     assert!(
         alphas.iter().all(|&a| a <= 128),
         "max {:?}",
@@ -251,5 +265,5 @@ fn live_shapes_gradients_and_texts_take_and_change_the_blend() {
         r#"{"type":"begin_live_text","layer":0,"font_id":0,"text":"Wl","x":1,"y":1,"size":18,"color":[255,0,0,100],"anti_alias":true}"#,
     );
     run(&mut t, r#"{"type":"edit_live","blend":"overwrite"}"#);
-    assert!(pixels(&t).chunks_exact(4).any(|p| p == [255, 0, 0, 100]));
+    assert!(pixels(&t).as_chunks::<4>().0.contains(&[255, 0, 0, 100]));
 }
