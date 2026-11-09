@@ -73,6 +73,7 @@ Independent of every other group.
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
+| F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
 | F4 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
 | F5 | [image-formats-more-print](image-formats-more-print.md) | Image | L | — | File ▸ Print… |
 
@@ -156,7 +157,6 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [effects-render](effects-render.md)
 - [history-panel](history-panel.md)
 - [image-edit-extras-tool-options](image-edit-extras-tool-options.md)
-- [image-formats-more](image-formats-more.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
