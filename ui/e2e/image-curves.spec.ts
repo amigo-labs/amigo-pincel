@@ -22,13 +22,17 @@ async function handleAt(page: Page, id: string): Promise<[number, number]> {
   return [box.x + box.width / 2, box.y + box.height / 2];
 }
 
-/** The color shown at a page point, from a screenshot of the canvas. */
-async function shownAt(page: Page, [px, py]: [number, number]): Promise<string> {
+/** The colors shown at page points, all from one screenshot of the canvas
+ *  (a screenshot per point makes a scan run into the test timeout). */
+async function shownAtAll(
+  page: Page,
+  points: readonly (readonly [number, number])[],
+): Promise<string[]> {
   const box = await imageCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
   const png = await imageCanvas(page).screenshot();
   return page.evaluate(
-    async ({ b64, fx, fy }) => {
+    async ({ b64, fractions }) => {
       const bitmap = await createImageBitmap(
         await (await fetch(`data:image/png;base64,${b64}`)).blob(),
       );
@@ -36,13 +40,28 @@ async function shownAt(page: Page, [px, py]: [number, number]): Promise<string> 
       const ctx = canvas.getContext('2d');
       if (!ctx) throw new Error('no 2d context');
       ctx.drawImage(bitmap, 0, 0);
-      const x = Math.min(bitmap.width - 1, Math.floor(bitmap.width * fx));
-      const y = Math.min(bitmap.height - 1, Math.floor(bitmap.height * fy));
-      const [r = 0, g = 0, b = 0] = ctx.getImageData(x, y, 1, 1).data;
-      return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+      return fractions.map(([fx, fy]) => {
+        const x = Math.min(bitmap.width - 1, Math.floor(bitmap.width * fx));
+        const y = Math.min(bitmap.height - 1, Math.floor(bitmap.height * fy));
+        const [r = 0, g = 0, b = 0] = ctx.getImageData(x, y, 1, 1).data;
+        return `#${[r, g, b].map((v) => v.toString(16).padStart(2, '0')).join('')}`;
+      });
     },
-    { b64: png.toString('base64'), fx: (px - box.x) / box.width, fy: (py - box.y) / box.height },
+    {
+      b64: png.toString('base64'),
+      fractions: points.map(([px, py]): [number, number] => [
+        (px - box.x) / box.width,
+        (py - box.y) / box.height,
+      ]),
+    },
   );
+}
+
+/** The color shown at a page point, from a screenshot of the canvas. */
+async function shownAt(page: Page, point: [number, number]): Promise<string> {
+  const [hex] = await shownAtAll(page, [point]);
+  if (hex === undefined) throw new Error('no color sampled');
+  return hex;
 }
 
 async function mouseDrag(
@@ -353,10 +372,12 @@ test('a drag on the stroke between two points inserts the new point between them
   // of the blue run in the column at x = 0.25.
   const [cx, top] = await at(page, [0.25, 0.35]);
   const [, bottom] = await at(page, [0.25, 0.85]);
-  const blue: number[] = [];
-  for (let y = top; y <= bottom; y += 2) {
-    if (blueish(await shownAt(page, [cx, y]))) blue.push(y);
-  }
+  const column = Array.from(
+    { length: Math.floor((bottom - top) / 2) + 1 },
+    (_, i) => [cx, top + 2 * i] as const,
+  );
+  const shown = await shownAtAll(page, column);
+  const blue = column.filter((_, i) => blueish(shown[i] ?? '')).map(([, y]) => y);
   expect(blue.length).toBeGreaterThan(2);
   const onCurve: [number, number] = [cx, blue[Math.floor(blue.length / 2)]!];
   const target = await at(page, [0.25, 0.95]);
