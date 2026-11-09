@@ -5,7 +5,7 @@ import { t } from '../i18n/index.svelte';
 import { hasNativeMenu } from '../platform';
 import { hint } from '../shell/shortcuts';
 import { help, openAbout, runUpdateCheck, setAutoUpdate } from './state.svelte';
-import { startTour, type TourContext } from '../tour/tour.svelte';
+import { startTour, type TourContext } from '../tour/tour-state.svelte';
 
 /**
  * The Help menu (Keyboard Shortcuts, About, the updater's entries), or nothing where the OS already draws one: on macOS the
