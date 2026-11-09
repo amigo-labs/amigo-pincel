@@ -29,7 +29,19 @@ import {
 } from '../stores/editor.svelte';
 import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
-import { cursorOf, dragPoints, hitLive, wholeMove, type LiveHit, type Pt } from './live-handles';
+import {
+  cursorOf,
+  dragLine,
+  dragPoints,
+  hitLive,
+  insertIndex,
+  isLine,
+  MAX_LINE_POINTS,
+  wholeMove,
+  type LineGeom,
+  type LiveHit,
+  type Pt,
+} from './live-handles';
 import { editRefused } from '../core/layer-tree';
 import {
   caretToPoint,
@@ -46,6 +58,7 @@ import { wandClick } from './wand-link';
 import { azimuthOf, pressureOf, selectionModeOf, toCanvasPoint, touchHold } from './pointer-input';
 import { constrainShape, rectFromCorners, snappedCorners } from './drag-geometry';
 import { cloneStroke } from '../core/clone-stroke';
+import { TAP_LIMITS, isEraserEnd } from '../../../lib/view/taps';
 import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
@@ -74,6 +87,10 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'ellipse',
   'polygon',
 ]);
+
+/** Tools that write pixels on press: a touch press with them is held
+ *  (tablet-gestures AC-04). */
+const HOLD_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'recolor', 'smudge']);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
@@ -184,16 +201,37 @@ export function attachTools(
     frame: number;
     /** A live text moves by whole document pixels (image-live-text AC-07). */
     whole: boolean;
+    /** A live line's geometry when the drag began, and its latest unsent
+     *  geometry (docs/specs/image-shapes-curves.md). */
+    line?: LineGeom | undefined;
+    pendingLine?: LineGeom | null;
+    /** A press on the line's stroke: the control point goes in at this
+     *  index once the pointer moves (AC-02); `null` once inserted. */
+    insert?: number | null;
   } | null = null;
   // A press-and-drag placing the caret and selecting characters in the live
   // text (image-live-text AC-06): the pointer that owns it.
   let textSelect: number | null = null;
   // A touch press held back while a live object is open (pointer-input.ts).
   const held = touchHold((down) => press(down));
+  // The last press on a control point: a second one soon after on the same
+  // point removes it (a double-click or double-tap, AC-04).
+  let lastCtrlPress: { index: number; time: number } | null = null;
+  const DOUBLE_PRESS_MS = 400;
 
   /** Sends the drag's latest points, at most once per frame. */
   const flushLive = (): void => {
-    if (liveDrag === null || liveDrag.pending === null) return;
+    if (liveDrag === null) return;
+    if (liveDrag.pendingLine) {
+      const geom = liveDrag.pendingLine;
+      liveDrag.pendingLine = null;
+      if (!editLive({ gesture: liveDrag.gesture, points: geom.points, control: geom.control })) {
+        endLiveDrag();
+      }
+      redraw();
+      return;
+    }
+    if (liveDrag.pending === null) return;
     const points = liveDrag.pending;
     liveDrag.pending = null;
     if (!editLive({ gesture: liveDrag.gesture, points })) {
@@ -260,7 +298,41 @@ export function attachTools(
     // The right button does nothing while an object is live.
     if (e.button !== 0) return true;
     const hit = hitLive(obj, point, view.zoom, e.pointerType !== 'mouse');
-    if (hit?.kind === 'stroke') return true;
+    const line: LineGeom | undefined = isLine(obj)
+      ? { points: obj.points, control: obj.control }
+      : undefined;
+    if (hit?.kind === 'stroke') {
+      // A drag on a line's stroke adds a control point (image-shapes-curves
+      // AC-02); a full line (AC-15) and a box shape's outline take nothing.
+      if (line === undefined || line.control.length + 2 >= MAX_LINE_POINTS) return true;
+      const index = insertIndex(obj, point);
+      liveDrag = {
+        pointer: e.pointerId,
+        hit: { kind: 'ctrl', index },
+        from: obj.points,
+        start: point,
+        gesture: nextStrokeId++,
+        pending: null,
+        frame: 0,
+        whole: false,
+        line,
+        pendingLine: null,
+        insert: index,
+      };
+      stage.setPointerCapture(e.pointerId);
+      return true;
+    }
+    if (hit?.kind === 'ctrl' && line !== undefined) {
+      const now = performance.now();
+      if (lastCtrlPress?.index === hit.index && now - lastCtrlPress.time < DOUBLE_PRESS_MS) {
+        // The second press of a double-click removes the point (AC-04).
+        lastCtrlPress = null;
+        editLive({ control: line.control.filter((_, i) => i !== hit.index) });
+        redraw();
+        return true;
+      }
+      lastCtrlPress = { index: hit.index, time: now };
+    }
     if (hit !== null) {
       liveDrag = {
         pointer: e.pointerId,
@@ -271,6 +343,9 @@ export function attachTools(
         pending: null,
         frame: 0,
         whole: false,
+        line,
+        pendingLine: null,
+        insert: null,
       };
       stage.setPointerCapture(e.pointerId);
       return true;
@@ -306,7 +381,7 @@ export function attachTools(
   };
 
   const onDown = (e: PointerEvent): void => {
-    if ((e.button !== 0 && e.button !== 2) || onControl(e)) {
+    if ((e.button !== 0 && e.button !== 2 && !isEraserEnd(e)) || onControl(e)) {
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
@@ -321,6 +396,15 @@ export function attachTools(
       if (textBoxOpen()) requestTextFocus();
       return;
     }
+    // A touch press with a tool that writes on press waits until it moves,
+    // stays or lifts, so the fingers of a two- or three-finger tap never
+    // commit anything and Redo keeps its step (tablet-gestures AC-02, AC-04).
+    if (e.pointerType === 'touch' && e.button === 0 && HOLD_TOOLS.has(tool.kind)) {
+      held.hold(e);
+      stage.setPointerCapture(e.pointerId);
+      setTimeout(() => held.lifted(e), TAP_LIMITS.landMs);
+      return;
+    }
     press(e);
   };
 
@@ -329,19 +413,22 @@ export function attachTools(
     if (pressLive(e, toCanvasPoint(canvas, e))) {
       return;
     }
+    // A pen's eraser end erases for this stroke, whatever tool is selected;
+    // the selected tool stays (docs/specs/tablet-gestures.md AC-07, AC-08).
+    const kind: ToolKind = isEraserEnd(e) ? 'eraser' : tool.kind;
     // Selection, shapes and text respond to the primary button only; the right
     // button is reserved for the background-color paint variants (spec §9.2).
     const selectionOrPlacement =
-      DRAG_SELECT.has(tool.kind) ||
-      tool.kind === 'polygon_lasso' ||
-      tool.kind === 'magic_wand' ||
-      isShapeTool(tool.kind) ||
-      tool.kind === 'text';
+      DRAG_SELECT.has(kind) ||
+      kind === 'polygon_lasso' ||
+      kind === 'magic_wand' ||
+      isShapeTool(kind) ||
+      kind === 'text';
     if (selectionOrPlacement && e.button !== 0) {
       return;
     }
     // Abandon any in-progress polygon when switching away from that tool.
-    if (tool.kind !== 'polygon_lasso' && polygonPoints.length > 0) {
+    if (kind !== 'polygon_lasso' && polygonPoints.length > 0) {
       polygonPoints = [];
       selectionPreview.value = null;
     }
@@ -350,34 +437,34 @@ export function attachTools(
     const inside = onCanvas(point);
     // Beside the canvas only the selection gestures and a text box start
     // (AC-32; image-live-text AC-01).
-    if (!inside && !STAGE_TOOLS.has(tool.kind) && tool.kind !== 'text') {
+    if (!inside && !STAGE_TOOLS.has(kind) && kind !== 'text') {
       return;
     }
     // Ctrl / ⌘ or Set source sets the Clone Stamp's source, even on a
     // locked layer (docs/specs/clone-stamp.md AC-03, AC-04, AC-14).
-    if (tool.kind === 'clone' && pressCloneSource(e, point)) return;
+    if (kind === 'clone' && pressCloneSource(e, point)) return;
 
     // Pixel-writing tools refuse a locked layer, a layer in a locked group
     // and a group (spec §3.2, docs/specs/image-layer-groups.md AC-11,
     // AC-12); Move (layer) moves a group's content. Say why.
-    if (WRITES_PIXELS.has(tool.kind)) {
+    if (WRITES_PIXELS.has(kind)) {
       const layer = editor.layers[editor.activeLayer];
-      if (layer && editRefused(editor.layers, editor.activeLayer, tool.kind === 'move')) {
+      if (layer && editRefused(editor.layers, editor.activeLayer, kind === 'move')) {
         editor.notice = t('layers.locked', { name: layer.name });
         return;
       }
     }
     editor.notice = null;
-    if (tool.kind === 'clone' && !beginCloneStroke(point)) return;
+    if (kind === 'clone' && !beginCloneStroke(point)) return;
 
-    if (tool.kind === 'magic_wand') {
+    if (kind === 'magic_wand') {
       wandClick(inside ? [point[0], point[1]] : null, selectionModeOf(e));
       return;
     }
 
     // Text opens a box (image-live-text AC-01); inside an empty box the
     // press keeps it.
-    if (tool.kind === 'text') {
+    if (kind === 'text') {
       if (hitText(point, view.zoom, e.pointerType !== 'mouse') !== null) {
         startTextSelect(e, point);
       } else {
@@ -387,11 +474,11 @@ export function attachTools(
     }
 
     // The gradient drags like a shape and previews as the ramp's own line.
-    const shape = tool.kind === 'gradient' ? 'line' : shapeOf(tool.kind);
+    const shape = kind === 'gradient' ? 'line' : shapeOf(kind);
     if (shape !== null) {
       active = true;
       activePointer = e.pointerId;
-      gestureKind = tool.kind;
+      gestureKind = kind;
       start = point;
       last = point;
       stage.setPointerCapture(e.pointerId);
@@ -401,11 +488,13 @@ export function attachTools(
         b: point,
         sides: tool.shapeSides,
         cornerRadius: tool.cornerRadius,
+        starPoints: tool.starPoints,
+        innerRatio: tool.starInner / 100,
       };
       return;
     }
 
-    if (tool.kind === 'polygon_lasso') {
+    if (kind === 'polygon_lasso') {
       // Click near the first vertex closes the polygon.
       const first = polygonPoints[0];
       if (polygonPoints.length >= 3 && first !== undefined) {
@@ -423,19 +512,19 @@ export function attachTools(
       return;
     }
 
-    if (DRAG_SELECT.has(tool.kind)) {
+    if (DRAG_SELECT.has(kind)) {
       active = true;
       activePointer = e.pointerId;
-      gestureKind = tool.kind;
+      gestureKind = kind;
       start = point;
       last = point;
       selMode = selectionModeOf(e);
       stage.setPointerCapture(e.pointerId);
-      if (tool.kind === 'lasso') {
+      if (kind === 'lasso') {
         lassoPath = [point];
         selectionPreview.value = { shape: 'lasso', points: lassoPath };
       } else {
-        const shape = tool.kind === 'ellipse_select' ? 'ellipse' : 'rect';
+        const shape = kind === 'ellipse_select' ? 'ellipse' : 'rect';
         selectionPreview.value = { shape, points: snappedCorners(point, point) };
       }
       return;
@@ -443,7 +532,7 @@ export function attachTools(
 
     active = true;
     activePointer = e.pointerId;
-    gestureKind = tool.kind;
+    gestureKind = kind;
     useBackground = e.button === 2;
     last = point;
     lastPressure = pressureOf(e);
@@ -452,7 +541,7 @@ export function attachTools(
     strokeId = nextStrokeId++;
     stage.setPointerCapture(e.pointerId);
 
-    switch (tool.kind) {
+    switch (kind) {
       // The press dab is its own command (a click is one dab); it shows in
       // the next frame together with whatever the drag adds by then.
       case 'pencil':
@@ -494,9 +583,24 @@ export function attachTools(
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
-      liveDrag.pending = liveDrag.whole
-        ? wholeMove(liveDrag.from, liveDrag.start, p)
-        : dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      if (liveDrag.whole) {
+        liveDrag.pending = wholeMove(liveDrag.from, liveDrag.start, p);
+      } else if (liveDrag.line) {
+        if (liveDrag.insert != null) {
+          // The press on the stroke becomes a control point once the pointer
+          // moves: a press without movement adds nothing (AC-02).
+          const moved = Math.hypot(p[0] - liveDrag.start[0], p[1] - liveDrag.start[1]) * view.zoom;
+          if (moved < 2) return;
+          const at = liveDrag.insert;
+          const control = [...liveDrag.line.control];
+          control.splice(at, 0, liveDrag.start);
+          liveDrag.line = { points: liveDrag.line.points, control };
+          liveDrag.insert = null;
+        }
+        liveDrag.pendingLine = dragLine(liveDrag.hit, liveDrag.line, liveDrag.start, p, shiftHeld(e));
+      } else {
+        liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
+      }
       if (liveDrag.frame === 0) {
         liveDrag.frame = requestAnimationFrame(() => {
           if (liveDrag !== null) liveDrag.frame = 0;
@@ -556,6 +660,8 @@ export function attachTools(
         b,
         sides: tool.shapeSides,
         cornerRadius: tool.cornerRadius,
+        starPoints: tool.starPoints,
+        innerRatio: tool.starInner / 100,
       };
       last = b;
       return;

@@ -21,18 +21,39 @@ pub enum LiveObjectSpec {
     Shape {
         /// The layer it is drawn into.
         layer: usize,
-        /// `line`, `rectangle`, `rounded_rectangle`, `ellipse` or `polygon`.
+        /// `line`, `rectangle`, `rounded_rectangle`, `ellipse`, `polygon`,
+        /// `triangle`, `diamond`, `star`, `block_arrow`, `heart` or `callout`.
         shape: String,
         /// Endpoints or opposite box corners.
         points: [[f32; 2]; 2],
         corner_radius: f32,
         sides: u32,
+        /// A star's points, 3–50 (kept for every kind).
+        star_points: u32,
+        /// A star's inner radius as a share of the outer one, 0.1–0.9
+        /// (kept for every kind).
+        inner_ratio: f32,
         mode: String,
         stroke_width: f32,
         stroke_color: [u8; 4],
         fill_color: [u8; 4],
         anti_alias: bool,
         dash: String,
+        /// A line's control points between the endpoints, in order
+        /// (docs/specs/image-shapes-curves.md); empty otherwise.
+        control: Vec<[f32; 2]>,
+        /// A line's start cap: `round`, `flat` or `arrow`.
+        start_cap: String,
+        /// A line's end cap: `round`, `flat` or `arrow`.
+        end_cap: String,
+        /// The line's curve as the core flattens and draws it, for the
+        /// editor's hit-testing of the stroke; empty for a box shape.
+        polyline: Vec<[f32; 2]>,
+        /// Where the line's move grip is anchored: the curve's midpoint by
+        /// arc length (image-shapes-curves AC-22); zero for a box.
+        grip_anchor: [f32; 2],
+        /// The curve's unit normal at `grip_anchor`; zero for a box.
+        grip_normal: [f32; 2],
     },
     /// A live text: `x`, `y` are the top-left of its box.
     Text {
@@ -70,19 +91,44 @@ pub fn live_object_spec(bus: &CommandBus) -> Option<LiveObjectSpec> {
     let live = bus.live_object()?;
     let points = live.params.points().map(|p| [p.x, p.y]);
     Some(match live.params {
-        LiveParams::Shape(s) => LiveObjectSpec::Shape {
-            layer: live.layer,
-            shape: live_shape_str(s.kind).to_string(),
-            points,
-            corner_radius: s.corner_radius,
-            sides: s.sides,
-            mode: shape_mode_str(s.style.mode).to_string(),
-            stroke_width: s.style.stroke_width,
-            stroke_color: bytes(s.style.stroke_color),
-            fill_color: bytes(s.style.fill_color),
-            anti_alias: s.style.anti_alias,
-            dash: dash_str(s.style.dash).to_string(),
-        },
+        LiveParams::Shape(s) => {
+            let line = s.kind == LiveShapeKind::Line;
+            let curve = s.curve();
+            let (anchor, normal) = if line {
+                curve.midpoint()
+            } else {
+                (
+                    crate::geometry::Point::new(0.0, 0.0),
+                    crate::geometry::Point::new(0.0, 0.0),
+                )
+            };
+            let xy = |p: &crate::geometry::Point| [p.x, p.y];
+            LiveObjectSpec::Shape {
+                layer: live.layer,
+                shape: live_shape_str(s.kind).to_string(),
+                points,
+                corner_radius: s.corner_radius,
+                sides: s.sides,
+                star_points: s.star_points,
+                inner_ratio: s.inner_ratio,
+                mode: shape_mode_str(s.style.mode).to_string(),
+                stroke_width: s.style.stroke_width,
+                stroke_color: bytes(s.style.stroke_color),
+                fill_color: bytes(s.style.fill_color),
+                anti_alias: s.style.anti_alias,
+                dash: dash_str(s.style.dash).to_string(),
+                control: s.control.iter().map(xy).collect(),
+                start_cap: s.start_cap.name().to_string(),
+                end_cap: s.end_cap.name().to_string(),
+                polyline: if line {
+                    curve.polyline().iter().map(xy).collect()
+                } else {
+                    Vec::new()
+                },
+                grip_anchor: xy(&anchor),
+                grip_normal: xy(&normal),
+            }
+        }
         LiveParams::Text(t) => LiveObjectSpec::Text {
             layer: live.layer,
             text: t.text,
@@ -162,6 +208,12 @@ pub fn parse_live_shape(s: &str) -> Option<LiveShapeKind> {
         "rounded_rectangle" => LiveShapeKind::Box(BoxShape::RoundedRectangle),
         "ellipse" => LiveShapeKind::Box(BoxShape::Ellipse),
         "polygon" => LiveShapeKind::Box(BoxShape::Polygon),
+        "triangle" => LiveShapeKind::Box(BoxShape::Triangle),
+        "diamond" => LiveShapeKind::Box(BoxShape::Diamond),
+        "star" => LiveShapeKind::Box(BoxShape::Star),
+        "block_arrow" => LiveShapeKind::Box(BoxShape::BlockArrow),
+        "heart" => LiveShapeKind::Box(BoxShape::Heart),
+        "callout" => LiveShapeKind::Box(BoxShape::Callout),
         _ => return None,
     })
 }
@@ -173,6 +225,12 @@ fn live_shape_str(kind: LiveShapeKind) -> &'static str {
         LiveShapeKind::Box(BoxShape::RoundedRectangle) => "rounded_rectangle",
         LiveShapeKind::Box(BoxShape::Ellipse) => "ellipse",
         LiveShapeKind::Box(BoxShape::Polygon) => "polygon",
+        LiveShapeKind::Box(BoxShape::Triangle) => "triangle",
+        LiveShapeKind::Box(BoxShape::Diamond) => "diamond",
+        LiveShapeKind::Box(BoxShape::Star) => "star",
+        LiveShapeKind::Box(BoxShape::BlockArrow) => "block_arrow",
+        LiveShapeKind::Box(BoxShape::Heart) => "heart",
+        LiveShapeKind::Box(BoxShape::Callout) => "callout",
     }
 }
 
@@ -189,6 +247,8 @@ fn dash_str(dash: DashPattern) -> &'static str {
         DashPattern::Solid => "solid",
         DashPattern::Dashed => "dashed",
         DashPattern::Dotted => "dotted",
+        DashPattern::DashDot => "dash_dot",
+        DashPattern::DashDotDot => "dash_dot_dot",
     }
 }
 
@@ -250,12 +310,20 @@ mod tests {
                 points: [[3.0, 3.0], [21.0, 12.0]],
                 corner_radius: 0.0,
                 sides: 5,
+                star_points: 5,
+                inner_ratio: 0.38,
                 mode: "fill".into(),
                 stroke_width: 2.0,
                 stroke_color: [1, 2, 3, 255],
                 fill_color: [4, 5, 6, 255],
                 anti_alias: true,
                 dash: "dotted".into(),
+                control: vec![],
+                start_cap: "round".into(),
+                end_cap: "round".into(),
+                polyline: vec![],
+                grip_anchor: [0.0, 0.0],
+                grip_normal: [0.0, 0.0],
             })
         );
         run(&mut bus, r#"{"type":"commit_live"}"#).expect("commit");

@@ -49,6 +49,7 @@ export type ShortcutAction =
   | 'deselect'
   | 'invertSelection'
   | 'deleteSelection'
+  | 'print'
   | 'fillSelection'
   | 'zoomIn'
   | 'zoomOut'
@@ -179,6 +180,9 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   open: [{ key: 'o', mod: true }],
   save: [{ key: 's', mod: true }],
   saveAs: [{ key: 's', mod: true, shift: true }],
+  // Image mode's File ▸ Print… (docs/specs/image-formats-more-print.md);
+  // elsewhere the key stays the browser's.
+  print: [{ key: 'p', mod: true }],
   export: [{ key: 'e', mod: true }],
   // Ctrl+Alt+E: Ctrl+Shift+E is Merge Down (power-user-shortcuts-coverage).
   exportSheet: [{ key: 'e', code: 'KeyE', mod: true, alt: true }],
@@ -300,6 +304,7 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'saveAs',
   'export',
   'exportSheet',
+  'print',
   'undo',
   'redo',
   'shortcuts',
@@ -312,6 +317,7 @@ const NATIVE_MENU_IDS: Partial<Record<ShortcutAction, string>> = {
   saveAs: 'menu:saveAs',
   export: 'menu:exportPng',
   exportSheet: 'menu:exportSheet',
+  print: 'menu:print',
   undo: 'menu:undo',
   redo: 'menu:redo',
   shortcuts: 'menu:shortcuts',

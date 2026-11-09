@@ -27,6 +27,7 @@
   import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
   import DropDialog from './lib/shell/DropDialog.svelte';
   import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
+  import { loadTouchGestures } from './lib/shell/touch-gestures.svelte';
   import { planDrop, type DroppedImage } from './lib/shell/editor-drop';
   import { watchFileDrops, type DroppedFile } from './lib/fs/drop';
   import {
@@ -47,6 +48,8 @@
     unsaved,
   } from './lib/shell/unsaved.svelte';
   import { loadAutoNew } from './lib/shell/auto-new.svelte';
+  import Tour from './lib/tour/Tour.svelte';
+  import { loadTourPrefs, startTour } from './lib/tour/tour.svelte';
   import {
     activateDocument,
     activateTab,
@@ -283,6 +286,21 @@
     } catch (err) {
       if (!quiet) shellError = t('shell.openFailed', { error: errText(err) });
       return false;
+    }
+  }
+
+  /** Opens a bundled sample through the normal open path; it is precached
+   *  with the app, so it opens offline too (first-run-tutorial AC-13 – AC-15). */
+  async function openSample(sample: 'sprite' | 'image'): Promise<void> {
+    const name = sample === 'sprite' ? 'slime.aseprite' : 'postcard.ora';
+    try {
+      const res = await fetch(`${import.meta.env.BASE_URL}samples/${name}`);
+      if (!res.ok) throw new Error(`HTTP ${res.status}`);
+      const bytes = new Uint8Array(await res.arrayBuffer());
+      const mime = sample === 'sprite' ? 'application/x-aseprite' : 'image/openraster';
+      openFile({ name, bytes, mime, handle: null, path: null });
+    } catch (err) {
+      shellError = t('shell.openFailed', { error: errText(err) });
     }
   }
 
@@ -613,6 +631,7 @@
     void initMotion();
     void loadKeymap();
     void loadDropChoice();
+    void loadTouchGestures();
     const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
     let cancelled = false;
     let unlistenOpenFile: UnlistenFn | null = null;
@@ -637,6 +656,7 @@
             console.error('open-file listen failed', err);
           })
       : Promise.resolve();
+    void loadTourPrefs();
     void Promise.all([loadAutoNew(), launchOpened])
       .then(([params]) => {
         // An OS-handed file that arrived meanwhile wins over the empty document.
@@ -680,6 +700,7 @@
         'menu:new': () => requestNew(activeMode ?? 'pixel'),
         'menu:open': () => void openFromPicker(),
         'menu:quit': () => requestClose(),
+        'menu:tour': () => startTour(activeMode ?? 'start'),
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
           // entries recorded by an editor are found too.
@@ -739,6 +760,7 @@
     onCreate={createNew}
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
+    onOpenSample={(s) => void openSample(s)}
     {dropHover}
   />
   {#if offer.image && !modalOpen && wasmSimd}
@@ -845,6 +867,8 @@
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
 {/if}
+
+<Tour />
 
 {#if help.shortcuts}
   <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />

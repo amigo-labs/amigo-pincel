@@ -32,11 +32,15 @@ import initWasm, {
   redo_kinds,
   history_dropped,
   jump_history,
+  shape_outline,
   export_png,
   export_jpeg,
   export_webp,
   export_bmp,
   export_tiff,
+  export_tga,
+  export_ico,
+  image_to_png,
   get_document_info,
   document_dpi,
   get_selection_mask,
@@ -132,6 +136,10 @@ export type BlendMode =
   | 'difference'
   | 'exclusion';
 
+/** Normal composites the paint; Overwrite replaces the pixels, alpha
+ *  included (docs/specs/image-edit-extras-tool-options.md). */
+export type ToolBlend = 'normal' | 'overwrite';
+
 export interface PencilStrokeCommand {
   type: 'pencil_stroke';
   layer: number;
@@ -140,6 +148,9 @@ export interface PencilStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
+  blend: ToolBlend;
   points: Array<[number, number]>;
   /** Pen pressure in `[0, 1]` per point (spec §17.4); empty = full. */
   pressure: number[];
@@ -164,6 +175,8 @@ export interface EraserStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   mode: EraserMode;
   background: Rgba;
   points: Array<[number, number]>;
@@ -186,6 +199,7 @@ export interface FillBucketCommand {
   sample: SampleSource;
   x: number;
   y: number;
+  blend: ToolBlend;
 }
 
 export interface TranslateLayerCommand {
@@ -211,6 +225,8 @@ export interface RecolorStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   from: [number, number, number, number];
   to: [number, number, number, number];
   tolerance: number;
@@ -232,6 +248,8 @@ export interface SmudgeStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  /** Smooth the hard round tip's edge (docs/specs/image-edit-extras-tool-options.md). */
+  anti_alias: boolean;
   strength: number;
   points: Array<[number, number]>;
   pressure: number[];
@@ -252,6 +270,7 @@ export interface CloneStrokeCommand {
   opacity: number;
   shape: BrushShape;
   hardness: number;
+  anti_alias?: boolean;
   /** Source position minus destination position, in whole pixels. */
   offset: [number, number];
   sample: SampleSource;
@@ -284,6 +303,7 @@ export interface DrawGradientCommand {
   from: [number, number, number, number];
   to: [number, number, number, number];
   opacity: number;
+  blend: ToolBlend;
 }
 
 /** Moves the selection outline, leaving the pixels under it alone. */
@@ -351,12 +371,14 @@ export type SelectionCommand =
       h: number;
       mode: SelectionMode;
       feather: number;
+      anti_alias: boolean;
     }
   | {
       type: 'select_polygon';
       points: Array<[number, number]>;
       mode: SelectionMode;
       feather: number;
+      anti_alias: boolean;
     }
   | {
       type: 'select_wand';
@@ -402,13 +424,27 @@ export type TransformCommand =
   | { type: 'auto_crop' };
 
 /** Geometric shape kinds the Shapes tool can draw (spec §9.2 Shapes). */
-export type ShapeKind = 'line' | 'rectangle' | 'rounded_rectangle' | 'ellipse' | 'polygon';
+export type ShapeKind =
+  | 'line'
+  | 'rectangle'
+  | 'rounded_rectangle'
+  | 'ellipse'
+  | 'polygon'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'block_arrow'
+  | 'heart'
+  | 'callout';
 
 /** How a shape's interior and border are painted (spec §9.2 Shapes). */
 export type ShapeMode = 'outline' | 'fill' | 'fill_and_outline';
 
 /** Outline dash pattern (spec §9.2 Shapes). */
-export type DashPattern = 'solid' | 'dashed' | 'dotted';
+export type DashPattern = 'solid' | 'dashed' | 'dotted' | 'dash_dot' | 'dash_dot_dot';
+
+/** How a line ends (docs/specs/image-shapes-curves.md). */
+export type LineCap = 'round' | 'flat' | 'arrow';
 
 /** Horizontal text alignment about the placement point (spec §9.2 Text). */
 export type TextAlign = 'left' | 'center' | 'right';
@@ -434,6 +470,11 @@ export interface DrawShapeCommand {
   fill_color: Rgba;
   anti_alias: boolean;
   dash: DashPattern;
+  blend: ToolBlend;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
+  star_points?: number;
+  inner_ratio?: number;
 }
 
 /** Rasterize text onto a layer using a `registerFont` id (spec §9.2 Text). */
@@ -452,6 +493,7 @@ export interface DrawTextCommand {
   align: TextAlign;
   underline?: boolean;
   strikethrough?: boolean;
+  blend?: ToolBlend;
 }
 
 /** Two canvas points: endpoints, box corners or a gradient's drag. */
@@ -465,12 +507,19 @@ export interface BeginLiveShapeCommand {
   points: PointPair;
   corner_radius?: number;
   sides?: number;
+  star_points?: number;
+  inner_ratio?: number;
   mode?: ShapeMode;
   stroke_width?: number;
   stroke_color?: Rgba;
   fill_color?: Rgba;
   anti_alias?: boolean;
   dash?: DashPattern;
+  blend?: ToolBlend;
+  /** A line's control points between the endpoints, in order. */
+  control?: Array<[number, number]>;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
 }
 
 /** Begins a live gradient (docs/specs/image-live-objects.md). */
@@ -486,6 +535,7 @@ export interface BeginLiveGradientCommand {
   from?: Rgba;
   to?: Rgba;
   opacity?: number;
+  blend?: ToolBlend;
 }
 
 /** Edits the live object; absent fields keep their value. Edits sharing a
@@ -501,6 +551,8 @@ export interface EditLiveCommand {
   anti_alias?: boolean;
   corner_radius?: number;
   sides?: number;
+  star_points?: number;
+  inner_ratio?: number;
   stroke_color?: Rgba;
   fill_color?: Rgba;
   kind?: GradientKind;
@@ -516,6 +568,11 @@ export interface EditLiveCommand {
   underline?: boolean;
   strikethrough?: boolean;
   align?: TextAlign;
+  blend?: ToolBlend;
+  /** A line's control points, all of them, in order. */
+  control?: Array<[number, number]>;
+  start_cap?: LineCap;
+  end_cap?: LineCap;
 }
 
 /** Begins a live text whose box has its top-left at `(x, y)`
@@ -535,6 +592,7 @@ export interface BeginLiveTextCommand {
   align?: TextAlign;
   underline?: boolean;
   strikethrough?: boolean;
+  blend?: ToolBlend;
 }
 
 /** Begin, edit, commit or cancel the live object. */
@@ -742,6 +800,13 @@ export const core = {
   exportWebp: (handle: number): Uint8Array => export_webp(handle),
   exportBmp: (handle: number): Uint8Array => export_bmp(handle),
   exportTiff: (handle: number): Uint8Array => export_tiff(handle),
+  /** RLE-compressed 32-bit TGA of the composite (image-formats-more). */
+  exportTga: (handle: number): Uint8Array => export_tga(handle),
+  /** A one-image ICO of the composite; throws above 256 × 256 px. */
+  exportIco: (handle: number): Uint8Array => export_ico(handle),
+  /** Decodes `data` (MIME type or name as the TGA hint) and re-encodes it
+   *  as PNG, so a dropped TGA / DDS / ICO pastes like a browser format. */
+  imageToPng: (data: Uint8Array, hint: string): Uint8Array => image_to_png(data, hint),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
   /** Line boxes and caret positions of a text as a live text draws it
    *  with font `fontId` (docs/specs/image-live-text.md AC-22). */
@@ -752,6 +817,21 @@ export const core = {
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,
+  /** The outline polygon of a box shape over a drag, as the core draws it
+   *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
+   *  kinds or a box without area. */
+  shapeOutline: (
+    kind: ShapeKind,
+    a: [number, number],
+    b: [number, number],
+    starPoints: number,
+    innerRatio: number,
+  ): Array<[number, number]> => {
+    const flat = shape_outline(kind, a[0], a[1], b[0], b[1], starPoints, innerRatio);
+    const out: Array<[number, number]> = [];
+    for (let i = 0; i + 1 < flat.length; i += 2) out.push([flat[i] ?? 0, flat[i + 1] ?? 0]);
+    return out;
+  },
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),
 };

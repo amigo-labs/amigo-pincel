@@ -36,6 +36,15 @@ angle: number,
  */
 tilt_angle: boolean, 
 /**
+ * Anti-aliased edge for the hard round tip
+ * (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+ */
+anti_alias: boolean, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, 
+/**
  * Identifies the pointer drag; segments sharing it merge into one undo
  * step. The UI assigns a fresh id per pointer-down.
  */
@@ -55,7 +64,12 @@ tolerance: number, points: Array<[number, number]>,
 /**
  * Pen input, as for `PencilStroke`.
  */
-pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "smudge_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, 
+/**
+ * Anti-aliased edge for the hard round tip
+ * (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+ */
+anti_alias: boolean, stroke_id: number, } | { "type": "smudge_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
 /**
  * How far a color is dragged, 0.0–1.0.
  */
@@ -63,7 +77,12 @@ strength: number, points: Array<[number, number]>,
 /**
  * Pen input, as for `PencilStroke`.
  */
-pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "clone_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, 
+/**
+ * Anti-aliased edge for the hard round tip
+ * (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+ */
+anti_alias: boolean, stroke_id: number, } | { "type": "clone_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, 
 /**
  * Source position minus destination position, in whole pixels.
  */
@@ -76,7 +95,12 @@ sample: string, points: Array<[number, number]>,
 /**
  * Pen input, as for `PencilStroke`.
  */
-pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "eraser_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, mode: string, background: [number, number, number, number], points: Array<[number, number]>, 
+pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean, azimuth: Array<number | null>, angle: number, tilt_angle: boolean, 
+/**
+ * Anti-aliased edge for the hard round tip
+ * (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+ */
+anti_alias: boolean, stroke_id: number, } | { "type": "eraser_stroke", layer: number, size: number, opacity: number, shape: string, hardness: number, mode: string, background: [number, number, number, number], points: Array<[number, number]>, 
 /**
  * Pen pressure per point, as for `PencilStroke`.
  */
@@ -84,7 +108,88 @@ pressure: Array<number>, pressure_size: boolean, pressure_opacity: boolean,
 /**
  * Pen azimuth and nib angle, as for `PencilStroke`.
  */
-azimuth: Array<number | null>, angle: number, tilt_angle: boolean, stroke_id: number, } | { "type": "fill_bucket", layer: number, color: [number, number, number, number], opacity: number, tolerance: number, contiguous: boolean, sample: string, x: number, y: number, } | { "type": "translate_layer", layer: number, dx: number, dy: number, } | { "type": "translate_selection", layer: number, dx: number, dy: number, } | { "type": "translate_selection_mask", dx: number, dy: number, } | { "type": "delete_selection", layer: number, } | { "type": "fill_selection", layer: number, color: [number, number, number, number], } | { "type": "add_layer", active: number, } | { "type": "remove_layer", index: number, } | { "type": "move_layer", from: number, to: number, } | { "type": "duplicate_layer", index: number, } | { "type": "rename_layer", index: number, name: string, } | { "type": "set_layer_opacity", index: number, opacity: number, } | { "type": "set_layer_blend_mode", index: number, mode: string, } | { "type": "set_layer_visible", index: number, visible: boolean, } | { "type": "set_layer_locked", index: number, locked: boolean, } | { "type": "merge_down", index: number, } | { "type": "merge_visible" } | { "type": "flatten_image" } | { "type": "add_group" } | { "type": "move_layer_to", index: number, target: number, place: string, } | { "type": "merge_group", index: number, } | { "type": "select_rectangle", x: number, y: number, w: number, h: number, mode: string, feather: number, } | { "type": "select_ellipse", x: number, y: number, w: number, h: number, mode: string, feather: number, } | { "type": "select_polygon", points: Array<[number, number]>, mode: string, feather: number, } | { "type": "select_wand", layer: number, x: number, y: number, tolerance: number, contiguous: boolean, sample: string, mode: string, } | { "type": "select_all" } | { "type": "deselect" } | { "type": "invert_selection" } | { "type": "expand_selection", radius: number, } | { "type": "contract_selection", radius: number, } | { "type": "feather_selection", radius: number, } | { "type": "transform_layer", layer: number, op: string, } | { "type": "rotate_layer_90", layer: number, ccw: boolean, } | { "type": "flip_canvas", horizontal: boolean, } | { "type": "rotate_canvas", rotation: string, } | { "type": "scale_image", width: number, height: number, interpolation: string, } | { "type": "resize_canvas", width: number, height: number, anchor: string, } | { "type": "crop_to_selection" } | { "type": "auto_crop" } | { "type": "draw_shape", layer: number, shape: string, points: Array<[number, number]>, corner_radius: number, center: [number, number], radius: number, sides: number, rotation: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, } | { "type": "begin_live_shape", layer: number, shape: string, points: [[number, number], [number, number]], corner_radius: number, sides: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, } | { "type": "begin_live_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, } | { "type": "commit_live" } | { "type": "cancel_live" } | { "type": "cancel_live_gesture", gesture: number, } | { "type": "draw_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, 
+azimuth: Array<number | null>, angle: number, tilt_angle: boolean, 
+/**
+ * Anti-aliased edge for the hard round tip
+ * (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+ */
+anti_alias: boolean, stroke_id: number, } | { "type": "fill_bucket", layer: number, color: [number, number, number, number], opacity: number, tolerance: number, contiguous: boolean, sample: string, x: number, y: number, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, } | { "type": "translate_layer", layer: number, dx: number, dy: number, } | { "type": "translate_selection", layer: number, dx: number, dy: number, } | { "type": "translate_selection_mask", dx: number, dy: number, } | { "type": "delete_selection", layer: number, } | { "type": "fill_selection", layer: number, color: [number, number, number, number], } | { "type": "add_layer", active: number, } | { "type": "remove_layer", index: number, } | { "type": "move_layer", from: number, to: number, } | { "type": "duplicate_layer", index: number, } | { "type": "rename_layer", index: number, name: string, } | { "type": "set_layer_opacity", index: number, opacity: number, } | { "type": "set_layer_blend_mode", index: number, mode: string, } | { "type": "set_layer_visible", index: number, visible: boolean, } | { "type": "set_layer_locked", index: number, locked: boolean, } | { "type": "merge_down", index: number, } | { "type": "merge_visible" } | { "type": "flatten_image" } | { "type": "add_group" } | { "type": "move_layer_to", index: number, target: number, place: string, } | { "type": "merge_group", index: number, } | { "type": "select_rectangle", x: number, y: number, w: number, h: number, mode: string, feather: number, } | { "type": "select_ellipse", x: number, y: number, w: number, h: number, mode: string, feather: number, 
+/**
+ * Anti-aliased outline (image-edit-extras-tool-options AC-06).
+ */
+anti_alias: boolean, } | { "type": "select_polygon", points: Array<[number, number]>, mode: string, feather: number, 
+/**
+ * Anti-aliased outline (image-edit-extras-tool-options AC-06).
+ */
+anti_alias: boolean, } | { "type": "select_wand", layer: number, x: number, y: number, tolerance: number, contiguous: boolean, sample: string, mode: string, } | { "type": "select_all" } | { "type": "deselect" } | { "type": "invert_selection" } | { "type": "expand_selection", radius: number, } | { "type": "contract_selection", radius: number, } | { "type": "feather_selection", radius: number, } | { "type": "transform_layer", layer: number, op: string, } | { "type": "rotate_layer_90", layer: number, ccw: boolean, } | { "type": "flip_canvas", horizontal: boolean, } | { "type": "rotate_canvas", rotation: string, } | { "type": "scale_image", width: number, height: number, interpolation: string, } | { "type": "resize_canvas", width: number, height: number, anchor: string, } | { "type": "crop_to_selection" } | { "type": "auto_crop" } | { "type": "draw_shape", layer: number, shape: string, points: Array<[number, number]>, corner_radius: number, center: [number, number], radius: number, sides: number, rotation: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, 
+/**
+ * A line's start cap: `round` (default), `flat` or `arrow`
+ * (docs/specs/image-shapes-curves.md). A line takes 2–64 `points`:
+ * the start, the control points in order, the end.
+ */
+start_cap: string, 
+/**
+ * A line's end cap.
+ */
+end_cap: string, 
+/**
+ * A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md);
+ * a star takes `center`, `radius` and `rotation` like `polygon`.
+ */
+star_points: number, 
+/**
+ * A star's inner radius as a share of `radius`, 0.1–0.9.
+ */
+inner_ratio: number, } | { "type": "draw_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, } | { "type": "begin_live_shape", layer: number, shape: string, points: [[number, number], [number, number]], corner_radius: number, sides: number, 
+/**
+ * A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md).
+ */
+star_points: number, 
+/**
+ * A star's inner radius as a share of the outer one, 0.1–0.9.
+ */
+inner_ratio: number, mode: string, stroke_width: number, stroke_color: [number, number, number, number], fill_color: [number, number, number, number], anti_alias: boolean, dash: string, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, 
+/**
+ * A line's control points between the endpoints, in order
+ * (docs/specs/image-shapes-curves.md).
+ */
+control: Array<[number, number]>, 
+/**
+ * A line's start cap: `round` (default), `flat` or `arrow`.
+ */
+start_cap: string, 
+/**
+ * A line's end cap.
+ */
+end_cap: string, } | { "type": "begin_live_gradient", layer: number, kind: string, channel: string, x0: number, y0: number, x1: number, y1: number, from: [number, number, number, number], to: [number, number, number, number], opacity: number, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, number], [number, number]], shape?: string, mode?: string, stroke_width?: number, dash?: string, anti_alias?: boolean, corner_radius?: number, sides?: number, star_points?: number, inner_ratio?: number, stroke_color?: [number, number, number, number], fill_color?: [number, number, number, number], kind?: string, channel?: string, from?: [number, number, number, number], to?: [number, number, number, number], opacity?: number, text?: string, size?: number, color?: [number, number, number, number], bold?: boolean, italic?: boolean, underline?: boolean, strikethrough?: boolean, align?: string, blend?: string, 
+/**
+ * A line's control points, all of them, in order.
+ */
+control?: Array<[number, number]>, start_cap?: string, end_cap?: string, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, } | { "type": "commit_live" } | { "type": "cancel_live" } | { "type": "cancel_live_gesture", gesture: number, } | { "type": "draw_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, 
 /**
  * A stroke below each line (docs/specs/image-live-text.md AC-10).
  */
@@ -92,4 +197,8 @@ underline: boolean,
 /**
  * A stroke through each line's lowercase letters.
  */
-strikethrough: boolean, };
+strikethrough: boolean, 
+/**
+ * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+ */
+blend: string, };

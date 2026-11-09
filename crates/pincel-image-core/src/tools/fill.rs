@@ -5,7 +5,7 @@
 //! layer or the flattened composite); the fill is always written into the
 //! current layer via straight-alpha source-over.
 
-use super::src_over;
+use super::Blend;
 use crate::color::Color;
 use crate::command::HistoryKind;
 use crate::command::SetPixels;
@@ -57,6 +57,8 @@ pub struct Fill {
     pub opacity: f32,
     /// Matching/sampling options.
     pub options: FillOptions,
+    /// Normal or Overwrite (docs/specs/image-edit-extras-tool-options.md).
+    pub blend: Blend,
 }
 
 impl Fill {
@@ -66,7 +68,14 @@ impl Fill {
             color,
             opacity: 1.0,
             options,
+            blend: Blend::Normal,
         }
+    }
+
+    /// Sets how the fill combines with the layer.
+    pub fn with_blend(mut self, blend: Blend) -> Self {
+        self.blend = blend;
+        self
     }
 
     /// Sets the fill opacity, clamped to `[0.0, 1.0]`.
@@ -94,7 +103,8 @@ impl Fill {
         let (sx, sy) = (sx as u32, sy as u32);
 
         let ca = self.color.a as f32 / 255.0 * self.opacity;
-        if ca <= 0.0 {
+        // Overwrite with a transparent paint still clears the region.
+        if ca <= 0.0 && self.blend == Blend::Normal {
             return None;
         }
 
@@ -189,17 +199,14 @@ impl Fill {
                 if !mask[idx(x, y)] {
                     continue;
                 }
-                let eff = match selection {
-                    Some(sel) => ca * sel.coverage(x, y) as f32 / 255.0,
-                    None => ca,
-                };
-                if eff <= 0.0 {
+                let cov = selection.map_or(1.0, |sel| sel.coverage(x, y) as f32 / 255.0);
+                if cov <= 0.0 {
                     continue;
                 }
                 let lx = x - min_x;
                 let ly = y - min_y;
                 let dst = after.get_pixel(lx, ly).unwrap_or(Color::TRANSPARENT);
-                after.set_pixel(lx, ly, src_over(self.color, eff, dst));
+                after.set_pixel(lx, ly, self.blend.paint(self.color, ca, cov, dst));
             }
         }
 

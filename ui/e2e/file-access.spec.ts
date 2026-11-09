@@ -47,6 +47,9 @@ const DOC_EXTENSIONS = [
   '.gif',
   '.tif',
   '.tiff',
+  '.tga',
+  '.dds',
+  '.ico',
   '.psd',
 ];
 

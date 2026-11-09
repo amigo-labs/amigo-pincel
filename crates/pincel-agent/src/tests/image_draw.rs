@@ -74,7 +74,7 @@ fn draw_stroke_matches_brush_and_eraser() {
         &s,
         &id,
         vec![json!({
-            "type": "pencil_stroke", "layer": 0, "size": 5, "color": [200, 30, 40, 255],
+            "type": "pencil_stroke", "layer": 0, "size": 5, "color": [200, 30, 40, 255], "anti_alias": true,
             "opacity": 0.6, "shape": "soft_round", "hardness": 0.4, "points": points, "stroke_id": 1
         })],
     );
@@ -88,7 +88,7 @@ fn draw_stroke_matches_brush_and_eraser() {
         &s,
         &id,
         vec![json!({
-            "type": "eraser_stroke", "layer": 0, "size": 3, "opacity": 1.0,
+            "type": "eraser_stroke", "layer": 0, "size": 3, "opacity": 1.0, "anti_alias": true,
             "points": [[1, 1], [10, 10]], "stroke_id": 2
         })],
     );
@@ -123,9 +123,11 @@ fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
     // that changes no pixel reports `changed: false` and records nothing.
     let mut s = S::new();
     let id = s.new_image(16, 16);
+    // Hard dabs: an anti-aliased edge (the Image default) blends again
+    // on a repeat.
     s.ok(
         "draw.stroke",
-        json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+        json!({ "points": [[8, 8]], "color": "#000000", "size": 4, "anti_alias": false }),
     );
     for (name, args) in [
         // Erasing where nothing is painted.
@@ -136,7 +138,7 @@ fn image_drawing_calls_that_change_nothing_add_no_undo_step() {
         // The same opaque dab again.
         (
             "draw.stroke",
-            json!({ "points": [[8, 8]], "color": "#000000", "size": 4 }),
+            json!({ "points": [[8, 8]], "color": "#000000", "size": 4, "anti_alias": false }),
         ),
         (
             "draw.shape",
@@ -182,12 +184,12 @@ fn image_drawing_defaults_are_the_image_editors_starting_options() {
         (
             "draw.stroke",
             json!({ "points": [[3, 4], [16, 9]] }),
-            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 8, "color": [0, 0, 0, 255], "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "anti_alias": true, "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
         ),
         (
             "draw.stroke",
             json!({ "tool": "eraser", "points": [[3, 4], [16, 9]] }),
-            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
+            json!({ "type": "eraser_stroke", "layer": 0, "size": 8, "opacity": 1.0, "shape": "hard_round", "hardness": 1.0, "angle": 45.0, "anti_alias": true, "mode": "to_transparent", "points": [[3, 4], [16, 9]], "stroke_id": 1 }),
         ),
         (
             "draw.text",
@@ -408,7 +410,9 @@ fn select_tools_match_the_selection_tools_and_clear_removes_it() {
     let want = editor(
         &s,
         &id,
-        vec![json!({ "type": "select_ellipse", "x": 6, "y": 1, "w": 10, "h": 9, "mode": "add" })],
+        vec![
+            json!({ "type": "select_ellipse", "x": 6, "y": 1, "w": 10, "h": 9, "mode": "add", "anti_alias": true }),
+        ],
     );
     s.ok(
         "select.ellipse",
@@ -756,5 +760,619 @@ fn image_tools_refuse_locked_layers_and_pixel_documents() {
             "{name}: {e}"
         );
         assert_eq!(s.state(&px), before, "{name}");
+    }
+}
+
+/// docs/specs/image-formats-more.md AC-15, AC-16: `doc.open` reads TGA (by
+/// its extension), DDS and ICO (by content) like the editor's Open.
+#[test]
+fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
+    use pincel_image_core::codec::{decode_hinted, to_ico_bytes, to_tga_bytes};
+    let mut img = ImageBuffer::new_transparent(4, 4);
+    img.set_pixel(1, 2, pincel_image_core::Color::rgba(9, 8, 7, 255));
+    let tga = to_tga_bytes(&img).expect("tga");
+    let ico = to_ico_bytes(&img).expect("ico");
+    // A 4 × 4 DXT1 file of solid red.
+    let mut dds = b"DDS ".to_vec();
+    let mut header = [0u8; 124];
+    header[0..4].copy_from_slice(&124u32.to_le_bytes());
+    header[4..8].copy_from_slice(&0x0008_1007u32.to_le_bytes());
+    header[8..12].copy_from_slice(&4u32.to_le_bytes());
+    header[12..16].copy_from_slice(&4u32.to_le_bytes());
+    header[72..76].copy_from_slice(&32u32.to_le_bytes());
+    header[76..80].copy_from_slice(&4u32.to_le_bytes());
+    header[80..84].copy_from_slice(b"DXT1");
+    dds.extend_from_slice(&header);
+    dds.extend_from_slice(&[0x00, 0xF8, 0x00, 0x00, 0, 0, 0, 0]);
+
+    let mut s = S::new();
+    for (name, bytes) in [("art/Shot.TGA", &tga), ("tex", &dds), ("icon", &ico)] {
+        s.host.files.insert(name.into(), bytes.clone());
+        let out = s.ok("doc.open", json!({ "path": name }));
+        let id = out["doc"].as_str().expect("id").to_owned();
+        let want = decode_hinted(bytes, Some(name)).expect("decode");
+        assert_eq!(s.image(&id).document().layers()[0].pixels, want, "{name}");
+    }
+    // A TGA without its extension is not recognised.
+    s.host.files.insert("noext".into(), tga);
+    // The editor's reason for an undecodable file, not just the path.
+    let e = s.err("doc.open", json!({ "path": "noext" }));
+    assert!(e.contains("failed to decode image"), "{e}");
+    // Unsupported variant and bad size keep their own reasons.
+    let mut bc7 = dds.clone();
+    bc7[84..88].copy_from_slice(b"DX10");
+    bc7.truncate(128);
+    bc7.extend_from_slice(&98u32.to_le_bytes());
+    bc7.extend_from_slice(&[3, 0, 0, 0, 0, 0, 0, 0, 1, 0, 0, 0, 0, 0, 0, 0]);
+    bc7.extend_from_slice(&[0; 16]);
+    s.host.files.insert("bc7.dds".into(), bc7);
+    let before = s.ok("doc.list", json!({}));
+    assert!(
+        s.err("doc.open", json!({ "path": "bc7.dds" }))
+            .contains("DDS variant")
+    );
+    let mut odd = dds.clone();
+    odd[12..16].copy_from_slice(&30u32.to_le_bytes());
+    odd[16..20].copy_from_slice(&30u32.to_le_bytes());
+    s.host.files.insert("odd.dds".into(), odd);
+    assert!(
+        s.err("doc.open", json!({ "path": "odd.dds" }))
+            .contains("multiples of 4")
+    );
+    assert_eq!(s.ok("doc.list", json!({})), before);
+    // The tool says it reads them (AC-15).
+    let tools = crate::list_tools();
+    let open = tools
+        .iter()
+        .find(|t| t.name == "doc.open")
+        .expect("doc.open");
+    for format in ["TGA", "DDS", "ICO"] {
+        assert!(
+            open.description.contains(format),
+            "doc.open's description does not name {format}"
+        );
+    }
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-14 – AC-16 (Antialiasing).
+#[test]
+fn anti_alias_reaches_strokes_and_selections_like_the_editor() {
+    let mut s = S::new();
+    let id = s.new_image(24, 16);
+    for aa in [true, false] {
+        let want = editor(
+            &s,
+            &id,
+            vec![json!({
+                "type": "pencil_stroke", "layer": 0, "size": 9, "color": [0, 0, 0, 255], "opacity": 1.0,
+                "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": aa, "stroke_id": 1
+            })],
+        );
+        let mut probe = S::new();
+        let pid = probe.new_image(24, 16);
+        probe.ok(
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "anti_alias": aa }),
+        );
+        assert_eq!(
+            agent_pixels(&probe, &pid, 0),
+            pixels(&want, 0),
+            "anti_alias {aa}"
+        );
+    }
+    // The eraser takes the setting too.
+    for aa in [true, false] {
+        let mut probe = S::new();
+        let pid = probe.new_image(24, 16);
+        probe.ok(
+            "draw.fill",
+            json!({ "doc": pid, "x": 0, "y": 0, "color": "#0000FF" }),
+        );
+        let want = editor(
+            &probe,
+            &pid,
+            vec![json!({
+                "type": "eraser_stroke", "layer": 0, "size": 9, "opacity": 1.0,
+                "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": aa, "stroke_id": 1
+            })],
+        );
+        probe.ok(
+            "draw.stroke",
+            json!({ "doc": pid, "tool": "eraser", "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "anti_alias": aa }),
+        );
+        assert_eq!(
+            agent_pixels(&probe, &pid, 0),
+            pixels(&want, 0),
+            "eraser anti_alias {aa}"
+        );
+    }
+    // Default true: the stroke equals the editor's anti-aliased one.
+    let want = editor(
+        &s,
+        &id,
+        vec![json!({
+            "type": "pencil_stroke", "layer": 0, "size": 9, "color": [0, 0, 0, 255], "opacity": 1.0,
+            "points": [[5.3, 6.6]], "anti_alias": true, "stroke_id": 1
+        })],
+    );
+    s.ok("draw.stroke", json!({ "points": [[5.3, 6.6]], "size": 9 }));
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+
+    // Selections.
+    for (tool, args, cmd) in [
+        (
+            "select.ellipse",
+            json!({ "x": 2, "y": 2, "width": 15, "height": 9 }),
+            json!({ "type": "select_ellipse", "x": 2, "y": 2, "w": 15, "h": 9, "mode": "replace", "anti_alias": true }),
+        ),
+        (
+            "select.polygon",
+            json!({ "points": [[1.5, 1.0], [20.0, 4.5], [7.0, 14.0]], "anti_alias": false }),
+            json!({ "type": "select_polygon", "points": [[1.5, 1.0], [20.0, 4.5], [7.0, 14.0]], "mode": "replace", "anti_alias": false }),
+        ),
+    ] {
+        let want = editor(&s, &id, vec![cmd]);
+        s.ok(tool, args);
+        assert_eq!(s.image(&id).document().selection, want.selection, "{tool}");
+    }
+
+    // Refused where the spec gives no anti_alias.
+    let before = state(&s, &id);
+    for (tool, args) in [
+        (
+            "select.rect",
+            json!({ "x": 0, "y": 0, "width": 4, "height": 4, "anti_alias": true }),
+        ),
+        ("select.wand", json!({ "x": 1, "y": 1, "anti_alias": true })),
+    ] {
+        let e = s.err(tool, args);
+        assert!(e.contains("anti_alias"), "{tool}: {e}");
+        assert_eq!(state(&s, &id), before);
+    }
+    let pid = s.new_doc(8, 8);
+    for (tool, args) in [
+        (
+            "select.ellipse",
+            json!({ "doc": pid, "x": 0, "y": 0, "width": 4, "height": 4, "anti_alias": true }),
+        ),
+        (
+            "select.polygon",
+            json!({ "doc": pid, "points": [[0, 0], [4, 0], [0, 4]], "anti_alias": false }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[1, 1]], "anti_alias": true }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(
+            e.contains("anti_alias") && e.contains("Pixel document"),
+            "{tool}: {e}"
+        );
+    }
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-14, AC-16 (Blending).
+#[test]
+fn blend_reaches_the_painting_tools_like_the_editor() {
+    // Each case paints over an opaque blue layer with a semi-transparent
+    // paint, so Overwrite and Normal differ everywhere they paint.
+    let cases = [
+        (
+            "draw.stroke",
+            json!({ "points": [[5.3, 6.6], [17.1, 9.2]], "size": 9, "color": "#FF000066", "anti_alias": true }),
+            json!({ "type": "pencil_stroke", "layer": 0, "size": 9, "color": [255, 0, 0, 102], "opacity": 1.0,
+                    "points": [[5.3, 6.6], [17.1, 9.2]], "anti_alias": true, "stroke_id": 1 }),
+        ),
+        (
+            "draw.fill",
+            json!({ "x": 3, "y": 3, "color": "#FF000066" }),
+            json!({ "type": "fill_bucket", "layer": 0, "color": [255, 0, 0, 102], "opacity": 1.0,
+                    "tolerance": 32, "contiguous": true, "x": 3.0, "y": 3.0 }),
+        ),
+        (
+            "draw.shape",
+            json!({ "shape": "rect", "x0": 2, "y0": 2, "x1": 18, "y1": 12, "fill": "#00FF0078", "stroke": "#FF00003C" }),
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rectangle", "points": [[2.0, 2.0], [18.0, 12.0]],
+                    "corner_radius": 16.0, "mode": "fill_and_outline", "stroke_width": 3.0,
+                    "stroke_color": [255, 0, 0, 60], "fill_color": [0, 255, 0, 120], "anti_alias": true }),
+        ),
+        (
+            "draw.text",
+            json!({ "text": "Wl", "x": 1, "y": 1, "size": 14, "color": "#FF000064" }),
+            json!({ "type": "draw_text", "layer": 0, "font_id": 0, "text": "Wl", "x": 1.0, "y": 1.0, "size": 14.0,
+                    "color": [255, 0, 0, 100], "anti_alias": true }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 20, "y1": 0, "from": "#FF0000", "to": "#00FF0000" }),
+            json!({ "type": "draw_gradient", "layer": 0, "x0": 0.0, "y0": 0.0, "x1": 20.0, "y1": 0.0,
+                    "from": [255, 0, 0, 255], "to": [0, 255, 0, 0], "opacity": 1.0 }),
+        ),
+    ];
+    for blend in ["normal", "overwrite"] {
+        for (tool, args, cmd) in &cases {
+            let mut s = S::new();
+            let id = s.new_image(24, 16);
+            s.ok("draw.fill", json!({ "x": 0, "y": 0, "color": "#0000FF" }));
+            let mut cmd = cmd.clone();
+            cmd["blend"] = json!(blend);
+            let want = editor(&s, &id, vec![cmd]);
+            let mut args = args.clone();
+            args["blend"] = json!(blend);
+            s.ok(tool, args);
+            assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0), "{tool} {blend}");
+        }
+    }
+    // Default normal.
+    let mut s = S::new();
+    let id = s.new_image(24, 16);
+    let want = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "fill_bucket", "layer": 0, "color": [255, 0, 0, 102], "opacity": 1.0,
+                     "tolerance": 32, "contiguous": true, "x": 3.0, "y": 3.0, "blend": "normal" }),
+        ],
+    );
+    s.ok("draw.fill", json!({ "x": 3, "y": 3, "color": "#FF000066" }));
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+
+    // Refused: an unknown value and where the spec gives no blend.
+    let before = state(&s, &id);
+    for (tool, args) in [
+        (
+            "draw.fill",
+            json!({ "x": 3, "y": 3, "color": "#FF0000", "blend": "multiply" }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "points": [[3, 3]], "tool": "eraser", "blend": "overwrite" }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "x0": 0, "y0": 0, "x1": 9, "y1": 0, "from": "#000000", "to": "#FFFFFF",
+                    "channel": "transparency", "blend": "overwrite" }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(e.contains("blend"), "{tool}: {e}");
+        assert_eq!(state(&s, &id), before, "{tool}");
+    }
+    let pid = s.new_doc(8, 8);
+    for (tool, args) in [
+        (
+            "draw.fill",
+            json!({ "doc": pid, "x": 1, "y": 1, "color": "#FF0000", "blend": "normal" }),
+        ),
+        (
+            "draw.stroke",
+            json!({ "doc": pid, "points": [[1, 1]], "blend": "overwrite" }),
+        ),
+        (
+            "draw.shape",
+            json!({ "doc": pid, "shape": "rect", "x0": 0, "y0": 0, "x1": 4, "y1": 4, "fill": "#FF0000", "blend": "normal" }),
+        ),
+        (
+            "draw.text",
+            json!({ "doc": pid, "text": "a", "x": 0, "y": 0, "blend": "overwrite" }),
+        ),
+        (
+            "draw.gradient",
+            json!({ "doc": pid, "x0": 0, "y0": 0, "x1": 4, "y1": 0, "from": "#000000", "to": "#FFFFFF", "blend": "normal" }),
+        ),
+    ] {
+        let e = s.err(tool, args);
+        assert!(
+            e.contains("blend") && e.contains("Pixel document"),
+            "{tool}: {e}"
+        );
+    }
+}
+
+/// docs/specs/image-edit-extras-tool-options.md AC-17.
+#[test]
+fn guide_describes_anti_alias_and_blend() {
+    let guide = crate::resources::GUIDE;
+    for needle in [
+        "`anti_alias`",
+        "`blend`",
+        "`overwrite` replaces the pixels, alpha included",
+        "`select.ellipse`",
+        "`draw.gradient` with `channel: \"color\"`",
+    ] {
+        assert!(guide.contains(needle), "{needle}");
+    }
+}
+
+/// docs/specs/image-shapes-curves.md AC-18: `draw.shape` with a line's
+/// control points, caps and a dash-dot pattern paints exactly what the
+/// editor commits for the same live line, in one undo step.
+#[test]
+fn draw_shape_curves_match_the_editors_live_line() {
+    let mut s = S::new();
+    let id = painted(&mut s, 48, 32);
+    let editor_line = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "begin_live_shape", "layer": 0, "shape": "line",
+                    "points": [[3.5, 28.0], [44.0, 5.0]], "control": [[14.0, 4.0], [30.0, 27.0]],
+                    "start_cap": "arrow", "end_cap": "flat", "dash": "dash_dot",
+                    "mode": "outline", "stroke_width": 3.0, "stroke_color": [255, 0, 0, 255],
+                    "anti_alias": true }),
+            json!({ "type": "commit_live" }),
+        ],
+    );
+    one_undo_step(
+        &mut s,
+        &id,
+        "draw.shape",
+        json!({ "shape": "line", "x0": 3.5, "y0": 28, "x1": 44, "y1": 5,
+                "control": [[14, 4], [30, 27]], "start_cap": "arrow", "end_cap": "flat",
+                "dash": "dash_dot", "stroke": "#FF0000", "stroke_width": 3 }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&editor_line, 0));
+    // Every other kind takes the new dash patterns too.
+    let rect = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "draw_shape", "layer": 0, "shape": "rectangle",
+                     "points": [[4.0, 4.0], [40.0, 24.0]], "corner_radius": 16.0, "mode": "outline",
+                     "stroke_width": 2.0, "stroke_color": [0, 0, 255, 255], "anti_alias": true,
+                     "dash": "dash_dot_dot" }),
+        ],
+    );
+    s.ok(
+        "draw.shape",
+        json!({ "shape": "rect", "x0": 4, "y0": 4, "x1": 40, "y1": 24, "stroke": "#0000FF",
+                "stroke_width": 2, "dash": "dash_dot_dot" }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&rect, 0));
+    // All points on one spot with an Arrow cap paints nothing.
+    let out = s.ok(
+        "draw.shape",
+        json!({ "shape": "line", "x0": 10, "y0": 10, "x1": 10, "y1": 10, "control": [[10, 10]],
+                "end_cap": "arrow", "stroke": "#000000" }),
+    );
+    assert_eq!(out["changed"], json!(false), "{out}");
+}
+
+/// AC-19: bad curve arguments fail naming the argument and change nothing.
+#[test]
+fn draw_shape_refuses_bad_curve_arguments() {
+    let mut s = S::new();
+    let id = painted(&mut s, 32, 24);
+    let before = state(&s, &id);
+    let base =
+        json!({ "shape": "line", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000" });
+    let with = |key: &str, v: Value| {
+        let mut a = base.clone();
+        a[key] = v;
+        a
+    };
+    let many: Vec<Value> = (0..63).map(|i| json!([i % 30, 5])).collect();
+    let cases = [
+        (with("control", json!(many)), "control"),
+        (with("control", json!([[1, 2, 3]])), "control"),
+        (with("x1", json!(1e39)), "x1"),
+        (with("x0", json!(-1e39)), "x0"),
+        (with("y0", json!(1e39)), "y0"),
+        (with("control", json!([[4, 1e39]])), "control"),
+        (with("start_cap", json!("square")), "start_cap"),
+        (with("end_cap", json!("chevron")), "end_cap"),
+        (with("dash", json!("wavy")), "dash"),
+        (
+            json!({ "shape": "rect", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000", "control": [[5, 5]] }),
+            "control",
+        ),
+        (
+            json!({ "shape": "ellipse", "x0": 2, "y0": 2, "x1": 30, "y1": 20, "stroke": "#000000", "start_cap": "arrow" }),
+            "start_cap",
+        ),
+        (
+            json!({ "shape": "polygon", "cx": 12, "cy": 12, "radius": 8, "stroke": "#000000", "end_cap": "flat" }),
+            "end_cap",
+        ),
+    ];
+    for (args, named) in cases {
+        let err = s.err("draw.shape", args.clone());
+        assert!(err.contains(named), "{args}: {err}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+    // A non-finite coordinate says so as well as naming it.
+    let err = s.err("draw.shape", with("x1", json!(1e39)));
+    assert!(err.contains("finite"), "{err}");
+}
+
+/// AC-20: `tools/list` describes the curve parameters and all five dash
+/// patterns.
+#[test]
+fn tools_list_describes_curves() {
+    let tools = crate::list_tools();
+    let shape = tools
+        .iter()
+        .find(|t| t.name == "draw.shape")
+        .expect("draw.shape");
+    let props = &shape.input_schema["properties"];
+    for key in ["control", "start_cap", "end_cap"] {
+        assert!(
+            props[key]["description"]
+                .as_str()
+                .is_some_and(|d| !d.is_empty()),
+            "{key}"
+        );
+    }
+    assert_eq!(
+        props["start_cap"]["enum"],
+        json!(["round", "flat", "arrow"])
+    );
+    assert_eq!(props["control"]["maxItems"], json!(62));
+    assert_eq!(
+        props["dash"]["enum"],
+        json!(["solid", "dashed", "dotted", "dash_dot", "dash_dot_dot"])
+    );
+    assert!(shape.description.contains("control"));
+}
+
+/// docs/specs/image-shapes-curves-shapes.md AC-16: each new kind paints
+/// exactly what the editor's matching shape commits, in one undo step; for
+/// block_arrow and callout the first corner is the drag start.
+#[test]
+fn draw_shape_box_shapes_match_the_editor() {
+    let box_kinds = ["triangle", "diamond", "block_arrow", "heart", "callout"];
+    for kind in box_kinds {
+        for (a, b) in [([4.0, 30.0], [44.0, 4.0]), ([44.0, 4.0], [4.0, 30.0])] {
+            let mut s = S::new();
+            let id = painted(&mut s, 48, 34);
+            let want = editor(
+                &s,
+                &id,
+                vec![
+                    json!({ "type": "begin_live_shape", "layer": 0, "shape": kind, "points": [a, b],
+                            "mode": "fill_and_outline", "stroke_width": 2.0,
+                            "stroke_color": [255, 0, 0, 255], "fill_color": [0, 0, 255, 255],
+                            "anti_alias": true }),
+                    json!({ "type": "commit_live" }),
+                ],
+            );
+            one_undo_step(
+                &mut s,
+                &id,
+                "draw.shape",
+                json!({ "shape": kind, "x0": a[0], "y0": a[1], "x1": b[0], "y1": b[1],
+                        "stroke": "#FF0000", "fill": "#0000FF", "stroke_width": 2 }),
+            );
+            assert_eq!(
+                agent_pixels(&s, &id, 0),
+                pixels(&want, 0),
+                "{kind} {a:?} → {b:?}"
+            );
+        }
+    }
+    // A star from its center and radius equals the editor's star inscribed
+    // in the box of that size.
+    let mut s = S::new();
+    let id = painted(&mut s, 48, 34);
+    let want = editor(
+        &s,
+        &id,
+        vec![
+            json!({ "type": "begin_live_shape", "layer": 0, "shape": "star", "points": [[8.0, 1.0], [40.0, 33.0]],
+                    "mode": "fill", "fill_color": [0, 0, 255, 255], "anti_alias": true,
+                    "star_points": 7, "inner_ratio": 0.5 }),
+            json!({ "type": "commit_live" }),
+        ],
+    );
+    one_undo_step(
+        &mut s,
+        &id,
+        "draw.shape",
+        json!({ "shape": "star", "cx": 24, "cy": 17, "radius": 16, "star_points": 7, "inner_ratio": 0.5,
+                "fill": "#0000FF" }),
+    );
+    assert_eq!(agent_pixels(&s, &id, 0), pixels(&want, 0));
+}
+
+/// AC-17: bad arguments fail naming the argument, the document unchanged;
+/// a zero-area box or a star radius of 0 or less succeeds with
+/// `changed: false`.
+#[test]
+fn draw_shape_box_shapes_refuse_bad_arguments() {
+    let mut s = S::new();
+    let id = painted(&mut s, 32, 24);
+    let before = state(&s, &id);
+    let star = json!({ "shape": "star", "cx": 12, "cy": 12, "radius": 8, "fill": "#000000" });
+    let with = |key: &str, v: Value| {
+        let mut a = star.clone();
+        a[key] = v;
+        a
+    };
+    let cases = [
+        (with("star_points", json!(2)), "star_points"),
+        (with("star_points", json!(51)), "star_points"),
+        (with("inner_ratio", json!(0.05)), "inner_ratio"),
+        (with("inner_ratio", json!(0.95)), "inner_ratio"),
+        (with("radius", json!(1e39)), "radius"),
+        (with("cx", json!(-1e39)), "cx"),
+        (with("rotation", json!(1e39)), "rotation"),
+        (
+            json!({ "shape": "heart", "x0": 1e39, "y0": 2, "x1": 20, "y1": 20, "fill": "#000000" }),
+            "x0",
+        ),
+        (
+            json!({ "shape": "callout", "x0": 1, "y0": 2, "x1": 20, "y1": -1e39, "fill": "#000000" }),
+            "y1",
+        ),
+        (
+            json!({ "shape": "hexagon", "x0": 1, "y0": 2, "x1": 20, "y1": 20, "fill": "#000000" }),
+            "shape",
+        ),
+    ];
+    for (args, named) in cases {
+        let err = s.err("draw.shape", args.clone());
+        assert!(err.contains(named), "{args}: {err}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+    for args in [
+        json!({ "shape": "triangle", "x0": 5, "y0": 5, "x1": 5, "y1": 20, "fill": "#000000" }),
+        json!({ "shape": "block_arrow", "x0": 5, "y0": 9, "x1": 25, "y1": 9, "fill": "#000000" }),
+        with("radius", json!(0)),
+        with("radius", json!(-3)),
+    ] {
+        let out = s.ok("draw.shape", args.clone());
+        assert_eq!(out["changed"], json!(false), "{args}: {out}");
+        assert_eq!(state(&s, &id), before, "{args} changed the document");
+    }
+}
+
+/// AC-18: `tools/list` lists all eleven kinds, the star's parameters and
+/// what the first corner means for block_arrow and callout.
+#[test]
+fn tools_list_describes_the_box_shapes() {
+    let tools = crate::list_tools();
+    let shape = tools
+        .iter()
+        .find(|t| t.name == "draw.shape")
+        .expect("draw.shape");
+    let props = &shape.input_schema["properties"];
+    assert_eq!(
+        props["shape"]["enum"],
+        json!([
+            "rect",
+            "rounded",
+            "ellipse",
+            "polygon",
+            "line",
+            "triangle",
+            "diamond",
+            "star",
+            "block_arrow",
+            "heart",
+            "callout"
+        ])
+    );
+    assert_eq!(
+        (
+            props["star_points"]["minimum"].clone(),
+            props["star_points"]["maximum"].clone()
+        ),
+        (json!(3), json!(50))
+    );
+    assert_eq!(
+        (
+            props["inner_ratio"]["minimum"].clone(),
+            props["inner_ratio"]["maximum"].clone()
+        ),
+        (json!(0.1), json!(0.9))
+    );
+    for needle in [
+        "block_arrow (points from the first corner",
+        "callout (a speech bubble whose tail tip is the first corner",
+        "star_points",
+        "inner_ratio",
+    ] {
+        assert!(shape.description.contains(needle), "{needle}");
     }
 }

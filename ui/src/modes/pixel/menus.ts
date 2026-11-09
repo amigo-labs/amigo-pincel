@@ -11,6 +11,7 @@ import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/m
 import { hint } from '../../lib/shell/shortcuts';
 import { languageMenu } from '../../lib/i18n/locale';
 import { reduceMotionMenuItem } from '../../lib/motion.svelte';
+import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
 import type { AxisMode } from './stores/editor.svelte';
@@ -314,10 +315,11 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
         reduceMotionMenuItem(),
+        touchGesturesItem(),
         { kind: 'separator' },
         languageMenu(),
       ],
     },
-    ...helpMenus(c.openShortcuts),
+    ...helpMenus(c.openShortcuts, 'pixel'),
   ];
 }

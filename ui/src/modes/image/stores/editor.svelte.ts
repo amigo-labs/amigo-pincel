@@ -6,6 +6,7 @@ import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../.
 import type {
   BrushShape,
   DashPattern,
+  LineCap,
   EraserMode,
   GradientChannel,
   GradientKind,
@@ -15,6 +16,7 @@ import type {
   ShapeKind,
   ShapeMode,
   TextAlign,
+  ToolBlend,
 } from '../core/wasm';
 import type { DocSaveFormat, DocumentFile } from '../core/document-file';
 
@@ -190,6 +192,12 @@ export type ToolKind =
   | 'rounded_rect'
   | 'ellipse'
   | 'polygon'
+  | 'triangle'
+  | 'diamond'
+  | 'star'
+  | 'block_arrow'
+  | 'heart'
+  | 'callout'
   | 'text';
 
 /** The geometry each shape tool draws. The rail shows them as variants of
@@ -202,6 +210,12 @@ const SHAPE_OF: Partial<Record<ToolKind, ShapeKind>> = {
   rounded_rect: 'rounded_rectangle',
   ellipse: 'ellipse',
   polygon: 'polygon',
+  triangle: 'triangle',
+  diamond: 'diamond',
+  star: 'star',
+  block_arrow: 'block_arrow',
+  heart: 'heart',
+  callout: 'callout',
 };
 
 /** The shape `kind` draws, or `null` if it is not a shape tool. */
@@ -233,6 +247,9 @@ export type ShapePreview = {
   sides: number;
   /** Rounded-rectangle corner radius, mirrored so the preview matches commit. */
   cornerRadius: number;
+  /** Star points and inner radius (0–1), mirrored likewise. */
+  starPoints: number;
+  innerRatio: number;
 };
 
 /** The live Shapes-tool preview, or `null` when not drawing a shape. */
@@ -299,6 +316,13 @@ export const tool = $state({
   cloneSample: 'current_layer' as SampleSource,
   /** Clone Stamp: the next press on the canvas sets the source point. */
   cloneSetSource: false,
+  /** Antialiasing: smooth tip, shape, glyph and selection edges; one
+   *  setting for every tool that has the switch
+   *  (docs/specs/image-edit-extras-tool-options.md AC-01). */
+  antiAlias: true,
+  /** Blending: Normal or Overwrite; one setting for Brush, Bucket,
+   *  Gradient (Color), Line, shapes and Text (AC-08). */
+  blend: 'normal' as ToolBlend,
   /** Gradient: which ramp the drag describes (spec §5.4). */
   gradientKind: 'linear' as GradientKind,
   /** Gradient: paint color, or fade the alpha that is already there. */
@@ -309,20 +333,23 @@ export const tool = $state({
   strokeWidth: 3,
   /** Shapes: outline dash pattern. */
   shapeDash: 'solid' as DashPattern,
+  /** The Line / Curve tool's caps (docs/specs/image-shapes-curves.md). */
+  lineStartCap: 'round' as LineCap,
+  lineEndCap: 'round' as LineCap,
   /** Shapes: polygon side count, 3–100. */
   shapeSides: 5,
+  /** Star points (3–50) and inner radius in percent (10–90)
+   *  (docs/specs/image-shapes-curves-shapes.md AC-04). */
+  starPoints: 5,
+  starInner: 38,
   /** Shapes: rounded-rectangle corner radius in pixels. */
   cornerRadius: 16,
-  /** Shapes: anti-alias shape edges. */
-  shapeAntiAlias: true,
   /** Text: font size in pixels, 6–999. */
   fontSize: 48,
   /** Text: synthetic bold. */
   textBold: false,
   /** Text: synthetic italic. */
   textItalic: false,
-  /** Text: anti-alias glyph edges. */
-  textAntiAlias: true,
   /** Text: per-line horizontal alignment. */
   textAlign: 'left' as TextAlign,
   /** Text: a stroke below the baseline (docs/specs/image-live-text.md AC-10). */

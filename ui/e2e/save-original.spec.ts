@@ -368,6 +368,8 @@ test('Save As offers every writable format and writes the chosen one', async ({ 
     'WebP (lossless)',
     'BMP',
     'TIFF',
+    'TGA',
+    'ICO (Windows icon)',
   ]);
   // One layer: the document's own format is preselected.
   await expect(format).toHaveValue('png');

@@ -22,6 +22,7 @@
     prefillKeepingSelection,
   } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
+  import { answerBanner, bannerShown, startTour } from '../tour/tour.svelte';
 
   let {
     recents,
@@ -30,6 +31,7 @@
     onCreate,
     onOpen,
     onOpenRecent,
+    onOpenSample = () => {},
     dropHover = false,
   }: {
     recents: RecentFile[];
@@ -40,6 +42,9 @@
     onCreate: (params: NewDocParams) => void;
     onOpen: () => void;
     onOpenRecent: (recent: RecentFile) => void;
+    /** "Open a sample" picked the sprite or the image sample
+     *  (docs/specs/first-run-tutorial.md AC-13, AC-14). */
+    onOpenSample?: (sample: 'sprite' | 'image') => void;
     /** A file drag is over the screen: show the drop state. */
     dropHover?: boolean;
   } = $props();
@@ -53,6 +58,7 @@
 
   // The open New card and its size fields; `null` while both are closed.
   let expanded = $state<EditorMode | null>(null);
+  let samplesOpen = $state(false);
   let width = $state(0);
   let height = $state(0);
 
@@ -108,7 +114,10 @@
         <!-- No menu bar is mounted here, so About needs its own way in
              wherever the OS draws no native Help menu (spec §11.3). -->
         {#if !hasNativeMenu()}
-          <button class="panel-btn" onclick={openAbout}>{t('menu.about')}</button>
+          <span class="flex items-center gap-2" data-tour="start-help">
+            <button class="panel-btn" onclick={() => startTour('start')}>{t('menu.tour')}</button>
+            <button class="panel-btn" onclick={openAbout}>{t('menu.about')}</button>
+          </span>
         {/if}
         <select
           class="panel-btn"
@@ -126,13 +135,26 @@
       </div>
     </div>
     <p class="mt-2 text-sm text-pc-muted">{t('start.tagline')}</p>
+    {#if bannerShown()}
+      <div
+        class="mt-4 flex flex-wrap items-center gap-2 rounded border border-pc-border bg-pc-raised px-3 py-2 text-sm"
+        role="region"
+        aria-label={t('tour.title')}
+      >
+        <span class="min-w-0 flex-1">{t('tour.bannerText')}</span>
+        <button class="panel-btn panel-btn-primary" onclick={() => answerBanner(true)}
+          >{t('tour.bannerTake')}</button
+        >
+        <button class="panel-btn" onclick={() => answerBanner(false)}>{t('tour.bannerDecline')}</button>
+      </div>
+    {/if}
     {#if unsupported}
       <p role="alert" class="mt-4 rounded border border-pc-border px-3 py-2 text-sm">
         {t('start.unsupportedBrowser')}
       </p>
     {/if}
 
-    <div class="mt-6 flex flex-col gap-3">
+    <div class="mt-6 flex flex-col gap-3" data-tour="modes">
       {#each CARDS as card (card.mode)}
         {@const open = expanded === card.mode}
         <div class="start-card" class:start-card-open={open}>
@@ -221,8 +243,27 @@
     </div>
 
     <div class="mt-5 flex flex-col items-start gap-2">
-      <button class="panel-btn shrink-0" onclick={onOpen} disabled={blocked}>{t('start.open')}</button>
+      <button class="panel-btn shrink-0" onclick={onOpen} disabled={blocked} data-tour="open"
+        >{t('start.open')}</button
+      >
       <span class="text-[13px] leading-relaxed text-pc-muted">{t('start.openHint')}</span>
+      <button
+        class="panel-btn shrink-0"
+        aria-expanded={samplesOpen}
+        disabled={blocked}
+        data-tour="samples"
+        onclick={() => (samplesOpen = !samplesOpen)}>{t('start.openSample')}</button
+      >
+      {#if samplesOpen}
+        <div class="flex flex-wrap gap-2" role="group" aria-label={t('start.openSample')}>
+          <button class="panel-btn" disabled={blocked} onclick={() => onOpenSample('sprite')}
+            >{t('start.sampleSprite')}</button
+          >
+          <button class="panel-btn" disabled={blocked} onclick={() => onOpenSample('image')}
+            >{t('start.sampleImage')}</button
+          >
+        </div>
+      {/if}
     </div>
 
     {#if recents.length > 0}

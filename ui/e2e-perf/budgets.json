@@ -85,6 +85,13 @@
       "max": 1024,
       "unit": "MB",
       "owner": "performance-image-undo-memory"
+    },
+    {
+      "metric": "bench/image_shapes/curve_64pts_w20_dashdot_arrows_4k",
+      "scenario": "Draw a 64-point Line / Curve (stroke width 20, Dash-Dot, anti-aliased, Arrow caps) across a 3840x2160 layer, native bench median",
+      "max": 40,
+      "unit": "ms",
+      "owner": "image-shapes-curves"
     }
   ]
 }

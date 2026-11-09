@@ -204,6 +204,7 @@ fn eraser_to_background_equals_the_editors_eraser() {
     let mut s = S::new();
     let id = painted(&mut s);
     let mut spec = stroke_base("eraser_stroke");
+    spec["anti_alias"] = json!(true);
     spec["mode"] = json!("to_background");
     spec["background"] = json!([10, 20, 30, 255]);
     let want = editor(&s, &id, spec);
@@ -213,6 +214,7 @@ fn eraser_to_background_equals_the_editors_eraser() {
     );
     assert_eq!(layers(&s, &id), want);
     let mut spec = stroke_base("eraser_stroke");
+    spec["anti_alias"] = json!(true);
     spec["mode"] = json!("to_background");
     spec["background"] = json!([255, 255, 255, 255]);
     spec["points"] = json!([[2.0, 2.0], [20.0, 2.0]]);
@@ -223,6 +225,7 @@ fn eraser_to_background_equals_the_editors_eraser() {
     );
     assert_eq!(layers(&s, &id), want, "default background white");
     let mut spec = stroke_base("eraser_stroke");
+    spec["anti_alias"] = json!(true);
     spec["mode"] = json!("to_background");
     spec["background"] = json!([0, 0, 0, 0]);
     spec["points"] = json!([[2.0, 5.0], [20.0, 5.0]]);
@@ -233,6 +236,7 @@ fn eraser_to_background_equals_the_editors_eraser() {
     );
     assert_eq!(layers(&s, &id), want, "transparent background swatch");
     let mut spec = stroke_base("eraser_stroke");
+    spec["anti_alias"] = json!(true);
     spec["mode"] = json!("to_transparent");
     spec["points"] = json!([[2.0, 13.0], [20.0, 13.0]]);
     let want = editor(&s, &id, spec);

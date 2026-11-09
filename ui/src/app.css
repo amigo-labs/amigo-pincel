@@ -296,7 +296,33 @@
 /* Printing Help ▸ Keyboard Shortcuts (docs/specs/shortcut-overview.md):
    while the dialog is open, print its full list on white paper and leave
    the editor behind it out. */
+/* Image-mode print (docs/specs/image-formats-more-print.md): the print
+   element exists only while a print runs and never shows on screen. */
+.pincel-print {
+  display: none;
+}
+
 @media print {
+  body:has(> .pincel-print) > :not(.pincel-print) {
+    display: none !important;
+  }
+  .pincel-print {
+    display: block;
+    background: #fff;
+  }
+  /* Fit to page: the page-sized box, the image contained in it, centred
+     horizontally and at the top. */
+  .pincel-print img.fit {
+    display: block;
+    width: 100%;
+    height: 100vh;
+    object-fit: contain;
+    object-position: top center;
+  }
+  /* Actual size: one image pixel per CSS pixel (96 per inch). */
+  .pincel-print img.actual {
+    display: block;
+  }
   html,
   body,
   #app {

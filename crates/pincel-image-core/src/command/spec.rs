@@ -18,11 +18,12 @@ use super::{
 use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
-    BlendMode, Brush, BrushShape, CloneSnapshot, Color, DashPattern, Eraser, EraserMode, Fill,
-    FillOptions, Gradient, GradientChannel, GradientKind, Interpolation, Move, PenSamples, Pencil,
-    Point, PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask,
-    SelectionMode, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
-    TextStyle, apply_mode, delete_selection, fill_selection, magic_wand,
+    Blend, BlendMode, Brush, BrushShape, CloneSnapshot, Color, Curve, CurveLine, DashPattern,
+    Eraser, EraserMode, Fill, FillOptions, Gradient, GradientChannel, GradientKind, Interpolation,
+    LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil, Point, PressureDynamics,
+    Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode,
+    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, apply_mode,
+    delete_selection, fill_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -33,6 +34,9 @@ pub struct StrokeScratch {
     smudge: SmudgeCarry,
     recolor: RecolorOrigins,
     pub(super) clone: CloneSnapshot,
+    /// An Overwrite Brush drag's pixels before it and highest coverage
+    /// (docs/specs/image-edit-extras-tool-options.md AC-11, AC-12).
+    overwrite: OverwriteMemory,
 }
 
 impl StrokeScratch {
@@ -43,6 +47,7 @@ impl StrokeScratch {
             self.smudge.clear();
             self.recolor.clear();
             self.clone.clear();
+            self.overwrite.clear();
         }
     }
 }
@@ -219,11 +224,44 @@ fn default_dash() -> String {
     "solid".to_string()
 }
 
+fn default_star_points() -> u32 {
+    crate::STAR_POINTS
+}
+
+fn default_inner_ratio() -> f32 {
+    crate::STAR_INNER_RATIO
+}
+
+fn default_cap() -> String {
+    "round".to_string()
+}
+
+/// Maps a cap string to a [`LineCap`] (docs/specs/image-shapes-curves.md),
+/// defaulting to Round.
+fn parse_cap(s: &str) -> LineCap {
+    LineCap::parse(s).unwrap_or_default()
+}
+
+fn default_blend() -> String {
+    "normal".to_string()
+}
+
+/// Maps a blend string to a [`Blend`]; anything but `overwrite` is Normal.
+pub(super) fn parse_blend(s: &str) -> Blend {
+    if s == "overwrite" {
+        Blend::Overwrite
+    } else {
+        Blend::Normal
+    }
+}
+
 /// Maps a dash-pattern string to a [`DashPattern`], defaulting to solid.
 pub(super) fn parse_dash(s: &str) -> DashPattern {
     match s {
         "dashed" => DashPattern::Dashed,
         "dotted" => DashPattern::Dotted,
+        "dash_dot" => DashPattern::DashDot,
+        "dash_dot_dot" => DashPattern::DashDotDot,
         _ => DashPattern::Solid,
     }
 }
@@ -302,6 +340,13 @@ pub enum CommandSpec {
         /// The flat nib follows the pen azimuth.
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
         /// Identifies the pointer drag; segments sharing it merge into one undo
         /// step. The UI assigns a fresh id per pointer-down.
         stroke_id: u64,
@@ -339,6 +384,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A smudge stroke: carries color along the stroke (spec §5.4).
@@ -367,6 +416,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A Clone Stamp stroke: copies the pixels `offset` away through the
@@ -399,6 +452,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// An eraser stroke over a polyline of `[x, y]` points.
@@ -429,6 +486,10 @@ pub enum CommandSpec {
         angle: f32,
         #[serde(default)]
         tilt_angle: bool,
+        /// Anti-aliased edge for the hard round tip
+        /// (docs/specs/image-edit-extras-tool-options.md AC-02, AC-03).
+        #[serde(default)]
+        anti_alias: bool,
         stroke_id: u64,
     },
     /// A flood fill seeded at `[x, y]`.
@@ -442,6 +503,9 @@ pub enum CommandSpec {
         sample: String,
         x: f32,
         y: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Translate a layer's contents by `(dx, dy)` pixels (the Move tool).
     TranslateLayer { layer: usize, dx: i32, dy: i32 },
@@ -513,6 +577,9 @@ pub enum CommandSpec {
         mode: String,
         #[serde(default)]
         feather: u32,
+        /// Anti-aliased outline (image-edit-extras-tool-options AC-06).
+        #[serde(default)]
+        anti_alias: bool,
     },
     /// Polygonal selection over `points` ([x, y] each) combined per `mode`.
     SelectPolygon {
@@ -521,6 +588,9 @@ pub enum CommandSpec {
         mode: String,
         #[serde(default)]
         feather: u32,
+        /// Anti-aliased outline (image-edit-extras-tool-options AC-06).
+        #[serde(default)]
+        anti_alias: bool,
     },
     /// Magic-wand selection seeded at `(x, y)` on `layer`, combined per `mode`.
     SelectWand {
@@ -609,6 +679,24 @@ pub enum CommandSpec {
         anti_alias: bool,
         #[serde(default = "default_dash")]
         dash: String,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
+        /// A line's start cap: `round` (default), `flat` or `arrow`
+        /// (docs/specs/image-shapes-curves.md). A line takes 2–64 `points`:
+        /// the start, the control points in order, the end.
+        #[serde(default = "default_cap")]
+        start_cap: String,
+        /// A line's end cap.
+        #[serde(default = "default_cap")]
+        end_cap: String,
+        /// A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md);
+        /// a star takes `center`, `radius` and `rotation` like `polygon`.
+        #[serde(default = "default_star_points")]
+        star_points: u32,
+        /// A star's inner radius as a share of `radius`, 0.1–0.9.
+        #[serde(default = "default_inner_ratio")]
+        inner_ratio: f32,
     },
     /// Paint a gradient ramp on `layer` along the drag `(x0, y0)` → `(x1, y1)`
     /// (spec §5.4). A zero-length drag or an empty selection is a no-op.
@@ -628,6 +716,9 @@ pub enum CommandSpec {
         to: [u8; 4],
         #[serde(default = "default_opacity")]
         opacity: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Begin a live Line or box shape (docs/specs/image-live-objects.md):
     /// drawn as `draw_shape` draws it, but editable until `commit_live`.
@@ -642,6 +733,12 @@ pub enum CommandSpec {
         corner_radius: f32,
         #[serde(default)]
         sides: u32,
+        /// A star's points, 3–50 (docs/specs/image-shapes-curves-shapes.md).
+        #[serde(default = "default_star_points")]
+        star_points: u32,
+        /// A star's inner radius as a share of the outer one, 0.1–0.9.
+        #[serde(default = "default_inner_ratio")]
+        inner_ratio: f32,
         #[serde(default = "default_shape_mode")]
         mode: String,
         #[serde(default = "default_stroke_width")]
@@ -654,6 +751,19 @@ pub enum CommandSpec {
         anti_alias: bool,
         #[serde(default = "default_dash")]
         dash: String,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
+        /// A line's control points between the endpoints, in order
+        /// (docs/specs/image-shapes-curves.md).
+        #[serde(default)]
+        control: Vec<[f32; 2]>,
+        /// A line's start cap: `round` (default), `flat` or `arrow`.
+        #[serde(default = "default_cap")]
+        start_cap: String,
+        /// A line's end cap.
+        #[serde(default = "default_cap")]
+        end_cap: String,
     },
     /// Begin a live gradient along `(x0, y0)` -> `(x1, y1)`, drawn as
     /// `draw_gradient` draws it (docs/specs/image-live-objects.md).
@@ -673,6 +783,9 @@ pub enum CommandSpec {
         to: [u8; 4],
         #[serde(default = "default_opacity")]
         opacity: f32,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Edit the live object: absent fields keep their value. Edits sharing
     /// a `gesture` (one handle drag), or consecutive edits of one parameter
@@ -707,6 +820,12 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         sides: Option<u32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        star_points: Option<u32>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        inner_ratio: Option<f32>,
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         stroke_color: Option<[u8; 4]>,
@@ -752,6 +871,19 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         align: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        blend: Option<String>,
+        /// A line's control points, all of them, in order.
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        control: Option<Vec<[f32; 2]>>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        start_cap: Option<String>,
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        end_cap: Option<String>,
     },
     /// Begin a live text (docs/specs/image-live-text.md): `(x, y)` is the
     /// top-left of its box for every alignment, `font_id` a `register_font`
@@ -778,6 +910,9 @@ pub enum CommandSpec {
         underline: bool,
         #[serde(default)]
         strikethrough: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
     /// Commit the live object: its steps become one (or none, if it changes
     /// no pixel).
@@ -814,6 +949,9 @@ pub enum CommandSpec {
         /// A stroke through each line's lowercase letters.
         #[serde(default)]
         strikethrough: bool,
+        /// `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
+        #[serde(default = "default_blend")]
+        blend: String,
     },
 }
 
@@ -933,6 +1071,8 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
+            blend,
             stroke_id,
         } => {
             let brush = Brush::new(
@@ -947,14 +1087,24 @@ pub fn run_command(
                 opacity: pressure_opacity,
             })
             .with_angle(angle)
-            .with_follow_tilt(tilt_angle);
+            .with_follow_tilt(tilt_angle)
+            .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
                 pressure: &pressure,
                 azimuth: &azimuth,
             };
-            match Pencil::new(brush).stroke_with_pen(layer, &pts, pen, &bus.document) {
+            scratch.rewind(stroke_id);
+            let brush = brush.with_blend(parse_blend(&blend));
+            let painted = Pencil::new(brush).stroke_with_memory(
+                layer,
+                &pts,
+                pen,
+                &bus.document,
+                &mut scratch.overwrite,
+            );
+            match painted {
                 Some(cmd) => bus.apply(Box::new(cmd.with_stroke(stroke_id))),
                 None => Ok(()), // stroke missed the canvas — no-op
             }
@@ -975,6 +1125,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let replacement = Color::rgba(to[0], to[1], to[2], to[3]);
@@ -986,7 +1137,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
@@ -1021,6 +1173,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
@@ -1031,7 +1184,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
             let azimuth = azimuth_samples(&azimuth);
             let pen = PenSamples {
@@ -1067,6 +1221,7 @@ pub fn run_command(
             azimuth,
             angle,
             tilt_angle,
+            anti_alias,
             stroke_id,
         } => {
             let brush = Brush::new(size, Color::TRANSPARENT, opacity)
@@ -1077,7 +1232,8 @@ pub fn run_command(
                     opacity: pressure_opacity,
                 })
                 .with_angle(angle)
-                .with_follow_tilt(tilt_angle);
+                .with_follow_tilt(tilt_angle)
+                .with_anti_alias(anti_alias);
             let eraser = Eraser::new(brush, parse_eraser_mode(&mode)).with_background(Color::rgba(
                 background[0],
                 background[1],
@@ -1104,6 +1260,7 @@ pub fn run_command(
             sample,
             x,
             y,
+            blend,
         } => {
             let options = FillOptions {
                 tolerance,
@@ -1111,7 +1268,8 @@ pub fn run_command(
                 sample: parse_sample(&sample),
             };
             let fill = Fill::new(Color::rgba(color[0], color[1], color[2], color[3]), options)
-                .with_opacity(opacity);
+                .with_opacity(opacity)
+                .with_blend(parse_blend(&blend));
             match fill.fill(layer, Point::new(x, y), &bus.document) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()),
@@ -1222,9 +1380,15 @@ pub fn run_command(
             h,
             mode,
             feather,
+            anti_alias,
         } => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
-            let mut shape = SelectionMask::ellipse(cw, ch, Rect::new(x, y, w, h));
+            let rect = Rect::new(x, y, w, h);
+            let mut shape = if anti_alias {
+                SelectionMask::ellipse_aa(cw, ch, rect)
+            } else {
+                SelectionMask::ellipse(cw, ch, rect)
+            };
             shape.feather(feather);
             apply_selection(
                 bus,
@@ -1237,10 +1401,15 @@ pub fn run_command(
             points,
             mode,
             feather,
+            anti_alias,
         } => {
             let (cw, ch) = (bus.document.canvas.width(), bus.document.canvas.height());
             let pts: Vec<Point> = points.iter().map(|p| Point::new(p[0], p[1])).collect();
-            let mut shape = SelectionMask::polygon(cw, ch, &pts);
+            let mut shape = if anti_alias {
+                SelectionMask::polygon_aa(cw, ch, &pts)
+            } else {
+                SelectionMask::polygon(cw, ch, &pts)
+            };
             shape.feather(feather);
             apply_selection(
                 bus,
@@ -1373,6 +1542,11 @@ pub fn run_command(
             fill_color,
             anti_alias,
             dash,
+            blend,
+            start_cap,
+            end_cap,
+            star_points,
+            inner_ratio,
         } => {
             let corner = |i: usize| points.get(i).map(|q| Point::new(q[0], q[1]));
             // line / rectangle / rounded_rectangle / ellipse take `points[0..2]`.
@@ -1399,6 +1573,28 @@ pub fn run_command(
                     sides,
                     rotation,
                 }),
+                // The box shapes of docs/specs/image-shapes-curves-shapes.md;
+                // the first point is the drag start.
+                "triangle" => corner(0)
+                    .zip(corner(1))
+                    .map(|(a, b)| Shape::Triangle { a, b }),
+                "diamond" => corner(0)
+                    .zip(corner(1))
+                    .map(|(a, b)| Shape::Diamond { a, b }),
+                "heart" => corner(0).zip(corner(1)).map(|(a, b)| Shape::Heart { a, b }),
+                "block_arrow" => corner(0)
+                    .zip(corner(1))
+                    .map(|(start, end)| Shape::BlockArrow { start, end }),
+                "callout" => corner(0)
+                    .zip(corner(1))
+                    .map(|(start, end)| Shape::Callout { start, end }),
+                "star" => Some(Shape::Star {
+                    center: Point::new(center[0], center[1]),
+                    radius,
+                    points: star_points,
+                    inner_ratio,
+                    rotation,
+                }),
                 _ => None,
             };
             let style = ShapeStyle {
@@ -1413,7 +1609,24 @@ pub fn run_command(
                 fill_color: Color::rgba(fill_color[0], fill_color[1], fill_color[2], fill_color[3]),
                 anti_alias,
                 dash: parse_dash(&dash),
+                blend: parse_blend(&blend),
             };
+            if shape == "line" {
+                // 2–64 points: the start, the control points, the end
+                // (docs/specs/image-shapes-curves.md); more draw nothing.
+                if points.len() < 2 || points.len() > MAX_LINE_POINTS {
+                    return Ok(());
+                }
+                let curve = Curve {
+                    points: points.iter().map(|q| Point::new(q[0], q[1])).collect(),
+                    start_cap: parse_cap(&start_cap),
+                    end_cap: parse_cap(&end_cap),
+                };
+                return match CurveLine::new(curve, style).draw(layer, &bus.document) {
+                    Some(cmd) => bus.apply(Box::new(cmd)),
+                    None => Ok(()),
+                };
+            }
             match built.and_then(|s| Shapes::new(s, style).draw(layer, &bus.document)) {
                 Some(cmd) => bus.apply(Box::new(cmd)),
                 None => Ok(()), // invalid geometry or off-canvas — no-op
@@ -1430,6 +1643,7 @@ pub fn run_command(
             from,
             to,
             opacity,
+            blend,
         } => {
             let tool = Gradient {
                 kind: parse_gradient_kind(&kind),
@@ -1437,6 +1651,7 @@ pub fn run_command(
                 from: Color::rgba(from[0], from[1], from[2], from[3]),
                 to: Color::rgba(to[0], to[1], to[2], to[3]),
                 opacity,
+                blend: parse_blend(&blend),
             };
             let a = Point::new(x0, y0);
             let b = Point::new(x1, y1);
@@ -1451,16 +1666,30 @@ pub fn run_command(
             points,
             corner_radius,
             sides,
+            star_points,
+            inner_ratio,
             mode,
             stroke_width,
             stroke_color,
             fill_color,
             anti_alias,
             dash,
+            blend,
+            control,
+            start_cap,
+            end_cap,
         } => {
             let Some(kind) = super::live_spec::parse_live_shape(&shape) else {
                 return Ok(()); // unknown shape: a no-op, as for draw_shape
             };
+            let line = kind == super::LiveShapeKind::Line;
+            let caps_set = start_cap != "round" || end_cap != "round";
+            if !line && (!control.is_empty() || caps_set) {
+                return Err(DocumentError::LiveEditMismatch);
+            }
+            if control.len() + 2 > MAX_LINE_POINTS {
+                return Err(DocumentError::LiveEditMismatch);
+            }
             let params = super::LiveParams::Shape(super::LiveShape {
                 kind,
                 a: Point::new(points[0][0], points[0][1]),
@@ -1472,9 +1701,15 @@ pub fn run_command(
                     fill_color: rgba(fill_color),
                     anti_alias,
                     dash: parse_dash(&dash),
+                    blend: parse_blend(&blend),
                 },
                 corner_radius,
                 sides,
+                star_points,
+                inner_ratio,
+                control: control.iter().map(|q| Point::new(q[0], q[1])).collect(),
+                start_cap: parse_cap(&start_cap),
+                end_cap: parse_cap(&end_cap),
             });
             bus.begin_live(layer, params).map(|_| ())
         }
@@ -1489,6 +1724,7 @@ pub fn run_command(
             from,
             to,
             opacity,
+            blend,
         } => {
             let params = super::LiveParams::Gradient(super::LiveGradient {
                 gradient: Gradient {
@@ -1497,6 +1733,7 @@ pub fn run_command(
                     from: rgba(from),
                     to: rgba(to),
                     opacity,
+                    blend: parse_blend(&blend),
                 },
                 a: Point::new(x0, y0),
                 b: Point::new(x1, y1),
@@ -1513,6 +1750,8 @@ pub fn run_command(
             anti_alias,
             corner_radius,
             sides,
+            star_points,
+            inner_ratio,
             stroke_color,
             fill_color,
             kind,
@@ -1528,7 +1767,16 @@ pub fn run_command(
             underline,
             strikethrough,
             align,
+            blend,
+            control,
+            start_cap,
+            end_cap,
         } => {
+            let cap = |c: Option<String>| -> Result<Option<LineCap>, DocumentError> {
+                c.map(|c| LineCap::parse(&c).ok_or(DocumentError::LiveEditMismatch))
+                    .transpose()
+            };
+            let (start_cap, end_cap) = (cap(start_cap)?, cap(end_cap)?);
             let shape = match shape {
                 Some(s) => Some(
                     super::live_spec::parse_live_shape(&s)
@@ -1545,6 +1793,8 @@ pub fn run_command(
                 anti_alias,
                 corner_radius,
                 sides,
+                star_points,
+                inner_ratio,
                 stroke_color: stroke_color.map(rgba),
                 fill_color: fill_color.map(rgba),
                 gradient_kind: kind.as_deref().map(parse_gradient_kind),
@@ -1560,6 +1810,10 @@ pub fn run_command(
                 underline,
                 strikethrough,
                 align: align.as_deref().map(parse_text_align),
+                blend: blend.as_deref().map(parse_blend),
+                control: control.map(|c| c.iter().map(|q| Point::new(q[0], q[1])).collect()),
+                start_cap,
+                end_cap,
             };
             bus.edit_live(&edit, gesture)
         }
@@ -1577,6 +1831,7 @@ pub fn run_command(
             align,
             underline,
             strikethrough,
+            blend,
         } => {
             let Some(bytes) = fonts.get(font_id as usize) else {
                 return Ok(()); // unknown font: a no-op, as for draw_text
@@ -1594,6 +1849,7 @@ pub fn run_command(
                     align: parse_text_align(&align),
                     underline,
                     strikethrough,
+                    blend: parse_blend(&blend),
                 },
                 font: super::LiveFont {
                     id: font_id,
@@ -1619,6 +1875,7 @@ pub fn run_command(
             align,
             underline,
             strikethrough,
+            blend,
         } => {
             let style = TextStyle {
                 size,
@@ -1629,6 +1886,7 @@ pub fn run_command(
                 align: parse_text_align(&align),
                 underline,
                 strikethrough,
+                blend: parse_blend(&blend),
             };
             let cmd = fonts.get(font_id as usize).and_then(|bytes| {
                 Text::new(text, Point::new(x, y), style).render(layer, &bus.document, bytes)

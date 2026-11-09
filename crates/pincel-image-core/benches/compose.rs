@@ -28,6 +28,9 @@
 //!   1024 × 1024 filled, anti-aliased ellipse with a 4 px outline by 1 px on
 //!   a 4096 × 4096, 5-layer document, plus the region compose of what
 //!   changed (docs/specs/image-live-objects.md AC-17).
+//! * `image_shapes/curve_64pts_w20_dashdot_arrows_4k` — drawing a 64-point
+//!   Line / Curve (stroke width 20, Dash-Dot, anti-aliased, Arrow caps)
+//!   across a 3840×2160 layer (docs/specs/image-shapes-curves.md AC-21).
 //! * `image_live/gradient_end_move_2k_5layers` — one edit that moves the end
 //!   point of a live linear gradient by 1 px on a 2048 × 2048, 5-layer
 //!   document, plus the region compose of what changed.
@@ -44,9 +47,10 @@ use criterion::{
 use pincel_effects::{Effect, EffectImage, blur::GaussianBlur};
 use pincel_image_core::command::Damage;
 use pincel_image_core::{
-    BoxShape, Brush, Color, Command, CommandBus, Document, Gradient, ImageBuffer, Interpolation,
-    Layer, LiveEdit, LiveGradient, LiveParams, LiveShape, LiveShapeKind, Pencil, Point, Rect,
-    RenderCache, ShapeMode, ShapeStyle, compose, compose_region, scale,
+    BoxShape, Brush, Color, Command, CommandBus, Curve, CurveLine, DashPattern, Document, Gradient,
+    ImageBuffer, Interpolation, Layer, LineCap, LiveEdit, LiveGradient, LiveParams, LiveShape,
+    LiveShapeKind, Pencil, Point, Rect, RenderCache, ShapeMode, ShapeStyle, compose,
+    compose_region, scale,
 };
 
 /// 4K as the budget table defines it (docs/specs/pincel.md §4.5).
@@ -259,6 +263,11 @@ fn bench_live(c: &mut Criterion) {
         },
         corner_radius: 0.0,
         sides: 5,
+        star_points: 5,
+        inner_ratio: 0.38,
+        control: Vec::new(),
+        start_cap: LineCap::Round,
+        end_cap: LineCap::Round,
     });
     bus.begin_live(top, shape).expect("the ellipse begins");
     bus.take_damage();
@@ -294,6 +303,42 @@ fn bench_live(c: &mut Criterion) {
     group.finish();
 }
 
+/// A 64-point curve zig-zagging across a 4K layer, drawn as one command.
+fn bench_curve(c: &mut Criterion) {
+    let mut group = c.benchmark_group("image_shapes");
+    heavy(&mut group);
+    let doc = document(UHD.0, UHD.1, 1);
+    let points: Vec<Point> = (0..64)
+        .map(|i| {
+            let x = 40.0 + (UHD.0 as f32 - 80.0) * i as f32 / 63.0;
+            let y = if i % 2 == 0 {
+                300.0
+            } else {
+                UHD.1 as f32 - 300.0
+            };
+            Point::new(x, y)
+        })
+        .collect();
+    let line = CurveLine::new(
+        Curve {
+            points,
+            start_cap: LineCap::Arrow,
+            end_cap: LineCap::Arrow,
+        },
+        ShapeStyle {
+            stroke_width: 20.0,
+            stroke_color: Color::rgba(200, 30, 30, 255),
+            anti_alias: true,
+            dash: DashPattern::DashDot,
+            ..ShapeStyle::default()
+        },
+    );
+    group.bench_function("curve_64pts_w20_dashdot_arrows_4k", |b| {
+        b.iter(|| black_box(line.draw(0, black_box(&doc))));
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_full_compose,
@@ -301,6 +346,7 @@ criterion_group!(
     bench_brush_stroke,
     bench_cache,
     bench_gaussian_blur,
-    bench_live
+    bench_live,
+    bench_curve
 );
 criterion_main!(benches);

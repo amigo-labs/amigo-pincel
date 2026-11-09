@@ -93,6 +93,7 @@ struct Labels {
     export_sheet: &'static str,
     export_animation: &'static str,
     export_svg: &'static str,
+    print: &'static str,
     quit: &'static str,
     edit: &'static str,
     undo: &'static str,
@@ -106,6 +107,7 @@ struct Labels {
     reset_zoom: &'static str,
     help: &'static str,
     shortcuts: &'static str,
+    tour: &'static str,
     about: &'static str,
     check_updates: &'static str,
     auto_update: &'static str,
@@ -130,6 +132,7 @@ const LABELS_EN: Labels = Labels {
     export_sheet: "Export Sprite Sheet\u{2026}",
     export_animation: "Export Animation\u{2026}",
     export_svg: "Export as SVG\u{2026}",
+    print: "Print\u{2026}",
     quit: "Quit",
     edit: "Edit",
     undo: "Undo",
@@ -143,6 +146,7 @@ const LABELS_EN: Labels = Labels {
     reset_zoom: "Reset Zoom",
     help: "Help",
     shortcuts: "Keyboard Shortcuts",
+    tour: "Tour",
     about: "About Pincel",
     check_updates: "Check for Updates\u{2026}",
     auto_update: "Install Updates Automatically",
@@ -164,6 +168,7 @@ const LABELS_DE: Labels = Labels {
     export_sheet: "Sprite-Sheet exportieren\u{2026}",
     export_animation: "Animation exportieren\u{2026}",
     export_svg: "Als SVG exportieren\u{2026}",
+    print: "Drucken\u{2026}",
     quit: "Beenden",
     edit: "Bearbeiten",
     undo: "R\u{fc}ckg\u{e4}ngig",
@@ -177,6 +182,7 @@ const LABELS_DE: Labels = Labels {
     reset_zoom: "Zoom zur\u{fc}cksetzen",
     help: "Hilfe",
     shortcuts: "Tastenk\u{fc}rzel",
+    tour: "Rundgang",
     about: "\u{dc}ber Pincel",
     check_updates: "Nach Updates suchen\u{2026}",
     auto_update: "Updates automatisch installieren",
@@ -366,6 +372,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     let export_animation_item =
         MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
     let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
+    // Image mode's File ▸ Print… (docs/specs/image-formats-more-print.md
+    // AC-10); the Pixel editor and the start screen ignore it.
+    let print_item = bound_item(app, "menu:print", l.print, "CmdOrCtrl+P")?;
 
     // A custom Quit: the predefined one ends the app without a window
     // close request, so the UI could not ask about unsaved changes first
@@ -389,6 +398,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&export_sheet_item)
         .item(&export_animation_item)
         .item(&export_svg_item)
+        .separator()
+        .item(&print_item)
         .separator()
         .item(&quit_item)
         .build()?;
@@ -424,8 +435,12 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // Help ▸ Keyboard Shortcuts: the mounted editor opens its overview
     // (docs/specs/shortcut-overview.md); the start screen ignores it.
     let shortcuts = bound_item(app, "menu:shortcuts", l.shortcuts, "CmdOrCtrl+/")?;
+    // Help ▸ Tour starts the tour for the current context
+    // (docs/specs/first-run-tutorial.md AC-12).
+    let tour = MenuItemBuilder::with_id("menu:tour", l.tour).build(app)?;
     let help = SubmenuBuilder::new(app, l.help)
         .item(&shortcuts)
+        .item(&tour)
         .separator()
         .item(&PredefinedMenuItem::about(
             app,

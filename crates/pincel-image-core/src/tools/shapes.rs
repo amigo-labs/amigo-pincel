@@ -8,7 +8,7 @@
 //! on-segments along the perimeter polyline. The Arrow shape (spec §9.2) is
 //! deferred to a follow-up task.
 
-use super::src_over;
+use super::{Blend, box_shapes};
 use crate::color::Color;
 use crate::command::HistoryKind;
 use crate::command::SetPixels;
@@ -76,6 +76,59 @@ pub enum Shape {
         /// Rotation in radians.
         rotation: f32,
     },
+    /// An isosceles triangle filling the box `a`–`b`: apex at the middle of
+    /// the top edge, base along the bottom (docs/specs/image-shapes-curves-shapes.md).
+    Triangle {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A rhombus with its corners at the box's edge midpoints.
+    Diamond {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A star of `points` points (3–50) around `center`: outer radius
+    /// `radius`, inner radius `radius × inner_ratio` (0.1–0.9), rotated
+    /// `rotation` radians (0 puts a point up).
+    Star {
+        /// Center point.
+        center: Point,
+        /// Outer radius in pixels.
+        radius: f32,
+        /// Number of points, clamped to 3–50.
+        points: u32,
+        /// Inner radius as a share of the outer one, clamped to 0.1–0.9.
+        inner_ratio: f32,
+        /// Rotation in radians.
+        rotation: f32,
+    },
+    /// An arrow filling the box from `start` (where the drag began) toward
+    /// `end`, along the box's longer side (horizontal on a tie).
+    BlockArrow {
+        /// The drag start corner.
+        start: Point,
+        /// The opposite corner.
+        end: Point,
+    },
+    /// A heart touching all four edges of the box, point at the bottom.
+    Heart {
+        /// One corner of the box.
+        a: Point,
+        /// The opposite corner.
+        b: Point,
+    },
+    /// A speech bubble: a rounded body away from `start` and a tail whose
+    /// tip lies on `start`.
+    Callout {
+        /// The drag start corner (the tail's tip).
+        start: Point,
+        /// The opposite corner.
+        end: Point,
+    },
 }
 
 /// Dash pattern of a shape's outline (spec §9.2 Shapes "Dash pattern").
@@ -88,16 +141,25 @@ pub enum DashPattern {
     Dashed,
     /// Dots (≈1× stroke width on, ≈1.5× off).
     Dotted,
+    /// Dash, gap, dot, gap (3×, 1.5×, 1×, 1.5× stroke width;
+    /// docs/specs/image-shapes-curves.md AC-11).
+    DashDot,
+    /// Dash, gap, dot, gap, dot, gap (3×, 1.5×, 1×, 1.5×, 1×, 1.5×).
+    DashDotDot,
 }
 
 impl DashPattern {
-    /// On/off run lengths in pixels for a given stroke width, or `None` if solid.
-    fn runs(self, stroke_width: f32) -> Option<(f32, f32)> {
+    /// Alternating on / off run lengths in pixels for a given stroke width
+    /// (starting with an "on" run), or `None` if solid.
+    pub(super) fn runs(self, stroke_width: f32) -> Option<Vec<f32>> {
         let w = stroke_width.max(1.0);
+        let (dash, dot, gap) = ((w * 3.0).max(1.0), w.max(1.0), (w * 1.5).max(1.0));
         match self {
             DashPattern::Solid => None,
-            DashPattern::Dashed => Some(((w * 3.0).max(1.0), (w * 2.0).max(1.0))),
-            DashPattern::Dotted => Some((w.max(1.0), (w * 1.5).max(1.0))),
+            DashPattern::Dashed => Some(vec![dash, (w * 2.0).max(1.0)]),
+            DashPattern::Dotted => Some(vec![dot, gap]),
+            DashPattern::DashDot => Some(vec![dash, gap, dot, gap]),
+            DashPattern::DashDotDot => Some(vec![dash, gap, dot, gap, dot, gap]),
         }
     }
 }
@@ -117,6 +179,9 @@ pub struct ShapeStyle {
     pub anti_alias: bool,
     /// Outline dash pattern (solid by default).
     pub dash: DashPattern,
+    /// Normal or Overwrite (docs/specs/image-edit-extras-tool-options.md);
+    /// under Overwrite the outline overwrites the fill where they overlap.
+    pub blend: Blend,
 }
 
 impl Default for ShapeStyle {
@@ -128,6 +193,7 @@ impl Default for ShapeStyle {
             fill_color: Color::TRANSPARENT,
             anti_alias: true,
             dash: DashPattern::Solid,
+            blend: crate::tools::Blend::Normal,
         }
     }
 }
@@ -155,6 +221,11 @@ impl Shapes {
     /// region is the shape's clamped bounding box; prior pixels are captured for
     /// undo.
     pub fn draw(&self, layer_index: usize, doc: &Document) -> Option<SetPixels> {
+        // A box shape of zero width or height, or a star of radius 0,
+        // paints nothing (image-shapes-curves-shapes AC-14).
+        if self.shape.is_box_shape() && box_shapes::outline(&self.shape).is_none() {
+            return None;
+        }
         let layer = doc.layers.get(layer_index)?;
         let cw = doc.canvas.width();
         let ch = doc.canvas.height();
@@ -172,13 +243,22 @@ impl Shapes {
             ShapeMode::Outline | ShapeMode::FillAndOutline
         );
         let dash_segments = match (draws_outline, self.style.dash.runs(stroke_width)) {
-            (true, Some((on, off))) => {
+            (true, Some(runs)) => {
                 let (verts, closed) = self.shape.outline_polyline();
-                Some(dash_segments(&verts, closed, on, off))
+                Some(match geom.mirrors() {
+                    // A symmetric shape dashes its low side only, from a
+                    // point on the axis; the pixels mirror it (AC-10).
+                    Some((mx, my)) => {
+                        let verts = start_on_axis(verts, mx, my);
+                        clip_low(dash_segments(&verts, closed, &runs), mx, my)
+                    }
+                    None => dash_segments(&verts, closed, &runs),
+                })
             }
             _ => None,
         };
         let mut after = layer.pixels.copy_region(region).ok()?;
+        let blend = self.style.blend;
 
         for ly in 0..region.h {
             for lx in 0..region.w {
@@ -209,12 +289,12 @@ impl Shapes {
                 let dst = after.get_pixel(lx, ly).unwrap_or(Color::TRANSPARENT);
                 let mut out = dst;
                 if fill_cov > 0.0 {
-                    let sa = self.style.fill_color.a as f32 / 255.0 * fill_cov * sel;
-                    out = src_over(self.style.fill_color, sa, out);
+                    let pa = self.style.fill_color.a as f32 / 255.0;
+                    out = blend.paint(self.style.fill_color, pa, fill_cov * sel, out);
                 }
                 if stroke_cov > 0.0 {
-                    let sa = self.style.stroke_color.a as f32 / 255.0 * stroke_cov * sel;
-                    out = src_over(self.style.stroke_color, sa, out);
+                    let pa = self.style.stroke_color.a as f32 / 255.0;
+                    out = blend.paint(self.style.stroke_color, pa, stroke_cov * sel, out);
                 }
                 after.set_pixel(lx, ly, out);
             }
@@ -250,12 +330,19 @@ impl Shape {
             Shape::RoundedRectangle { a, b, .. } => {
                 (a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y))
             }
-            Shape::Polygon { center, radius, .. } => (
+            Shape::Polygon { center, radius, .. } | Shape::Star { center, radius, .. } => (
                 center.x - radius,
                 center.y - radius,
                 center.x + radius,
                 center.y + radius,
             ),
+            Shape::Triangle { a, b }
+            | Shape::Diamond { a, b }
+            | Shape::Heart { a, b }
+            | Shape::BlockArrow { start: a, end: b }
+            | Shape::Callout { start: a, end: b } => {
+                (a.x.min(b.x), a.y.min(b.y), a.x.max(b.x), a.y.max(b.y))
+            }
         }
     }
 
@@ -267,6 +354,12 @@ impl Shape {
             Shape::RoundedRectangle { .. } => HistoryKind::RoundedRectangle,
             Shape::Ellipse { .. } => HistoryKind::Ellipse,
             Shape::Polygon { .. } => HistoryKind::Polygon,
+            Shape::Triangle { .. } => HistoryKind::Triangle,
+            Shape::Diamond { .. } => HistoryKind::Diamond,
+            Shape::Star { .. } => HistoryKind::Star,
+            Shape::BlockArrow { .. } => HistoryKind::BlockArrow,
+            Shape::Heart { .. } => HistoryKind::Heart,
+            Shape::Callout { .. } => HistoryKind::Callout,
         }
     }
 
@@ -274,6 +367,9 @@ impl Shape {
     /// (ellipse, rounded-rectangle corners) are sampled finely enough that the
     /// dash run lengths stay visually even.
     fn outline_polyline(&self) -> (Vec<Point>, bool) {
+        if let Some(o) = box_shapes::outline(self) {
+            return (o.verts, true);
+        }
         match *self {
             Shape::Line { a, b } => (vec![a, b], false),
             Shape::Rectangle { a, b } => {
@@ -320,7 +416,29 @@ impl Shape {
                     .collect();
                 (verts, true)
             }
+            // Box shapes without area draw nothing (`Shapes::draw` returns
+            // before an outline is needed).
+            Shape::Triangle { .. }
+            | Shape::Diamond { .. }
+            | Shape::Star { .. }
+            | Shape::BlockArrow { .. }
+            | Shape::Heart { .. }
+            | Shape::Callout { .. } => (Vec::new(), true),
         }
+    }
+
+    /// Whether this is one of the box-fitted shapes of
+    /// docs/specs/image-shapes-curves-shapes.md.
+    pub(crate) fn is_box_shape(&self) -> bool {
+        matches!(
+            self,
+            Shape::Triangle { .. }
+                | Shape::Diamond { .. }
+                | Shape::Star { .. }
+                | Shape::BlockArrow { .. }
+                | Shape::Heart { .. }
+                | Shape::Callout { .. }
+        )
     }
 }
 
@@ -358,13 +476,22 @@ fn rounded_rect_polyline(cx: f32, cy: f32, hx: f32, hy: f32, r: f32) -> (Vec<Poi
 /// Splits an outline polyline into the "on" sub-segments of a dash pattern.
 ///
 /// Walks the polyline (wrapping when `closed`) by global arc length, emitting
-/// the painted runs of length `on` separated by gaps of length `off`.
-fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point, Point)> {
+/// the painted runs: `runs` alternates on and off lengths, starting with on,
+/// and repeats.
+pub(super) fn dash_segments(verts: &[Point], closed: bool, runs: &[f32]) -> Vec<(Point, Point)> {
     let mut segs = Vec::new();
-    if verts.len() < 2 || on <= 0.0 {
+    if verts.len() < 2 || runs.first().is_none_or(|&on| on <= 0.0) {
         return segs;
     }
-    let period = on + off;
+    // Run boundaries within one period: ends[k] is where run k stops.
+    let ends: Vec<f32> = runs
+        .iter()
+        .scan(0.0_f32, |acc, &r| {
+            *acc += r;
+            Some(*acc)
+        })
+        .collect();
+    let period = ends[ends.len() - 1];
     let last = if closed { verts.len() } else { verts.len() - 1 };
     let mut traveled = 0.0_f32;
     for i in 0..last {
@@ -378,15 +505,19 @@ fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point
         let mut t = 0.0_f32;
         while t < seg_len {
             let phase = (traveled + t) % period;
-            if phase < on {
-                let end = (t + (on - phase)).min(seg_len);
+            let k = ends
+                .iter()
+                .position(|&e| phase < e)
+                .unwrap_or(ends.len() - 1);
+            if k % 2 == 0 {
+                let end = (t + (ends[k] - phase)).min(seg_len);
                 segs.push((
                     Point::new(p0.x + dir.x * t, p0.y + dir.y * t),
                     Point::new(p0.x + dir.x * end, p0.y + dir.y * end),
                 ));
                 t = end;
             } else {
-                t += period - phase;
+                t += ends[k] - phase;
             }
         }
         traveled += seg_len;
@@ -395,7 +526,7 @@ fn dash_segments(verts: &[Point], closed: bool, on: f32, off: f32) -> Vec<(Point
 }
 
 /// Minimum distance from `(px, py)` to any of the segments.
-fn min_dist_segments(px: f32, py: f32, segs: &[(Point, Point)]) -> f32 {
+pub(super) fn min_dist_segments(px: f32, py: f32, segs: &[(Point, Point)]) -> f32 {
     let mut best = f32::MAX;
     for &(a, b) in segs {
         best = best.min(dist_segment(px, py, a, b));
@@ -409,8 +540,14 @@ enum ShapeGeom {
     Line { a: Point, b: Point },
     /// A signed-distance area shape (negative inside): rect, rounded rect or ellipse.
     Sdf(SdfShape),
-    /// A regular polygon evaluated by its vertices.
-    Polygon { verts: Vec<Point> },
+    /// A polygon evaluated by its vertices; a shape mirror symmetric about
+    /// `mirror_x` (a vertical axis) or `mirror_y` evaluates one side only,
+    /// so its pixels are exactly symmetric.
+    Polygon {
+        verts: Vec<Point>,
+        mirror_x: Option<f32>,
+        mirror_y: Option<f32>,
+    },
 }
 
 /// The area-shape variants that share box/ellipse SDF math.
@@ -431,6 +568,13 @@ enum SdfShape {
 
 impl ShapeGeom {
     fn build(shape: &Shape) -> ShapeGeom {
+        if let Some(o) = box_shapes::outline(shape) {
+            return ShapeGeom::Polygon {
+                verts: o.verts,
+                mirror_x: o.mirror_x,
+                mirror_y: o.mirror_y,
+            };
+        }
         match *shape {
             Shape::Line { a, b } => ShapeGeom::Line { a, b },
             Shape::Rectangle { a, b } => {
@@ -468,8 +612,18 @@ impl ShapeGeom {
                         center.y + radius * ang.sin(),
                     ));
                 }
-                ShapeGeom::Polygon { verts }
+                ShapeGeom::Polygon {
+                    verts,
+                    mirror_x: None,
+                    mirror_y: None,
+                }
             }
+            // Degenerate box shapes: `Shapes::draw` returns before this.
+            _ => ShapeGeom::Polygon {
+                verts: Vec::new(),
+                mirror_x: None,
+                mirror_y: None,
+            },
         }
     }
 
@@ -487,9 +641,14 @@ impl ShapeGeom {
         dash: Option<&[(Point, Point)]>,
     ) -> (f32, f32) {
         let draws_outline = matches!(mode, ShapeMode::Outline | ShapeMode::FillAndOutline);
-        // Dashed stroke: band around the nearest on-segment, common to all kinds.
+        // Dashed stroke: band around the nearest on-segment, common to all
+        // kinds; a symmetric shape's segments lie on its low side.
         if draws_outline && let Some(segs) = dash {
-            let stroke = band_coverage(min_dist_segments(px, py, segs), half_stroke, aa);
+            let (qx, qy) = match self.mirrors() {
+                Some((mx, my)) => fold(px, py, mx, my),
+                None => (px, py),
+            };
+            let stroke = band_coverage(min_dist_segments(qx, qy, segs), half_stroke, aa);
             let fill = self.fill_coverage(px, py, mode, aa);
             return (fill, stroke);
         }
@@ -503,10 +662,25 @@ impl ShapeGeom {
                 let d = s.sdf(px, py);
                 Self::area_coverage(d, half_stroke, mode, aa)
             }
-            ShapeGeom::Polygon { verts } => {
+            ShapeGeom::Polygon {
+                verts,
+                mirror_x,
+                mirror_y,
+            } => {
+                let (px, py) = fold(px, py, *mirror_x, *mirror_y);
                 let d = sd_polygon(px, py, verts);
                 Self::area_coverage(d, half_stroke, mode, aa)
             }
+        }
+    }
+
+    /// The mirror axes of a symmetric polygon, if it has any.
+    fn mirrors(&self) -> Option<(Option<f32>, Option<f32>)> {
+        match self {
+            ShapeGeom::Polygon {
+                mirror_x, mirror_y, ..
+            } if mirror_x.is_some() || mirror_y.is_some() => Some((*mirror_x, *mirror_y)),
+            _ => None,
         }
     }
 
@@ -518,7 +692,14 @@ impl ShapeGeom {
         match self {
             ShapeGeom::Line { .. } => 0.0,
             ShapeGeom::Sdf(s) => inside_coverage(s.sdf(px, py), aa),
-            ShapeGeom::Polygon { verts } => inside_coverage(sd_polygon(px, py, verts), aa),
+            ShapeGeom::Polygon {
+                verts,
+                mirror_x,
+                mirror_y,
+            } => {
+                let (px, py) = fold(px, py, *mirror_x, *mirror_y);
+                inside_coverage(sd_polygon(px, py, verts), aa)
+            }
         }
     }
 
@@ -551,6 +732,60 @@ impl SdfShape {
     }
 }
 
+/// The closed outline `verts` restarted at a vertex on a mirror axis and
+/// wound into the low side first, so the dash pattern starts on the axis
+/// and the mirrored halves meet there in one centered dash; unchanged when
+/// no vertex lies on an axis.
+fn start_on_axis(verts: Vec<Point>, mx: Option<f32>, my: Option<f32>) -> Vec<Point> {
+    let on_axis = |q: &Point| mx.is_some_and(|m| q.x == m) || my.is_some_and(|m| q.y == m);
+    let Some(start) = verts.iter().position(on_axis) else {
+        return verts;
+    };
+    let n = verts.len();
+    let mut out: Vec<Point> = (0..n).map(|i| verts[(start + i) % n]).collect();
+    // Low side: x below a vertical axis, else y below a horizontal one.
+    let high = |q: &Point| match (mx, my) {
+        (Some(m), _) => q.x > m,
+        (None, Some(m)) => q.y > m,
+        (None, None) => false,
+    };
+    if out.get(1).is_some_and(high) {
+        out[1..].reverse();
+    }
+    out
+}
+
+/// `segs` cut to the low side of the mirror axes (x ≤ `mx`, y ≤ `my`).
+fn clip_low(segs: Vec<(Point, Point)>, mx: Option<f32>, my: Option<f32>) -> Vec<(Point, Point)> {
+    // Keeps the part of a→b where `f` (affine along the segment) is ≤ 0.
+    fn cut(a: Point, b: Point, fa: f32, fb: f32) -> Option<(Point, Point)> {
+        let at = |t: f32| Point::new(a.x + (b.x - a.x) * t, a.y + (b.y - a.y) * t);
+        match (fa <= 0.0, fb <= 0.0) {
+            (true, true) => Some((a, b)),
+            (false, false) => None,
+            (true, false) => Some((a, at(fa / (fa - fb)))),
+            (false, true) => Some((at(fa / (fa - fb)), b)),
+        }
+    }
+    segs.into_iter()
+        .filter_map(|(a, b)| match mx {
+            Some(m) => cut(a, b, a.x - m, b.x - m),
+            None => Some((a, b)),
+        })
+        .filter_map(|(a, b)| match my {
+            Some(m) => cut(a, b, a.y - m, b.y - m),
+            None => Some((a, b)),
+        })
+        .collect()
+}
+
+/// `(px, py)` reflected onto the low side of the mirror axes, if any.
+fn fold(px: f32, py: f32, mirror_x: Option<f32>, mirror_y: Option<f32>) -> (f32, f32) {
+    let x = mirror_x.map_or(px, |m| m - (px - m).abs());
+    let y = mirror_y.map_or(py, |m| m - (py - m).abs());
+    (x, y)
+}
+
 /// Center and half-extents of the rectangle spanning corners `a` and `b`.
 fn center_half(a: Point, b: Point) -> (f32, f32, f32, f32) {
     let cx = (a.x + b.x) / 2.0;
@@ -561,7 +796,7 @@ fn center_half(a: Point, b: Point) -> (f32, f32, f32, f32) {
 }
 
 /// Fill coverage from a signed distance: `aa` gives a 1px ramp across the edge.
-fn inside_coverage(d: f32, aa: bool) -> f32 {
+pub(super) fn inside_coverage(d: f32, aa: bool) -> f32 {
     if aa {
         (0.5 - d).clamp(0.0, 1.0)
     } else if d <= 0.0 {
@@ -572,7 +807,7 @@ fn inside_coverage(d: f32, aa: bool) -> f32 {
 }
 
 /// Centered-stroke coverage: a band of total width `2 * half` around the path.
-fn band_coverage(d: f32, half: f32, aa: bool) -> f32 {
+pub(super) fn band_coverage(d: f32, half: f32, aa: bool) -> f32 {
     // Distance outside the band's surface (negative inside the band).
     let edge = d.abs() - half;
     if aa {
@@ -606,7 +841,7 @@ fn sd_ellipse(px: f32, py: f32, ax: f32, ay: f32) -> f32 {
 }
 
 /// Distance from `(px, py)` to the segment `a`→`b`.
-fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
+pub(super) fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
     let ex = b.x - a.x;
     let ey = b.y - a.y;
     let wx = px - a.x;
@@ -624,7 +859,7 @@ fn dist_segment(px: f32, py: f32, a: Point, b: Point) -> f32 {
 
 /// Signed distance from `(px, py)` to the simple polygon `verts` (negative
 /// inside). Standard min-edge-distance with a winding-number sign test.
-fn sd_polygon(px: f32, py: f32, verts: &[Point]) -> f32 {
+pub(super) fn sd_polygon(px: f32, py: f32, verts: &[Point]) -> f32 {
     let n = verts.len();
     let mut d = {
         let dx = px - verts[0].x;
@@ -937,6 +1172,7 @@ mod tests {
             stroke_width: 2.0,
             anti_alias: false,
             dash: DashPattern::Solid,
+            blend: crate::tools::Blend::Normal,
         };
         let mut cmd = Shapes::new(shape, style).draw(0, &doc).unwrap();
         cmd.apply(&mut doc).unwrap();
@@ -1048,6 +1284,7 @@ mod tests {
             stroke_width: 3.0,
             anti_alias: false,
             dash: DashPattern::Dashed,
+            blend: crate::tools::Blend::Normal,
         };
         let shape = Shape::Rectangle {
             a: Point::new(10.0, 10.0),

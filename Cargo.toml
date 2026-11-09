@@ -39,7 +39,7 @@ thiserror = "2"
 wasm-bindgen = "0.2"
 # Image-mode core (pincel-image-core / pincel-image-wasm); see docs/specs/pincel.md §15, 2026-09-06.
 uuid = { version = "1", features = ["v4", "serde"] }
-image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif", "tiff"] }
+image = { version = "0.25", default-features = false, features = ["png", "jpeg", "webp", "bmp", "gif", "tiff", "tga", "dds", "ico"] }
 serde = { version = "1", features = ["derive"] }
 serde_json = "1"
 # OpenRaster container for Image-mode projects (docs/specs/pincel.md §15,
@@ -67,7 +67,6 @@ opt-level = 3
 [profile.release]
 lto = "fat"
 codegen-units = 1
-opt-level = 3
 
 # The recognizer runs an LSTM over every golden-corpus line; unoptimised the
 # golden tests alone would take minutes (AGENTS.md §7.5).

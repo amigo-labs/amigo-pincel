@@ -34,6 +34,22 @@
     'polygon_lasso',
   ]);
   const isShapeSelect = $derived(shapeSelectTools.has(tool.kind));
+
+  // The tools that draw an edge Antialiasing can smooth; one shared setting
+  // (docs/specs/image-edit-extras-tool-options.md AC-01).
+  const showAntiAlias = $derived(
+    ['pencil', 'eraser', 'recolor', 'smudge', 'text', 'ellipse_select', 'lasso', 'polygon_lasso'].includes(
+      tool.kind,
+    ) || isShapeTool(tool.kind),
+  );
+
+  // The tools that composite a paint color; the Gradient only on its Color
+  // channel (AC-08).
+  const showBlend = $derived(
+    ['pencil', 'fill', 'text'].includes(tool.kind) ||
+      isShapeTool(tool.kind) ||
+      (tool.kind === 'gradient' && tool.gradientChannel === 'color'),
+  );
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
@@ -239,14 +255,42 @@
         <option value="solid">{t('opt.solid')}</option>
         <option value="dashed">{t('opt.dashed')}</option>
         <option value="dotted">{t('opt.dotted')}</option>
+        <option value="dash_dot">{t('opt.dashDot')}</option>
+        <option value="dash_dot_dot">{t('opt.dashDotDot')}</option>
       </select>
     </label>
+
+    {#if tool.kind === 'line'}
+      {#each [['opt.startCap', 'lineStartCap'], ['opt.endCap', 'lineEndCap']] as const as [label, key] (key)}
+        <label class="flex items-center gap-2">
+          <span class="text-pc-muted">{t(label)}</span>
+          <select bind:value={tool[key]} class="opt-field">
+            <option value="round">{t('opt.capRound')}</option>
+            <option value="flat">{t('opt.capFlat')}</option>
+            <option value="arrow">{t('opt.capArrow')}</option>
+          </select>
+        </label>
+      {/each}
+    {/if}
 
     {#if tool.kind === 'polygon'}
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.sides')}</span>
         <input type="range" min="3" max="100" bind:value={tool.shapeSides} class="w-24" />
         <span class="w-8 tabular-nums text-pc-text">{tool.shapeSides}</span>
+      </label>
+    {/if}
+
+    {#if tool.kind === 'star'}
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.starPoints')}</span>
+        <input type="range" min="3" max="50" bind:value={tool.starPoints} class="w-24" />
+        <span class="w-8 tabular-nums text-pc-text">{tool.starPoints}</span>
+      </label>
+      <label class="flex items-center gap-2">
+        <span class="text-pc-muted">{t('opt.innerRadius')}</span>
+        <input type="range" min="10" max="90" bind:value={tool.starInner} class="w-24" />
+        <span class="w-10 tabular-nums text-pc-text">{tool.starInner}%</span>
       </label>
     {/if}
 
@@ -264,10 +308,6 @@
       <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
     </label>
 
-    <label class="flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.shapeAntiAlias} />
-      <span class="text-pc-muted">{t('opt.antiAlias')}</span>
-    </label>
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>
   {:else if tool.kind === 'text'}
     <label class="flex items-center gap-2">
@@ -312,10 +352,6 @@
       </select>
     </label>
 
-    <label class="flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textAntiAlias} />
-      <span class="text-pc-muted">{t('opt.antiAlias')}</span>
-    </label>
     <!-- Finishes the live text (docs/specs/image-live-text.md AC-11). -->
     <button
       class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
@@ -323,6 +359,23 @@
       onclick={commitText}>{t('opt.finish')}</button
     >
     <span class="text-pc-faint">{t('opt.textHint')}</span>
+  {/if}
+
+  {#if showAntiAlias}
+    <label class="flex items-center gap-2">
+      <input type="checkbox" bind:checked={tool.antiAlias} />
+      <span class="text-pc-muted">{t('opt.antialiasing')}</span>
+    </label>
+  {/if}
+
+  {#if showBlend}
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.blending')}</span>
+      <select bind:value={tool.blend} class="opt-field">
+        <option value="normal">{t('opt.blendNormal')}</option>
+        <option value="overwrite">{t('opt.blendOverwrite')}</option>
+      </select>
+    </label>
   {/if}
 
   {#if isShapeSelect || tool.kind === 'magic_wand'}

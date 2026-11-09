@@ -95,19 +95,19 @@ This is the third of three specs split from the paint.net parity topic "more fil
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-01 | `ui/e2e/image-print.spec.ts` "Ctrl+P and File ▸ Print… open the Print dialog, never the platform print directly (AC-01, AC-02, AC-08)" | built | |
+| AC-02 | `ui/e2e/image-print.spec.ts` "Ctrl+P and File ▸ Print… open the Print dialog, never the platform print directly (AC-01, AC-02, AC-08)" | built | |
+| AC-03 | `ui/e2e/image-print.spec.ts` "Print shows only the composite under print media, fitted to the page, then cleans up (AC-03 – AC-05, AC-07)" | built | |
+| AC-04 | `ui/e2e/image-print.spec.ts` "Print shows only the composite under print media, fitted to the page, then cleans up (AC-03 – AC-05, AC-07)" | built | |
+| AC-05 | `ui/e2e/image-print.spec.ts` "Print shows only the composite under print media, fitted to the page, then cleans up (AC-03 – AC-05, AC-07)" | built | |
+| AC-06 | `ui/e2e/image-print.spec.ts` "Actual size prints one image pixel per CSS pixel (AC-06)" | built | |
+| AC-07 | `ui/e2e/image-print.spec.ts` "Print shows only the composite under print media, fitted to the page, then cleans up (AC-03 – AC-05, AC-07)" | built | |
+| AC-08 | `ui/e2e/image-print.spec.ts` "Ctrl+P and File ▸ Print… open the Print dialog, never the platform print directly (AC-01, AC-02, AC-08)" | built | |
+| AC-09 | `ui/e2e/image-print.spec.ts` "without a document or with a dialog open Ctrl+P is left to the browser (AC-09)" | built | |
+| AC-10 | `ui/e2e/image-print.spec.ts` "desktop › the native Print command opens the dialog in Image mode only (AC-10)" | built | |
+| AC-11 | `ui/e2e/image-print.spec.ts` "an image that fails to load opens no platform dialog and says so (AC-11)" | built | |
 | AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-13 | `ui/e2e/image-print.spec.ts` "the Print dialog and menu entry are German in the German UI (AC-13)" | built | |
 
 ## Decisions
 
@@ -115,3 +115,7 @@ This is the third of three specs split from the paint.net parity topic "more fil
 - 2026-11-05: Printing in Image mode only (owner's choice), because paint.net parity is the goal and Pixel printing needs its own choices (frame, sheet, scale); a follow-up can reuse this mechanism.
 - 2026-11-05: The native macOS Print item stays enabled and ignores the command where Print does not apply, because the native menu has no per-item enable state today (only `set_menu_language` / `set_menu_accelerators`); adding one is beyond this spec.
 - 2026-11-05: *Fit to page* places the image at the top and keeps the print to one page, because centring vertically depends on the paper size, which the page cannot know, and a spill-over blank page is the common failure of image prints.
+- 2026-11-08 (spec-build) — The print image is a `div.pincel-print` appended to `<body>` (not inside `#app`, where the editor is nested deep), shown alone under print media by `body:has(> .pincel-print) > :not(.pincel-print)` and hidden on screen (`ui/src/app.css`); `ui/src/modes/image/core/print.ts` builds it, waits for the image to load, calls `window.print()` once and removes it on `afterprint` or before the next print.
+- 2026-11-08 (spec-build) — "A dialog is open" (AC-09) is the editor's own `ui.modalOpen` (which now includes the Print dialog), the help dialogs, the save prompts, and any element with role `dialog` / `alertdialog` (the shell's dialogs); Ctrl+P then returns unhandled, so the browser keeps it.
+- 2026-11-08 (spec-build) — The native item is `menu:print` with the rebindable accelerator `CmdOrCtrl+P` (`bound_item`), labelled "Print…" / "Drucken…" in the menu label table; `print` joins `NATIVE_MENU_ACTIONS` so macOS leaves ⌘P to it. `pincel-tauri` cannot be compiled in this container (no GTK); CI's Tauri job builds it.
+

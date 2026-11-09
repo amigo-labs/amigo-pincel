@@ -38,8 +38,6 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | - | ---- | ---- | ---- | ---------- | ---- |
 | B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
 | B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
-| B4 | [image-shapes-curves](image-shapes-curves.md) | Image | L | image-live-objects | Line / Curve with control points, arrow heads, dash-dot |
-| B5 | [image-shapes-curves-shapes](image-shapes-curves-shapes.md) | Image | L | image-live-objects-ui, image-shapes-curves | Six new shapes: triangle, diamond, star, block arrow, heart, callout |
 | B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
 
 ### C — Editor feedback
@@ -57,7 +55,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
-| D3 | [image-edit-extras-tool-options](image-edit-extras-tool-options.md) | Image | L | — | Shared Antialiasing and Normal / Overwrite switches |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
 
 ### E — Text and fonts
@@ -76,7 +73,6 @@ Independent of every other group.
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | F2 | [image-view-aids](image-view-aids.md) | Image | L | — | Rulers, pixel grid, units; view state only |
-| F3 | [image-formats-more](image-formats-more.md) | Image | L | — | Open / save TGA, ICO; open DDS (image crate features) |
 | F4 | [image-formats-more-modern](image-formats-more-modern.md) | Image | L | image-formats-more | AVIF open (after a wasm spike), JPEG XL open / save |
 | F5 | [image-formats-more-print](image-formats-more-print.md) | Image | L | — | File ▸ Print… |
 
@@ -159,12 +155,16 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
 - [history-panel](history-panel.md)
+- [image-edit-extras-tool-options](image-edit-extras-tool-options.md)
+- [image-formats-more](image-formats-more.md)
 - [image-editing](image-editing.md)
 - [image-files](image-files.md)
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
 - [image-live-text](image-live-text.md)
 - [image-palette-gradient-spiral](image-palette-gradient-spiral.md)
+- [image-shapes-curves](image-shapes-curves.md)
+- [image-shapes-curves-shapes](image-shapes-curves-shapes.md)
 - [image-resize-autocrop](image-resize-autocrop.md)
 - [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)

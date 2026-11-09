@@ -108,7 +108,7 @@ test('Ctrl+A selects the characters, not the canvas', async ({ page }) => {
 
 for (const variant of ['left', 'center', 'right', 'bold', 'italic'] as const) {
   test(`the caret sits on the layout's boundary (${variant})`, async ({ page }) => {
-    await page.getByRole('checkbox', { name: 'Anti-alias' }).uncheck();
+    await page.getByRole('checkbox', { name: 'Antialiasing' }).uncheck();
     if (variant === 'bold') await page.getByRole('checkbox', { name: 'Bold' }).check();
     else if (variant === 'italic') await page.getByRole('checkbox', { name: 'Italic' }).check();
     else await page.getByRole('combobox', { name: 'Align' }).selectOption(variant);
@@ -145,7 +145,7 @@ for (const variant of ['left', 'center', 'right', 'bold', 'italic'] as const) {
 }
 
 test('a press inside the box places the caret; a drag selects', async ({ page }) => {
-  await page.getByRole('checkbox', { name: 'Anti-alias' }).uncheck();
+  await page.getByRole('checkbox', { name: 'Antialiasing' }).uncheck();
   // An empty box keeps a press inside it.
   await clickAt(page, [40, 20]);
   const empty = await docRect(page, textBox(page));

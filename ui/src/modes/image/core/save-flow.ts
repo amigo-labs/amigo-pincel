@@ -6,6 +6,7 @@
 // Save asks flatten and quality together (AC-10, AC-17). Prompts are
 // answered by `SaveDialogs`.
 import {
+  editor,
   savePrompt,
   tabs,
   type FlattenChoice,
@@ -25,6 +26,14 @@ import {
   type DocSaveFormat,
 } from './document-file';
 import type { SaveTarget } from '../../../lib/fs';
+import { t } from '../../../lib/i18n/index.svelte';
+
+/** Largest ICO image edge, px (the core's `ICO_MAX_SIDE`). */
+const ICO_MAX_SIDE = 256;
+
+/** Whether the document is too large for an ICO (AC-08). */
+const icoTooLarge = (tab: ImageTab): boolean =>
+  tab.doc.width > ICO_MAX_SIDE || tab.doc.height > ICO_MAX_SIDE;
 
 /** What a Save wrote. */
 export interface SaveResult {
@@ -54,8 +63,12 @@ export async function saveDocument(
   tab: ImageTab | null = tabs.active,
 ): Promise<SaveResult | null> {
   if (tab === null || tab.doc.handle === null) return null;
+  // ICO holds at most 256 × 256 px: Save of a larger ICO document goes to
+  // Save As, with a notice (docs/specs/image-formats-more.md AC-08).
   const own = saveFormat(tab);
-  if (forceAs || own === null) return saveAs(tab, own);
+  const icoBlocked = !forceAs && own === 'ico' && icoTooLarge(tab);
+  if (icoBlocked) editor.notice = t('save.icoTooLarge');
+  if (forceAs || own === null || icoBlocked) return saveAs(tab, own, icoBlocked);
   const format = own;
   const flattened = format !== 'ora' && flatteningLoses(tab);
   let quality = format === 'jpeg' ? (rememberedJpegQuality(tab) ?? undefined) : undefined;
@@ -88,12 +101,18 @@ export async function saveDocument(
  *  only the save picker follows (AC-10, AC-15, AC-16). A layered document,
  *  and any opened PSD, defaults to `.ora`, which keeps its layers
  *  (docs/specs/psd-import.md AC-12). */
-async function saveAs(tab: ImageTab, own: DocSaveFormat | null): Promise<SaveResult | null> {
+async function saveAs(
+  tab: ImageTab,
+  own: DocSaveFormat | null,
+  icoBlocked = false,
+): Promise<SaveResult | null> {
   const layered = tab.doc.layers.length > 1 || fileFormat(tab) === 'psd';
   const loses = flatteningLoses(tab);
+  // An ICO grown past 256 px is writable, just not at this size: no
+  // "cannot be written back", and PNG instead of ICO preselected (AC-08).
   const choice = await ask<SaveAsChoice | null>((resolve) => ({
     kind: 'format',
-    preselect: layered ? 'ora' : (own ?? 'png'),
+    preselect: layered ? 'ora' : icoBlocked ? 'png' : (own ?? 'png'),
     unwritable: own === null ? formatLabel(tab) : null,
     quality: rememberedJpegQuality(tab) ?? 90,
     confirmMerge: loses && !flattensWithoutAsking(tab),
@@ -101,6 +120,11 @@ async function saveAs(tab: ImageTab, own: DocSaveFormat | null): Promise<SaveRes
   }));
   if (choice === null) return null;
   const { format } = choice;
+  if (format === 'ico' && icoTooLarge(tab)) {
+    // Nothing is written; Save As can run again with another format.
+    editor.notice = t('save.icoTooLarge');
+    return null;
+  }
   const quality = format === 'jpeg' ? choice.quality : undefined;
   const target = await writeDocument(tab, format, { forceAs: true, quality });
   return target === null ? null : { target, flattened: format !== 'ora' && loses };

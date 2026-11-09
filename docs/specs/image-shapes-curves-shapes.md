@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: Image
@@ -35,26 +35,26 @@ This is part 2 of `image-shapes-curves` (part 1: Line / Curve, caps and dash pat
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user presses `U` repeatedly, then the Shapes tool cycles Rectangle, Rounded Rectangle, Ellipse, Polygon, Triangle, Diamond, Star, Block Arrow, Heart, Callout and back to Rectangle; the rail flyout and the options bar list the same ten variants in that order, each with its own icon and its name in English and German.
-- [ ] AC-02 (event): When the user drags a box with Triangle, then an isosceles triangle is drawn with its apex at the middle of the box's top edge and its base along the box's bottom edge.
-- [ ] AC-03 (event): When the user drags a box with Diamond, then a rhombus is drawn whose four corners lie at the midpoints of the box's edges.
-- [ ] AC-04 (event): When the user drags a box with Star, then a star with the set number of points is drawn, inscribed in the box as Polygon is: centered in the box, its outer radius half the box's shorter side, one point straight up and its inner corners at the set inner radius.
-- [ ] AC-05 (event): When the user drags a box with Block Arrow, then an arrow fills the box, pointing from the box's start corner (where the drag began) toward its end corner along the dominant axis: right or left when the box is at least as wide as it is tall, down or up otherwise; proportions as in Technical notes.
-- [ ] AC-06 (event): When the user drags a box with Heart, then a heart is drawn that touches all four edges of the box, with its two lobes at the top and its point at the middle of the bottom edge.
-- [ ] AC-07 (event): When the user drags a box with Callout, then a speech bubble is drawn: a rounded body over the 80 % of the box's height away from the drag's start corner, and a tail whose tip lies on the start corner; the outline is one closed contour, with no stroke between body and tail.
-- [ ] AC-08 (always): Every new shape is painted with the outline in the foreground color, the fill in the background color, both at the tool opacity, in the chosen mode, stroke width, dash pattern and anti-alias setting, exactly as the existing shapes do.
-- [ ] AC-09 (always): With anti-alias on, every new shape's fill fully covers each pixel whose center lies more than 0.5 px inside its boundary and leaves unchanged each pixel whose center lies more than 0.5 px outside it (plus half the stroke width when outlined); with anti-alias off, every pixel is either unchanged or written at full coverage.
-- [ ] AC-10 (always): Drawn in a box whose corners have integer coordinates, Triangle, Diamond, Star, Heart and an up- or down-pointing Block Arrow produce pixels mirror-symmetric about the box's vertical center line, and Diamond and a right- or left-pointing Block Arrow about its horizontal center line.
-- [ ] AC-11 (event): When the user holds Shift while dragging a new shape, then its box becomes a square, as for the existing shapes.
-- [ ] AC-12 (event): When the user drags a new shape, then while dragging the canvas shows that shape's own silhouette at the dragged box (in whatever form `image-live-objects-ui` previews the existing shapes' initial drag, never a rectangle stand-in), and the release leaves it a live object with its box handles; once committed, its steps are one undo step that Undo removes and Redo restores.
-- [ ] AC-13 (state): While a selection exists, a new shape changes only selected pixels, scaled by the selection coverage.
-- [ ] AC-14 (error): If the drag box of a new shape has zero width or zero height, then nothing is painted and no undo step is added.
-- [ ] AC-15 (error): If the drag box is smaller than 3 px on a side, or a star has 50 points in a small box, then the shape is drawn (or nothing, per AC-14) without an error and without a stray pixel outside the box plus half the stroke width and 1 px.
-- [ ] AC-16 (event): When an MCP client calls `draw.shape` with `triangle`, `diamond`, `block_arrow`, `heart` or `callout` and a box `(x0, y0)` → `(x1, y1)`, or with `star` and `cx`, `cy`, `radius`, `star_points`, `inner_ratio` and `rotation`, then the layer has exactly the pixels the editor's matching shape draws for the same geometry, stroke and fill, in one undo step; for `block_arrow` and `callout` the box's first corner is the drag start.
-- [ ] AC-17 (error): If an MCP `draw.shape` call gives `star_points` outside 3–50, `inner_ratio` outside 0.1–0.9, a coordinate, radius or rotation that is not a finite number in single precision, or a kind not in the list, then it fails with `isError: true` naming the argument, and the document is unchanged. A zero-area box, or a star radius of 0 or less, succeeds with `changed: false` and leaves the document unchanged.
-- [ ] AC-18 (always): `tools/list` lists all eleven `draw.shape` kinds and describes the star's parameters and the drag-start meaning of `block_arrow` and `callout`.
-- [ ] AC-19 (event): When the user picks another box shape while a box shape is live (`U` cycling, the rail or the flyout), with any of the ten box shapes on either side, then the live object becomes the picked shape with the same box and style, as one undo step, and stays live.
-- [ ] AC-20 (event): When the user changes Points or Inner radius while a Star is live, or drags a box handle of a live Block Arrow or Callout, then the shape is redrawn at once as one undo step and stays live, with AC-05 and AC-07 re-applied to the box as it now is: a handle dragged past the opposite edge carries the start corner with it, and the dominant axis is recomputed from the new width and height.
+- [x] AC-01 (event): When the user presses `U` repeatedly, then the Shapes tool cycles Rectangle, Rounded Rectangle, Ellipse, Polygon, Triangle, Diamond, Star, Block Arrow, Heart, Callout and back to Rectangle; the rail flyout and the options bar list the same ten variants in that order, each with its own icon and its name in English and German.
+- [x] AC-02 (event): When the user drags a box with Triangle, then an isosceles triangle is drawn with its apex at the middle of the box's top edge and its base along the box's bottom edge.
+- [x] AC-03 (event): When the user drags a box with Diamond, then a rhombus is drawn whose four corners lie at the midpoints of the box's edges.
+- [x] AC-04 (event): When the user drags a box with Star, then a star with the set number of points is drawn, inscribed in the box as Polygon is: centered in the box, its outer radius half the box's shorter side, one point straight up and its inner corners at the set inner radius.
+- [x] AC-05 (event): When the user drags a box with Block Arrow, then an arrow fills the box, pointing from the box's start corner (where the drag began) toward its end corner along the dominant axis: right or left when the box is at least as wide as it is tall, down or up otherwise; proportions as in Technical notes.
+- [x] AC-06 (event): When the user drags a box with Heart, then a heart is drawn that touches all four edges of the box, with its two lobes at the top and its point at the middle of the bottom edge.
+- [x] AC-07 (event): When the user drags a box with Callout, then a speech bubble is drawn: a rounded body over the 80 % of the box's height away from the drag's start corner, and a tail whose tip lies on the start corner; the outline is one closed contour, with no stroke between body and tail.
+- [x] AC-08 (always): Every new shape is painted with the outline in the foreground color, the fill in the background color, both at the tool opacity, in the chosen mode, stroke width, dash pattern and anti-alias setting, exactly as the existing shapes do.
+- [x] AC-09 (always): With anti-alias on, every new shape's fill fully covers each pixel whose center lies more than 0.5 px inside its boundary and leaves unchanged each pixel whose center lies more than 0.5 px outside it (plus half the stroke width when outlined); with anti-alias off, every pixel is either unchanged or written at full coverage.
+- [x] AC-10 (always): Drawn in a box whose corners have integer coordinates, Triangle, Diamond, Star, Heart and an up- or down-pointing Block Arrow produce pixels mirror-symmetric about the box's vertical center line, and Diamond and a right- or left-pointing Block Arrow about its horizontal center line.
+- [x] AC-11 (event): When the user holds Shift while dragging a new shape, then its box becomes a square, as for the existing shapes.
+- [x] AC-12 (event): When the user drags a new shape, then while dragging the canvas shows that shape's own silhouette at the dragged box (in whatever form `image-live-objects-ui` previews the existing shapes' initial drag, never a rectangle stand-in), and the release leaves it a live object with its box handles; once committed, its steps are one undo step that Undo removes and Redo restores.
+- [x] AC-13 (state): While a selection exists, a new shape changes only selected pixels, scaled by the selection coverage.
+- [x] AC-14 (error): If the drag box of a new shape has zero width or zero height, then nothing is painted and no undo step is added.
+- [x] AC-15 (error): If the drag box is smaller than 3 px on a side, or a star has 50 points in a small box, then the shape is drawn (or nothing, per AC-14) without an error and without a stray pixel outside the box plus half the stroke width and 1 px.
+- [x] AC-16 (event): When an MCP client calls `draw.shape` with `triangle`, `diamond`, `block_arrow`, `heart` or `callout` and a box `(x0, y0)` → `(x1, y1)`, or with `star` and `cx`, `cy`, `radius`, `star_points`, `inner_ratio` and `rotation`, then the layer has exactly the pixels the editor's matching shape draws for the same geometry, stroke and fill, in one undo step; for `block_arrow` and `callout` the box's first corner is the drag start.
+- [x] AC-17 (error): If an MCP `draw.shape` call gives `star_points` outside 3–50, `inner_ratio` outside 0.1–0.9, a coordinate, radius or rotation that is not a finite number in single precision, or a kind not in the list, then it fails with `isError: true` naming the argument, and the document is unchanged. A zero-area box, or a star radius of 0 or less, succeeds with `changed: false` and leaves the document unchanged.
+- [x] AC-18 (always): `tools/list` lists all eleven `draw.shape` kinds and describes the star's parameters and the drag-start meaning of `block_arrow` and `callout`.
+- [x] AC-19 (event): When the user picks another box shape while a box shape is live (`U` cycling, the rail or the flyout), with any of the ten box shapes on either side, then the live object becomes the picked shape with the same box and style, as one undo step, and stays live.
+- [x] AC-20 (event): When the user changes Points or Inner radius while a Star is live, or drags a box handle of a live Block Arrow or Callout, then the shape is redrawn at once as one undo step and stays live, with AC-05 and AC-07 re-applied to the box as it now is: a handle dragged past the opposite edge carries the start corner with it, and the dominant axis is recomputed from the new width and height.
 
 ## Technical notes
 
@@ -66,7 +66,7 @@ This is part 2 of `image-shapes-curves` (part 1: Line / Curve, caps and dash pat
 | Diamond | Edge midpoints: top, right, bottom, left |
 | Star | 2n vertices alternating outer radius R = min(W, H) / 2 and inner radius r = R × inner ratio, first outer vertex up, centered in the box (the same center / radius convention as Polygon; MCP `rotation` 0 also puts a point up) |
 | Block Arrow | Along its axis of length A (W for horizontal, H for vertical) and thickness T (the other side): head length min(A / 2, T), head spanning the full thickness, shaft thickness T / 2 centered |
-| Heart | Two mirrored cubic Bézier halves meeting at the top-center notch (30 % of H below the top edge) and the bottom-center point, the lobes touching the top, left and right edges |
+| Heart | Two mirrored cubic Bézier halves meeting at the top-center notch (about 27 % of H below the top edge) and the bottom-center point, the lobes touching the top, left and right edges |
 | Callout | Body: rounded rectangle over the 80 % of H away from S, corner radius 15 % of the body's shorter side, fixed (the toolbar's Radius belongs to Rounded Rectangle). Tail: triangle with its tip on S and its base on the body edge facing S, from 15 % to 35 % of W measured from S's side; body and tail are united into one outline |
 
 Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Callout are flattened to a polygon whose distance to the exact boundary stays below 0.1 px, then use the same SDF, so fill, stroke, dash and anti-alias work as for the other shapes and the outline is one contour (AC-07). Vertex counts stay bounded (a star has at most 100 vertices, flattened curves at most a few hundred), so drawing costs no more than a 100-sided Polygon of the same box by more than a small factor.
@@ -84,7 +84,7 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 | Scenario | Expected behavior |
 | -------- | ----------------- |
 | Block Arrow dragged exactly diagonally (equal horizontal and vertical movement) | Horizontal wins: points right or left |
-| Block Arrow in a box taller than wide pointing right | Head length is half the width; the arrow is stubby but fills the box |
+| Block Arrow in a box less than twice as wide as tall, pointing right | Head length is half the width; the arrow is stubby but fills the box |
 | Callout dragged from the bottom-left corner to the top-right | Body at the top, tail pointing down-left to the start corner |
 | Star with inner radius 90 % and 3 points | A slightly indented triangle, still one contour |
 | Star with 50 points in a 6 px box | Drawn without error (AC-15); it reads as a disc |
@@ -109,30 +109,39 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-11-09
+
+- Six new box shapes follow Polygon in Image mode's Shapes group: Triangle, Diamond, Star (3–50 points, 10–90 % inner radius), Block Arrow, Heart and Callout. Each has an icon and English and German names, and `U` cycles through them.
+- They paint through the polygon SDF with the existing fill / outline modes, dashes, opacity, anti-alias and selection. Symmetric shapes paint mirror-symmetric pixels.
+- They are live box shapes. The drag previews the core's own outline, box handles and the Star options redraw them, and any box shape converts to any other in one undo step. Block Arrow and Callout take their direction from the drag start.
+- MCP `draw.shape` gains the kinds `triangle`, `diamond`, `star`, `block_arrow`, `heart` and `callout`.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `U cycles the ten shapes; the flyout and the options bar list them in order with icons and names (AC-01)` (ui/e2e/image-shapes-more.spec.ts); `image mode: a right-click on a group button lists its variants` (ui/e2e/tool-flyout.spec.ts) | verified | bb1715e |
+| AC-02 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-03 | `triangle_and_diamond_fill_their_box` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-04 | `a_star_has_its_points_and_inner_radius` (crates/pincel-image-core/tests/box_shapes.rs); `a_star_in_a_wide_box_takes_half_the_shorter_side` (crates/pincel-image-core/tests/live_box_shapes.rs) | verified | 92af05a |
+| AC-05 | `a_block_arrow_points_from_the_drag_start_along_the_longer_side` (crates/pincel-image-core/tests/box_shapes.rs); down-pointing case in the same test | verified | 92af05a |
+| AC-06 | `a_heart_touches_its_box_with_lobes_up_and_its_point_down` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-07 | `a_callout_is_a_body_with_a_tail_to_the_start_corner_in_one_outline` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-08 | `new_shapes_paint_like_the_existing_ones` (crates/pincel-image-core/tests/box_shapes.rs; outline / fill colors, modes, dashes); `new_shapes_blend_at_the_tool_opacity_like_the_existing_ones` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-09 | `triangle_and_diamond_fill_their_box`, `a_star_has_its_points_and_inner_radius`, `a_block_arrow_points_from_the_drag_start_along_the_longer_side` (anti-aliased fill against the test's own polygons), `new_shapes_paint_like_the_existing_ones` (anti-alias off) (crates/pincel-image-core/tests/box_shapes.rs); `heart_and_callout_fill_their_outline_and_outlines_stay_in_their_band` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-10 | `symmetric_shapes_paint_mirror_symmetric_pixels` (crates/pincel-image-core/tests/box_shapes.rs; solid and all four dash patterns) | verified | 92af05a |
+| AC-11 | `Shift squares the box of a new shape (AC-11)` (ui/e2e/image-shapes-more.spec.ts) | verified | bb1715e |
+| AC-12 | `the drag previews the shape’s own outline and leaves it live; the commit is one undo step (AC-12)` (ui/e2e/image-shapes-more.spec.ts); `shape_outline_gives_the_core_polygon_of_a_box_shape` (crates/pincel-image-wasm/src/lib.rs) | verified | 39612bd |
+| AC-13 | `new_shapes_change_only_selected_pixels` (crates/pincel-image-core/tests/box_shapes.rs); `new_shapes_are_scaled_by_the_selection_coverage` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-14 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-15 | `zero_area_boxes_draw_nothing_and_tiny_boxes_stay_inside` (crates/pincel-image-core/tests/box_shapes.rs) | verified | 92af05a |
+| AC-16 | `draw_shape_box_shapes_match_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 177d706 |
+| AC-17 | `draw_shape_box_shapes_refuse_bad_arguments` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 177d706 |
+| AC-18 | `tools_list_describes_the_box_shapes` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 177d706 |
+| AC-19 | `another box shape converts the live one as one step and keeps it live (AC-19)` (ui/e2e/image-shapes-more.spec.ts); `every_box_shape_converts_to_every_other_keeping_box_and_style` (crates/pincel-image-core/tests/live_box_shapes.rs) | verified | cc6616a |
+| AC-20 | `star options and a Block Arrow handle drag redraw the live shape (AC-20)` (ui/e2e/image-shapes-more.spec.ts); `a_star_keeps_its_options_through_a_conversion_and_redraws_on_a_change`, `box_edits_of_an_arrow_or_a_callout_reapply_start_corner_and_axis` (crates/pincel-image-core/tests/live_box_shapes.rs) | verified | cc6616a |
 
 ## Decisions
 
@@ -141,4 +150,9 @@ Straight-edged shapes use the existing polygon SDF (`sd_polygon`); Heart and Cal
 - 2026-11-05: Block Arrow and Callout read their orientation from the box's current start and end corners, recomputed after every handle drag (AC-20) — because the box is the object's only geometry; keeping a stale direction would make a flipped arrow point backwards.
 - 2026-11-05: Callout's corner radius is fixed at 15 % — because the proportion works at every size and keeps the options bar to the Star's two extra controls.
 - 2026-11-05: A zero-area box or non-positive star radius over MCP reports `changed: false` instead of failing (AC-17) — because `draw.shape` already reports a draw that changes nothing as `changed: false`, and a degenerate box is not a malformed call.
+- 2026-11-08: A symmetric shape's dashed outline is dashed on the low side of its axis only — from a vertex on the axis, winding into the low side — and the pixels mirror it, like its fill and solid outline (AC-10) — because a pattern run once around the perimeter cannot meet itself symmetrically, and starting on the axis centers one dash there.
 - 2026-11-05: Part 2 depends on `image-shapes-curves` — because AC-08 includes its Dash-Dot patterns.
+- 2026-11-08 (spec-build): The six shapes are `Shape` variants (`Triangle`, `Diamond`, `Star`, `BlockArrow`, `Heart`, `Callout`) whose outlines a new module, `tools/box_shapes.rs`, builds as one closed polygon each (Heart from two mirrored pairs of cubic Béziers scaled to fill the box, Callout's tail inserted into the flattened rounded body); `Shapes` fills, strokes, dashes and anti-aliases them through the polygon SDF it already used for Polygon. A shape symmetric about its box's center line evaluates the SDF on one side of the axis only (`fold` in `shapes.rs`), so its pixels are exactly mirror symmetric (AC-10) — without the fold, the up-pointing Block Arrow was off by one coverage step at the shaft's edge. Their undo labels are "Draw Triangle" … "Draw Callout" (listed kinds `draw_triangle` … `draw_callout`, English and German names).
+- 2026-11-08 (spec-build): The live box record (`LiveShape`) keeps `star_points` and `inner_ratio` for every kind, like `sides`, so a Star converted to another shape and back keeps its options; `edit_live` takes both as parameter groups of their own. The box keeps `a` as given — never normalized — so `a` is the drag start that Block Arrow's direction and Callout's tail read, also after a handle drag flips the box (the editor moves the start corner with the edge, AC-20). MCP `draw.shape` checks that coordinates, the radius and the rotation are finite in single precision and names the argument; `radius` lost its schema minimum so a star radius of 0 or less succeeds with `changed: false` (AC-17), while a negative polygon radius is still refused, by the tool.
+- 2026-11-08 (spec-build): The drag preview draws the core's own outline of the new shapes (`shape_outline` in `pincel-image-wasm`, from `box_outline` in the core), so it is the shape the release will draw (AC-12), without a second copy of the Heart and Callout geometry in TypeScript. A box handle drag keeps each corner point on the edges it started on (`dragPoints` in `live-handles.ts`), so the first point — the drag start — moves with a dragged edge, also past the opposite one (AC-20); for the other box shapes the order of the points does not change the pixels. Several conversions in a row merge into one undo step, as consecutive edits of one parameter group do (`image-live-objects` AC-03); each conversion on its own is one step (AC-19). The options bar shows Points (3–50) and Inner radius (10–90 %) for Star only.
+- 2026-11-08 (spec-build, verifier round 1): Added the evidence the verifier found missing — Heart and Callout against the outline polygon the core draws (0.5 px plus the 0.1 px flattening tolerance), every new shape's outline within half the stroke width, coverage-128 selection, half-transparent colors (the tool opacity) blending exactly as a Rectangle's, a star in a 68 × 54 box (outer radius half the shorter side) and a down-pointing Block Arrow. All passed at once.

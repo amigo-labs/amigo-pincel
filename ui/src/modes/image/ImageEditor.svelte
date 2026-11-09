@@ -1,4 +1,5 @@
 <script lang="ts">
+  import TourHint from '../../lib/tour/TourHint.svelte';
   import { hexToRgb, toHex } from '../../lib/color';
   import {
     colorDraft,
@@ -26,6 +27,9 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { printComposite, type PrintPlacement } from './core/print';
+  import PrintDialog from './components/dialogs/PrintDialog.svelte';
+  import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
   import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
@@ -138,7 +142,14 @@
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { toggleUi } from '../../lib/components/layout/chrome.svelte';
-  import { formatFromName, hasFsAccess, sameFile, type OpenedFile } from '../../lib/fs';
+  import {
+    formatFromName,
+    hasFsAccess,
+    mimeFor,
+    sameFile,
+    sniffFormat,
+    type OpenedFile,
+  } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
   import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
   import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
@@ -191,6 +202,39 @@
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   // The open effect (effect-panel spec), shown in the frame's sidebar.
   let effectOpen = $state<EffectSession | null>(null);
+  // File ▸ Print… (docs/specs/image-formats-more-print.md).
+  let printOpen = $state(false);
+
+  /** Print needs a document and no dialog over the editor (AC-09); the
+   *  shell's dialogs are found by their role. */
+  function canPrint(): boolean {
+    return (
+      editor.handle !== null &&
+      !ui.modalOpen &&
+      !helpDialogOpen() &&
+      savePrompt.value === null &&
+      document.querySelector('[role="dialog"], [role="alertdialog"]') === null
+    );
+  }
+
+  /** Opens the Print dialog; `false` when Print is not available, so
+   *  Ctrl+P stays the browser's (AC-02, AC-09). */
+  function openPrint(): boolean {
+    if (!canPrint()) return false;
+    printOpen = true;
+    return true;
+  }
+
+  async function runPrint(placement: PrintPlacement): Promise<void> {
+    printOpen = false;
+    const handle = editor.handle;
+    if (handle === null) return;
+    try {
+      await printComposite(handle, editor.width, editor.height, placement);
+    } catch (e) {
+      editor.notice = t('print.failed', { error: e instanceof Error ? e.message : String(e) });
+    }
+  }
   // Layer ▸ Rename… target while its dialog is open.
   let renaming = $state<{ index: number; name: string } | null>(null);
   // A pasted image larger than the canvas, awaiting Expand / Keep (spec §5.4).
@@ -211,6 +255,13 @@
 
   /** Source tag of the in-app copy record; handles are never reused. */
   const docSource = (handle: number): string => `image:${handle}`;
+
+  /** Dropped formats the browser cannot size: decoded by the core first. */
+  const CORE_DECODED: ReadonlySet<string> = new Set([
+    mimeFor('tga'),
+    mimeFor('dds'),
+    mimeFor('ico'),
+  ]);
 
   /** Runs a pixel edit on the active layer unless it is refused — the layer
    *  or a group it sits in is locked, or it is a group — and shows the
@@ -304,6 +355,13 @@
   async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
     const handle = editor.handle;
     if (handle === null) return;
+    // TGA / DDS / ICO go through the core's decoder as PNG, so sizing and
+    // the expand prompt work as for the browser's own formats
+    // (docs/specs/image-formats-more.md AC-13).
+    if (CORE_DECODED.has(mime)) {
+      bytes = core.imageToPng(bytes, mime);
+      mime = 'image/png';
+    }
     const size = await imageSize(new Blob([bytes.slice()], { type: mime || 'image/png' }));
     if (editor.handle !== handle) return;
     const canvas = { width: editor.width, height: editor.height };
@@ -499,8 +557,8 @@
       },
       {
         id: 'line',
-        label: t('tool.line'),
-        tools: [{ id: 'line', label: t('tool.line'), icon: 'line' }],
+        label: t('tool.lineCurve'),
+        tools: [{ id: 'line', label: t('tool.lineCurve'), icon: 'line' }],
       },
       {
         id: 'shapes',
@@ -510,6 +568,12 @@
           { id: 'rounded_rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
           { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
           { id: 'polygon', label: t('tool.polygon'), icon: 'polygon' },
+          { id: 'triangle', label: t('tool.triangle'), icon: 'triangle' },
+          { id: 'diamond', label: t('tool.diamond'), icon: 'diamond' },
+          { id: 'star', label: t('tool.star'), icon: 'star' },
+          { id: 'block_arrow', label: t('tool.blockArrow'), icon: 'block-arrow' },
+          { id: 'heart', label: t('tool.heart'), icon: 'heart' },
+          { id: 'callout', label: t('tool.callout'), icon: 'callout' },
         ],
       },
       {
@@ -789,6 +853,7 @@
       'menu:saveAs': () => void save(true),
       'menu:exportPng': () => runExport('png'),
       'menu:exportSvg': openSvgExport,
+      'menu:print': () => void openPrint(),
       'menu:undo': undo,
       'menu:redo': redo,
       'menu:zoomIn': () => viewCommands.zoomIn(),
@@ -819,8 +884,13 @@
         !ui.modalOpen &&
         renaming === null &&
         savePrompt.value === null,
-      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff'],
-      addLayer: (opened) => pasteFile(opened.bytes, opened.mime),
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico'],
+      addLayer: (opened) => {
+        // A dropped file often has no MIME type: the content, else the
+        // name, tells the format (TGA needs it as the decoder's hint).
+        const format = sniffFormat(opened.bytes) ?? formatFromName(opened.name);
+        return pasteFile(opened.bytes, format ? mimeFor(format) : opened.mime);
+      },
     });
   });
 
@@ -945,6 +1015,8 @@
       case 'export':
         runExport('png');
         return true;
+      case 'print':
+        return openPrint();
       case 'undo':
         undo();
         return true;
@@ -1077,6 +1149,7 @@
       transformDialog !== null ||
       jpegDialogOpen ||
       svgOpen ||
+      printOpen ||
       radiusOp !== null ||
       pasteDialog !== null;
   });
@@ -1243,6 +1316,12 @@
             { label: t('menu.exportWebp'), run: () => runExport('webp') },
             { label: t('menu.exportSvg'), run: openSvgExport },
           ],
+        },
+        {
+          label: t('menu.print'),
+          shortcut: hint('print'),
+          disabled: !hasDoc || ui.modalOpen,
+          run: () => void openPrint(),
         },
       ]),
     },
@@ -1489,11 +1568,12 @@
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
+        touchGesturesItem(),
         { kind: 'separator' },
         languageMenu(),
       ],
     },
-    ...helpMenus(openOverview),
+    ...helpMenus(openOverview, 'image'),
   ]);
 </script>
 
@@ -1551,6 +1631,7 @@
     },
   ]}
 >
+  {#snippet headerHint()}<TourHint mode="image" {active} />{/snippet}
   {#snippet quick()}
     <IconButton
       icon="undo"
@@ -1673,6 +1754,9 @@
 {/if}
 
 <SaveDialogs />
+{#if printOpen}
+  <PrintDialog onPrint={(p) => void runPrint(p)} onClose={() => (printOpen = false)} />
+{/if}
 
 {#if svgOpen}
   <SvgExportDialog

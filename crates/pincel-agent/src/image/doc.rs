@@ -2,8 +2,8 @@
 //! pixel readback, undo / redo, `.ora` save and flat exports.
 
 use pincel_image_core::codec::{
-    decode, from_ora_bytes, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes, to_tiff_bytes,
-    to_webp_bytes,
+    decode_hinted, from_ora_bytes, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes,
+    to_tiff_bytes, to_webp_bytes,
 };
 use pincel_image_core::{Document, ImageBuffer, Rect, compose, compose_region};
 use serde_json::{Value, json};
@@ -29,7 +29,7 @@ fn is_ora(path: &str, bytes: &[u8]) -> bool {
 }
 
 /// The format of a flat image file, from its signature.
-fn flat_format(bytes: &[u8]) -> &'static str {
+fn flat_format(path: &str, bytes: &[u8]) -> &'static str {
     if bytes.starts_with(b"\x89PNG") {
         "PNG"
     } else if bytes.starts_with(&[0xFF, 0xD8]) {
@@ -44,6 +44,12 @@ fn flat_format(bytes: &[u8]) -> &'static str {
         "TIFF"
     } else if bytes.starts_with(b"8BPS") {
         "PSD"
+    } else if bytes.starts_with(b"DDS ") {
+        "DDS"
+    } else if bytes.starts_with(&[0, 0, 1, 0]) {
+        "ICO"
+    } else if path.to_ascii_lowercase().ends_with(".tga") {
+        "TGA"
     } else {
         "image"
     }
@@ -77,7 +83,7 @@ pub(crate) fn detected_format(bytes: &[u8]) -> &'static str {
     if bytes.starts_with(b"PK\x03\x04") {
         "OpenRaster"
     } else {
-        match flat_format(bytes) {
+        match flat_format("", bytes) {
             "image" => "unknown",
             f => f,
         }
@@ -116,13 +122,13 @@ fn psd_notice(n: &PsdNotice) -> String {
 /// in `.psd`, as the editor recognizes it.
 fn is_psd(path: &str, bytes: &[u8]) -> bool {
     bytes.starts_with(b"8BPS")
-        || (flat_format(bytes) == "image"
+        || (flat_format(path, bytes) == "image"
             && !bytes.starts_with(b"PK\x03\x04")
             && path.to_ascii_lowercase().ends_with(".psd"))
 }
 
 /// `doc.open` of an `.ora` project, a PSD or a flat image (PNG, JPEG,
-/// WebP, BMP, GIF, TIFF), decoded as the editor's Open does.
+/// WebP, BMP, GIF, TIFF, TGA, DDS, ICO), decoded as the editor's Open does.
 pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentError> {
     let fail = |e: String| AgentError::tool(format!("cannot open `{path}`: {e}"));
     let bytes = ctx.host.read(path).map_err(fail)?;
@@ -145,10 +151,16 @@ pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentErr
             .map_err(|e| fail(e.to_string()))?;
         ImageDoc::new(document, Some(path.to_owned()), None)
     } else {
-        let pixels = decode(&bytes).map_err(|e| fail(e.to_string()))?;
+        // TGA has no signature: the path is its hint
+        // (docs/specs/image-formats-more.md AC-15).
+        let pixels = decode_hinted(&bytes, Some(path)).map_err(|e| fail(e.to_string()))?;
         check_size(pixels.width(), pixels.height()).map_err(|e| fail(e.to_string()))?;
         let document = Document::from_pixels(pixels).map_err(|e| fail(e.to_string()))?;
-        ImageDoc::new(document, None, Some((path.to_owned(), flat_format(&bytes))))
+        ImageDoc::new(
+            document,
+            None,
+            Some((path.to_owned(), flat_format(path, &bytes))),
+        )
     };
     let info = doc.info("");
     let id = ctx.ws.insert_image(doc);
@@ -526,10 +538,12 @@ mod tests {
 
     #[test]
     fn flat_format_reads_signatures() {
-        assert_eq!(flat_format(b"\x89PNG\r\n"), "PNG");
-        assert_eq!(flat_format(&[0xFF, 0xD8, 0xFF]), "JPEG");
-        assert_eq!(flat_format(b"RIFF\0\0\0\0WEBPVP8L"), "WebP");
-        assert_eq!(flat_format(b"nothing"), "image");
+        assert_eq!(flat_format("a.png", b"\x89PNG\r\n"), "PNG");
+        assert_eq!(flat_format("a.jpg", &[0xFF, 0xD8, 0xFF]), "JPEG");
+        assert_eq!(flat_format("a.webp", b"RIFF\0\0\0\0WEBPVP8L"), "WebP");
+        assert_eq!(flat_format("a.bin", b"nothing"), "image");
+        assert_eq!(flat_format("A.TGA", b"\0\0\x02"), "TGA");
+        assert_eq!(flat_format("x", b"DDS |"), "DDS");
     }
 
     #[test]

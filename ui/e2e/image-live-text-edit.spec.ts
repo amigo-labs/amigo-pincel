@@ -137,7 +137,7 @@ test('italic, strikethrough and anti-alias redraw the live text, one step each',
   for (const [name, on] of [
     ['Italic', true],
     ['Strikethrough', true],
-    ['Anti-alias', false],
+    ['Antialiasing', false],
   ] as const) {
     const box = page.getByRole('checkbox', { name, exact: true });
     if (on) await box.check();

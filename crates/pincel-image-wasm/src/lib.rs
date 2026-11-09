@@ -6,7 +6,7 @@
 
 use pincel_effects::EffectSpec;
 use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
-use pincel_image_core::codec::to_png_bytes;
+use pincel_image_core::codec::{to_ico_bytes, to_png_bytes, to_tga_bytes};
 use pincel_image_core::command::live_spec::{
     TextLayoutRequest, live_object_spec, text_layout as layout_text,
 };
@@ -107,12 +107,16 @@ pub fn create_document(width: u32, height: u32) -> Result<u32, JsError> {
     Ok(insert(CommandBus::new(doc)))
 }
 
-/// Opens an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a single-layer
-/// document. `mime_type` is accepted for API parity but format is auto-detected.
+/// Opens an encoded image (PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS /
+/// ICO) as a single-layer document. Formats are detected by content;
+/// `mime_type` (a MIME type or a file name) is the hint TGA needs, since it
+/// has no signature.
 #[wasm_bindgen]
-pub fn open_image(data: &[u8], _mime_type: &str) -> Result<u32, JsError> {
-    let buffer =
-        pincel_image_core::codec::decode(data).map_err(|e| JsError::new(&e.to_string()))?;
+pub fn open_image(data: &[u8], mime_type: &str) -> Result<u32, JsError> {
+    // The MIME type (or file name) is the hint for TGA, which has no
+    // signature (docs/specs/image-formats-more.md AC-04).
+    let buffer = pincel_image_core::codec::decode_hinted(data, Some(mime_type))
+        .map_err(|e| JsError::new(&e.to_string()))?;
     let doc = Document::from_pixels(buffer).map_err(to_js)?;
     Ok(insert(CommandBus::new(doc)))
 }
@@ -218,6 +222,43 @@ pub fn cut_selection(handle: u32) -> Result<Vec<u8>, JsError> {
         }
         Ok(png)
     })
+}
+
+/// The outline polygon (`x, y` pairs) of the box shape `kind` (`triangle`,
+/// `diamond`, `star`, `block_arrow`, `heart`, `callout`) over the drag from
+/// `(x0, y0)` to `(x1, y1)`, exactly as the core draws it — for the editor's
+/// drag preview (docs/specs/image-shapes-curves-shapes.md AC-12). Empty for
+/// another kind or a box without area.
+#[wasm_bindgen]
+pub fn shape_outline(
+    kind: &str,
+    x0: f32,
+    y0: f32,
+    x1: f32,
+    y1: f32,
+    star_points: u32,
+    inner_ratio: f32,
+) -> Vec<f32> {
+    let Some(kind) = pincel_image_core::command::live_spec::parse_live_shape(kind) else {
+        return Vec::new();
+    };
+    let shape = pincel_image_core::LiveShape {
+        kind,
+        a: pincel_image_core::Point::new(x0, y0),
+        b: pincel_image_core::Point::new(x1, y1),
+        style: pincel_image_core::ShapeStyle::default(),
+        corner_radius: 0.0,
+        sides: 5,
+        star_points,
+        inner_ratio,
+        control: Vec::new(),
+        start_cap: pincel_image_core::LineCap::Round,
+        end_cap: pincel_image_core::LineCap::Round,
+    }
+    .shape();
+    pincel_image_core::box_outline(&shape)
+        .map(|pts| pts.iter().flat_map(|p| [p.x, p.y]).collect())
+        .unwrap_or_default()
 }
 
 /// Clipboard identity of an encoded image: `"{w}x{h}:{hash}"` of its decoded
@@ -642,6 +683,34 @@ pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
     })
 }
 
+/// Exports the flattened composite as RLE-compressed 32-bit TGA bytes
+/// (docs/specs/image-formats-more.md).
+#[wasm_bindgen]
+pub fn export_tga(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_tga_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
+/// Exports the flattened composite as a one-image ICO; fails above
+/// 256 × 256 px (docs/specs/image-formats-more.md AC-08).
+#[wasm_bindgen]
+pub fn export_ico(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        to_ico_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+    })
+}
+
+/// Decodes `data` (a format `hint` — MIME type or file name — for TGA) and
+/// re-encodes it as PNG, so a dropped TGA / DDS / ICO goes through the
+/// same paste path as the browser's own formats (AC-13).
+#[wasm_bindgen]
+pub fn image_to_png(data: &[u8], hint: &str) -> Result<Vec<u8>, JsError> {
+    let buffer = pincel_image_core::codec::decode_hinted(data, Some(hint))
+        .map_err(|e| JsError::new(&e.to_string()))?;
+    to_png_bytes(&buffer, 1).map_err(|e| JsError::new(&e.to_string()))
+}
+
 /// Exports the flattened composite as lossless RGBA TIFF bytes.
 #[wasm_bindgen]
 pub fn export_tiff(handle: u32) -> Result<Vec<u8>, JsError> {
@@ -1034,6 +1103,18 @@ mod paste_tests {
             pincel_image_core::codec::decode(&copy_selection(handle, true).expect("copy merged"))
                 .expect("decode");
         assert_eq!(merged.get_pixel(1, 1), Some(Color::rgba(255, 0, 0, 255)));
+    }
+
+    #[test]
+    fn shape_outline_gives_the_core_polygon_of_a_box_shape() {
+        let tri = shape_outline("triangle", 0.0, 0.0, 10.0, 8.0, 5, 0.38);
+        assert_eq!(tri, vec![0.0, 8.0, 5.0, 0.0, 10.0, 8.0]);
+        assert_eq!(
+            shape_outline("star", 0.0, 0.0, 10.0, 10.0, 7, 0.5).len(),
+            28
+        );
+        assert!(shape_outline("rectangle", 0.0, 0.0, 10.0, 8.0, 5, 0.38).is_empty());
+        assert!(shape_outline("heart", 0.0, 0.0, 0.0, 8.0, 5, 0.38).is_empty());
     }
 
     #[test]
@@ -1447,6 +1528,18 @@ mod region_tests {
 mod export_tests {
     use super::*;
     use pincel_image_core::codec::decode;
+
+    #[test]
+    fn export_tga_ico_and_image_to_png_round_trip() {
+        let handle = insert(CommandBus::new(Document::new(5, 3).expect("doc")));
+        let tga = export_tga(handle).expect("tga");
+        let back = pincel_image_core::codec::decode_hinted(&tga, Some("a.tga")).expect("decode");
+        assert_eq!((back.width(), back.height()), (5, 3));
+        let ico = export_ico(handle).expect("ico");
+        assert!(ico.starts_with(&[0, 0, 1, 0]));
+        let png = image_to_png(&tga, "image/x-targa").expect("png");
+        assert!(png.starts_with(b"\x89PNG"));
+    }
 
     #[test]
     fn export_bmp_and_export_tiff_write_the_composite() {

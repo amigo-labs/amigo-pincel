@@ -31,9 +31,18 @@ export function installLiveSync(): void {
   onChange(() => tool.shapeMode, (obj, mode) => shape({ mode })(obj));
   onChange(() => tool.strokeWidth, (obj, w) => shape({ stroke_width: w })(obj));
   onChange(() => tool.shapeDash, (obj, dash) => shape({ dash })(obj));
-  onChange(() => tool.shapeAntiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
+  onChange(() => tool.antiAlias, (obj, aa) => shape({ anti_alias: aa })(obj));
   onChange(() => tool.cornerRadius, (obj, r) => shape({ corner_radius: r })(obj));
   onChange(() => tool.shapeSides, (obj, n) => shape({ sides: n })(obj));
+  // A live star's options (docs/specs/image-shapes-curves-shapes.md AC-20).
+  onChange(() => tool.starPoints, (obj, n) => shape({ star_points: n })(obj));
+  onChange(() => tool.starInner, (obj, r) => shape({ inner_ratio: r / 100 })(obj));
+  // A live line's caps (docs/specs/image-shapes-curves.md AC-12).
+  const line = (fields: Parameters<typeof editLive>[0]) => (obj: LiveObjectSpec) => {
+    if (obj.type === 'shape' && obj.shape === 'line') editLive(fields);
+  };
+  onChange(() => tool.lineStartCap, (obj, cap) => line({ start_cap: cap })(obj));
+  onChange(() => tool.lineEndCap, (obj, cap) => line({ end_cap: cap })(obj));
   // Outline = foreground, fill = background, both at the tool opacity: one
   // colors group, so a swap or an opacity drag is one step.
   onChange(
@@ -74,9 +83,18 @@ export function installLiveSync(): void {
   onChange(() => tool.textUnderline, (obj, underline) => text(obj, { underline }));
   onChange(() => tool.textStrikethrough, (obj, strikethrough) => text(obj, { strikethrough }));
   onChange(() => tool.textAlign, (obj, align) => text(obj, { align }));
-  onChange(() => tool.textAntiAlias, (obj, aa) => text(obj, { anti_alias: aa }));
+  onChange(() => tool.antiAlias, (obj, aa) => text(obj, { anti_alias: aa }));
   onChange(
     () => `${tool.foreground}|${tool.foregroundAlpha}`,
     (obj) => text(obj, { color: colorWithOpacity(tool.foreground, tool.foregroundAlpha) }),
+  );
+  // One Blending setting for every live object
+  // (docs/specs/image-edit-extras-tool-options.md AC-08).
+  onChange(
+    () => tool.blend,
+    (obj, blend) => {
+      if (obj.type === 'text') text(obj, { blend });
+      else editLive({ blend });
+    },
   );
 }

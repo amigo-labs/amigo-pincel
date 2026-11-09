@@ -7,7 +7,7 @@
 //! italic are synthesized (faux-bold by horizontal smearing, faux-italic by a
 //! shear) since Phase 1 selects a single font face.
 
-use super::src_over;
+use super::Blend;
 use crate::color::Color;
 use crate::command::HistoryKind;
 use crate::command::SetPixels;
@@ -49,6 +49,8 @@ pub struct TextStyle {
     pub underline: bool,
     /// A stroke through each line's lowercase letters.
     pub strikethrough: bool,
+    /// Normal or Overwrite (docs/specs/image-edit-extras-tool-options.md).
+    pub blend: Blend,
 }
 
 impl Default for TextStyle {
@@ -62,6 +64,7 @@ impl Default for TextStyle {
             align: TextAlign::Left,
             underline: false,
             strikethrough: false,
+            blend: crate::tools::Blend::Normal,
         }
     }
 }
@@ -200,9 +203,9 @@ impl Text {
                 if sel <= 0.0 {
                     continue;
                 }
-                let sa = color.a as f32 / 255.0 * c * sel;
+                let pa = color.a as f32 / 255.0;
                 let dst = after.get_pixel(lx, ly).unwrap_or(Color::TRANSPARENT);
-                after.set_pixel(lx, ly, src_over(color, sa, dst));
+                after.set_pixel(lx, ly, self.style.blend.paint(color, pa, c * sel, dst));
             }
         }
 

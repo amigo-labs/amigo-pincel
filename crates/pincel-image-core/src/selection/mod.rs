@@ -70,6 +70,15 @@ pub enum SelectionMode {
     Intersect,
 }
 
+/// Samples per pixel edge of the anti-aliased outlines (a 4 × 4 grid).
+const AA_GRID: u32 = 4;
+
+/// Coverage 0–255 of `inside` samples out of the `AA_GRID` × `AA_GRID` grid.
+fn aa_coverage(inside: u32) -> u8 {
+    let total = AA_GRID * AA_GRID;
+    ((inside * 255 + total / 2) / total) as u8
+}
+
 /// A canvas-sized grayscale coverage mask (spec §8.1).
 ///
 /// One byte per pixel in row-major order. Coverage is `0..=255`.
@@ -279,6 +288,91 @@ impl SelectionMask {
                 let x_hi = ((pair[1] - 0.5).ceil() as i64).min(width as i64);
                 for x in x_lo..x_hi {
                     mask.set(x as u32, y, 255);
+                }
+            }
+        }
+        mask
+    }
+
+    /// [`SelectionMask::ellipse`] with an anti-aliased outline: each pixel's
+    /// coverage is the share of its 4 × 4 sample grid inside the ellipse, so
+    /// fully covered pixels get 255, untouched ones 0 and pixels the edge
+    /// crosses a value between (docs/specs/image-edit-extras-tool-options.md
+    /// AC-06).
+    pub fn ellipse_aa(width: u32, height: u32, rect: Rect) -> Self {
+        let mut mask = Self::new_empty(width, height);
+        if rect.w == 0 || rect.h == 0 {
+            return mask;
+        }
+        let cx = rect.x as f32 + rect.w as f32 / 2.0;
+        let cy = rect.y as f32 + rect.h as f32 / 2.0;
+        let rx = rect.w as f32 / 2.0;
+        let ry = rect.h as f32 / 2.0;
+        let x0 = rect.x.max(0) as u32;
+        let y0 = rect.y.max(0) as u32;
+        let x1 = (rect.right().max(0) as u32).min(width);
+        let y1 = (rect.bottom().max(0) as u32).min(height);
+        for y in y0..y1 {
+            for x in x0..x1 {
+                let mut inside = 0u32;
+                for sy in 0..AA_GRID {
+                    for sx in 0..AA_GRID {
+                        let px = x as f32 + (sx as f32 + 0.5) / AA_GRID as f32;
+                        let py = y as f32 + (sy as f32 + 0.5) / AA_GRID as f32;
+                        let nx = (px - cx) / rx;
+                        let ny = (py - cy) / ry;
+                        if nx * nx + ny * ny <= 1.0 {
+                            inside += 1;
+                        }
+                    }
+                }
+                mask.set(x, y, aa_coverage(inside));
+            }
+        }
+        mask
+    }
+
+    /// [`SelectionMask::polygon`] with an anti-aliased outline: each pixel's
+    /// coverage is the share of its 4 × 4 sample grid inside the polygon
+    /// (even-odd rule), as for [`SelectionMask::ellipse_aa`].
+    pub fn polygon_aa(width: u32, height: u32, points: &[Point]) -> Self {
+        let mut mask = Self::new_empty(width, height);
+        let n = points.len();
+        if n < 3 {
+            return mask;
+        }
+        let mut counts = vec![0u8; width as usize * height as usize];
+        let step = 1.0 / AA_GRID as f32;
+        for y in 0..height {
+            for sy in 0..AA_GRID {
+                let yc = y as f32 + (sy as f32 + 0.5) * step;
+                let mut crossings: Vec<f32> = Vec::new();
+                for i in 0..n {
+                    let a = points[i];
+                    let b = points[(i + 1) % n];
+                    if (a.y <= yc && b.y > yc) || (b.y <= yc && a.y > yc) {
+                        let t = (yc - a.y) / (b.y - a.y);
+                        crossings.push(a.x + t * (b.x - a.x));
+                    }
+                }
+                crossings.sort_by(|p, q| p.partial_cmp(q).unwrap_or(std::cmp::Ordering::Equal));
+                for pair in crossings.as_chunks::<2>().0 {
+                    // Sample columns inside [pair[0], pair[1]).
+                    let first = ((pair[0] / step) - 0.5).ceil().max(0.0) as i64;
+                    let last = (((pair[1] / step) - 0.5).ceil() as i64)
+                        .min(i64::from(width) * i64::from(AA_GRID));
+                    for col in first..last {
+                        let x = (col / i64::from(AA_GRID)) as usize;
+                        counts[y as usize * width as usize + x] += 1;
+                    }
+                }
+            }
+        }
+        for y in 0..height {
+            for x in 0..width {
+                let c = counts[y as usize * width as usize + x as usize];
+                if c > 0 {
+                    mask.set(x, y, aa_coverage(u32::from(c)));
                 }
             }
         }

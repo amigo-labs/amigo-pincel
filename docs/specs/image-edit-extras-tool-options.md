@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: Image
@@ -46,29 +46,29 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 
 ### Antialiasing
 
-- [ ] AC-01 (always): While the active tool is Brush, Eraser, Recolor, Smudge, Line, a shape tool, Text, Ellipse Select, Lasso or Polygon Lasso, the options bar shows one Antialiasing checkbox, labelled in every UI language; it is the same setting for all of them and for every Image tab, so turning it off in one tool shows it off in every other, and it is on after each app start.
-- [ ] AC-02 (state): While Antialiasing is off, a Brush, Eraser, Recolor or Smudge dab with the hard round tip changes each pixel either fully (as at coverage 1) or not at all, and a pixel is changed exactly when its center lies inside the tip.
-- [ ] AC-03 (state): While Antialiasing is on, a single hard round Brush dab of diameter 9 or more at 100 % opacity in an opaque color on a transparent layer leaves every pixel lying fully inside the circle at alpha 255, every pixel lying fully outside at alpha 0, and at least one pixel the circle's edge crosses at an alpha strictly between 0 and 255.
-- [ ] AC-04 (state): Whatever the Antialiasing setting, a soft round or flat tip paints every pixel lying fully inside its outline exactly as with the other setting; while Antialiasing is off, no pixel whose center lies outside the tip outline changes.
-- [ ] AC-05 (option): Where Antialiasing is on or off, Line, the shape tools and Text draw with anti-aliased or hard edges as their own Anti-alias checkboxes did before this spec, which no longer exist separately.
-- [ ] AC-06 (state): While Antialiasing is on, an Ellipse Select, Lasso or Polygon Lasso outline gives every pixel lying fully inside it coverage 255, every pixel lying fully outside coverage 0, and at least one pixel its non-axis-aligned edge crosses a coverage between 1 and 254; while it is off, every pixel has coverage 0 or 255, decided by its center. Either outline is combined with the existing selection by the selection mode's coverage rule (replace, add = maximum, subtract, intersect = minimum).
-- [ ] AC-07 (always): Rectangle Select and Magic Wand show no Antialiasing checkbox and give every pixel coverage 0 or 255, and a feather radius above 0 is applied on top of the (anti-aliased or hard) outline of every selection tool that has one.
+- [x] AC-01 (always): While the active tool is Brush, Eraser, Recolor, Smudge, Line, a shape tool, Text, Ellipse Select, Lasso or Polygon Lasso, the options bar shows one Antialiasing checkbox, labelled in every UI language; it is the same setting for all of them and for every Image tab, so turning it off in one tool shows it off in every other, and it is on after each app start.
+- [x] AC-02 (state): While Antialiasing is off, a Brush, Eraser, Recolor or Smudge dab with the hard round tip changes each pixel either fully (as at coverage 1) or not at all, and a pixel is changed exactly when its center lies inside the tip.
+- [x] AC-03 (state): While Antialiasing is on, a single hard round Brush dab of diameter 9 or more at 100 % opacity in an opaque color on a transparent layer leaves every pixel lying fully inside the circle at alpha 255, every pixel lying fully outside at alpha 0, and at least one pixel the circle's edge crosses at an alpha strictly between 0 and 255.
+- [x] AC-04 (state): Whatever the Antialiasing setting, a soft round or flat tip paints every pixel lying fully inside its outline exactly as with the other setting; while Antialiasing is off, no pixel whose center lies outside the tip outline changes.
+- [x] AC-05 (option): Where Antialiasing is on or off, Line, the shape tools and Text draw with anti-aliased or hard edges as their own Anti-alias checkboxes did before this spec, which no longer exist separately.
+- [x] AC-06 (state): While Antialiasing is on, an Ellipse Select, Lasso or Polygon Lasso outline gives every pixel lying fully inside it coverage 255, every pixel lying fully outside coverage 0, and at least one pixel its non-axis-aligned edge crosses a coverage between 1 and 254; while it is off, every pixel has coverage 0 or 255, decided by its center. Either outline is combined with the existing selection by the selection mode's coverage rule (replace, add = maximum, subtract, intersect = minimum).
+- [x] AC-07 (always): Rectangle Select and Magic Wand show no Antialiasing checkbox and give every pixel coverage 0 or 255, and a feather radius above 0 is applied on top of the (anti-aliased or hard) outline of every selection tool that has one.
 
 ### Blending
 
-- [ ] AC-08 (always): While the active tool is Brush, Paint Bucket, Gradient with the Color channel, Line, a shape tool or Text, the options bar shows one Blending control with the choices Normal and Overwrite, labelled in every UI language; it is the same setting for all of them and for every Image tab, is Normal after each app start, and is hidden for every other tool and for the Gradient's Transparency channel.
-- [ ] AC-09 (state): While Blending is Normal, every tool listed in AC-08 paints exactly as before this spec (source-over of the paint at its coverage × paint alpha).
-- [ ] AC-10 (state): While Blending is Overwrite, every fully covered pixel a tool of AC-08 paints becomes exactly the paint color with the paint alpha, whatever the pixel held before: a Brush dab at 40 % opacity over an opaque pixel leaves that pixel at alpha 102 ± 1, where Normal would leave it at 255. For the Gradient, the paint color and alpha at a pixel are the ramp's color and alpha there (foreground to background), times the tool opacity.
-- [ ] AC-11 (state): While Blending is Overwrite, a pixel with coverage c between 0 and 1 in one tool action moves from its value before that action toward the paint by c: its alpha equals previous alpha + (paint alpha − previous alpha) × c within ±1, its color lies between the previous and the paint color, and a pixel with coverage 0 is unchanged. For a Brush stroke, c is the highest coverage any dab of the stroke gives the pixel.
-- [ ] AC-12 (state): While Blending is Overwrite, one Brush stroke whose dabs overlap leaves each pixel as a single dab with its highest coverage would: overlapping fully covered pixels end at the paint alpha, not above it, and a soft-tip stroke does not build up where its dabs overlap.
-- [ ] AC-13 (always): A tool action under either Blending choice is the same single undo step it was before this spec, refuses a locked layer or a group in the same way, and changes only pixels with selection coverage above 0.
+- [x] AC-08 (always): While the active tool is Brush, Paint Bucket, Gradient with the Color channel, Line, a shape tool or Text, the options bar shows one Blending control with the choices Normal and Overwrite, labelled in every UI language; it is the same setting for all of them and for every Image tab, is Normal after each app start, and is hidden for every other tool and for the Gradient's Transparency channel.
+- [x] AC-09 (state): While Blending is Normal, every tool listed in AC-08 paints exactly as before this spec (source-over of the paint at its coverage × paint alpha).
+- [x] AC-10 (state): While Blending is Overwrite, every fully covered pixel a tool of AC-08 paints becomes exactly the paint color with the paint alpha, whatever the pixel held before: a Brush dab at 40 % opacity over an opaque pixel leaves that pixel at alpha 102 ± 1, where Normal would leave it at 255. For the Gradient, the paint color and alpha at a pixel are the ramp's color and alpha there (foreground to background), times the tool opacity.
+- [x] AC-11 (state): While Blending is Overwrite, a pixel with coverage c between 0 and 1 in one tool action moves from its value before that action toward the paint by c: its alpha equals previous alpha + (paint alpha − previous alpha) × c within ±1, its color lies between the previous and the paint color, and a pixel with coverage 0 is unchanged. For a Brush stroke, c is the highest coverage any dab of the stroke gives the pixel.
+- [x] AC-12 (state): While Blending is Overwrite, one Brush stroke whose dabs overlap leaves each pixel as a single dab with its highest coverage would: overlapping fully covered pixels end at the paint alpha, not above it, and a soft-tip stroke does not build up where its dabs overlap.
+- [x] AC-13 (always): A tool action under either Blending choice is the same single undo step it was before this spec, refuses a locked layer or a group in the same way, and changes only pixels with selection coverage above 0.
 
 ### MCP
 
-- [ ] AC-14 (option): Where `draw.stroke` (both `tool` values) gets `anti_alias` (default `true`) and `draw.stroke` with `tool: "brush"`, `draw.shape`, `draw.text`, `draw.gradient` (Color channel) and `draw.fill` on an Image document get `blend` (`normal` or `overwrite`, default `normal`), then the document's pixels equal the editor's for the same tool with those settings.
-- [ ] AC-15 (option): Where `select.ellipse` or `select.polygon` on an Image document gets `anti_alias` (default `true`), then the selection's coverage equals the editor's Ellipse Select or Lasso with that setting.
-- [ ] AC-16 (error): If `blend` is not `normal` or `overwrite`, or `anti_alias` or `blend` is passed where this spec does not give it (for example `blend` on `draw.stroke` with `tool: "eraser"`, on `draw.gradient` with the Transparency channel, or on `draw.fill` for a Pixel document; `anti_alias` on `select.rect`, on `select.wand`, or on `select.ellipse` / `select.polygon` for a Pixel document), then the call fails with `isError: true` naming the argument (and the document's mode where the mode is the reason), and the document is unchanged.
-- [ ] AC-17 (always): The `pincel://guide` resource describes `anti_alias` and `blend`, which tools take them, and that Overwrite replaces pixels including alpha.
+- [x] AC-14 (option): Where `draw.stroke` (both `tool` values) gets `anti_alias` (default `true`) and `draw.stroke` with `tool: "brush"`, `draw.shape`, `draw.text`, `draw.gradient` (Color channel) and `draw.fill` on an Image document get `blend` (`normal` or `overwrite`, default `normal`), then the document's pixels equal the editor's for the same tool with those settings.
+- [x] AC-15 (option): Where `select.ellipse` or `select.polygon` on an Image document gets `anti_alias` (default `true`), then the selection's coverage equals the editor's Ellipse Select or Lasso with that setting.
+- [x] AC-16 (error): If `blend` is not `normal` or `overwrite`, or `anti_alias` or `blend` is passed where this spec does not give it (for example `blend` on `draw.stroke` with `tool: "eraser"`, on `draw.gradient` with the Transparency channel, or on `draw.fill` for a Pixel document; `anti_alias` on `select.rect`, on `select.wand`, or on `select.ellipse` / `select.polygon` for a Pixel document), then the call fails with `isError: true` naming the argument (and the document's mode where the mode is the reason), and the document is unchanged.
+- [x] AC-17 (always): The `pincel://guide` resource describes `anti_alias` and `blend`, which tools take them, and that Overwrite replaces pixels including alpha.
 
 ## Technical notes
 
@@ -111,24 +111,37 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `one Antialiasing checkbox, shared by the edge tools and all tabs, on at start` (ui/e2e/image-antialias.spec.ts) | verified | d5ce7e7 |
+| AC-02 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (Brush), `eraser_and_recolor_hard_round_dabs_are_all_or_nothing_off`, `smudge_hard_round_dabs_are_all_or_nothing_off` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-03 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-04 | `soft_and_flat_tips_ignore_the_setting`, `soft_and_flat_tips_change_nothing_outside_their_outline_off` (crates/pincel-image-core/tests/antialias.rs) | verified | 5e065d5 |
+| AC-05 | `Line and shapes follow the shared Antialiasing setting`, `Text and the box shapes follow the shared Antialiasing setting` (ui/e2e/image-antialias.spec.ts) | verified | d5ce7e7 |
+| AC-06 | `ellipse_and_lasso_outlines_blend_their_edge_only_when_on`, `ellipse_and_polygon_coverage_follows_the_outline_for_every_pixel`, `select_ellipse_and_polygon_commands_take_the_setting_and_combine` (add), `anti_aliased_outlines_subtract_and_intersect_by_coverage` (crates/pincel-image-core/tests/antialias.rs); `an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-07 | `one Antialiasing checkbox, …` (ui/e2e/image-antialias.spec.ts); `feather_applies_on_top_of_an_anti_aliased_outline` (crates/pincel-image-core/tests/antialias.rs) | verified | 5e065d5 |
+| AC-08 | `one Blending control, shared by the painting tools and all tabs, Normal at start` (ui/e2e/image-blend.spec.ts); `live_shapes_gradients_and_texts_take_and_change_the_blend` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-09 | `normal_blending_paints_as_before_for_every_tool` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha the Brush and the Bucket leave, Normal does not` (ui/e2e/image-blend.spec.ts) | verified | 1f12885 |
+| AC-10 | `overwrite_replaces_fully_covered_pixels_alpha_included` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha …`, `a live gradient and a live shape follow Blending …` (ui/e2e/image-blend.spec.ts) | verified | 1f12885 |
+| AC-11 | `overwrite_moves_partially_covered_pixels_by_their_coverage` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-12 | `overwrite_stroke_takes_the_highest_coverage_and_never_builds_up` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-13 | `overwrite_keeps_undo_locks_and_the_selection` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-14 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (brush and eraser), `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-15 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-16 | `anti_alias_reaches_strokes_and_selections_like_the_editor`, `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-17 | `guide_describes_anti_alias_and_blend` (crates/pincel-agent/src/tests/image_draw.rs) | verified | cc629fa |
+
+## Summary
+
+> Completed: 2026-11-08
+
+- One shared Antialiasing checkbox in Image mode's options bar for Brush, Eraser, Recolor, Smudge, Line / Shapes, Text, Ellipse Select, Lasso and Polygonal Lasso; on at start and shared by all Image tabs. It replaces the separate shape and text Anti-alias checkboxes
+- Anti-aliased hard round tips and anti-aliased ellipse / polygon selection masks (`SelectionMask::ellipse_aa` / `polygon_aa`) in `pincel-image-core`, combined by the selection modes' coverage rules and feathered on top
+- One shared Blending control (Normal / Overwrite) for Brush, Paint Bucket, Gradient (Color channel), Line / Shapes and Text: a `Blend` enum interpolating in premultiplied space, with a per-stroke highest-coverage memory so Overwrite strokes never build up
+- MCP: `anti_alias` on `draw.stroke`, `select.ellipse` and `select.polygon`; `blend` on `draw.stroke` (brush), `draw.fill`, `draw.shape`, `draw.text` and `draw.gradient` (Color channel); refused elsewhere; described in `pincel://guide`
 
 ## Decisions
 
 - 2026-11-05 (clarification pass): Rectangle Select gets no Antialiasing checkbox, because its corners are whole pixels and the switch would have no effect. `select.polygon` (now defined by `mcp-parity-selection-transform`) takes `anti_alias` here. Overwrite measures coverage per stroke (highest dab coverage against the pixels before the stroke), because per-dab interpolation would let overlapping soft dabs build up, which is what Overwrite exists to avoid. Both switches are per app start and shared by all Image tabs, because the Image tool store is shared and not persisted.
+- 2026-11-08 (build): The Clone Stamp gets no Antialiasing checkbox and keeps sending `anti_alias: false`, because AC-01 does not list it. The checkbox is labelled "Antialiasing" (new key `opt.antialiasing`); Pixel mode's text dialog keeps its own "Anti-alias" label, because Pixel mode is out of scope.
+- 2026-11-08 (build): Overwrite is one `Blend` enum in `pincel-image-core` (new public `Blend`, `OverwriteMemory`, `Pencil::stroke_with_memory`, `Brush::with_blend`, `Fill::with_blend`, and a `blend` field on `Gradient`, `ShapeStyle`, `TextStyle`), interpolating in premultiplied space. A Brush drag's pressure-opacity counts as coverage under Overwrite, so a light press moves a pixel only part of the way toward the paint. The live shape, gradient and text commands (`begin_live_*`, `edit_live`) take `blend` too, because the editor draws those tools as live objects. The German label is "Mischmodus" (Normal / Überschreiben).
+- 2026-11-08 (verification round 1): `selection-stage.spec.ts` › image polygonal lasso on the stage now turns Antialiasing off, because the new default (Assumptions: medium risk) gives the closing diagonal's pixel partial coverage and the test is about vertices on the stage, not edges.
+- 2026-11-08 (spec-build, verifier round 2): The Smudge's AC-02 test checks what is decidable without re-implementing the carry: every pixel ends exactly black or white (carried fully or not at all), only pixels whose centre a dab of the drag covers change, and the drag does carry colour. "Changed exactly when the centre lies inside" cannot be asserted pixel by pixel for the Smudge: a covered pixel takes the colour the tip first sampled at that offset, which can be the colour it already has. The added tests passed at once — the behaviour was built in round 1 and the verifier asked only for the missing assertions.

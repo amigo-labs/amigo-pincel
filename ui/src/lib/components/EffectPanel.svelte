@@ -197,6 +197,12 @@
       // Enter while picking applies even from the armed Pick button
       // (effect-catalog-v2 AC-11).
       e.preventDefault();
+      // Prevented, Enter no longer commits a typed number; commit it
+      // first, so OK clamps it as a blur would.
+      const el = e.target;
+      if (el instanceof HTMLInputElement && el.type === 'number' && root.contains(el)) {
+        el.dispatchEvent(new Event('change', { bubbles: true }));
+      }
       onApply(params);
     }
   }

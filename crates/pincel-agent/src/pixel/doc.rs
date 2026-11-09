@@ -89,11 +89,11 @@ pub(crate) fn with_id(mut info: Value, id: &str) -> Value {
 
 pub(super) const OPEN: Tool = Tool {
     name: "doc.open",
-    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects, Photoshop .psd files and PNG, JPEG, WebP, BMP, GIF and TIFF images open as Image documents (a flat image becomes one layer; a PSD result lists `notices` of what was left out). `mode: \"pixel\"` opens a PNG as a Pixel document instead (one layer, no file of its own).",
+    description: "Open a workspace-relative file as a new document and make it active. The mode follows the file, as in the editor: .aseprite / .ase open as Pixel documents; .ora projects, Photoshop .psd files and PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS and ICO images open as Image documents (a flat image becomes one layer; a PSD result lists `notices` of what was left out). `mode: \"pixel\"` opens a PNG as a Pixel document instead (one layer, no file of its own).",
     schema: || {
         tool_schema(
             json!({
-                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF or TIFF file"),
+                "path": path_prop("Workspace-relative path of an .aseprite, .ora, .psd, PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS or ICO file"),
                 "mode": { "type": "string", "description": "pixel (a PNG opens as a Pixel document) or image; default: the file decides" },
             }),
             &["path"],

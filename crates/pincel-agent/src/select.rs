@@ -58,6 +58,29 @@ fn box_schema() -> Value {
     )
 }
 
+/// `select.ellipse`: the box arguments plus Image-only `anti_alias`.
+fn ellipse_schema() -> Value {
+    let mut schema = box_schema();
+    schema["properties"]["anti_alias"] = anti_alias_prop();
+    schema
+}
+
+/// Image documents: blend the outline's edge pixels by coverage
+/// (docs/specs/image-edit-extras-tool-options.md AC-15).
+fn anti_alias_prop() -> Value {
+    json!({ "type": "boolean", "description": "Image: anti-aliased outline; default true" })
+}
+
+/// Pixel documents have no anti-aliased selections (AC-16).
+fn refuse_pixel_anti_alias(id: &str, args: &Args) -> Result<(), AgentError> {
+    if args.get("anti_alias").is_some() {
+        return Err(AgentError::tool(format!(
+            "argument `anti_alias`: document `{id}` is a Pixel document, whose selections have hard edges; `anti_alias` works on Image documents only"
+        )));
+    }
+    Ok(())
+}
+
 /// The Pixel selection's mask over the canvas, if any.
 fn px_mask(doc: &Doc) -> Option<PxMask> {
     doc.sprite.selection_as_mask().filter(|m| !m.is_empty())
@@ -143,9 +166,12 @@ fn select_box(ctx: &mut Ctx<'_>, args: &Args, ellipse: bool) -> Result<ToolOutpu
     if ctx.ws.is_image(args)? {
         let (_, doc) = ctx.ws.image_mut(args)?;
         let feather = args.u32("feather")?.unwrap_or(0);
+        let anti_alias = ellipse && args.bool("anti_alias").unwrap_or(true);
         let (cw, ch) = (doc.width(), doc.height());
         let r = ImRect::new(x, y, w, h);
-        let mut shape = if ellipse {
+        let mut shape = if anti_alias {
+            ImMask::ellipse_aa(cw, ch, r)
+        } else if ellipse {
             ImMask::ellipse(cw, ch, r)
         } else {
             ImMask::rectangle(cw, ch, r)
@@ -161,6 +187,7 @@ fn select_box(ctx: &mut Ctx<'_>, args: &Args, ellipse: bool) -> Result<ToolOutpu
                 h,
                 mode,
                 feather,
+                anti_alias,
             }
         } else {
             CommandSpec::SelectRectangle {
@@ -176,6 +203,7 @@ fn select_box(ctx: &mut Ctx<'_>, args: &Args, ellipse: bool) -> Result<ToolOutpu
     } else {
         let (id, doc) = ctx.ws.doc_mut(args)?;
         refuse_pixel_feather(&id, args)?;
+        refuse_pixel_anti_alias(&id, args)?;
         let (cw, ch) = (doc.sprite.width, doc.sprite.height);
         let r = PxRect::new(x, y, w, h);
         let shape = if ellipse {
@@ -198,7 +226,7 @@ pub(crate) const RECT: Tool = Tool {
 pub(crate) const ELLIPSE: Tool = Tool {
     name: "select.ellipse",
     description: "Select the ellipse inscribed in the rectangle (x, y, width, height) like the editor's Ellipse Select; `mode` and (Image) `feather` as for select.rect.",
-    schema: box_schema,
+    schema: ellipse_schema,
     run: |ctx, args| select_box(ctx, args, true),
 };
 
@@ -216,6 +244,7 @@ pub(crate) const POLYGON: Tool = Tool {
                 },
                 "mode": mode_prop(),
                 "feather": feather_prop(),
+                "anti_alias": anti_alias_prop(),
             }),
             &["points"],
         )
@@ -263,22 +292,29 @@ fn select_polygon(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentErr
         let points = points_arg(args, false)?;
         let (_, doc) = ctx.ws.image_mut(args)?;
         let feather = args.u32("feather")?.unwrap_or(0);
+        let anti_alias = args.bool("anti_alias").unwrap_or(true);
         let pts: Vec<Point> = points
             .iter()
             .map(|&(x, y)| Point::new(x as f32, y as f32))
             .collect();
-        let mut shape = ImMask::polygon(doc.width(), doc.height(), &pts);
+        let mut shape = if anti_alias {
+            ImMask::polygon_aa(doc.width(), doc.height(), &pts)
+        } else {
+            ImMask::polygon(doc.width(), doc.height(), &pts)
+        };
         shape.feather(feather);
         let predicted = apply_mode(doc.document().selection.as_ref(), shape, im_mode);
         let spec = CommandSpec::SelectPolygon {
             points: pts.iter().map(|p| [p.x, p.y]).collect(),
             mode: label_mode(im_mode).to_owned(),
             feather,
+            anti_alias,
         };
         run_image_selection(doc, Some(predicted), spec)?;
     } else {
         let (id, doc) = ctx.ws.doc_mut(args)?;
         refuse_pixel_feather(&id, args)?;
+        refuse_pixel_anti_alias(&id, args)?;
         let points = points_arg(args, true)?;
         let pts: Vec<(i32, i32)> = points.iter().map(|&(x, y)| (x as i32, y as i32)).collect();
         let shape = PxMask::polygon(doc.sprite.width, doc.sprite.height, &pts);

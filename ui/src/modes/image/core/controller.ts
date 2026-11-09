@@ -314,12 +314,27 @@ export function selectEllipse(
   h: number,
   mode: SelectionMode,
 ): void {
-  applySelection({ type: 'select_ellipse', x, y, w, h, mode, feather: tool.selectionFeather });
+  applySelection({
+    type: 'select_ellipse',
+    x,
+    y,
+    w,
+    h,
+    mode,
+    feather: tool.selectionFeather,
+    anti_alias: tool.antiAlias,
+  });
 }
 
 /** Selects a polygon over the given canvas-space points, per `mode`. */
 export function selectPolygon(points: Array<[number, number]>, mode: SelectionMode): void {
-  applySelection({ type: 'select_polygon', points, mode, feather: tool.selectionFeather });
+  applySelection({
+    type: 'select_polygon',
+    points,
+    mode,
+    feather: tool.selectionFeather,
+    anti_alias: tool.antiAlias,
+  });
 }
 
 /** Magic-wand selection seeded at the given canvas-space point, per `mode`. */
@@ -519,10 +534,19 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
     stroke_width: tool.strokeWidth,
     stroke_color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
     fill_color: colorWithOpacity(tool.background, tool.backgroundAlpha),
-    anti_alias: tool.shapeAntiAlias,
+    anti_alias: tool.antiAlias,
     dash: tool.shapeDash,
+    blend: tool.blend,
   };
-  if (shape === 'polygon') {
+  if (shape === 'star') {
+    cmd.star_points = tool.starPoints;
+    cmd.inner_ratio = tool.starInner / 100;
+  }
+  if (shape === 'line') {
+    cmd.start_cap = tool.lineStartCap;
+    cmd.end_cap = tool.lineEndCap;
+  }
+  if (shape === 'polygon' || shape === 'star') {
     const w = Math.abs(b[0] - a[0]);
     const h = Math.abs(b[1] - a[1]);
     cmd.center = [(a[0] + b[0]) / 2, (a[1] + b[1]) / 2];
@@ -638,7 +662,9 @@ export async function openBytes(
     handle = opened.handle;
     notice = psdNotice(opened.notices);
   } else {
-    handle = core.openImage(bytes, mime || 'image/png');
+    // The file name is the hint for TGA, which has no signature and often
+    // no MIME type (docs/specs/image-formats-more.md AC-04).
+    handle = core.openImage(bytes, formatFromName(name) === 'tga' ? name : mime || 'image/png');
   }
   const format =
     target.format !== undefined ? target.format : docFormat(sniffed ?? formatFromName(name));
@@ -679,6 +705,8 @@ export function paintStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
+    blend: tool.blend,
     points,
     ...penFields(pressure, azimuth),
     stroke_id: strokeId,
@@ -705,6 +733,7 @@ export function eraseStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     mode: tool.eraserMode,
     background: activeColor(true), // 'To Background' erases to the bg swatch
     points,
@@ -733,6 +762,7 @@ export function recolorStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     from: activeColor(true),
     to: activeColor(false),
     tolerance: tool.recolorTolerance,
@@ -761,6 +791,7 @@ export function smudgeStroke(
     opacity: opacity01(),
     shape: tool.shape,
     hardness: Math.min(1, Math.max(0, tool.hardness / 100)),
+    anti_alias: tool.antiAlias,
     strength: Math.min(1, Math.max(0, tool.smudgeStrength / 100)),
     points,
     ...penFields(pressure, azimuth),
@@ -786,6 +817,7 @@ export function fillAt(x: number, y: number, useBackground = false): void {
     sample: tool.fillSample,
     x,
     y,
+    blend: tool.blend,
   };
   core.applyCommand(editor.handle, cmd);
   syncInfo();
@@ -873,6 +905,7 @@ export function drawGradient(a: [number, number], b: [number, number]): void {
     from: activeColor(false),
     to: activeColor(true),
     opacity: opacity01(),
+    blend: tool.blend,
   };
   const before = editor.undoDepth;
   core.applyCommand(editor.handle, cmd);

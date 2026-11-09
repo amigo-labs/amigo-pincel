@@ -14,7 +14,7 @@ test('image mode: L selects Line and the shapes are its own group', async ({ pag
   await createDocument(page, 'image', { width: 64, height: 64 });
 
   await page.keyboard.press('l');
-  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Line');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Line / Curve');
 
   await page.keyboard.press('u');
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Rectangle');

@@ -99,6 +99,39 @@ fn refuse_pixel_args(ctx: &Ctx<'_>, args: &Args, keys: &[&str]) -> Result<(), Ag
     Ok(())
 }
 
+/// The `blend` property of the painting tools
+/// (docs/specs/image-edit-extras-tool-options.md AC-14).
+pub(crate) fn blend_prop() -> Value {
+    choice(
+        &["normal", "overwrite"],
+        "Image: normal (default) composites over the layer; overwrite replaces the pixels, alpha included",
+    )
+}
+
+/// The `blend` argument: `normal` (default) or `overwrite`.
+pub(crate) fn blend_arg(args: &Args) -> Result<String, AgentError> {
+    match args.get("blend") {
+        None => Ok("normal".to_owned()),
+        Some(v) => match v.as_str() {
+            Some(b @ ("normal" | "overwrite")) => Ok(b.to_owned()),
+            _ => Err(AgentError::tool(format!(
+                "argument `blend` must be \"normal\" or \"overwrite\", got {v}"
+            ))),
+        },
+    }
+}
+
+/// Refuses `blend` on a Pixel document, whose inks replace the paint.
+pub(crate) fn refuse_pixel_blend(ctx: &Ctx<'_>, args: &Args) -> Result<(), AgentError> {
+    if args.get("blend").is_some() {
+        let id = ctx.ws.resolve(args)?;
+        return Err(AgentError::tool(format!(
+            "argument `blend` works on Image documents only; document `{id}` is a Pixel document"
+        )));
+    }
+    Ok(())
+}
+
 /// A shared color argument: Image documents take `#RRGGBB` /
 /// `#RRGGBBAA`, Pixel documents also `{"index": n}`.
 fn shared_color(description: &str) -> Value {
@@ -154,7 +187,7 @@ pub(super) fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true), `blend` normal (default) / overwrite for the brush; the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
     schema: || {
         edit_schema(
             json!({
@@ -182,6 +215,8 @@ pub(crate) const STROKE: Tool = Tool {
                 "eraser_mode": choice(&["to_transparent", "to_background"], "Image eraser: erase to transparency (default) or paint `background`"),
                 "background": shared_color("Image eraser with to_background: the color; default #FFFFFF"),
                 "angle": angle_prop(),
+                "anti_alias": { "type": "boolean", "description": "Image: anti-aliased edge of the hard round tip; default true" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
@@ -189,7 +224,14 @@ pub(crate) const STROKE: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::stroke(ctx, args);
+        }
+        let blend = blend_arg(args)?;
+        if args.str("tool") == Some("eraser") && args.get("blend").is_some() {
+            return Err(AgentError::tool(
+                "argument `blend` does not apply to `tool: \"eraser\"`, which removes paint instead of compositing it",
+            ));
         }
         refuse_pixel_args(
             ctx,
@@ -236,6 +278,7 @@ pub(crate) const STROKE: Tool = Tool {
                     azimuth: Vec::new(),
                     angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
+                    anti_alias: args.bool("anti_alias").unwrap_or(true),
                     stroke_id,
                 }
             } else {
@@ -257,6 +300,8 @@ pub(crate) const STROKE: Tool = Tool {
                     azimuth: Vec::new(),
                     angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                     tilt_angle: false,
+                    anti_alias: args.bool("anti_alias").unwrap_or(true),
+                    blend: blend.clone(),
                     stroke_id,
                 }
             })
@@ -333,6 +378,7 @@ pub(crate) const RECOLOR: Tool = Tool {
                 azimuth: Vec::new(),
                 angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                 tilt_angle: false,
+                anti_alias: false,
                 stroke_id,
             })
         })
@@ -370,6 +416,7 @@ pub(crate) const SMUDGE: Tool = Tool {
                 azimuth: Vec::new(),
                 angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
                 tilt_angle: false,
+                anti_alias: false,
                 stroke_id,
             })
         })
@@ -387,35 +434,59 @@ fn color_prop_image(description: &str) -> Value {
 
 pub(crate) const SHAPE: Tool = Tool {
     name: "draw.shape",
-    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted, `anti_alias` (default true). Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
+    description: "Draw a shape like the editor's shape tools. Give `stroke` (outline color), `fill` (fill color) or both. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `shape` rect, rounded, ellipse or line takes the corners / endpoints (x0, y0) and (x1, y1) (the ellipse inscribed in the box), with `corner_radius` (default 16) for rounded; polygon takes the center (`cx`, `cy`), `radius`, `sides` 3–100 (default 5) and `rotation` in degrees (default 0); Box shapes take the box (x0, y0)–(x1, y1): triangle (apex at the top center), diamond (corners at the edge midpoints), heart (point at the bottom center), block_arrow (points from the first corner (x0, y0), the drag start, toward the other along the box's longer side) and callout (a speech bubble whose tail tip is the first corner (x0, y0)); star takes cx, cy, radius (the outer radius), star_points 3–50 (default 5), inner_ratio 0.1–0.9 (default 0.38) and rotation in degrees (0: a point up). A box of zero area or a star radius of 0 or less draws nothing. `stroke_width` 1–500 (default 3), `dash` solid (default) / dashed / dotted / dash_dot / dash_dot_dot, `anti_alias` (default true), `blend` normal (default) / overwrite. A line becomes a curve through `control` (0–62 points [x, y] between its ends, in order; a centripetal Catmull-Rom spline through all points) and takes start_cap / end_cap round (default) / flat / arrow (a filled head max(8, 4 × stroke_width) px long); control and the caps are line-only. Pixel documents: `shape` rect, rounded, ellipse or polygon over the integer corners (x0, y0)–(x1, y1), with `corner_radius` 0–256 (default 4) for rounded and `sides` 3–64 (default 6) for the polygon (inscribed in the box, first vertex up); `stroke_width` 1–64 (default 1); no line (use draw.line), rotation, dash or anti-aliasing.",
     schema: || {
         edit_schema(
             json!({
-                "shape": choice(&["rect", "rounded", "ellipse", "polygon", "line"], "Shape kind"),
+                "shape": choice(&["rect", "rounded", "ellipse", "polygon", "line", "triangle", "diamond", "star", "block_arrow", "heart", "callout"], "Shape kind; triangle, diamond, star, block_arrow, heart and callout are Image-only"),
                 "x0": number("First corner / start x"),
                 "y0": number("First corner / start y"),
                 "x1": number("Opposite corner / end x"),
                 "y1": number("Opposite corner / end y"),
                 "corner_radius": { "type": "number", "description": "rounded: corner radius in px; Image at least 0 (default 16), Pixel 0–256 (default 4)" },
-                "cx": number("polygon: center x"),
-                "cy": number("polygon: center y"),
-                "radius": { "type": "number", "minimum": 0, "description": "polygon: circumradius in px" },
+                "cx": number("polygon / star: center x"),
+                "cy": number("polygon / star: center y"),
+                "radius": { "type": "number", "description": "polygon: circumradius in px (at least 0); star: outer radius in px (0 or less draws nothing)" },
                 "sides": { "type": "integer", "description": "polygon: number of sides; Image 3–100 (default 5), Pixel 3–64 (default 6)" },
-                "rotation": number("polygon: rotation in degrees; default 0"),
+                "rotation": number("polygon / star: rotation in degrees; default 0 (a star's first point up)"),
+                "star_points": { "type": "integer", "minimum": 3, "maximum": 50, "description": "star: number of points, 3–50; default 5" },
+                "inner_ratio": { "type": "number", "minimum": 0.1, "maximum": 0.9, "description": "star: inner radius as a share of `radius`, 0.1–0.9; default 0.38" },
                 "stroke": shared_color("Outline color"),
                 "fill": shared_color("Fill color"),
                 "stroke_width": { "type": "number", "description": "Outline width in px; Image 1–500 (default 3), Pixel 1–64 (default 1)" },
-                "dash": choice(&["solid", "dashed", "dotted"], "Image: outline dash pattern; default solid"),
+                "dash": choice(&["solid", "dashed", "dotted", "dash_dot", "dash_dot_dot"], "Image: outline dash pattern; default solid"),
+                "control": {
+                    "type": "array",
+                    "maxItems": 62,
+                    "items": { "type": "array", "minItems": 2, "maxItems": 2, "items": { "type": "number" } },
+                    "description": "Image line: control points [x, y] between (x0, y0) and (x1, y1), in order; the line curves through them (0–62)"
+                },
+                "start_cap": choice(&["round", "flat", "arrow"], "Image line: cap at (x0, y0); default round"),
+                "end_cap": choice(&["round", "flat", "arrow"], "Image line: cap at (x1, y1); default round"),
                 "anti_alias": { "type": "boolean", "description": "Image: smooth edges; default true" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["shape"],
         )
     },
     run: |ctx, args| {
+        // Control points and caps belong to a line only
+        // (docs/specs/image-shapes-curves.md AC-19).
+        if args.req_str("shape")? != "line" {
+            for key in ["control", "start_cap", "end_cap"] {
+                if args.get(key).is_some() {
+                    return Err(AgentError::tool(format!(
+                        "argument `{key}` applies to shape `line` only"
+                    )));
+                }
+            }
+        }
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::shape(ctx, args);
         }
+        let blend = blend_arg(args)?;
         edit_checked(ctx, args, |layer, _| {
             let kind = args.req_str("shape")?;
             let stroke = args
@@ -436,31 +507,51 @@ pub(crate) const SHAPE: Tool = Tool {
                     ));
                 }
             };
-            let (shape, points, center, radius, sides, rotation) = if kind == "polygon" {
-                let center = [num(args, "cx")?, num(args, "cy")?];
-                let sides =
-                    image_ranged(args, "sides", 3.0, Some(100.0), POLYGON_SIDES as f64)? as u32;
-                let rotation = num_or(args, "rotation", 0.0).to_radians();
-                (
-                    "polygon",
-                    Vec::new(),
-                    center,
-                    num(args, "radius")?,
-                    sides,
-                    rotation,
-                )
-            } else {
-                let core = match kind {
-                    "rect" => "rectangle",
-                    "rounded" => "rounded_rectangle",
-                    other => other,
+            let (shape, points, center, radius, sides, rotation) =
+                if kind == "polygon" || kind == "star" {
+                    let center = [finite(args, "cx")?, finite(args, "cy")?];
+                    let sides = if kind == "polygon" {
+                        image_ranged(args, "sides", 3.0, Some(100.0), POLYGON_SIDES as f64)? as u32
+                    } else {
+                        POLYGON_SIDES as u32
+                    };
+                    let rotation = finite_or(args, "rotation", 0.0)?.to_radians();
+                    if kind == "polygon" && num(args, "radius")? < 0.0 {
+                        return Err(AgentError::tool("argument `radius` must be at least 0"));
+                    }
+                    (
+                        kind,
+                        Vec::new(),
+                        center,
+                        finite(args, "radius")?,
+                        sides,
+                        rotation,
+                    )
+                } else {
+                    let core = match kind {
+                        "rect" => "rectangle",
+                        "rounded" => "rounded_rectangle",
+                        other => other,
+                    };
+                    let mut pts = vec![[num(args, "x0")?, num(args, "y0")?]];
+                    pts.extend(control_points(args)?);
+                    pts.push([num(args, "x1")?, num(args, "y1")?]);
+                    for (i, key) in [(0, "x0"), (1, "y0")] {
+                        if !pts[0][i].is_finite() {
+                            return Err(not_finite(key));
+                        }
+                    }
+                    let last = pts.len() - 1;
+                    for (i, key) in [(0, "x1"), (1, "y1")] {
+                        if !pts[last][i].is_finite() {
+                            return Err(not_finite(key));
+                        }
+                    }
+                    if pts.iter().flatten().any(|v| !v.is_finite()) {
+                        return Err(not_finite("control"));
+                    }
+                    (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
                 };
-                let pts = vec![
-                    [num(args, "x0")?, num(args, "y0")?],
-                    [num(args, "x1")?, num(args, "y1")?],
-                ];
-                (core, pts, [0.0, 0.0], 0.0, 0, 0.0)
-            };
             let stroke_width = image_ranged(args, "stroke_width", 1.0, Some(500.0), STROKE_WIDTH)?;
             let corner_radius = if kind == "rounded" {
                 image_ranged(args, "corner_radius", 0.0, None, CORNER_RADIUS)?
@@ -482,14 +573,71 @@ pub(crate) const SHAPE: Tool = Tool {
                 fill_color: fill.unwrap_or_default(),
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 dash: str_or(args, "dash", "solid").to_owned(),
+                blend: blend.clone(),
+                start_cap: str_or(args, "start_cap", "round").to_owned(),
+                end_cap: str_or(args, "end_cap", "round").to_owned(),
+                star_points: args
+                    .i64("star_points")
+                    .map_or(pincel_image_core::STAR_POINTS, |n| n as u32),
+                inner_ratio: num_or(
+                    args,
+                    "inner_ratio",
+                    f64::from(pincel_image_core::STAR_INNER_RATIO),
+                ),
             })
         })
     },
 };
 
+/// The error for an argument that is not a finite single-precision number.
+fn not_finite(key: &str) -> AgentError {
+    AgentError::tool(format!("argument `{key}` must be a finite number"))
+}
+
+/// A required number argument that is finite in single precision
+/// (docs/specs/image-shapes-curves-shapes.md AC-17).
+fn finite(args: &Args, key: &str) -> Result<f32, AgentError> {
+    let v = num(args, key)?;
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(not_finite(key))
+    }
+}
+
+/// An optional number argument, finite in single precision when given.
+fn finite_or(args: &Args, key: &str, default: f64) -> Result<f32, AgentError> {
+    let v = num_or(args, key, default);
+    if v.is_finite() {
+        Ok(v)
+    } else {
+        Err(not_finite(key))
+    }
+}
+
+/// A line's `control` points, `[x, y]` each (the schema checked the shape).
+fn control_points(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
+    let Some(list) = args.get("control").and_then(Value::as_array) else {
+        return Ok(Vec::new());
+    };
+    list.iter()
+        .enumerate()
+        .map(|(i, p)| {
+            let xy = p.as_array().filter(|a| a.len() == 2);
+            let coord = |j: usize| xy.and_then(|a| a[j].as_f64()).map(|v| v as f32);
+            match (coord(0), coord(1)) {
+                (Some(x), Some(y)) => Ok([x, y]),
+                _ => Err(AgentError::tool(format!(
+                    "argument `control[{i}]` must be a point [x, y]"
+                ))),
+            }
+        })
+        .collect()
+}
+
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true). Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
@@ -504,6 +652,7 @@ pub(crate) const TEXT: Tool = Tool {
                 "anti_alias": { "type": "boolean", "description": "Smooth glyph edges; default true (Image) / false (Pixel)" },
                 "underline": { "type": "boolean", "description": "Image: a stroke below each line; default false" },
                 "strikethrough": { "type": "boolean", "description": "Image: a stroke through each line; default false" },
+                "blend": blend_prop(),
                 "frame": crate::pixel::frame_prop(),
             }),
             &["text", "x", "y"],
@@ -511,8 +660,10 @@ pub(crate) const TEXT: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::text(ctx, args);
         }
+        let blend = blend_arg(args)?;
         let size = image_ranged(args, "size", 1.0, Some(999.0), TEXT_SIZE)?;
         edit_checked(ctx, args, |layer, _| {
             let color = match args.get("color") {
@@ -533,6 +684,7 @@ pub(crate) const TEXT: Tool = Tool {
                 align: str_or(args, "align", "left").to_owned(),
                 underline: args.bool("underline").unwrap_or(false),
                 strikethrough: args.bool("strikethrough").unwrap_or(false),
+                blend: blend.clone(),
             })
         })
     },
@@ -540,6 +692,7 @@ pub(crate) const TEXT: Tool = Tool {
 
 /// `draw.fill` on an Image document: the editor's Bucket tool.
 pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let blend = blend_arg(args)?;
     edit_checked(ctx, args, |layer, _| {
         let tolerance = args.i64("tolerance").map_or(TOLERANCE, |t| t as u64);
         Ok(CommandSpec::FillBucket {
@@ -552,13 +705,14 @@ pub(crate) fn fill(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
             sample: str_or(args, "sample", "current_layer").to_owned(),
             x: num(args, "x")?,
             y: num(args, "y")?,
+            blend: blend.clone(),
         })
     })
 }
 
 pub(crate) const GRADIENT: Tool = Tool {
     name: "draw.gradient",
-    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond / spiral_cw (spiral winding clockwise) / spiral_ccw (counter-clockwise); `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100). Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
+    description: "Paint a gradient along the drag (x0, y0) → (x1, y1) from color `from` to color `to`, like the editor's Gradient tool; respects the selection. `layer` and `frame` (Pixel only) default to the paint target. Image documents: `kind` linear (default) / reflected / radial / conical / diamond / spiral_cw (spiral winding clockwise) / spiral_ccw (counter-clockwise); `channel` color (default) / transparency (fades existing alpha); `opacity` in % (default 100), `blend` normal (default) / overwrite with the color channel. Pixel documents (RGBA only): integer corners, `kind` linear (default) / radial, `dither` 0 (two hard bands), 2, 4 (default) or 8 (Bayer matrix size).",
     schema: || {
         edit_schema(
             json!({
@@ -571,6 +725,7 @@ pub(crate) const GRADIENT: Tool = Tool {
                 "kind": choice(&["linear", "reflected", "radial", "conical", "diamond", "spiral_cw", "spiral_ccw"], "Gradient shape; default linear (Pixel: linear / radial)"),
                 "channel": choice(&["color", "transparency"], "Image: what the gradient paints; default color"),
                 "opacity": percent_prop("Image: gradient opacity"),
+                "blend": blend_prop(),
                 "dither": { "type": "integer", "description": "Pixel: Bayer matrix size 0, 2, 4 (default) or 8" },
                 "frame": crate::pixel::frame_prop(),
             }),
@@ -579,9 +734,16 @@ pub(crate) const GRADIENT: Tool = Tool {
     },
     run: |ctx, args| {
         if !ctx.ws.is_image(args)? {
+            refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::gradient(ctx, args);
         }
         refuse_pixel_args(ctx, args, &["dither"])?;
+        let blend = blend_arg(args)?;
+        if args.str("channel") == Some("transparency") && args.get("blend").is_some() {
+            return Err(AgentError::tool(
+                "argument `blend` does not apply to `channel: \"transparency\"`, which fades the existing alpha",
+            ));
+        }
         edit_checked(ctx, args, |layer, _| {
             Ok(CommandSpec::DrawGradient {
                 layer,
@@ -594,6 +756,7 @@ pub(crate) const GRADIENT: Tool = Tool {
                 from: color_arg(args, "from")?,
                 to: color_arg(args, "to")?,
                 opacity: percent(args, "opacity"),
+                blend: blend.clone(),
             })
         })
     },

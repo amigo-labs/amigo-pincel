@@ -343,6 +343,7 @@ pub(super) const FILL: Tool = Tool {
                 "tolerance": { "type": "integer", "minimum": 0, "maximum": 255, "description": "Image documents: color distance still filled; default 32" },
                 "opacity": { "type": "number", "minimum": 0, "maximum": 100, "description": "Image documents: fill opacity in %; default 100" },
                 "sample": { "type": "string", "enum": ["current_layer", "all_layers"], "description": "Image documents: match colors on the target layer (default) or on the composed image" },
+                "blend": crate::image::draw::blend_prop(),
             }),
             &["x", "y", "color"],
         )
@@ -351,6 +352,7 @@ pub(super) const FILL: Tool = Tool {
         if ctx.ws.is_image(args)? {
             return crate::image::draw::fill(ctx, args);
         }
+        crate::image::draw::refuse_pixel_blend(ctx, args)?;
         for key in ["tolerance", "opacity", "sample"] {
             if args.get(key).is_some() {
                 let id = ctx.ws.resolve(args)?;
