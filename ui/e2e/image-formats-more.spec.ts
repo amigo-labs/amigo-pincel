@@ -192,6 +192,34 @@ test('Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)', 
   await expect(dialog).toBeVisible();
 });
 
+test('Save of an ICO grown past 256 px goes to Save As with the 256 px notice only (AC-08)', async ({
+  page,
+}) => {
+  await gotoStart(page);
+  await openFile(page, 'app.ico', ico([[32, 32, await solidPng(page, 32, 32, '#ff00ff')]]));
+  await menu(page, 'Image', 'Resize Canvas…');
+  const resize = page.getByRole('dialog', { name: 'Resize Canvas' });
+  await resize.getByRole('radio', { name: 'By absolute size' }).check();
+  await resize.getByLabel('Maintain aspect ratio').uncheck();
+  await resize.getByLabel('Width').fill('300');
+  await resize.getByLabel('Height').fill('300');
+  await resize.getByRole('button', { name: 'Resize' }).click();
+  await expect(page.getByText('300 × 300 px · sRGB')).toBeVisible();
+
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await menu(page, 'File', 'Save');
+  const dialog = page.getByRole('dialog', { name: 'Save As' });
+  await expect(dialog).toBeVisible();
+  await expect(page.getByText('ICO holds at most 256 × 256 px. Choose another format.')).toBeVisible();
+  // ICO can be written, just not at this size: no "cannot be written back".
+  await expect(page.getByText(/cannot be written back/)).toHaveCount(0);
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  expect(downloads).toBe(0);
+  // Still unsaved, still app.ico.
+  await expect(page.getByTitle('app.ico — unsaved changes', { exact: true })).toBeVisible();
+});
+
 test('a dropped TGA, DDS or ICO lands as a new layer (AC-13)', async ({ page }) => {
   await createDocument(page, 'image', { width: 8, height: 8 });
   const ico1 = ico([[4, 32, await solidPng(page, 4, 4, '#ff00ff')]]);
