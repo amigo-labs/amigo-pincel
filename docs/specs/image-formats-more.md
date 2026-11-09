@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: Image
@@ -47,22 +47,22 @@ Per Decision Log 2026-11-05 (MCP tool parity), the MCP `doc.open` tool opens eve
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user opens a TGA file (uncompressed or RLE; true-color 24 / 32 bit, grayscale or color-mapped), then an Image document opens with one layer named "Background" holding the image's pixels at its width and height, with its alpha channel kept.
-- [ ] AC-02 (event): When the user opens a DDS file compressed as BC1, BC2 or BC3 (FourCC `DXT1` / `DXT3` / `DXT5`, or a DX10 header with one of those formats), then an Image document opens with one layer holding the first surface's top-level image.
-- [ ] AC-03 (event): When the user opens an ICO file holding several images, then the document opens from the image with the highest bit depth, and among equal bit depths the largest one.
-- [ ] AC-04 (always): DDS and ICO files are recognised by their content whatever their extension; a TGA file is recognised by its `.tga` extension in any letter case, and a TGA file without that extension is not recognised; a file whose content carries another known signature opens as that format even when it is named `.tga`, `.dds` or `.ico`.
-- [ ] AC-05 (always): TGA and ICO files written by Image mode decode back to exactly the RGBA pixels that were written — including the color values of fully transparent pixels — for randomly generated images from 1 × 1 to 64 × 64 px with random RGBA values (property test), and for a 1 × 1 image, a fully transparent image and a 256 × 256 px image.
-- [ ] AC-06 (event): When the user saves a document opened from a TGA file, then the file is written back in place as TGA under its own name, following the same flatten prompt and saved-state rules as the other writable formats (`save-original-format` AC-01 – AC-06).
-- [ ] AC-07 (event): When the user saves a document opened from an ICO file whose canvas is at most 256 × 256 px, then the file is written back in place as an ICO holding one image of the canvas size, following the same flatten prompt and saved-state rules as AC-06.
-- [ ] AC-08 (error): If the user saves a document as ICO while its canvas is wider or taller than 256 px, then no file is written, a notice says that ICO holds at most 256 × 256 px, the document stays marked unsaved and its save target is unchanged; on Save of an ICO-opened document, Save As then opens; when ICO was chosen in Save As, the user can choose Save As again.
-- [ ] AC-09 (event): When the user saves a document opened from a DDS file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09).
-- [ ] AC-10 (event): When the user chooses Save As…, then TGA (`.tga`) and ICO (`.ico`) are offered next to the existing formats, and the suggested file name is the document's name with the chosen extension.
-- [ ] AC-11 (error): If a DDS file has a valid header but uses a variant outside BC1 – BC3, then opening fails with a message naming DDS and saying this variant is not supported; if its header declares a width or height that is not a multiple of 4, then opening fails with a message saying DDS width and height must be multiples of 4. In both cases no document is created and an already open document stays as it was.
-- [ ] AC-12 (error): If a `.tga`, `.dds` or `.ico` file is truncated or not decodable for any reason other than those of AC-11 (a DDS whose header is valid and supported but whose data is cut off included), then opening fails with the message for any undecodable image (`image-files` AC-13) and no document is created.
-- [ ] AC-13 (event): When the user drops a TGA, DDS or ICO file onto an open Image document, then it is offered as "Add as layer" like the other raster formats and, when chosen, lands as a new layer above the active one in one undo step; a dropped file that fails per AC-11 or AC-12, or a TGA without the `.tga` extension, is handled as an undecodable drop (`file-access` AC-26).
-- [ ] AC-14 (always): The Open picker's "All supported files" and "Images" filters (browser and desktop) include `.tga`, `.dds` and `.ico`, and the desktop app registers `.tga`, `.dds` and `.ico` as file associations that open in Image mode.
-- [ ] AC-15 (event): When an MCP client calls `doc.open` with a workspace-relative `.tga`, `.dds` or `.ico` file (extension in any letter case; DDS and ICO also without extension, recognised as in AC-04), then an Image document opens with the same size and pixels the editor's Open produces for that file, and the `doc.open` tool description names the three formats.
-- [ ] AC-16 (error): If MCP `doc.open` gets a file that fails per AC-11 or AC-12, then the call fails with `isError: true` and the same distinct reason the editor shows — unsupported DDS variant, DDS size not a multiple of 4, or undecodable image — and no document is added to the workspace.
+- [x] AC-01 (event): When the user opens a TGA file (uncompressed or RLE; true-color 24 / 32 bit, grayscale or color-mapped), then an Image document opens with one layer named "Background" holding the image's pixels at its width and height, with its alpha channel kept.
+- [x] AC-02 (event): When the user opens a DDS file compressed as BC1, BC2 or BC3 (FourCC `DXT1` / `DXT3` / `DXT5`, or a DX10 header with one of those formats), then an Image document opens with one layer holding the first surface's top-level image.
+- [x] AC-03 (event): When the user opens an ICO file holding several images, then the document opens from the image with the highest bit depth, and among equal bit depths the largest one.
+- [x] AC-04 (always): DDS and ICO files are recognised by their content whatever their extension; a TGA file is recognised by its `.tga` extension in any letter case, and a TGA file without that extension is not recognised; a file whose content carries another known signature opens as that format even when it is named `.tga`, `.dds` or `.ico`.
+- [x] AC-05 (always): TGA and ICO files written by Image mode decode back to exactly the RGBA pixels that were written — including the color values of fully transparent pixels — for randomly generated images from 1 × 1 to 64 × 64 px with random RGBA values (property test), and for a 1 × 1 image, a fully transparent image and a 256 × 256 px image.
+- [x] AC-06 (event): When the user saves a document opened from a TGA file, then the file is written back in place as TGA under its own name, following the same flatten prompt and saved-state rules as the other writable formats (`save-original-format` AC-01 – AC-06).
+- [x] AC-07 (event): When the user saves a document opened from an ICO file whose canvas is at most 256 × 256 px, then the file is written back in place as an ICO holding one image of the canvas size, following the same flatten prompt and saved-state rules as AC-06.
+- [x] AC-08 (error): If the user saves a document as ICO while its canvas is wider or taller than 256 px, then no file is written, a notice says that ICO holds at most 256 × 256 px, the document stays marked unsaved and its save target is unchanged; on Save of an ICO-opened document, Save As then opens; when ICO was chosen in Save As, the user can choose Save As again.
+- [x] AC-09 (event): When the user saves a document opened from a DDS file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09).
+- [x] AC-10 (event): When the user chooses Save As…, then TGA (`.tga`) and ICO (`.ico`) are offered next to the existing formats, and the suggested file name is the document's name with the chosen extension.
+- [x] AC-11 (error): If a DDS file has a valid header but uses a variant outside BC1 – BC3, then opening fails with a message naming DDS and saying this variant is not supported; if its header declares a width or height that is not a multiple of 4, then opening fails with a message saying DDS width and height must be multiples of 4. In both cases no document is created and an already open document stays as it was.
+- [x] AC-12 (error): If a `.tga`, `.dds` or `.ico` file is truncated or not decodable for any reason other than those of AC-11 (a DDS whose header is valid and supported but whose data is cut off included), then opening fails with the message for any undecodable image (`image-files` AC-13) and no document is created.
+- [x] AC-13 (event): When the user drops a TGA, DDS or ICO file onto an open Image document, then it is offered as "Add as layer" like the other raster formats and, when chosen, lands as a new layer above the active one in one undo step; a dropped file that fails per AC-11 or AC-12, or a TGA without the `.tga` extension, is handled as an undecodable drop (`file-access` AC-26).
+- [x] AC-14 (always): The Open picker's "All supported files" and "Images" filters (browser and desktop) include `.tga`, `.dds` and `.ico`, and the desktop app registers `.tga`, `.dds` and `.ico` as file associations that open in Image mode.
+- [x] AC-15 (event): When an MCP client calls `doc.open` with a workspace-relative `.tga`, `.dds` or `.ico` file (extension in any letter case; DDS and ICO also without extension, recognised as in AC-04), then an Image document opens with the same size and pixels the editor's Open produces for that file, and the `doc.open` tool description names the three formats.
+- [x] AC-16 (error): If MCP `doc.open` gets a file that fails per AC-11 or AC-12, then the call fails with `isError: true` and the same distinct reason the editor shows — unsupported DDS variant, DDS size not a multiple of 4, or undecodable image — and no document is added to the workspace.
 
 ## Technical notes
 
@@ -119,26 +119,34 @@ Verified against the code and the `image` 0.25.10 sources on 2026-11-05; line nu
 
 ## Open questions
 
+## Summary
+
+> Completed: 2026-11-08
+
+- Image mode opens TGA (by extension), DDS and ICO (by content) and saves TGA and ICO, including the 256 px ICO limit.
+- Open / drop / Save As pickers and desktop file associations list the new types.
+- MCP `doc.open` reads the three formats with the editor's refusal reasons.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`; `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | built | |
-| AC-02 | `crates/pincel-image-core/tests/formats_more.rs` `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | built | |
-| AC-03 | `crates/pincel-image-core/tests/formats_more.rs` `ico_opens_the_deepest_then_largest_entry`; `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | built | |
-| AC-04 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`, `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | built | |
-| AC-05 | `crates/pincel-image-core/tests/formats_more.rs` `tga_and_ico_round_trip_exactly` (proptest), `tga_and_ico_round_trip_a_single_transparent_pixel` | built | |
-| AC-06 | `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | built | |
-| AC-07 | `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | built | |
-| AC-08 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `crates/pincel-image-core/tests/formats_more.rs` `ico_refuses_more_than_256_px_and_garbage_fails_to_decode` | built | |
-| AC-09 | `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | built | |
-| AC-10 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one" | built | |
-| AC-11 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason`; `ui/e2e/image-formats-more.spec.ts` "DDS variants outside BC1 – BC3 and odd sizes fail with their own reason (AC-11)" | built | |
-| AC-12 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason` (cut-off data), `ico_refuses_more_than_256_px_and_garbage_fails_to_decode`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | built | |
-| AC-13 | `ui/e2e/image-formats-more.spec.ts` "a dropped TGA, DDS or ICO lands as a new layer (AC-13)" | built | |
-| AC-14 | `ui/e2e/file-access.spec.ts` "AC-01: Open… shows the picker restricted to the document types" (browser picker); desktop associations in `src-tauri/tauri.conf.json`, checked by `nsis_hooks_cover_every_file_association` and `mime_types_match_tauri_conf` (pincel-tauri, CI) | built | |
-| AC-15 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | built | |
-| AC-16 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | built | |
+| AC-01 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`; `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | verified | 330f279 |
+| AC-02 | `crates/pincel-image-core/tests/formats_more.rs` `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | verified | 330f279 |
+| AC-03 | `crates/pincel-image-core/tests/formats_more.rs` `ico_opens_the_deepest_then_largest_entry`; `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | verified | 330f279 |
+| AC-04 | `crates/pincel-image-core/tests/formats_more.rs` `tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only`, `dds_bc1_bc2_bc3_and_dx10_open_whatever_the_extension`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | verified | 330f279 |
+| AC-05 | `crates/pincel-image-core/tests/formats_more.rs` `tga_and_ico_round_trip_exactly` (proptest), `tga_and_ico_round_trip_a_single_transparent_pixel` | verified | 330f279 |
+| AC-06 | `ui/e2e/image-formats-more.spec.ts` "a TGA opens with its pixels and is saved back as TGA (AC-01, AC-06)" | verified | fe38f28 |
+| AC-07 | `ui/e2e/image-formats-more.spec.ts` "an ICO opens its deepest, then largest entry and saves back as ICO (AC-03, AC-07)" | verified | fe38f28 |
+| AC-08 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `crates/pincel-image-core/tests/formats_more.rs` `ico_refuses_more_than_256_px_and_garbage_fails_to_decode` | verified | fe38f28 |
+| AC-09 | `ui/e2e/image-formats-more.spec.ts` "a DDS opens whatever its extension; Save goes to Save As (AC-02, AC-04, AC-09)" | verified | fe38f28 |
+| AC-10 | `ui/e2e/image-formats-more.spec.ts` "Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)"; `ui/e2e/save-original.spec.ts` "Save As offers every writable format and writes the chosen one" | verified | fe38f28 |
+| AC-11 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason`; `ui/e2e/image-formats-more.spec.ts` "DDS variants outside BC1 – BC3 and odd sizes fail with their own reason (AC-11)" | verified | 330f279 |
+| AC-12 | `crates/pincel-image-core/tests/formats_more.rs` `dds_with_an_unsupported_variant_or_size_fails_with_its_own_reason` (cut-off data), `ico_refuses_more_than_256_px_and_garbage_fails_to_decode`; `ui/e2e/image-formats-more.spec.ts` "a TGA without its extension is refused; another signature wins over .tga (AC-04, AC-12)" | verified | 330f279 |
+| AC-13 | `ui/e2e/image-formats-more.spec.ts` "a dropped TGA, DDS or ICO lands as a new layer (AC-13)" | verified | fe38f28 |
+| AC-14 | `ui/e2e/file-access.spec.ts` "AC-01: Open… shows the picker restricted to the document types" (browser picker); desktop associations in `src-tauri/tauri.conf.json`, checked by `nsis_hooks_cover_every_file_association` and `mime_types_match_tauri_conf` (pincel-tauri, CI) | verified | fe38f28 |
+| AC-15 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | verified | 02b27c9 |
+| AC-16 | `crates/pincel-agent/src/tests/image_draw.rs` `doc_open_reads_tga_dds_and_ico_with_the_editors_reasons` | verified | 02b27c9 |
 
 ## Decisions
 
