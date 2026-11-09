@@ -63,9 +63,9 @@ needs a code change becomes a new release instead.
 
 ### Release files
 
-Stable names, so `releases/latest/download/<name>` always works — the
-website's download page (`website/src/lib/config.ts`, `downloads`) links
-them that way, so renaming a file means changing it there too:
+Stable names, so `releases/latest/download/<name>` always works — Pincel's
+page on amigo-labs.dev (built from `docs/site/` and the GitHub releases)
+links them that way, so renaming a file means changing it there too:
 
 | File | What |
 |------|------|
@@ -297,12 +297,13 @@ by-hand sequence of step 1 instead.
 
 No secrets needed. Cloudflare's Git integration (project `amigo-pincel`,
 root `wrangler.toml`) builds every push with `scripts/cf-build.sh`: it
-installs Rust + wasm-pack, builds the marketing site into
-`website/build/`, builds the editor into `ui/dist/app/` and copies it to
-`website/build/app/`. One Worker serves both — the site at
-**https://pincel.amigo-labs.dev/** and the editor at
-**https://pincel.amigo-labs.dev/app/** — and every branch preview URL
-carries the editor at `/app/` too. The only one-time step is attaching
+installs Rust + wasm-pack, builds the editor into `ui/dist/app/` and
+copies `cloudflare/` (`_redirects`, `_headers`, `404.html`) to `ui/dist/`.
+The Worker serves the editor at **https://pincel.amigo-labs.dev/app/**;
+the old marketing pages (`/`, `/features`, `/download`, `/about`,
+`/embed`, `/de/…`) redirect to **https://amigo-labs.dev/pincel/**, which
+is built from `docs/site/` (issue #141). Every branch preview URL carries
+the editor at `/app/` too. The only one-time step is attaching
 `pincel.amigo-labs.dev` as a *Custom Domain* of the `amigo-pincel`
 Worker (dashboard → Workers → amigo-pincel → Settings → Domains &
 Routes).
@@ -312,7 +313,8 @@ The web build uses `base: '/app/'` and writes into `ui/dist/app/`
 contains an `app/` folder. The Tauri build keeps the root base
 (`ui/vite.config.ts` keys on `TAURI_ENV_PLATFORM`).
 
-The wasm optimization step installs `binaryen` from apt and runs
+The wasm optimization step fetches the pinned `binaryen` release (not
+Ubuntu's apt package, which breaks wasm-bindgen's externref table) and runs
 `wasm-opt -O3` explicitly on both wasm packages. wasm-pack's own bundled
 `wasm-opt` is disabled in both crates' `Cargo.toml` because it downloads
 binaryen from GitHub at build time, which fails in sandboxed / firewalled

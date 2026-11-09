@@ -1,21 +1,20 @@
-# Cloudflare config for pincel.amigo-labs.dev — the marketing site at `/` and
-# the editor (PWA) at `/app/`, both served as static assets by this one Worker.
+# Cloudflare config for pincel.amigo-labs.dev — the editor (PWA) at `/app/`,
+# served as static assets by this Worker. The marketing site moved to
+# amigo-labs.dev/pincel (issue #141): `cloudflare/_redirects` sends its old
+# pages there.
 #
 # This file lives at the repo root because Cloudflare's Git integration
 # (Workers Builds) reads wrangler.toml from there. scripts/cf-build.sh builds
-# the SvelteKit site (`website/`) into website/build/, builds the editor
-# (`ui/`, Rust → wasm included) and copies it into website/build/app/.
-# docs/specs/pincel.md §15, 2026-10-12.
+# the editor (`ui/`, Rust → wasm included) into ui/dist/app/ and copies the
+# files in `cloudflare/` (redirects, headers, 404 page) to ui/dist/.
+# docs/specs/pincel.md §15, 2026-11-09.
 #
 # Cloudflare project name: `amigo-pincel` (matches the existing project the
 # repository is connected to in the Cloudflare dashboard).
 #
-# This is a static-only site — no Worker entrypoint, no Pages Functions. The
-# SvelteKit static adapter prerenders every route at build time (see
-# website/svelte.config.js and docs/specs/website-spec.md §6.2:
-# "Static site generation. No SSR runtime."). The editor has no client-side
-# routes; `/app/` serves app/index.html via the default trailing-slash
-# handling.
+# This is a static-only site — no Worker entrypoint. The editor has no
+# client-side routes; `/app/` serves app/index.html via the default
+# trailing-slash handling.
 
 name = "amigo-pincel"
 compatibility_date = "2026-05-07"
@@ -25,9 +24,9 @@ compatibility_date = "2026-05-07"
 [build]
 command = "bash scripts/cf-build.sh"
 
-# Serve the merged build output. `not_found_handling = "404-page"` tells
-# Workers to serve `website/build/404.html` (provided by static/404.html) for
-# any request that doesn't match a file — including unknown paths under /app/.
+# Serve the build output. `not_found_handling = "404-page"` tells Workers to
+# serve `ui/dist/404.html` (copied from cloudflare/404.html) for any request
+# that doesn't match a file or a redirect — including unknown paths under /app/.
 [assets]
-directory = "./website/build"
+directory = "./ui/dist"
 not_found_handling = "404-page"
