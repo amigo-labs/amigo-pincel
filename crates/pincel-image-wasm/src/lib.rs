@@ -107,8 +107,10 @@ pub fn create_document(width: u32, height: u32) -> Result<u32, JsError> {
     Ok(insert(CommandBus::new(doc)))
 }
 
-/// Opens an encoded image (PNG/JPEG/WebP/BMP/GIF/TIFF) as a single-layer
-/// document. `mime_type` is accepted for API parity but format is auto-detected.
+/// Opens an encoded image (PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS /
+/// ICO) as a single-layer document. Formats are detected by content;
+/// `mime_type` (a MIME type or a file name) is the hint TGA needs, since it
+/// has no signature.
 #[wasm_bindgen]
 pub fn open_image(data: &[u8], mime_type: &str) -> Result<u32, JsError> {
     // The MIME type (or file name) is the hint for TGA, which has no
