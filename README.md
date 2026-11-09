@@ -129,7 +129,7 @@ ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
                          src/App.svelte is the two-mode shell,
                          src/modes/pixel/ and src/modes/image/ the editors.
 src-tauri/               Native desktop shell (Tauri 2).
-website/                 Marketing site (deployed via Cloudflare Workers).
+cloudflare/              Root files of the web deploy: redirects to amigo-labs.dev/pincel, headers, 404.
 docs/specs/              Design specifications.
 ```
 
@@ -180,7 +180,7 @@ For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
 | `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |
 
 CI (`.github/workflows/ci.yml`) runs the Rust gates, a Tauri check, and the
-UI and website lint/check/build on every push and pull request.
+UI lint/check/build on every push and pull request.
 
 ## License
 

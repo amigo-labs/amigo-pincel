@@ -1,6 +1,6 @@
 # Pincel Website — Specification
 
-> **Status:** Draft, Specification v0.1
+> **Status:** Superseded 2026-11-09 (issue #141, `pincel.md` §15): the site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from `docs/site/`; `website/` is removed. Kept for its history.
 > **Type:** Living Document
 > **Last updated:** 2026-05-07
 > **Owner:** Daniel Rück / amigo-labs

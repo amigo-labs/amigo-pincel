@@ -1,0 +1,26 @@
+# pincel.amigo-labs.dev — the marketing site moved to amigo-labs.dev/pincel
+# (issue #141). Only the editor stays here, at /app/. Cloudflare Workers
+# Static Assets reads this file from the root of `[assets].directory`
+# (wrangler.toml); scripts/cf-build.sh copies it there.
+# Docs: https://developers.cloudflare.com/workers/static-assets/redirects/
+
+/                https://amigo-labs.dev/pincel/          301
+/index.html      https://amigo-labs.dev/pincel/          301
+/features        https://amigo-labs.dev/pincel/          301
+/features/       https://amigo-labs.dev/pincel/          301
+/download        https://amigo-labs.dev/pincel/          301
+/download/       https://amigo-labs.dev/pincel/          301
+/about           https://amigo-labs.dev/pincel/about/    301
+/about/          https://amigo-labs.dev/pincel/about/    301
+/embed           https://amigo-labs.dev/pincel/embed/    301
+/embed/          https://amigo-labs.dev/pincel/embed/    301
+/de              https://amigo-labs.dev/de/pincel/       301
+/de/             https://amigo-labs.dev/de/pincel/       301
+/de/features     https://amigo-labs.dev/de/pincel/       301
+/de/features/    https://amigo-labs.dev/de/pincel/       301
+/de/download     https://amigo-labs.dev/de/pincel/       301
+/de/download/    https://amigo-labs.dev/de/pincel/       301
+/de/about        https://amigo-labs.dev/de/pincel/about/ 301
+/de/about/       https://amigo-labs.dev/de/pincel/about/ 301
+/de/embed        https://amigo-labs.dev/de/pincel/embed/ 301
+/de/embed/       https://amigo-labs.dev/de/pincel/embed/ 301

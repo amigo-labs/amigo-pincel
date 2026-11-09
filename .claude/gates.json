@@ -34,23 +34,6 @@
       "command": "pnpm check",
       "paths": ["ui/"],
       "needs": []
-    },
-    {
-      "id": "website-lint",
-      "name": "website lint",
-      "cwd": "website",
-      "command": "pnpm lint",
-      "fix": "pnpm lint --fix",
-      "paths": ["website/"],
-      "needs": []
-    },
-    {
-      "id": "website-check",
-      "name": "website type-check",
-      "cwd": "website",
-      "command": "pnpm check",
-      "paths": ["website/"],
-      "needs": []
     }
   ],
   "full": [
@@ -125,35 +108,6 @@
       "cwd": "ui",
       "command": "pnpm test:e2e",
       "needs": ["ui-build"]
-    },
-    {
-      "id": "website-install",
-      "name": "website install",
-      "cwd": "website",
-      "command": "pnpm install --frozen-lockfile",
-      "needs": []
-    },
-    {
-      "id": "website-lint",
-      "name": "website lint",
-      "cwd": "website",
-      "command": "pnpm lint",
-      "fix": "pnpm lint --fix",
-      "needs": ["website-install"]
-    },
-    {
-      "id": "website-check",
-      "name": "website type-check",
-      "cwd": "website",
-      "command": "pnpm check",
-      "needs": ["website-install"]
-    },
-    {
-      "id": "website-build",
-      "name": "website build",
-      "cwd": "website",
-      "command": "pnpm build",
-      "needs": ["website-install"]
     }
   ],
   "suppressions": [

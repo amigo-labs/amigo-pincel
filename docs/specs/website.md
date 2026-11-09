@@ -1,5 +1,5 @@
 ---
-status: todo
+status: superseded
 created: 2026-10-29
 size: M
 mode: website
@@ -7,6 +7,8 @@ design: [website-spec.md §3.1, website-spec.md §3.3, website-spec.md §4, webs
 ---
 
 # Marketing website
+
+> **Superseded 2026-11-09** (issue #141, pincel.md §15): the marketing site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from this repository's `docs/site/`. `website/` is removed; `pincel.amigo-labs.dev` serves only the editor at `/app/` and redirects its old pages there. Kept for its history; do not build from it.
 
 ## Context
 

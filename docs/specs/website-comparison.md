@@ -1,5 +1,5 @@
 ---
-status: todo
+status: superseded
 created: 2026-10-28
 size: M
 mode: website
@@ -8,6 +8,8 @@ depends_on: [website]
 ---
 
 # Website: honest comparison in line with spec §18
+
+> **Superseded 2026-11-09** (issue #141, pincel.md §15): the marketing site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from this repository's `docs/site/`. `website/` is removed; `pincel.amigo-labs.dev` serves only the editor at `/app/` and redirects its old pages there. Kept for its history; do not build from it. Its comparison lives on as `comparisons` in `docs/site/project.yml`.
 
 ## Context
 

@@ -23,9 +23,10 @@ import { VitePWA } from 'vite-plugin-pwa';
 //     Tauri's `devUrl` never points at the wrong process.
 //
 // Base path: the web build is served at https://pincel.amigo-labs.dev/app/
-// (the marketing site owns `/`; docs/specs/pincel.md §15, 2026-10-11), so
-// it is built with `base: '/app/'` into `dist/app/` — scripts/cf-build.sh
-// copies that folder into the site's build, so one Worker serves both. The Tauri CLI sets `TAURI_ENV_PLATFORM` for
+// (`/` redirects to amigo-labs.dev/pincel; docs/specs/pincel.md §15,
+// 2026-11-09), so it is built with `base: '/app/'` into `dist/app/`, and
+// scripts/cf-build.sh adds the root files from `cloudflare/` to `dist/`,
+// which the Worker serves. The Tauri CLI sets `TAURI_ENV_PLATFORM` for
 // its before-dev / before-build commands; the native shell loads the bundle
 // from its own origin, so it keeps the root base and `dist/`.
 const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM);

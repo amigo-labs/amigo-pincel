@@ -8,8 +8,9 @@
 # The Tauri shell (pincel-tauri) needs GTK/WebKit system libraries, so it
 # gets its own job that installs them. The UI job builds the wasm package
 # first (a local `link:` dependency) before linting, type-checking, and
-# building the Svelte frontend. The website job gates the marketing site
-# that Cloudflare Workers Builds deploys straight from `main`.
+# building the Svelte frontend. (The marketing site moved to
+# amigo-labs.dev/pincel, issue #141; its data in docs/site/ is checked by
+# site-data.yml.)
 
 name: CI
 
@@ -132,50 +133,3 @@ jobs:
           path: ui/playwright-report
           retention-days: 7
 
-  website:
-    name: website (lint / check / build)
-    runs-on: ubuntu-latest
-    defaults:
-      run:
-        working-directory: website
-    steps:
-      - uses: actions/checkout@v7
-      - uses: pnpm/action-setup@v6
-        with:
-          version: 10
-      - uses: actions/setup-node@v7
-        with:
-          node-version: 22
-          cache: pnpm
-          cache-dependency-path: website/pnpm-lock.yaml
-      - name: install dependencies
-        run: pnpm install --frozen-lockfile
-      - name: lint
-        run: pnpm lint
-      - name: type-check
-        run: pnpm check
-      - name: build
-        run: pnpm build
-      # Playwright drives the static build through `vite preview`
-      # (website/playwright.config.ts), cached and installed as in the ui
-      # job; the key follows website/pnpm-lock.yaml, which pins the version.
-      - uses: actions/cache@v6
-        id: playwright-cache
-        with:
-          path: ~/.cache/ms-playwright
-          key: playwright-${{ runner.os }}-${{ hashFiles('website/pnpm-lock.yaml') }}
-      - name: install playwright chromium
-        if: steps.playwright-cache.outputs.cache-hit != 'true'
-        run: pnpm exec playwright install --with-deps chromium
-      - name: install playwright system libraries
-        if: steps.playwright-cache.outputs.cache-hit == 'true'
-        run: pnpm exec playwright install-deps chromium
-      - name: e2e
-        run: pnpm test:e2e
-      - name: upload playwright report
-        if: failure()
-        uses: actions/upload-artifact@v7
-        with:
-          name: website-playwright-report
-          path: website/playwright-report
-          retention-days: 7

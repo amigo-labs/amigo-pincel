@@ -1,9 +1,10 @@
 #!/usr/bin/env bash
 #
-# Cloudflare Workers Builds — build the marketing site AND the editor into one
-# static-assets directory, `website/build/`, served by the `amigo-pincel`
-# Worker (root wrangler.toml). The site owns `/`, the editor `/app/`.
-# docs/specs/pincel.md §15, 2026-10-12.
+# Cloudflare Workers Builds — build the editor into the static-assets
+# directory `ui/dist/` served by the `amigo-pincel` Worker (root
+# wrangler.toml): the editor at `/app/`, and `cloudflare/` (redirects of the
+# retired marketing site to amigo-labs.dev/pincel, headers, 404 page) at the
+# root. docs/specs/pincel.md §15, 2026-11-09 (issue #141).
 #
 # Cloudflare's build image ships Node but not the Rust / wasm-pack toolchain
 # the editor's wasm cores need, so this script installs what is missing first.
@@ -56,11 +57,6 @@ if ! command -v pnpm >/dev/null 2>&1; then
   corepack enable
 fi
 
-# --- Marketing site → website/build/ --------------------------------------
-cd "$root/website"
-pnpm install --frozen-lockfile
-pnpm build
-
 # --- Editor → ui/dist/app/ ------------------------------------------------
 # The wasm packages must exist before `pnpm install` (ui preinstall check).
 # wasm-pack's own wasm-opt pass is off in both crates' Cargo.toml, so the
@@ -77,8 +73,7 @@ pnpm install --frozen-lockfile
 pnpm build
 node "$root/scripts/check-wasm-release.mjs" "$root/ui/dist/app/assets"
 
-# --- Merge: the editor lands under the site's /app/ -----------------------
-rm -rf "$root/website/build/app"
-cp -R "$root/ui/dist/app" "$root/website/build/app"
+# --- Root files: redirects, headers, 404 page -----------------------------
+cp "$root/cloudflare/_redirects" "$root/cloudflare/_headers" "$root/cloudflare/404.html" "$root/ui/dist/"
 
-echo "Built site into website/build/ and the editor into website/build/app/"
+echo "Built the editor into ui/dist/app/ and the root files into ui/dist/"

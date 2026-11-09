@@ -2,7 +2,7 @@
 
 Two kinds of spec live here (`.claude/rules/specs.md`):
 
-- **Design specs** — architecture, data model and the Decision Log: [`pincel.md`](pincel.md) (§15 Decision Log, §18 competitive landscape), [`canvas.md`](canvas.md), [`cli.md`](cli.md), [`lessons.md`](lessons.md), [`mcp.md`](mcp.md), [`website-spec.md`](website-spec.md).
+- **Design specs** — architecture, data model and the Decision Log: [`pincel.md`](pincel.md) (§15 Decision Log, §18 competitive landscape), [`canvas.md`](canvas.md), [`cli.md`](cli.md), [`lessons.md`](lessons.md), [`mcp.md`](mcp.md). [`website-spec.md`](website-spec.md) is superseded (see "Superseded").
 - **Feature specs** — one feature each, with acceptance criteria and an Evidence table: written with `/spec`, built with `/spec-build`, accepted with `/spec-check` (the only step that sets `status: implemented`).
 
 Feature specs are `status: todo` until `/spec-check` accepts them (see "Done"). A spec with open questions goes back to `/spec <name>` first; `spec-build` refuses it until they are settled. None has had the stranger-reader clarification pass of `/spec` step 4 yet; it runs when the spec is next revised.
@@ -16,7 +16,6 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
 | Both modes | [i18n](i18n.md) |
 | Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
-| Website | [website](website.md) |
 
 ## Planned features — order
 
@@ -54,7 +53,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
 
 ### E — Text and fonts
@@ -102,7 +100,6 @@ No shared files with the groups above; pick by priority.
 | H4 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
 | H5 | [psd-import](psd-import.md) | Image | L | image-layer-groups | Needs a dependency decision |
 | H6 | [rotsprite](rotsprite.md) | Pixel | L | — | |
-| H7 | [website-comparison](website-comparison.md) | website | M | — | `website/` has no test harness yet |
 | H8 | [reduced-motion](reduced-motion.md) | both | M | — | Accessibility baseline |
 | H9 | [animation-preview](animation-preview.md) | Pixel | M | — | |
 | H10 | [tablet-gestures](tablet-gestures.md) | both | M | — | |
@@ -132,7 +129,6 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| J1 | [ocr-recognizer](ocr-recognizer.md) | Image | L | — | Model reader, int8 LSTM, beam search for one line; golden tests against Tesseract 5.5 |
 | J2 | [ocr-page](ocr-page.md) | Image | L | ocr-recognizer | Binarization, skew, lines and blocks, page text; accuracy on a page corpus |
 | J3 | [ocr-dialog](ocr-dialog.md) | Image | L | ocr-page | Tools ▸ Recognize Text…, model download on first use, copy to clipboard |
 
@@ -155,6 +151,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
 - [history-panel](history-panel.md)
+- [image-edit-extras](image-edit-extras.md)
 - [image-edit-extras-tool-options](image-edit-extras-tool-options.md)
 - [image-formats-more](image-formats-more.md)
 - [image-editing](image-editing.md)
@@ -178,6 +175,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
 - [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md)
 - [mcp-parity-structure](mcp-parity-structure.md)
+- [ocr-recognizer](ocr-recognizer.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
@@ -201,12 +199,18 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
+## Superseded
+
+No longer built here; kept for their history.
+
+- [website](website.md), [website-comparison](website-comparison.md) and the design spec [website-spec](website-spec.md): the marketing site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from `docs/site/` (the comparison is `comparisons` in `docs/site/project.yml`). `pincel.amigo-labs.dev` serves only the editor at `/app/` and redirects its old pages (`cloudflare/_redirects`); pincel.md §15, 2026-11-09, issue #141.
+
 ## Open items outside specs
 
 Not code; they need a person, hardware or an account.
 
 - **Release prerequisites** (`docs/RELEASING.md`): updater signing key as organization secrets, access to the `MACOS_SIGNING_CERT` organization secrets (`create-signing-cert.sh --repos amigo-blinzel,amigo-pincel`, optional), `RELEASE_PLEASE_TOKEN`, npm trusted publisher for `@amigo-labs/pincel-wasm` then `PUBLISH_NPM=true`, `pincel.amigo-labs.dev` as the Worker's custom domain.
-- **Native-speaker review** of the German copy: `website/src/lib/i18n/de.ts` and `ui/src/lib/i18n/de.ts` are machine-written.
+- **Native-speaker review** of the German copy: `ui/src/lib/i18n/de.ts` is machine-written.
 - **Checks on real hardware** (spec §16 exit criteria): 60 fps at 256×256 / zoom 32 on M1 and mid-tier Windows (F2 probe); Lighthouse PWA ≥ 90; a Pincel-saved file opened in upstream Aseprite and a Pincel tilemap loaded by `amigo_assets` (former M6.7); real Tauri installs and the self-update on Windows, macOS and Linux.
 
 ## Backlog: gaps not yet written as specs

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-08
 size: L
 mode: Image
@@ -51,17 +51,17 @@ Terms used below:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the recognizer is given the bytes of the `eng` or `deu` model, then it loads the model and reports its character set size and its network's input height. Both equal what the reference Tesseract's `combine_tessdata -d` and the unicharset show for that file.
-- [ ] AC-02 (error): If the model bytes are unusable, then loading fails with an error kind the caller can tell apart, and nothing panics. The kinds are: not a `.traineddata` file; truncated (a component's offset or size points past the end; a size field claiming gigabytes gives this error instead of exhausting memory or aborting the process); no LSTM network; unicharset or recoder missing or unreadable; unicharset or recoder not matching the network's output size; a network layer type the crate does not implement; float weights (`tessdata_best`).
-- [ ] AC-03 (always): For every line of the golden corpus, the recognized line's text equals the line's reference text, character for character.
-- [ ] AC-04 (always): For every line of the golden corpus, the recognized line has the same number of words as the reference TSV's word rows, with the same text in the same order, and each word's box is within 2 px of the reference box on every side. The 2 px cover the rounding when boxes are scaled back from the network's input height.
-- [ ] AC-05 (always): Word confidences are integers from 0 to 100, and words are ordered by the left edge of their box.
-- [ ] AC-06 (event): When a line image has zero width or height, or all its pixels have the same colour after flattening, then the recognized line has no words and empty text, without an error.
-- [ ] AC-07 (error): If the pixel buffer's length is not `width × height × 4`, or that product overflows the platform's integer size (as it can on wasm32), then recognition fails with a "bad image" error.
-- [ ] AC-08 (always): Line images 1 to 7 px high return a result without an error, possibly with no words. The golden corpus has lines 8 px and 400 px high, and a line 20 000 px wide made by repeating a corpus line, and these are recognized per AC-03.
-- [ ] AC-09 (always): A seeded property test finds no input on which loading or recognizing panics or aborts. Its inputs: 1 000 random line images 1–512 px wide and 1–128 px high with random pixels, and 1 000 copies of each committed model with 1–16 random bytes changed.
-- [ ] AC-10 (always): One loaded model can be used for several recognitions at the same time on different threads, and each gives the same result as when run alone.
-- [ ] AC-11 (always): A light-on-dark line and a line of white text on a transparent background in the golden corpus are recognized per AC-03. The reference runs on the flattened image.
+- [x] AC-01 (event): When the recognizer is given the bytes of the `eng` or `deu` model, then it loads the model and reports its character set size and its network's input height. Both equal what the reference Tesseract's `combine_tessdata -d` and the unicharset show for that file.
+- [x] AC-02 (error): If the model bytes are unusable, then loading fails with an error kind the caller can tell apart, and nothing panics. The kinds are: not a `.traineddata` file; truncated (a component's offset or size points past the end; a size field claiming gigabytes gives this error instead of exhausting memory or aborting the process); no LSTM network; unicharset or recoder missing or unreadable; unicharset or recoder not matching the network's output size; a network layer type the crate does not implement; float weights (`tessdata_best`).
+- [x] AC-03 (always): For every line of the golden corpus, the recognized line's text equals the line's reference text, character for character.
+- [x] AC-04 (always): For every line of the golden corpus, the recognized line has the same number of words as the reference TSV's word rows, with the same text in the same order, and each word's box is within 2 px of the reference box on every side. The 2 px cover the rounding when boxes are scaled back from the network's input height.
+- [x] AC-05 (always): Word confidences are integers from 0 to 100, and words are ordered by the left edge of their box.
+- [x] AC-06 (event): When a line image has zero width or height, or all its pixels have the same colour after flattening, then the recognized line has no words and empty text, without an error.
+- [x] AC-07 (error): If the pixel buffer's length is not `width × height × 4`, or that product overflows the platform's integer size (as it can on wasm32), then recognition fails with a "bad image" error.
+- [x] AC-08 (always): Line images 1 to 7 px high return a result without an error, possibly with no words. The golden corpus has lines 8 px and 400 px high, and a line 20 000 px wide made by repeating a corpus line, and these are recognized per AC-03.
+- [x] AC-09 (always): A seeded property test finds no input on which loading or recognizing panics or aborts. Its inputs: 1 000 random line images 1–512 px wide and 1–128 px high with random pixels, and 1 000 copies of each committed model with 1–16 random bytes changed.
+- [x] AC-10 (always): One loaded model can be used for several recognitions at the same time on different threads, and each gives the same result as when run alone.
+- [x] AC-11 (always): A light-on-dark line and a line of white text on a transparent background in the golden corpus are recognized per AC-03. The reference runs on the flattened image.
 
 ## Technical notes
 
@@ -100,19 +100,28 @@ Terms used below:
 
 ## Evidence
 
-| AC    | Test | Status | Commit |
-| ----- | ---- | ------ | ------ |
-| AC-01 | `from_bytes_eng_reports_charset_size_and_input_height`, `from_bytes_deu_reports_charset_size_and_input_height` (`crates/pincel-ocr/tests/load.rs`) | built |        |
-| AC-02 | `from_bytes_text_returns_not_traineddata`, `from_bytes_cut_short_returns_truncated`, `from_bytes_huge_size_field_returns_truncated`, `from_bytes_without_lstm_returns_no_lstm`, `from_bytes_without_charsets_returns_charset_unreadable`, `from_bytes_charsets_of_other_model_returns_charset_mismatch`, `from_bytes_unknown_layer_returns_unsupported_layer`, `from_bytes_float_weights_returns_float_weights` (`tests/load.rs`) | built |        |
-| AC-03 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`crates/pincel-ocr/tests/golden.rs`) | built |        |
-| AC-04 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`tests/golden.rs`): word count, text and boxes within 2 px | built |        |
-| AC-05 | `recognize_line_confidences_in_range_and_words_ordered` (`tests/recognize.rs`) | built |        |
-| AC-06 | `recognize_line_empty_or_uniform_returns_no_words` (`tests/recognize.rs`) | built |        |
-| AC-07 | `recognize_line_wrong_buffer_length_returns_bad_image` (`tests/recognize.rs`) | built |        |
-| AC-08 | `recognize_line_one_to_seven_pixels_high_returns_without_error` (`tests/recognize.rs`); corpus lines `short_8`, `tall_400`, `wide_20000` in `tests/golden.rs` | built |        |
-| AC-09 | `recognize_line_random_images_never_panics`, `from_bytes_corrupted_models_never_panic` (`tests/robustness.rs`) | built |        |
-| AC-10 | `recognize_line_shared_model_on_threads_matches_sequential` (`tests/recognize.rs`) | built |        |
-| AC-11 | corpus lines `dark_white`, `dark_blue`, `transparent` in `tests/golden.rs` | built |        |
+| AC    | Test | Status   | Commit  |
+| ----- | ---- | -------- | ------- |
+| AC-01 | `from_bytes_eng_reports_charset_size_and_input_height`, `from_bytes_deu_reports_charset_size_and_input_height` (`crates/pincel-ocr/tests/load.rs`) | verified | b0025d2 |
+| AC-02 | `from_bytes_text_returns_not_traineddata`, `from_bytes_cut_short_returns_truncated`, `from_bytes_huge_size_field_returns_truncated`, `from_bytes_without_lstm_returns_no_lstm`, `from_bytes_without_charsets_returns_charset_unreadable`, `from_bytes_charsets_of_other_model_returns_charset_mismatch`, `from_bytes_unknown_layer_returns_unsupported_layer`, `from_bytes_float_weights_returns_float_weights` (`tests/load.rs`) | verified | b0025d2 |
+| AC-03 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`crates/pincel-ocr/tests/golden.rs`) | verified | ed397e2 |
+| AC-04 | `recognize_line_deu_corpus_matches_reference`, `recognize_line_eng_corpus_matches_reference` (`tests/golden.rs`): word count, text and boxes within 2 px | verified | ed397e2 |
+| AC-05 | `recognize_line_confidences_in_range_and_words_ordered` (`tests/recognize.rs`) | verified | b0025d2 |
+| AC-06 | `recognize_line_empty_or_uniform_returns_no_words` (`tests/recognize.rs`) | verified | b0025d2 |
+| AC-07 | `recognize_line_wrong_buffer_length_returns_bad_image` (`tests/recognize.rs`) | verified | b0025d2 |
+| AC-08 | `recognize_line_one_to_seven_pixels_high_returns_without_error` (`tests/recognize.rs`); corpus lines `short_8`, `tall_400`, `wide_20000` in `tests/golden.rs` | verified | ed397e2 |
+| AC-09 | `recognize_line_random_images_never_panics`, `from_bytes_corrupted_models_never_panic` (`tests/robustness.rs`) | verified | b0025d2 |
+| AC-10 | `recognize_line_shared_model_on_threads_matches_sequential` (`tests/recognize.rs`) | verified | b0025d2 |
+| AC-11 | corpus lines `dark_white`, `dark_blue`, `transparent` in `tests/golden.rs` | verified | ed397e2 |
+
+## Summary
+
+> Completed: 2026-11-09
+
+- New workspace crate `pincel-ocr` (Apache-2.0 only, with Tesseract's NOTICE): a pure Rust port of Tesseract's LSTM line recognizer with no I/O and no new runtime dependency; public API `Model` (`from_bytes`, `character_set_size`, `input_height`, `version`, `recognize_line`), `RecognizedLine`, `Word`, `WordBox`, `LoadError`, `RecognizeError`.
+- Reads the committed `tessdata_fast` 4.1.0 `eng` and `deu` models and refuses unusable ones with distinct error kinds, without panicking on corrupt data.
+- Recognizes one line as Tesseract 5.5 `--psm 7` does without a dictionary — the `--psm 7` page layout, int8 network, activation tables and recode beam search ported exactly — giving text, word boxes and confidences; transparent lines are flattened over white or black first.
+- Golden corpus of 71 lines (`eng` 36, `deu` 35) with the reference Tesseract's TSV and the script that regenerates it, plus robustness, threading and edge-size tests.
 
 ## Decisions
 
