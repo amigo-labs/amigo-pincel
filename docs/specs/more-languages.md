@@ -34,7 +34,7 @@ Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git h
 
 - Right-to-left languages — because they need a layout audit of the whole frame of their own
 - A CJK font for the Text tool — because rendering Japanese on the canvas needs a bundled CJK font (e.g. Noto Sans JP, ~4 MB subset, OFL) or a system-font picker, which is a dependency and asset decision; it stays on the backlog (`docs/specs/README.md`, "CJK font for the Text tool")
-- Translated documentation and website copy — because the marketing site has its own i18n (`website/src/lib/i18n/`) and is decided per language separately
+- Translated documentation and website copy — because the marketing site is built by `amigo-labs/website` from `docs/site/` and is decided per language there
 - Translating document content (layer, tag, slice names) — because CLAUDE.md §5.4 forbids it
 - Locale-aware formatting of technical sizes such as "800 × 600" — because they are technical values, not prose
 
