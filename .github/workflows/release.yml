@@ -160,8 +160,11 @@ jobs:
             artifact: windows-x64
             args: ''
             bundle: target/release/bundle
+          # Arm64 host; the universal build cross-compiles x86_64. The
+          # host's macOS does not set the app's minimum (Rust and Tauri
+          # defaults do), so bump the label when GitHub retires the image.
           - name: macOS universal
-            runner: macos-14
+            runner: macos-15
             artifact: macos-universal
             args: --target universal-apple-darwin
             bundle: target/universal-apple-darwin/release/bundle
