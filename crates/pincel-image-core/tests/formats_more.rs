@@ -55,6 +55,25 @@ fn tga_uncompressed_rle_grayscale_and_color_mapped_open_with_a_hint_only() {
     // Without the hint TGA is not recognised (AC-04).
     assert!(decode(&raw).is_err());
 
+    // Uncompressed 24-bit true-colour (BGR, no alpha): fully opaque.
+    let mut rgb = tga_header(2, None, 2, 2, 24, 0);
+    for [r, g, b, _] in PIXELS {
+        rgb.extend_from_slice(&[b, g, r]);
+    }
+    let opaque: Vec<[u8; 4]> = PIXELS.iter().map(|&[r, g, b, _]| [r, g, b, 255]).collect();
+    expect_pixels(&decode_hinted(&rgb, Some("rgb.tga")).unwrap(), &opaque);
+    // The same rows stored bottom-up (origin bit cleared) open the right
+    // way up.
+    let mut bottom_up = tga_header(2, None, 2, 2, 24, 0);
+    let last = bottom_up.len() - 1;
+    bottom_up[last] &= !0x20;
+    for row in [&PIXELS[2..4], &PIXELS[0..2]] {
+        for &[r, g, b, _] in row {
+            bottom_up.extend_from_slice(&[b, g, r]);
+        }
+    }
+    expect_pixels(&decode_hinted(&bottom_up, Some("up.tga")).unwrap(), &opaque);
+
     // RLE: one run of 3 red pixels, then one raw pixel.
     let mut rle = tga_header(10, None, 2, 2, 32, 8);
     rle.extend_from_slice(&[0x82, 0, 0, 255, 255, 0x00, 30, 20, 10, 255]);
