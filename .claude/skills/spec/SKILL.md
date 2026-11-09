@@ -32,7 +32,7 @@ Both in parallel:
 **Then present the findings and ask questions** in small batches (1-4 via AskUserQuestion):
 
 - **What & why** — what should happen? What is out of scope, and why?
-- **Mode** — Pixel, Image, both, shell or website? Does the document model or a file format change (`.aseprite`, `.ora`, …)?
+- **Mode** — Pixel, Image, both or shell? Does the document model or a file format change (`.aseprite`, `.ora`, …)?
 - **UI** (if relevant) — which menu, tool, panel or dialog? Keyboard shortcut (`ui/src/lib/shell/shortcuts.ts`)? Undo behavior?
 - **Edge cases** — propose concrete scenarios and let the user confirm or reject them
 
@@ -97,7 +97,7 @@ Then show a compact summary (not the full Markdown) and point to `/spec-build $0
 status: todo
 created: {YYYY-MM-DD}
 size: {S | M | L}
-mode: {Pixel | Image | both | shell | website}
+mode: {Pixel | Image | both | shell}
 design: [{pincel.md §x.y}, …]
 ---
 

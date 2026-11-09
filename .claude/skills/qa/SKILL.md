@@ -1,6 +1,6 @@
 ---
 name: qa
-description: Runs the project's full QA pass (rustfmt, clippy with -D warnings, cargo test, generated-bindings drift, wasm build, ui and website lint / type-check / build, Playwright e2e) — independent stages in parallel, with exactly the commands CI runs. Use this skill before finishing any coding task, before a commit or PR, and whenever the user wants to know whether "everything is green".
+description: Runs the project's full QA pass (rustfmt, clippy with -D warnings, cargo test, generated-bindings drift, wasm build, ui lint / type-check / build, Playwright e2e) — independent stages in parallel, with exactly the commands CI runs. Use this skill before finishing any coding task, before a commit or PR, and whenever the user wants to know whether "everything is green".
 ---
 
 # QA

@@ -45,7 +45,7 @@ Tools, UI components, and rendering adapters are test-after: ship the implementa
 
 ### 2.4 Micro-commits
 
-One concept per commit. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`, the scope being the crate or area (`pincel-core`, `aseprite-writer`, `pincel-wasm`, `ui`, `tauri`, `website`, `spec`, …):
+One concept per commit. Commit messages follow [Conventional Commits](https://www.conventionalcommits.org/): `type(scope): description`, the scope being the crate or area (`pincel-core`, `aseprite-writer`, `pincel-wasm`, `ui`, `tauri`, `spec`, …):
 
 ```
 feat(pincel-core): add Sprite struct with Layers and Frames
