@@ -111,23 +111,23 @@ Decision Log 2026-11-05 "MCP tool parity" requires the agent tools to reach both
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `one Antialiasing checkbox, shared by the edge tools and all tabs, on at start` (ui/e2e/image-antialias.spec.ts) | verified | ff24c88 |
-| AC-02 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (Brush), `eraser_and_recolor_hard_round_dabs_are_all_or_nothing_off`, `smudge_hard_round_dabs_are_all_or_nothing_off` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 4483130 |
-| AC-03 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 4483130 |
-| AC-04 | `soft_and_flat_tips_ignore_the_setting`, `soft_and_flat_tips_change_nothing_outside_their_outline_off` (crates/pincel-image-core/tests/antialias.rs) | verified | 4483130 |
-| AC-05 | `Line and shapes follow the shared Antialiasing setting`, `Text and the box shapes follow the shared Antialiasing setting` (ui/e2e/image-antialias.spec.ts) | verified | ff24c88 |
-| AC-06 | `ellipse_and_lasso_outlines_blend_their_edge_only_when_on`, `ellipse_and_polygon_coverage_follows_the_outline_for_every_pixel`, `select_ellipse_and_polygon_commands_take_the_setting_and_combine` (add), `anti_aliased_outlines_subtract_and_intersect_by_coverage` (crates/pincel-image-core/tests/antialias.rs); `an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing` (ui/e2e/image-antialias.spec.ts) | verified | 4483130 |
-| AC-07 | `one Antialiasing checkbox, …` (ui/e2e/image-antialias.spec.ts); `feather_applies_on_top_of_an_anti_aliased_outline` (crates/pincel-image-core/tests/antialias.rs) | verified | 4483130 |
-| AC-08 | `one Blending control, shared by the painting tools and all tabs, Normal at start` (ui/e2e/image-blend.spec.ts); `live_shapes_gradients_and_texts_take_and_change_the_blend` (crates/pincel-image-core/tests/blend.rs) | verified | e8fd267 |
-| AC-09 | `normal_blending_paints_as_before_for_every_tool` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha the Brush and the Bucket leave, Normal does not` (ui/e2e/image-blend.spec.ts) | verified | e8fd267 |
-| AC-10 | `overwrite_replaces_fully_covered_pixels_alpha_included` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha …`, `a live gradient and a live shape follow Blending …` (ui/e2e/image-blend.spec.ts) | verified | e8fd267 |
-| AC-11 | `overwrite_moves_partially_covered_pixels_by_their_coverage` (crates/pincel-image-core/tests/blend.rs) | verified | e8fd267 |
-| AC-12 | `overwrite_stroke_takes_the_highest_coverage_and_never_builds_up` (crates/pincel-image-core/tests/blend.rs) | verified | e8fd267 |
-| AC-13 | `overwrite_keeps_undo_locks_and_the_selection` (crates/pincel-image-core/tests/blend.rs) | verified | e8fd267 |
-| AC-14 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (brush and eraser), `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | da46f0d |
-| AC-15 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | da46f0d |
-| AC-16 | `anti_alias_reaches_strokes_and_selections_like_the_editor`, `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | da46f0d |
-| AC-17 | `guide_describes_anti_alias_and_blend` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 1c4d314 |
+| AC-01 | `one Antialiasing checkbox, shared by the edge tools and all tabs, on at start` (ui/e2e/image-antialias.spec.ts) | verified | d5ce7e7 |
+| AC-02 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (Brush), `eraser_and_recolor_hard_round_dabs_are_all_or_nothing_off`, `smudge_hard_round_dabs_are_all_or_nothing_off` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-03 | `hard_round_dab_is_all_or_nothing_off_and_blends_its_edge_on` (crates/pincel-image-core/tests/antialias.rs); `a hard round Brush dab has a smooth edge …` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-04 | `soft_and_flat_tips_ignore_the_setting`, `soft_and_flat_tips_change_nothing_outside_their_outline_off` (crates/pincel-image-core/tests/antialias.rs) | verified | 5e065d5 |
+| AC-05 | `Line and shapes follow the shared Antialiasing setting`, `Text and the box shapes follow the shared Antialiasing setting` (ui/e2e/image-antialias.spec.ts) | verified | d5ce7e7 |
+| AC-06 | `ellipse_and_lasso_outlines_blend_their_edge_only_when_on`, `ellipse_and_polygon_coverage_follows_the_outline_for_every_pixel`, `select_ellipse_and_polygon_commands_take_the_setting_and_combine` (add), `anti_aliased_outlines_subtract_and_intersect_by_coverage` (crates/pincel-image-core/tests/antialias.rs); `an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing` (ui/e2e/image-antialias.spec.ts) | verified | 5e065d5 |
+| AC-07 | `one Antialiasing checkbox, …` (ui/e2e/image-antialias.spec.ts); `feather_applies_on_top_of_an_anti_aliased_outline` (crates/pincel-image-core/tests/antialias.rs) | verified | 5e065d5 |
+| AC-08 | `one Blending control, shared by the painting tools and all tabs, Normal at start` (ui/e2e/image-blend.spec.ts); `live_shapes_gradients_and_texts_take_and_change_the_blend` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-09 | `normal_blending_paints_as_before_for_every_tool` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha the Brush and the Bucket leave, Normal does not` (ui/e2e/image-blend.spec.ts) | verified | 1f12885 |
+| AC-10 | `overwrite_replaces_fully_covered_pixels_alpha_included` (crates/pincel-image-core/tests/blend.rs); `Overwrite lowers the alpha …`, `a live gradient and a live shape follow Blending …` (ui/e2e/image-blend.spec.ts) | verified | 1f12885 |
+| AC-11 | `overwrite_moves_partially_covered_pixels_by_their_coverage` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-12 | `overwrite_stroke_takes_the_highest_coverage_and_never_builds_up` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-13 | `overwrite_keeps_undo_locks_and_the_selection` (crates/pincel-image-core/tests/blend.rs) | verified | 1f12885 |
+| AC-14 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (brush and eraser), `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-15 | `anti_alias_reaches_strokes_and_selections_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-16 | `anti_alias_reaches_strokes_and_selections_like_the_editor`, `blend_reaches_the_painting_tools_like_the_editor` (crates/pincel-agent/src/tests/image_draw.rs) | verified | 7103cb3 |
+| AC-17 | `guide_describes_anti_alias_and_blend` (crates/pincel-agent/src/tests/image_draw.rs) | verified | cc629fa |
 
 ## Summary
 
