@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.8.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.8.0...v1.8.1) (2026-11-09)
+
+
+### Bug Fixes
+
+* **ui:** rename the tour store so Tour.svelte cannot shadow it ([6ec7d91](https://github.com/amigo-labs/amigo-pincel/commit/6ec7d9138b791f6e8563edcafb0b54453b8925bb))
+* **ui:** rename the tour store so Tour.svelte cannot shadow it ([8d0bc91](https://github.com/amigo-labs/amigo-pincel/commit/8d0bc915ccbcb145ea095ec410f0d8a1d668cc82))
+
 ## [1.8.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.7.0...v1.8.0) (2026-11-09)
 
 
