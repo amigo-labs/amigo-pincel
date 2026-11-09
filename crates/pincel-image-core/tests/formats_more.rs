@@ -224,3 +224,27 @@ fn tga_and_ico_round_trip_a_single_transparent_pixel() {
     );
     assert_eq!(decode(&to_ico_bytes(&img).unwrap()).unwrap(), img);
 }
+
+/// AC-05 at the largest ICO: a 256 × 256 image with varied colours and
+/// alphas (fully transparent pixels with colour among them) round-trips
+/// through TGA and through ICO to the exact RGBA.
+#[test]
+fn tga_and_ico_round_trip_a_256_px_image_exactly() {
+    let mut data = Vec::with_capacity(256 * 256 * 4);
+    for y in 0..256u32 {
+        for x in 0..256u32 {
+            let a = if (x + y) % 7 == 0 {
+                0
+            } else {
+                ((x * 3 + y) % 256) as u8
+            };
+            data.extend_from_slice(&[x as u8, y as u8, (x ^ y) as u8, a]);
+        }
+    }
+    let img = ImageBuffer::from_raw(256, 256, data).unwrap();
+    assert_eq!(
+        decode_hinted(&to_tga_bytes(&img).unwrap(), Some("big.tga")).unwrap(),
+        img
+    );
+    assert_eq!(decode(&to_ico_bytes(&img).unwrap()).unwrap(), img);
+}
