@@ -795,10 +795,9 @@ fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
     }
     // A TGA without its extension is not recognised.
     s.host.files.insert("noext".into(), tga);
-    assert!(
-        s.err("doc.open", json!({ "path": "noext" }))
-            .contains("noext")
-    );
+    // The editor's reason for an undecodable file, not just the path.
+    let e = s.err("doc.open", json!({ "path": "noext" }));
+    assert!(e.contains("failed to decode image"), "{e}");
     // Unsupported variant and bad size keep their own reasons.
     let mut bc7 = dds.clone();
     bc7[84..88].copy_from_slice(b"DX10");
@@ -821,6 +820,16 @@ fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
             .contains("multiples of 4")
     );
     assert_eq!(s.ok("doc.list", json!({})), before);
+    // The tool says it reads them (AC-15).
+    let tools = crate::list_tools();
+    let open = tools
+        .iter()
+        .find(|t| t.name == "doc.open")
+        .expect("doc.open");
+    let text = format!("{} {}", open.description, open.input_schema);
+    for format in ["TGA", "DDS", "ICO"] {
+        assert!(text.contains(format), "doc.open does not name {format}");
+    }
 }
 
 /// docs/specs/image-edit-extras-tool-options.md AC-14 – AC-16 (Antialiasing).
