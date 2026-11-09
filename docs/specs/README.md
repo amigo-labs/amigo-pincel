@@ -54,7 +54,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| D2 | [image-edit-extras](image-edit-extras.md) | Image | L | — | Edit ▸ Fill Selection plus MCP select.fill |
 | D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
 
 ### E — Text and fonts
@@ -132,7 +131,6 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| J1 | [ocr-recognizer](ocr-recognizer.md) | Image | L | — | Model reader, int8 LSTM, beam search for one line; golden tests against Tesseract 5.5 |
 | J2 | [ocr-page](ocr-page.md) | Image | L | ocr-recognizer | Binarization, skew, lines and blocks, page text; accuracy on a page corpus |
 | J3 | [ocr-dialog](ocr-dialog.md) | Image | L | ocr-page | Tools ▸ Recognize Text…, model download on first use, copy to clipboard |
 
@@ -155,6 +153,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [effects-object-stylize-color-noise](effects-object-stylize-color-noise.md)
 - [effects-render](effects-render.md)
 - [history-panel](history-panel.md)
+- [image-edit-extras](image-edit-extras.md)
 - [image-edit-extras-tool-options](image-edit-extras-tool-options.md)
 - [image-formats-more](image-formats-more.md)
 - [image-editing](image-editing.md)
@@ -178,6 +177,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
 - [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md)
 - [mcp-parity-structure](mcp-parity-structure.md)
+- [ocr-recognizer](ocr-recognizer.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [pen-input](pen-input.md)
