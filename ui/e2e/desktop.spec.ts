@@ -266,6 +266,22 @@ test.describe('desktop on Linux', () => {
     await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(4);
   });
 
+  test('the open dialog offers TGA, DDS and ICO under all supported files and images (image-formats-more AC-14)', async ({
+    page,
+  }) => {
+    await desktopStart(page);
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await expect.poll(async () => (await calls(page, 'plugin:dialog|open')).length).toBe(1);
+    const [dialog] = await calls(page, 'plugin:dialog|open');
+    const filters = (dialog?.args.options as { filters: { name: string; extensions: string[] }[] })
+      .filters;
+    const images = filters.find((f) => f.name === 'Images');
+    for (const ext of ['tga', 'dds', 'ico']) {
+      expect(filters[0]?.extensions).toContain(ext);
+      expect(images?.extensions).toContain(ext);
+    }
+  });
+
   test('Help ▸ Check for Updates… reports the outcome and the stored auto-update value (AC-16)', async ({
     page,
   }) => {
