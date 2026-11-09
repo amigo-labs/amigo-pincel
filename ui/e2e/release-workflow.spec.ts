@@ -22,8 +22,8 @@ test('the release workflow runs the binaryen release the Cloudflare build pins, 
   const pinned = /BINARYEN_VERSION=(\d+)/.exec(read('scripts/cf-build.sh'))?.[1];
   expect(pinned).toBeTruthy();
   const versions = [...release.matchAll(/BINARYEN_VERSION: '(\d+)'/g)].map((m) => m[1]);
-  // The web job and the npm job each install it before their wasm-opt run.
-  expect(versions).toEqual([pinned, pinned]);
+  // The web, desktop and npm jobs each fetch it before their wasm-opt run.
+  expect(versions).toEqual([pinned, pinned, pinned]);
   const steps = release.split(/\n\s+- name: /);
   const install = steps.findIndex((s) => s.startsWith('install binaryen'));
   const optimize = steps.findIndex((s) => s.startsWith('optimize wasm'));

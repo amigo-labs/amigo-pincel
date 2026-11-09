@@ -67,7 +67,6 @@ opt-level = 3
 [profile.release]
 lto = "fat"
 codegen-units = 1
-opt-level = 3
 
 # The recognizer runs an LSTM over every golden-corpus line; unoptimised the
 # golden tests alone would take minutes (AGENTS.md §7.5).
