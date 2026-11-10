@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.10.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.10.0...v1.10.1) (2026-11-10)
+
+
+### Bug Fixes
+
+* **ui:** check the stamp's target layer for the lock, not the active one ([8e08736](https://github.com/amigo-labs/amigo-pincel/commit/8e0873688588446584283c80197d06443ccaa6d6))
+* **ui:** close the polygonal lasso on its first vertex and on Enter ([a9ee567](https://github.com/amigo-labs/amigo-pincel/commit/a9ee56735a06632be8137d9703b76740945d7231))
+* **ui:** drop an open polygonal lasso when another tool is chosen ([a24664a](https://github.com/amigo-labs/amigo-pincel/commit/a24664af2da187f0240db6afafacb2c1c6cb478d))
+* **ui:** keep the selection when the first vertex is double-clicked ([3cc2ff3](https://github.com/amigo-labs/amigo-pincel/commit/3cc2ff3c2b4e81680688eeae2b58f7779fcc8624))
+* **ui:** polygonal lasso closing and three tool gaps found in a spec audit ([6af1c66](https://github.com/amigo-labs/amigo-pincel/commit/6af1c66230e946cf1cb88d446b7811a7dfa2b973))
+* **ui:** refuse the newer shapes on a locked layer with the notice ([6973cd2](https://github.com/amigo-labs/amigo-pincel/commit/6973cd20351dd94f5e10941316da3a0126639107))
+
 ## [1.10.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.9.0...v1.10.0) (2026-11-10)
 
 
