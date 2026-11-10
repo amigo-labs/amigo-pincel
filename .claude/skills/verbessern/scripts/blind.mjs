@@ -1,14 +1,12 @@
 // Builds the blind judge pool: copies each version's folder under a shuffled label and strips
-// whatever would tell the judge which version is the champion or who built it.
+// whatever would tell the judge which version is the old one or who built it.
 //
-// Usage: node blind.mjs <out-dir> <name>=<dir> [<name>=<dir> …] [--dup <name>] [--strip w1,w2]
+// Usage: node blind.mjs <out-dir> <name>=<dir> <name>=<dir> [--strip w1,w2]
 //
 // - Every *.md in a copied folder is sanitized: sections whose heading mentions the champion, a
 //   comparison, a checklist or run notes are dropped; the first line becomes "# Version <label>";
 //   champion/incumbent/baseline, round ids (R0, r2c1, c3), builder ids, ports and --strip words
 //   become "…". Other files (screenshots) are copied as they are.
-// - --dup <name> adds that version a second time under its own label: the judge scores the
-//   champion twice, and the gap between the two is the run's noise margin.
 // - <out-dir>.key.json (beside the pool, not in it) maps labels to names; never hand it to the judge.
 import fs from 'node:fs';
 import path from 'node:path';
@@ -21,20 +19,14 @@ const flag = (name) => {
   const [, value] = args.splice(i, 2);
   return value;
 };
-const dup = flag('dup');
 const extra = (flag('strip') ?? '').split(',').filter(Boolean);
 const versions = args.map((a) => {
   const [name, dir] = a.split('=');
   return { name, dir };
 });
 if (!out || versions.length < 2 || versions.some((v) => !v.dir)) {
-  console.error('usage: node blind.mjs <out-dir> <name>=<dir> <name>=<dir> … [--dup <name>] [--strip w1,w2]');
+  console.error('usage: node blind.mjs <out-dir> <name>=<dir> <name>=<dir> [--strip w1,w2]');
   process.exit(2);
-}
-if (dup) {
-  const v = versions.find((x) => x.name === dup);
-  if (!v) throw new Error(`--dup ${dup}: no such version`);
-  versions.push({ ...v, name: `${dup} (second copy)` });
 }
 
 // Fisher–Yates with crypto randomness, so labels carry no order.
