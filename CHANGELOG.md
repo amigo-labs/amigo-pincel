@@ -1,5 +1,21 @@
 # Changelog
 
+## [1.9.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.8.1...v1.9.0) (2026-11-10)
+
+
+### Features
+
+* **ui:** lay the start screen out as a weighted action grid ([140c864](https://github.com/amigo-labs/amigo-pincel/commit/140c864caeeddfa6cd9aed56433f950825457bed))
+* **ui:** let the start screen layout follow the recent files ([31e3376](https://github.com/amigo-labs/amigo-pincel/commit/31e33762fb50295e4034f32e070bf39d41878309))
+* **ui:** say in the New dialog what Create will make ([c489fff](https://github.com/amigo-labs/amigo-pincel/commit/c489fff1eb1d829b81ef99ed6c73c44ea75797b4))
+
+
+### Bug Fixes
+
+* re-sync agent skills (acceptance-criteria headings in any case) ([cbb40a5](https://github.com/amigo-labs/amigo-pincel/commit/cbb40a567d985d76ef2ee294ca381678ebdb4f37))
+* re-sync agent skills (commit gate, spec-build completion) ([e6dc12e](https://github.com/amigo-labs/amigo-pincel/commit/e6dc12e8a19cba6950710572eee2911b8a03896b))
+* **ui:** keep the New dialog's notes, Tab and size honest ([714987d](https://github.com/amigo-labs/amigo-pincel/commit/714987d5c47258b3c8ca24d7e78cc4c648c4a37e))
+
 ## [1.8.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.8.0...v1.8.1) (2026-11-09)
 
 
