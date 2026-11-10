@@ -92,6 +92,12 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
   'rounded_rect',
   'ellipse',
   'polygon',
+  'triangle',
+  'diamond',
+  'star',
+  'block_arrow',
+  'heart',
+  'callout',
 ]);
 
 /** Tools that write pixels on press: a touch press with them is held
