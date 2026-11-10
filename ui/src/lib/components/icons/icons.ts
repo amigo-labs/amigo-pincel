@@ -100,10 +100,11 @@ export const ICONS = {
     { d: 'M16 10v11M10.5 16h11' },
     { d: 'M14 13l2-2 2 2M14 19l2 2 2-2M13 14l-2 2 2 2M19 14l2 2-2 2' },
   ],
-  // … and the same marquee with the cross outside it: only the outline does.
+  // … and the marquee with an arrow pulling it away: only the outline does.
+  // The arrow leaves the marquee (a plain cross there read as "add").
   'move-mask': [
-    { d: 'M8 8h9v9H8z', dash: true },
-    { d: 'M4 2v6M1 5h6' },
+    { d: 'M9 9h11v11H9z', dash: true },
+    { d: 'M7 7L2.5 2.5M2.5 6.5v-4h4' },
   ],
   // A rubber stamp: handle, block, and the print it leaves. (Slice keeps the grid.)
   stamp: [
@@ -111,7 +112,8 @@ export const ICONS = {
     { d: 'M5 9h14v5H5z' },
     { d: 'M4 19h16' },
   ],
-  slice: [{ d: 'M4 4h16v16H4z' }, { d: 'M9 4v16M15 4v16M4 9h16M4 15h16', dash: true }],
+  // A frame cut into nine: solid cuts, dashes turned to noise at rail size.
+  slice: [{ d: 'M4 4h16v16H4z' }, { d: 'M9.5 4v16M14.5 4v16M4 9.5h16M4 14.5h16' }],
 
   // Actions
   menu: [{ d: 'M4 6h16M4 12h16M4 18h16' }],
