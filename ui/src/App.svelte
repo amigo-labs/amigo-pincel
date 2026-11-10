@@ -26,6 +26,7 @@
   import StartScreen from './lib/shell/StartScreen.svelte';
   import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
   import DropDialog from './lib/shell/DropDialog.svelte';
+  import TooltipLayer from './lib/shell/TooltipLayer.svelte';
   import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
   import { loadTouchGestures } from './lib/shell/touch-gestures.svelte';
   import { planDrop, type DroppedImage } from './lib/shell/editor-drop';
@@ -887,3 +888,5 @@
     <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}
+
+<TooltipLayer />
