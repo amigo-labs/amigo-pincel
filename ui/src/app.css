@@ -24,6 +24,21 @@
   --color-pc-track: #73737e;
   /* Selected rows: accent tint, the accent bar marks the edge. */
   --color-pc-selected: rgb(59 130 246 / 0.16);
+  /* Button surfaces. Primary: white text stays >= 4.5:1 on it (5.2:1;
+     the plain accent gives 3.7:1), also on its hover shade (4.6:1). */
+  --color-pc-primary: #2563eb;
+  --color-pc-primary-hover: #2e6cf0;
+  --color-pc-primary-pressed: #1d4fc4;
+  --color-pc-primary-off: #263350;
+  --color-pc-primary-off-fg: #93a5cc;
+  --color-pc-pressed: #222226;
+  --color-pc-edge-hover: #4a4a52;
+  /* Danger: the text shade on panels (>= 4.5:1), the solid fill under
+     white text (5.6:1). */
+  --color-pc-danger: #c62828;
+  --color-pc-danger-pressed: #a32020;
+  --color-pc-danger-edge: #7a3131;
+  --color-pc-danger-text: #ff9d9d;
 }
 
 @layer base {
@@ -184,44 +199,135 @@
     justify-content: center;
     gap: 0.375rem;
     min-height: 1.75rem;
-    border-radius: 0.25rem;
+    border-radius: 0.375rem;
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-raised);
+    /* A light top edge: the button reads as raised off its panel. */
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
     padding: 0 0.625rem;
     font-size: 0.75rem;
-    font-weight: 450;
+    font-weight: 500;
     color: var(--color-pc-text);
   }
   .panel-btn:hover:not(:disabled) {
+    border-color: var(--color-pc-edge-hover);
     background-color: var(--color-pc-hover);
+  }
+  /* Pressed: the button sinks one pixel, so every click gets an answer. */
+  .panel-btn:active:not(:disabled) {
+    border-color: var(--color-pc-border);
+    background-color: var(--color-pc-pressed);
+    box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.45);
+    transform: translateY(1px);
   }
   /* Disabled: outline only, so the button still reads as a control. */
   .panel-btn:disabled {
     background-color: transparent;
-    color: var(--color-pc-faint);
-    opacity: 0.7;
+    box-shadow: none;
+    color: var(--color-pc-control);
     cursor: not-allowed;
   }
   /* Low-emphasis row actions (repeated per row): no chrome until hover. */
   .panel-btn-ghost {
     border-color: transparent;
     background-color: transparent;
+    box-shadow: none;
     color: var(--color-pc-muted);
   }
   .panel-btn-ghost:hover:not(:disabled) {
-    border-color: var(--color-pc-border);
+    border-color: transparent;
+    background-color: var(--color-pc-hover);
     color: var(--color-pc-text);
   }
+  .panel-btn-ghost:active:not(:disabled) {
+    border-color: transparent;
+    background-color: var(--color-pc-active);
+    box-shadow: none;
+    color: var(--color-pc-text);
+  }
+  .panel-btn-ghost:disabled {
+    border-color: transparent;
+  }
   .panel-btn-primary {
-    background-color: var(--color-pc-accent);
-    border-color: var(--color-pc-accent);
+    background-color: var(--color-pc-primary);
+    border-color: var(--color-pc-primary);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.2);
     color: var(--color-pc-accent-fg);
   }
   .panel-btn-primary:hover:not(:disabled) {
-    background-color: var(--color-pc-accent);
-    filter: brightness(1.1);
+    background-color: var(--color-pc-primary-hover);
+    border-color: var(--color-pc-primary-hover);
   }
-
+  .panel-btn-primary:active:not(:disabled) {
+    background-color: var(--color-pc-primary-pressed);
+    border-color: var(--color-pc-primary-pressed);
+    box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.35);
+  }
+  .panel-btn-primary:disabled {
+    background-color: var(--color-pc-primary-off);
+    border-color: var(--color-pc-primary-off);
+    color: var(--color-pc-primary-off-fg);
+  }
+  /* Actions that lose work (Don't Save, Discard, Delete): quiet until
+     hovered, then solid. */
+  .panel-btn-danger {
+    border-color: var(--color-pc-danger-edge);
+    color: var(--color-pc-danger-text);
+  }
+  .panel-btn-danger:hover:not(:disabled) {
+    background-color: var(--color-pc-danger);
+    border-color: var(--color-pc-danger);
+    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.18);
+    color: var(--color-pc-accent-fg);
+  }
+  .panel-btn-danger:active:not(:disabled) {
+    background-color: var(--color-pc-danger-pressed);
+    border-color: var(--color-pc-danger-pressed);
+    box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.35);
+    color: var(--color-pc-accent-fg);
+  }
+  .panel-btn-danger:disabled {
+    border-color: var(--color-pc-border);
+    color: var(--color-pc-control);
+  }
+  /* A button whose action runs: it keeps its look and shows a spinner. */
+  .panel-btn[aria-busy='true']:disabled {
+    background-color: var(--color-pc-raised);
+    color: var(--color-pc-text);
+    cursor: progress;
+  }
+  .panel-btn-primary[aria-busy='true']:disabled {
+    background-color: var(--color-pc-primary-pressed);
+    border-color: var(--color-pc-primary-pressed);
+    color: var(--color-pc-accent-fg);
+  }
+  /* Keycaps teach keyboard users; a touch screen has no keys. */
+  @media (pointer: coarse) {
+    .panel-btn .keycap {
+      display: none;
+    }
+  }
+  .btn-spinner {
+    width: 0.875rem;
+    height: 0.875rem;
+    flex-shrink: 0;
+    animation: btn-spin 0.8s linear infinite;
+  }
+  @keyframes btn-spin {
+    to {
+      transform: rotate(360deg);
+    }
+  }
+  /* A shortcut shown on a button or in a tooltip. */
+  .keycap {
+    display: inline-block;
+    border-radius: 0.1875rem;
+    background-color: rgb(255 255 255 / 0.14);
+    padding: 0.1875rem 0.3125rem;
+    font: inherit;
+    font-size: 0.625rem;
+    line-height: 1;
+  }
   /* Tool-options bar controls, same in both modes. */
   .opt {
     display: flex;
@@ -383,4 +489,19 @@
    never runs under its chevron. */
 select:not([multiple]):not([size]) {
   padding-right: 1.375rem;
+}
+
+/* Unlayered on purpose: these win over the `hover:bg-*` utilities icon
+   buttons and rail tools carry. Pressed sinks one pixel; a toggle that is
+   on (or the active tool) wears the accent, not a grey close to hover. */
+.btn-press:active:not(:disabled) {
+  background-color: var(--color-pc-active);
+  transform: translateY(1px);
+}
+.btn-on,
+.btn-on:hover,
+.btn-on:active:not(:disabled) {
+  background-color: color-mix(in srgb, var(--color-pc-accent) 22%, transparent);
+  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-pc-accent) 55%, transparent);
+  color: var(--color-pc-accent-text);
 }

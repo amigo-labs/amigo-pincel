@@ -26,8 +26,8 @@
     {#each group.tools as tool (tool.id)}
       <button
         type="button"
-        class="flex h-7 w-7 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45"
-        class:variant-on={tool.id === active}
+        class="btn-press flex h-7 w-7 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45"
+        class:btn-on={tool.id === active}
         role="radio"
         aria-checked={tool.id === active}
         aria-label={tool.label}
@@ -40,10 +40,3 @@
     {/each}
   </div>
 {/if}
-
-<style>
-  .variant-on {
-    background-color: var(--color-pc-active);
-    color: var(--color-pc-text);
-  }
-</style>

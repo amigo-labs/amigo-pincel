@@ -139,6 +139,7 @@ export const de: Record<MessageKey, string> = {
   'frame.menu': 'Menü',
   'frame.closeMenu': 'Menü schließen',
   'frame.variant': '{group}-Variante',
+  'frame.variantsHint': 'Halten oder Rechtsklick: Varianten',
   'frame.togglePanels': 'Bedienfelder ein/aus',
   'frame.closePanels': 'Bedienfelder schließen',
   'frame.sidebarWidth': 'Breite der Seitenleiste',

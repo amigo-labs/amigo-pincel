@@ -14,8 +14,8 @@
 >
   <button
     type="button"
-    class="mod-btn"
-    class:mod-on={modifiers.shift}
+    class="mod-btn btn-press"
+    class:btn-on={modifiers.shift}
     aria-pressed={modifiers.shift}
     aria-label={t('mods.shift')}
     title={t('mods.shiftHint')}
@@ -25,8 +25,8 @@
   </button>
   <button
     type="button"
-    class="mod-btn"
-    class:mod-on={modifiers.alt}
+    class="mod-btn btn-press"
+    class:btn-on={modifiers.alt}
     aria-pressed={modifiers.alt}
     aria-label={t('mods.alt')}
     title={t('mods.altHint')}
@@ -48,10 +48,5 @@
   }
   .mod-btn:hover {
     color: var(--color-pc-text);
-  }
-  .mod-on,
-  .mod-on:hover {
-    background-color: var(--color-pc-accent);
-    color: var(--color-pc-accent-fg);
   }
 </style>
