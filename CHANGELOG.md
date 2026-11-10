@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.10.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.9.0...v1.10.0) (2026-11-10)
+
+
+### Features
+
+* **ui:** add a Button component with busy state and shortcut keycap ([aad8bce](https://github.com/amigo-labs/amigo-pincel/commit/aad8bcee088d94e633bc7982ad05c7b3da4906f0))
+* **ui:** give buttons a pressed state, a danger variant and one on-state ([b1e9e4e](https://github.com/amigo-labs/amigo-pincel/commit/b1e9e4e376c25353851e2c3e4a9b510fa1d3ab2d))
+* **ui:** one button language, themed tooltips, duotone icon set ([e64a198](https://github.com/amigo-labs/amigo-pincel/commit/e64a19847667f3ae764ab7ab46cd1885bc08045f))
+* **ui:** redraw the icon set in duotone ([1e525e6](https://github.com/amigo-labs/amigo-pincel/commit/1e525e619c52542a7c56001c7de763a7f631c23d))
+* **ui:** show themed tooltips with the shortcut as a keycap ([db9c59c](https://github.com/amigo-labs/amigo-pincel/commit/db9c59cbc4f1b3c8f0a33dc6069ee8e6157683e1))
+
+
+### Bug Fixes
+
+* **ui:** keep control names and nested titles under the tooltip layer ([e320368](https://github.com/amigo-labs/amigo-pincel/commit/e3203688f8f8e47134e056a1e09f133d9f86d272))
+* **ui:** make the Slice and Move Selection Outline icons readable ([5d15c3d](https://github.com/amigo-labs/amigo-pincel/commit/5d15c3dde157156fd11f635eac93a326249038f6))
+
 ## [1.9.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.8.1...v1.9.0) (2026-11-10)
 
 
