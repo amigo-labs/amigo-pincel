@@ -344,7 +344,15 @@ export function lockedEditTarget(): string | null {
   )
     return null;
   if (activeTool() === 'move' && !ed.selection) return null;
-  const id = activeTool() === 'tilemap-stamp' ? ed.activeLayerId : ed.doc.paintTargetLayer();
+  // The stamp writes into the tilemap layer of its tileset, whichever
+  // layer is active (tilemaps AC-10, AC-15).
+  const stampTarget = toolState.stampTile
+    ? activeTilemapLayerForTileset(toolState.stampTile.tilesetId)
+    : null;
+  const id =
+    activeTool() === 'tilemap-stamp'
+      ? (stampTarget ?? ed.activeLayerId)
+      : ed.doc.paintTargetLayer();
   if (id === null || id === 0xffffffff || !ed.doc.layerLocked(id)) return null;
   return ed.doc.layerName(id);
 }
