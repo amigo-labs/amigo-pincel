@@ -5,6 +5,7 @@
   // Enter activates the focused one, Escape cancels. While it is open no
   // key reaches the editors, the menus or the browser: a capture-phase
   // window listener sees every key first and stops it.
+  import Button from '../components/Button.svelte';
   import { onMount } from 'svelte';
   import { t } from '../i18n/index.svelte';
   import type { UnsavedAnswer } from './unsaved.svelte';
@@ -86,17 +87,14 @@
       {/if}
     </div>
     <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <button
-        bind:this={saveButton}
-        type="button"
-        class="panel-btn panel-btn-primary"
-        onclick={() => onAnswer('save')}>{several ? t('shell.saveAll') : t('shell.save')}</button
+      <Button bind:el={saveButton} variant="primary" onclick={() => onAnswer('save')}
+        >{several ? t('shell.saveAll') : t('shell.save')}</Button
       >
-      <button bind:this={dontSaveButton} type="button" class="panel-btn" onclick={() => onAnswer('dontSave')}
-        >{t('shell.dontSave')}</button
+      <Button bind:el={dontSaveButton} variant="danger" onclick={() => onAnswer('dontSave')}
+        >{t('shell.dontSave')}</Button
       >
-      <button bind:this={cancelButton} type="button" class="panel-btn" onclick={() => onAnswer('cancel')}
-        >{t('common.cancel')}</button
+      <Button bind:el={cancelButton} shortcut="Esc" onclick={() => onAnswer('cancel')}
+        >{t('common.cancel')}</Button
       >
     </div>
   </div>

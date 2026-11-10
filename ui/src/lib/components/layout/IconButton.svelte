@@ -20,14 +20,14 @@
 
 <button
   type="button"
-  class="icon-btn flex shrink-0 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
+  class="icon-btn btn-press flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
   class:h-8={size === 'md'}
   class:w-8={size === 'md'}
   class:h-6={size === 'sm'}
   class:w-6={size === 'sm'}
-  class:bg-pc-active={pressed === true}
-  class:text-pc-text={pressed === true}
+  class:btn-on={pressed === true}
   title={hint ? `${label} (${hint})` : label}
+  data-shortcut={hint}
   aria-label={label}
   aria-pressed={pressed}
   {disabled}

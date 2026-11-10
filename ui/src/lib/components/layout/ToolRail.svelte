@@ -349,15 +349,18 @@
       {@const flyout = hasFlyout(g)}
       <button
         type="button"
-        class="relative flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
+        class="btn-press relative flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
         class:h-9={orientation === 'vertical'}
         class:w-9={orientation === 'vertical'}
         class:h-11={orientation === 'horizontal'}
         class:w-11={orientation === 'horizontal'}
-        class:tool-on={on}
+        class:btn-on={on}
         style:touch-action={flyout ? (orientation === 'vertical' ? 'pan-y' : 'pan-x') : undefined}
         data-group={g.id}
         title={tool.title ?? `${g.tools.length > 1 ? g.label : tool.label}${g.shortcut ? ` (${g.shortcut})` : ''}`}
+        data-shortcut={tool.title ? undefined : g.shortcut}
+        data-tip-hint={flyout ? t('frame.variantsHint') : undefined}
+        data-tip-side={orientation === 'vertical' ? 'right' : undefined}
         aria-label={g.tools.length > 1 ? `${g.label}: ${tool.label}` : tool.label}
         aria-pressed={on}
         aria-haspopup={flyout ? 'menu' : undefined}
@@ -403,11 +406,5 @@
   .rail {
     -webkit-touch-callout: none;
   }
-  /* Active tool: accent tint and accent glyph, quieter than a solid fill. */
-  .tool-on,
-  .tool-on:hover {
-    background-color: color-mix(in srgb, var(--color-pc-accent) 22%, transparent);
-    box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-pc-accent) 55%, transparent);
-    color: var(--color-pc-accent-text);
-  }
+  /* The active tool wears `.btn-on` (app.css): accent tint and glyph. */
 </style>

@@ -14,8 +14,8 @@
 >
   <button
     type="button"
-    class="mod-btn"
-    class:mod-on={modifiers.shift}
+    class="mod-btn btn-press"
+    class:btn-on={modifiers.shift}
     aria-pressed={modifiers.shift}
     aria-label={t('mods.shift')}
     title={t('mods.shiftHint')}
@@ -25,8 +25,8 @@
   </button>
   <button
     type="button"
-    class="mod-btn"
-    class:mod-on={modifiers.alt}
+    class="mod-btn btn-press"
+    class:btn-on={modifiers.alt}
     aria-pressed={modifiers.alt}
     aria-label={t('mods.alt')}
     title={t('mods.altHint')}
@@ -44,14 +44,12 @@
     align-items: center;
     justify-content: center;
     border-radius: 0.375rem;
+  }
+  .mod-btn:not(.btn-on) {
     color: var(--color-pc-muted);
   }
-  .mod-btn:hover {
+  /* An on toggle keeps the accent glyph of `.btn-on` (app.css). */
+  .mod-btn:not(.btn-on):hover {
     color: var(--color-pc-text);
-  }
-  .mod-on,
-  .mod-on:hover {
-    background-color: var(--color-pc-accent);
-    color: var(--color-pc-accent-fg);
   }
 </style>

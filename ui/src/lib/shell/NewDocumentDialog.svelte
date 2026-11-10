@@ -5,6 +5,7 @@
   // The dialog says what Create will make before it makes it: a result
   // line from `newDocParams` (the clamp Create applies) and a note under a
   // field whose value that clamp would change.
+  import Button from '../components/Button.svelte';
   import type { EditorMode, NewDocParams } from './types';
   import type { MessageKey } from '../i18n/en';
   import { tick } from 'svelte';
@@ -324,13 +325,9 @@
     </div>
 
     <div class="mt-3 flex justify-end gap-2">
-      <button type="button" class="panel-btn min-h-8" onclick={onCancel}
-        >{t('common.cancel')}</button
-      >
-      <button
-        type="submit"
-        class="panel-btn panel-btn-primary min-h-8"
-        aria-describedby="{uid}-result">{t('common.create')}</button
+      <Button class="min-h-8" onclick={onCancel}>{t('common.cancel')}</Button>
+      <Button type="submit" variant="primary" class="min-h-8" aria-describedby="{uid}-result"
+        >{t('common.create')}</Button
       >
     </div>
   </form>

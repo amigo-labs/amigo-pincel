@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Button from './Button.svelte';
   import type { AutosaveSnapshotMeta } from '../idb/autosave';
   import { t } from '../i18n/index.svelte';
 
@@ -74,18 +75,12 @@
               </span>
             </div>
             <div class="flex shrink-0 gap-1">
-              <button
-                class="recovery-btn recovery-btn-primary"
-                onclick={() => onRecover(snap)}
-              >
+              <Button variant="primary" onclick={() => onRecover(snap)}>
                 {t('recovery.recover')}
-              </button>
-              <button
-                class="recovery-btn"
-                onclick={() => onDiscard(snap.docId)}
-              >
+              </Button>
+              <Button variant="danger" onclick={() => onDiscard(snap.docId)}>
                 {t('recovery.discard')}
-              </button>
+              </Button>
             </div>
           </div>
           {#if errors[snap.docId]}
@@ -97,26 +92,7 @@
       {/each}
     </ul>
     <footer class="flex justify-end">
-      <button class="recovery-btn" onclick={onDismiss}>{t('recovery.notNow')}</button>
+      <Button onclick={onDismiss}>{t('recovery.notNow')}</Button>
     </footer>
   </div>
 </div>
-
-<style>
-  .recovery-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.25rem 0.625rem;
-    font-size: 0.75rem;
-  }
-  .recovery-btn:hover {
-    background-color: rgb(38 38 38);
-  }
-  .recovery-btn-primary {
-    background-color: rgb(37 99 235);
-    border-color: rgb(59 130 246);
-  }
-  .recovery-btn-primary:hover {
-    background-color: rgb(29 78 216);
-  }
-</style>

@@ -137,6 +137,7 @@ export const en = {
   'frame.menu': 'Menu',
   'frame.closeMenu': 'Close menu',
   'frame.variant': '{group} variant',
+  'frame.variantsHint': 'Hold or right-click: variants',
   'frame.togglePanels': 'Toggle panels',
   'frame.closePanels': 'Close panels',
   'frame.sidebarWidth': 'Sidebar width',

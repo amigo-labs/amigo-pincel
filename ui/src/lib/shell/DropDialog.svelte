@@ -3,6 +3,7 @@
   // layers, or open the first as a document (docs/specs/file-access.md
   // AC-20, AC-22, AC-25). Keys typed here never reach the editor's
   // window-level shortcuts.
+  import Button from '../components/Button.svelte';
   import { onMount } from 'svelte';
   import { t } from '../i18n/index.svelte';
 
@@ -59,26 +60,16 @@
       <span>{t('drop.dontAsk')}</span>
     </label>
     <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button
-        bind:this={openButton}
-        type="button"
-        class="panel-btn"
-        onclick={() => onChoose('document', dontAsk)}
-      >
+      <Button onclick={onCancel}>{t('common.cancel')}</Button>
+      <Button bind:el={openButton} onclick={() => onChoose('document', dontAsk)}>
         {t('drop.openDocument')}
-      </button>
+      </Button>
       {#if canAddLayers}
-        <button
-          bind:this={primary}
-          type="button"
-          class="panel-btn panel-btn-primary"
-          onclick={() => onChoose('layer', dontAsk)}
-        >
+        <Button bind:el={primary} variant="primary" onclick={() => onChoose('layer', dontAsk)}>
           {t('drop.addLayer')}
-        </button>
+        </Button>
       {:else}
-        <button type="button" class="panel-btn" disabled>{t('drop.addLayer')}</button>
+        <Button disabled>{t('drop.addLayer')}</Button>
       {/if}
     </div>
   </div>

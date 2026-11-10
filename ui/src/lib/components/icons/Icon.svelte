@@ -29,7 +29,9 @@
   {#each paths as p, i (i)}
     <path
       d={p.d}
-      fill={p.fill ? 'currentColor' : 'none'}
+      fill={p.fill || p.tone ? 'currentColor' : 'none'}
+      fill-opacity={p.tone ? 0.3 : undefined}
+      stroke={p.tone ? 'none' : undefined}
       stroke-dasharray={p.dash ? '2.5 2.5' : undefined}
     />
   {/each}
