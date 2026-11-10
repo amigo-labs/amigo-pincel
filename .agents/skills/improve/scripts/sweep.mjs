@@ -1,6 +1,9 @@
 // Width sweep of a served page: finds overlapping text, horizontal scroll and an unreachable top.
 //
-// Usage: node sweep.mjs <url> [--setup <file.mjs>] [--from 320] [--to 1440] [--step 8]
+// Usage: node sweep.mjs <url> [--setup <file.mjs>] [--pkg <dir>] [--from 320] [--to 1440] [--step 8]
+//
+// Playwright is resolved from <dir>/package.json (default: the first of ".", "ui", "web",
+// "frontend", "app" that has one), so the script needs no install of its own.
 //
 // <file.mjs> may export `states`: an array of { name, run(page, lang) } that brings a freshly
 // loaded page into the state to sweep (seed IndexedDB, open a card, …), and `langs` (default
@@ -8,6 +11,7 @@
 //
 // Text runs are clipped to their nearest overflow-clipping ancestor, so ellipsis-truncated
 // text does not count as overlapping its neighbour.
+import fs from 'node:fs';
 import { createRequire } from 'node:module';
 import path from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -19,7 +23,9 @@ const opt = (name, fallback) => {
   return i > 0 ? args[i + 1] : fallback;
 };
 if (!url) {
-  console.error('usage: node sweep.mjs <url> [--setup file.mjs] [--from 320] [--to 1440] [--step 8]');
+  console.error(
+    'usage: node sweep.mjs <url> [--setup file.mjs] [--pkg dir] [--from 320] [--to 1440] [--step 8]',
+  );
   process.exit(2);
 }
 const from = Number(opt('from', 320));
@@ -30,8 +36,26 @@ const setup = setupPath ? await import(pathToFileURL(path.resolve(setupPath)).hr
 const states = setup.states ?? [{ name: 'default', run: async () => {} }];
 const langs = setup.langs ?? ['en'];
 
-const require = createRequire(path.resolve('ui/package.json'));
-const { chromium } = require('@playwright/test');
+const pkgDir =
+  opt('pkg') ?? ['.', 'ui', 'web', 'frontend', 'app'].find((d) => fs.existsSync(path.join(d, 'package.json')));
+if (!pkgDir) {
+  console.error('sweep: no package.json found; pass --pkg <dir> of the package that has Playwright');
+  process.exit(2);
+}
+const require = createRequire(path.resolve(pkgDir, 'package.json'));
+const load = (name) => {
+  try {
+    return require(name);
+  } catch {
+    return null;
+  }
+};
+const playwright = load('@playwright/test') ?? load('playwright');
+if (!playwright) {
+  console.error(`sweep: neither @playwright/test nor playwright resolves from ${pkgDir}/package.json`);
+  process.exit(2);
+}
+const { chromium } = playwright;
 
 /** Runs in the page: one string per problem found at the current width. */
 function probe() {

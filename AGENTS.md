@@ -443,11 +443,12 @@ Do not stop for:
 
 ## 13. Skills Directory
 
-Skills live in `.agents/skills/` — read by Codex, Gemini CLI, Copilot, Cursor and other agents — and are mirrored to `.claude/skills/` for Claude Code. The spec workflow, `qa` and `ui-polish` are vendored from [amigo-labs/skills](https://github.com/amigo-labs/skills) (`.agents/skills.json`, `node .agents/sync.mjs`); the workflow rules are the managed block "Spec-driven workflow" below, the project facts they rely on the "Spec workflow profile". When a skill exists for a task type, follow it.
+Skills live in `.agents/skills/` — read by Codex, Gemini CLI, Copilot, Cursor and other agents — and are mirrored to `.claude/skills/` for Claude Code. The spec workflow, `qa`, `ui-polish` and `improve` are vendored from [amigo-labs/skills](https://github.com/amigo-labs/skills) (`.agents/skills.json`, `node .agents/sync.mjs`); the workflow rules are the managed block "Spec-driven workflow" below, the project facts they rely on the "Spec workflow profile". When a skill exists for a task type, follow it.
 
 | Skill | Purpose |
 | ------- | --------- |
 | `/ui-polish` | Screenshot-scored UI improvement loop (Playwright) |
+| `/improve <target> [idea]` | Measure → change once → compare once: scripted defect list, one builder, a blind old/new comparison in both orders |
 
 Gate commands: `.agents/gates.json`. Hooks (`.claude/settings.json`, Claude Code only): SessionStart lists open feature specs, a guard refuses new suppressions (§9), the Stop hook runs the quick `stop` gates (rustfmt, clippy on the changed crates) after a turn that changed code, and the commit gate runs the `fast` gates before `git commit`.
 
@@ -479,6 +480,7 @@ The project facts the shared spec skills (`spec`, `spec-build`, `spec-check`, `s
 - **Stopping points** — §3.3 and §12: a new dependency in `Cargo.toml` / `package.json`, a new `unsafe` block, a test that would have to be disabled, an architectural decision missing from the Decision Log, an AC that turns out wrong. New public API the ACs require is fine: list it for review.
 - **Sizing** — §3.2: one session builds about one M task (~400 changed lines); an XL feature is split into several specs.
 - **Commits** — §2.4: one concept per commit, scopes `pincel-core`, `aseprite-writer`, `pincel-wasm`, `pincel-image-core`, `ui`, `tauri`, `spec`, …; a block touching `pincel-core`, `pincel-wasm` and `ui` is a series of commits, one per scope; `aseprite-writer` never shares a commit with app changes (§9). Example: `feat(pincel-core): add grid to Sprite (AC-02, AC-03)`.
+- **Improve** — for `/improve`. Serve the UI: `cd ui && pnpm build && pnpm preview --port <p>` (a free port, see Gotchas), URL `http://localhost:<p>/app/`; the Playwright package is `ui/` (`sweep.mjs --pkg ui`). Project check: `node scripts/ui-lint.mjs <base>` (raw colours in `.svelte`, en/de key parity). Covering e2e specs: `grep -l` the target's accessible names in `ui/e2e/`; stress setups for `sweep.mjs` live in the run's scratch folder and seed state the way `ui/e2e/helpers.ts` does (IndexedDB recents, German locale, open cards). Builder constraints: only `pc-*` tokens and `app.css` classes, the `Icon` component; keep every prop, binding, id, `data-tour` anchor and accessible name e2e uses; no localStorage (§9); every string through `t()` with `en.ts` and `de.ts`. Worktrees need their own `CARGO_TARGET_DIR` and `PINCEL_E2E_PORT` (Gotchas).
 - **Branches** — `main` is protected (§8); feature branch `feat/<spec-name>`.
 
 <!-- amigo-skills:begin spec-workflow -->

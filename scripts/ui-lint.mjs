@@ -1,6 +1,6 @@
-// Static checks for a challenger's UI change, before anything is built or judged.
+// Static checks for a UI change (the project check of the `improve` skill, AGENTS.md profile).
 //
-// Usage: node ui-lint.mjs [base-ref=HEAD]   (run from the repo root of the checkout)
+// Usage: node scripts/ui-lint.mjs [base-ref=HEAD]   (run from the repo root of the checkout)
 //
 // Looks only at lines the working tree adds against <base-ref> under ui/src:
 // - error: raw colours in .svelte files — rgb()/rgba()/hsl(), #hex, color-mix(), and
