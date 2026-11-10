@@ -961,6 +961,17 @@
       commitLive();
       return;
     }
+    // Enter closes an open polygonal lasso (spec §5.4).
+    if (
+      e.key === 'Enter' &&
+      !e.ctrlKey &&
+      !e.metaKey &&
+      !e.altKey &&
+      gestureControl.commitPolygon()
+    ) {
+      e.preventDefault();
+      return;
+    }
     const action = actionFor(e);
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.

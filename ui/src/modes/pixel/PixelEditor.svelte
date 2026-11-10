@@ -1,6 +1,6 @@
 <script lang="ts">
   import TourHint from '../../lib/tour/TourHint.svelte';
-  import { onMount } from 'svelte';
+  import { onMount, untrack } from 'svelte';
   import { loadCore } from '../../lib/core';
   import {
     bindTabHooks,
@@ -901,6 +901,14 @@
     dropWandLink();
   });
 
+  // … and drops an open Polygonal Lasso: its vertices would swallow the
+  // next tool's drags and close on that tool's Enter or double-click.
+  $effect(() => {
+    if (toolState.tool !== 'selection-polygon' && untrack(() => toolState.polyPoints)) {
+      cancelPolygon();
+    }
+  });
+
   // The shell cancels the open effect before its unsaved-changes prompt
   // or a document switch (effect-panel AC-17).
   $effect(() => {
@@ -1147,7 +1155,12 @@
   />
 {/snippet}
 {#snippet historyBody()}
-  <HistoryPanel history={ed.history} origin={ed.origin} busy={gestureInProgress} onJump={jumpHistory} />
+  <HistoryPanel
+    history={ed.history}
+    origin={ed.origin}
+    busy={gestureInProgress}
+    onJump={jumpHistory}
+  />
 {/snippet}
 
 {#snippet slicesBody()}

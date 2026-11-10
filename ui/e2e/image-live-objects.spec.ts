@@ -108,6 +108,24 @@ test('a refused or degenerate drag leaves nothing live', async ({ page }) => {
   await expect(page.getByText(/is locked/)).toBeVisible();
 });
 
+test('every shape variant is refused on a locked layer with the notice', async ({ page }) => {
+  await createDocument(page, 'image', { width: 64, height: 64 });
+  await page.getByRole('button', { name: /^Lock/ }).first().click();
+  for (const shape of ['Triangle', 'Diamond', 'Star', 'Block Arrow', 'Heart', 'Callout']) {
+    const button = page.getByRole('button', { name: new RegExp(`(^|: )${shape}$`) });
+    for (let i = 0; i < 12 && (await button.count()) === 0; i += 1) await page.keyboard.press('u');
+    await expect(button, shape).toHaveCount(1);
+    await drag(page, imageCanvas(page), [0.2, 0.2], [0.6, 0.6]);
+    await expect(handles(page), shape).toHaveCount(0);
+    await expect(page.getByText(/is locked/), shape).toBeVisible();
+    await expect(imageCanvas(page), shape).toHaveCSS('cursor', 'crosshair');
+    // Clear the notice before the next variant: the Eyedropper writes no pixels.
+    await page.keyboard.press('i');
+    await page.mouse.click(...(await at(page, [0.5, 0.5])));
+    await expect(page.getByText(/is locked/)).toHaveCount(0);
+  }
+});
+
 test('Escape cancels the live object and the document is clean again', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   await setColors(page, '#000000', '#ff0000');
@@ -443,7 +461,10 @@ test('color changes and swaps recolor the live object', async ({ page }) => {
   await expect(handles(page)).toHaveCount(8);
   await undoButton(page).click(); // both color changes are one step
   expect(await shown(page, [0.3, 0.3])).toBe('#ff0000');
-  await page.locator('body').click({ position: { x: 1, y: 1 } }).catch(() => undefined);
+  await page
+    .locator('body')
+    .click({ position: { x: 1, y: 1 } })
+    .catch(() => undefined);
   await page.keyboard.press('x');
   await expect.poll(() => shown(page, [0.3, 0.3])).toBe('#000000');
   await expect(handles(page)).toHaveCount(8);

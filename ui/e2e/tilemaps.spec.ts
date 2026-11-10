@@ -383,6 +383,26 @@ test('the Tile Stamp tool draws the tile grid and the hovered cell (AC-12)', asy
   expect(await alphaAt(8, 4)).toBe(gridOnly);
 });
 
+test('a locked active layer that is not the stamp target does not block the stamp (AC-10, AC-15)', async ({
+  page,
+}) => {
+  const ed = await open(page, 8, 8);
+  await addTileset(page, 'Ground', 4, 4);
+  await plusTile(page, 'Ground').click();
+  await paintTilePixel(page, 'Ground', 1, 1, 2);
+  await plusLayer(page, 'Ground').click();
+  // The plain image layer is active and locked; the stamp goes into the
+  // tilemap layer, which is not.
+  await page.getByRole('button', { name: 'Layer 1', exact: true }).click();
+  await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
+  await tileButton(page, 'Ground', 1).click();
+  await expect(activeTool(page)).toHaveAccessibleName('Tile Stamp');
+  const depth = await undoDepth(page);
+  await page.mouse.click(...ed.at(1, 1));
+  await history(page, depth + 1);
+  expect(await sample(ed, 1, 2)).toBe(RED);
+});
+
 test('stamping without a tilemap layer asks for one and changes nothing (AC-13)', async ({
   page,
 }) => {

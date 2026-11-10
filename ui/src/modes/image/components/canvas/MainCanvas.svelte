@@ -369,6 +369,12 @@
     rounded_rect: 'crosshair',
     ellipse: 'crosshair',
     polygon: 'crosshair',
+    triangle: 'crosshair',
+    diamond: 'crosshair',
+    star: 'crosshair',
+    block_arrow: 'crosshair',
+    heart: 'crosshair',
+    callout: 'crosshair',
     text: 'text',
   };
   const cursor = $derived(

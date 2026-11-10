@@ -344,7 +344,15 @@ export function lockedEditTarget(): string | null {
   )
     return null;
   if (activeTool() === 'move' && !ed.selection) return null;
-  const id = activeTool() === 'tilemap-stamp' ? ed.activeLayerId : ed.doc.paintTargetLayer();
+  // The stamp writes into the tilemap layer of its tileset, whichever
+  // layer is active (tilemaps AC-10, AC-15).
+  const stampTarget = toolState.stampTile
+    ? activeTilemapLayerForTileset(toolState.stampTile.tilesetId)
+    : null;
+  const id =
+    activeTool() === 'tilemap-stamp'
+      ? (stampTarget ?? ed.activeLayerId)
+      : ed.doc.paintTargetLayer();
   if (id === null || id === 0xffffffff || !ed.doc.layerLocked(id)) return null;
   return ed.doc.layerName(id);
 }
@@ -412,7 +420,11 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(activeTool())) return;
   if (e.button !== 0 && e.button !== 2 && !eraserEnd) return;
-  if (!replay && e.pointerType === 'touch' && (isBrushTool(activeTool()) || activeTool() === 'bucket')) {
+  if (
+    !replay &&
+    e.pointerType === 'touch' &&
+    (isBrushTool(activeTool()) || activeTool() === 'bucket')
+  ) {
     // Nothing is written yet: a second finger rolls back to here.
     live.gestureUndoDepth = ed.doc?.undoDepth ?? 0;
     heldTouch = { e, stage, timer: setTimeout(pressHeld, TAP_LIMITS.landMs) };
@@ -472,9 +484,14 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
     const point = spriteCoord(e);
     if (!point) return;
     if (!toolState.polyPoints) {
+      // The second press of a double-click that closed a polygon on its
+      // first vertex: starting a new polygon here would let the `dblclick`
+      // commit it as a one-vertex click, which deselects.
+      if (isClosingDoublePress(e)) return;
       toolState.polyPoints = [point];
       live.dragSelMode = selectionModeFor(e);
-    } else if (e.detail >= 2) {
+    } else if (e.detail >= 2 || closesPolygon(toolState.polyPoints, point)) {
+      polyClosed = { at: e.timeStamp, x: e.clientX, y: e.clientY };
       commitPolygon();
       return;
     } else {
@@ -672,6 +689,30 @@ export function commitPolygonPoints(pts: { x: number; y: number }[], mode: Selec
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/** Screen distance (CSS px) within which a press counts as on the first vertex. */
+const POLY_CLOSE_PX = 6;
+/** A press this soon after a closing press belongs to the same double-click. */
+const POLY_DOUBLE_MS = 500;
+/** The press that last closed a polygon: its `timeStamp` and client position. */
+let polyClosed = { at: -Infinity, x: 0, y: 0 };
+
+/** `e` is the second press of the double-click whose first press closed a polygon. */
+function isClosingDoublePress(e: PointerEvent): boolean {
+  return (
+    e.timeStamp - polyClosed.at < POLY_DOUBLE_MS &&
+    Math.hypot(e.clientX - polyClosed.x, e.clientY - polyClosed.y) <= POLY_CLOSE_PX
+  );
+}
+
+// A press on the first vertex closes a Polygonal Lasso of three or more
+// vertices (spec §5.2). From zoom 7 up that is the vertex's own pixel;
+// zoomed out, the pixels within a few screen pixels of it count too.
+function closesPolygon(pts: { x: number; y: number }[], at: { x: number; y: number }): boolean {
+  const first = pts[0];
+  if (pts.length < 3 || !first) return false;
+  return Math.max(Math.abs(at.x - first.x), Math.abs(at.y - first.y)) * view.zoom <= POLY_CLOSE_PX;
 }
 
 export function commitPolygon() {

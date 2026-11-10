@@ -490,6 +490,115 @@ test('pixel: polygonal lasso closes on Enter, Escape discards its vertices (AC-0
   expect(await size(page)).toEqual([img.width, img.height]);
 });
 
+test('pixel: a click on the first vertex closes the polygonal lasso', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [2, 2],
+    [10, 2],
+    [10, 10],
+    [2, 10],
+    [2, 2],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'pixel', x, y)));
+  const closed = await size(page);
+  expect(closed[0]).toBeGreaterThan(6);
+  expect(closed[0]).toBeLessThan(PX);
+  expect(closed[1]).toBeLessThan(PX);
+  // The polygon is closed: the next click starts a new one and selects nothing.
+  await page.mouse.click(...(await mid(page, 'pixel', 13, 13)));
+  await page.keyboard.press('Escape');
+  expect(await size(page)).toEqual(closed);
+});
+
+test('pixel: a double-click on the first vertex closes the polygon and keeps it', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [2, 2],
+    [10, 2],
+    [10, 10],
+    [2, 10],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'pixel', x, y)));
+  // The first press closes; the second must not start a polygon that the
+  // double-click then commits as a deselecting click.
+  await page.mouse.dblclick(...(await mid(page, 'pixel', 2, 2)));
+  const [w, h] = await size(page);
+  expect(w).toBeLessThan(PX);
+  expect(h).toBeLessThan(PX);
+  // Nothing is left open either.
+  await page.keyboard.press('Enter');
+  expect(await size(page)).toEqual([w, h]);
+});
+
+test('pixel: choosing another tool drops an open polygonal lasso', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [2, 2],
+    [10, 2],
+    [10, 10],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'pixel', x, y)));
+  await page.keyboard.press('b');
+  // The vertices are gone: Enter has nothing to close.
+  await page.keyboard.press('Enter');
+  expect(await size(page)).toEqual([PX, PX]);
+  // And the Pencil paints its whole drag, not only the first dab.
+  await dragFrom(page, await mid(page, 'pixel', 3, 13), await mid(page, 'pixel', 9, 13));
+  await marquee(page, 'pixel', 9, 13, 10, 13);
+  const dab = await copySelection(page);
+  expect(dab.data.slice(0, 4)).not.toEqual([0, 0, 0, 0]);
+});
+
+test('image: Enter closes the polygonal lasso', async ({ page }) => {
+  await createDocument(page, 'image', { width: IMG, height: IMG });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [4, 4],
+    [20, 4],
+    [20, 20],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'image', x, y)));
+  await page.keyboard.press('Enter');
+  const [w, h] = await size(page);
+  expect(w).toBeGreaterThan(1);
+  expect(w).toBeLessThan(IMG);
+  expect(h).toBeLessThan(IMG);
+});
+
+test('image: the first vertex closes the polygonal lasso on a zoomed-out image', async ({
+  page,
+}) => {
+  const W = 600;
+  const H = 450;
+  // A small window, so the image is fitted well below 1:1.
+  await page.setViewportSize({ width: 520, height: 460 });
+  await createDocument(page, 'image', { width: W, height: H });
+  const box = await imageCanvas(page).boundingBox();
+  if (!box) throw new Error('canvas not visible');
+  // Shown smaller than 1:1, so a few screen pixels are many image pixels.
+  expect(box.width).toBeLessThan(W * 0.7);
+  await useTool(page, 'q', 'Polygonal Lasso');
+  const at = (fx: number, fy: number): [number, number] => [
+    box.x + box.width * fx,
+    box.y + box.height * fy,
+  ];
+  const first = at(0.2, 0.2);
+  await page.mouse.click(...first);
+  await page.mouse.click(...at(0.8, 0.2));
+  await page.mouse.click(...at(0.8, 0.8));
+  // A few screen pixels beside the first vertex still counts as on it.
+  await page.mouse.click(first[0] + 6, first[1] + 4);
+  const [w, h] = await size(page);
+  expect(w).toBeLessThan(W);
+  expect(h).toBeLessThan(H);
+  expect(w).toBeGreaterThan(W / 2);
+});
+
 test('pixel: Shift adds, Alt subtracts, Shift+Alt intersects (AC-07)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: PX, height: PX });
   await marquee(page, 'pixel', 0, 0, 3, 3);
