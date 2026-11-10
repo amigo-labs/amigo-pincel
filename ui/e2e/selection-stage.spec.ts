@@ -511,6 +511,29 @@ test('pixel: a click on the first vertex closes the polygonal lasso', async ({ p
   expect(await size(page)).toEqual(closed);
 });
 
+test('pixel: a double-click on the first vertex closes the polygon and keeps it', async ({
+  page,
+}) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [2, 2],
+    [10, 2],
+    [10, 10],
+    [2, 10],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'pixel', x, y)));
+  // The first press closes; the second must not start a polygon that the
+  // double-click then commits as a deselecting click.
+  await page.mouse.dblclick(...(await mid(page, 'pixel', 2, 2)));
+  const [w, h] = await size(page);
+  expect(w).toBeLessThan(PX);
+  expect(h).toBeLessThan(PX);
+  // Nothing is left open either.
+  await page.keyboard.press('Enter');
+  expect(await size(page)).toEqual([w, h]);
+});
+
 test('pixel: choosing another tool drops an open polygonal lasso', async ({ page }) => {
   await createDocument(page, 'pixel', { width: PX, height: PX });
   await useTool(page, 'q', 'Polygonal Lasso');

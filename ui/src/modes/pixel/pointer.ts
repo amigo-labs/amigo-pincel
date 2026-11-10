@@ -484,9 +484,14 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
     const point = spriteCoord(e);
     if (!point) return;
     if (!toolState.polyPoints) {
+      // The second press of a double-click that closed a polygon on its
+      // first vertex: starting a new polygon here would let the `dblclick`
+      // commit it as a one-vertex click, which deselects.
+      if (isClosingDoublePress(e)) return;
       toolState.polyPoints = [point];
       live.dragSelMode = selectionModeFor(e);
     } else if (e.detail >= 2 || closesPolygon(toolState.polyPoints, point)) {
+      polyClosed = { at: e.timeStamp, x: e.clientX, y: e.clientY };
       commitPolygon();
       return;
     } else {
@@ -688,6 +693,18 @@ export function commitPolygonPoints(pts: { x: number; y: number }[], mode: Selec
 
 /** Screen distance (CSS px) within which a press counts as on the first vertex. */
 const POLY_CLOSE_PX = 6;
+/** A press this soon after a closing press belongs to the same double-click. */
+const POLY_DOUBLE_MS = 500;
+/** The press that last closed a polygon: its `timeStamp` and client position. */
+let polyClosed = { at: -Infinity, x: 0, y: 0 };
+
+/** `e` is the second press of the double-click whose first press closed a polygon. */
+function isClosingDoublePress(e: PointerEvent): boolean {
+  return (
+    e.timeStamp - polyClosed.at < POLY_DOUBLE_MS &&
+    Math.hypot(e.clientX - polyClosed.x, e.clientY - polyClosed.y) <= POLY_CLOSE_PX
+  );
+}
 
 // A press on the first vertex closes a Polygonal Lasso of three or more
 // vertices (spec §5.2). From zoom 7 up that is the vertex's own pixel;
