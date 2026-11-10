@@ -551,7 +551,6 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 
 - **Harness specs can race Vite's dependency optimizer on Windows.** `ui/e2e/tool-flyout-harness.spec.ts` starts a Vite dev server; in a full parallel run on Windows the optimizer's rename `node_modules/.vite/deps_temp_* → deps` can fail with `EPERM` (a file still held open), and the spec fails before any assertion. It is not a code failure: rerun that spec alone before chasing it.
 - **A shared cargo target dir runs the wrong crate.** Worktrees (or copies) of this repo built with one `CARGO_TARGET_DIR` share the artifact names of `pincel-core` & co., and cargo does not rebuild a same-named crate from another path: `cargo test` in checkout B silently runs checkout A's test binary. Give every checkout its own target dir, and check the test names in the log.
-- **The recents specs race their own reload.** `ui/e2e/file-access.spec.ts` AC-13 / AC-14 open two files and reload at once; under CPU load the IndexedDB recents write for the second file (`photo.png`) has not landed, the Recent list lacks it and the click times out. Seen about 1 run in 8 on a loaded 4-core container, on unchanged start screens too; a re-run passes. The fix belongs in the spec (poll IndexedDB before the reload, see `createDocument` above), not in the app.
 
 ---
 
