@@ -60,9 +60,8 @@
     return Math.max(1, Math.min(LIMITS[m].max, r));
   }
 
-  /** Why the clamp changes this field's value, and what it uses instead. */
-  function noteFor(m: EditorMode, v: number | null, bad: boolean, fallback: number): Note | null {
-    const n = edgeOf(m, v, fallback);
+  /** Why the clamp changes this field's value; `n` is the edge Create uses. */
+  function noteFor(m: EditorMode, v: number | null, bad: boolean, n: number): Note | null {
     if (bad) return { key: 'newDoc.notNumber', params: { n } };
     if (v === null || !Number.isFinite(v)) return { key: 'newDoc.empty', params: { n } };
     if (v < 1) return { key: 'newDoc.tooSmall', params: { n } };
@@ -71,8 +70,8 @@
     return null;
   }
 
-  const widthNote = $derived(noteFor(mode, width, widthBad, LIMITS[mode].width));
-  const heightNote = $derived(noteFor(mode, height, heightBad, LIMITS[mode].height));
+  const widthNote = $derived(noteFor(mode, width, widthBad, result.width));
+  const heightNote = $derived(noteFor(mode, height, heightBad, result.height));
   // Both edges fit, their product does not: the image core scales both.
   const areaNote = $derived.by((): Note | null => {
     const w = edgeOf(mode, width, LIMITS[mode].width);
@@ -145,7 +144,10 @@
       );
       const first = stops[0];
       const last = stops[stops.length - 1];
-      if (e.shiftKey ? document.activeElement === first : document.activeElement === last) {
+      // Focus on the backdrop (a click there) wraps too.
+      const at = document.activeElement;
+      const outside = !form.contains(at);
+      if (outside || (e.shiftKey ? at === first : at === last)) {
         e.preventDefault();
         (e.shiftKey ? last : first)?.focus();
       }
@@ -237,7 +239,7 @@
        notes below say what the clamp will use. -->
   <form
     bind:this={form}
-    class="w-80 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="max-h-full w-80 max-w-full overflow-y-auto rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
