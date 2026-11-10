@@ -124,6 +124,14 @@ async function recentRows(page: Page): Promise<RecentRow[]> {
 const recentNames = async (page: Page) =>
   (await recentRows(page)).map((r) => `${r.name}/${r.mode}`);
 
+/** Opens `name` from the start screen and waits until the recents
+ *  registry holds it: the next page load would abort that write. */
+async function openRecorded(page: Page, name: string, mode: Mode): Promise<void> {
+  await pickFromStart(page, name);
+  await waitForEditor(page, mode);
+  await expect.poll(async () => (await recentNames(page))[0]).toBe(`${name}/${mode}`);
+}
+
 /** The start screen's Recent list. */
 const recentList = (page: Page) => page.getByRole('list', { name: 'Recent files' });
 
@@ -413,10 +421,8 @@ test.describe('recent files', () => {
     });
     await gotoStart(page);
     await expect(recentList(page)).toHaveCount(0);
-    await pickFromStart(page, 'hero.aseprite');
-    await waitForEditor(page, 'pixel');
-    await pickFromStart(page, 'photo.png');
-    await waitForEditor(page, 'image');
+    await openRecorded(page, 'hero.aseprite', 'pixel');
+    await openRecorded(page, 'photo.png', 'image');
 
     await gotoStart(page);
     await expect(page.getByRole('heading', { name: 'Recent', exact: true })).toBeVisible();
@@ -444,10 +450,8 @@ test.describe('recent files', () => {
       'villain.aseprite': await sprite(),
       'photo.png': await rasterFile(page, 'png'),
     });
-    await pickFromStart(page, 'hero.aseprite');
-    await waitForEditor(page, 'pixel');
-    await pickFromStart(page, 'photo.png');
-    await waitForEditor(page, 'image');
+    await openRecorded(page, 'hero.aseprite', 'pixel');
+    await openRecorded(page, 'photo.png', 'image');
     const denied = 'hero.aseprite: permission denied';
 
     // The start screen's Recent list.

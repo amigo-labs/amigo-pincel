@@ -9,15 +9,7 @@ import {
   storedPref,
   waitForEditor,
 } from './helpers';
-import {
-  dropFiles,
-  editorOf,
-  expectActive,
-  fileOf,
-  shownEditor,
-  tab,
-  tabs,
-} from './tab-helpers';
+import { dropFiles, editorOf, expectActive, fileOf, shownEditor, tab, tabs } from './tab-helpers';
 
 // The app shell (docs/specs/app-shell.md): start screen, New cards and the
 // New dialog, at most one editor per mode behind the tab bar, and the
@@ -237,9 +229,7 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(asked).toEqual([]);
   });
 
-  test(`AC-15: ${mode}: unsaved changes trigger the leave-page confirmation`, async ({
-    page,
-  }) => {
+  test(`AC-15: ${mode}: unsaved changes trigger the leave-page confirmation`, async ({ page }) => {
     await createDocument(page, mode, { width: 30, height: 20 });
     await edit(page, mode);
     const dialog = page.waitForEvent('dialog');
@@ -291,8 +281,7 @@ test('AC-16: with several tabs the top bar follows the active tab: mode, name an
   await expectActive(page, 'a.aseprite');
 
   const bar = topBar(page);
-  const badge = (text: string) =>
-    bar.locator('span').filter({ hasText: new RegExp(`^${text}$`) });
+  const badge = (text: string) => bar.locator('span').filter({ hasText: new RegExp(`^${text}$`) });
   // The clean Pixel tab: its badge and name, no marker of the other tab.
   await expect(badge('Pixel')).toBeVisible();
   await expect(bar.getByTitle('a.aseprite', { exact: true })).toHaveText('a.aseprite');
@@ -328,15 +317,16 @@ test('AC-18: a hidden sidebar and a collapsed panel come back on remount and rel
 
   // The next Image editor of this session starts the same way.
   await menu(page, 'File', 'New…');
-  await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
+  await page
+    .getByRole('dialog', { name: 'New document' })
+    .getByRole('button', { name: 'Create' })
+    .click();
   await waitForEditor(page, 'image');
   await expect(sidebar).toHaveCount(0);
   await toggle.click();
   await expect(layersHeader).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
-  await expect
-    .poll(() => storedPref(page, 'layout:image'))
-    .toMatchObject({ sidebar: false });
+  await expect.poll(() => storedPref(page, 'layout:image')).toMatchObject({ sidebar: false });
 
   // So does one after a reload, and Pixel mode keeps its own layout.
   await createDocument(page, 'image', { width: 16, height: 16 });
@@ -388,7 +378,9 @@ for (const mode of ['pixel', 'image'] as const) {
     await menu(page, 'File', 'New…');
     const dialog = page.getByRole('dialog', { name: 'New document' });
     // Focus on a dialog control that is not a text field.
-    await dialog.getByRole('radio', { name: mode === 'pixel' ? /^Pixel sprite/ : /^Image/ }).focus();
+    await dialog
+      .getByRole('radio', { name: mode === 'pixel' ? /^Pixel sprite/ : /^Image/ })
+      .focus();
     await page.keyboard.press('e');
     await page.keyboard.press('ControlOrMeta+z');
     await page.waitForTimeout(300);
@@ -399,3 +391,36 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(page.getByRole('button', { name: 'Redo', exact: true })).toBeDisabled();
   });
 }
+
+test('AC-08: the New dialog notes match what Create makes, keeps Tab inside and fits short screens', async ({
+  page,
+}) => {
+  await createDocument(page, 'image', { width: 30, height: 20 });
+  await menu(page, 'File', 'New…');
+  const dialog = page.getByRole('dialog', { name: 'New document' });
+  const form = dialog.locator('form');
+  await expect(dialog).toBeVisible();
+
+  // Both edges fit, the area does not: every note names the edge Create uses.
+  await dialog.getByLabel('Width').fill('20000');
+  await dialog.getByLabel('Height').fill('20000');
+  await expect(dialog.getByText('At most 16384 — 8192 will be used')).toHaveCount(2);
+  await expect(dialog.getByText('Creates a 8192 × 8192 px image')).toBeVisible();
+
+  // Focus on the backdrop (a click there) still wraps Tab into the dialog.
+  await dialog.focus();
+  await page.keyboard.press('Shift+Tab');
+  await expect(dialog.getByRole('button', { name: 'Create' })).toBeFocused();
+  await dialog.focus();
+  await page.keyboard.press('Tab');
+  await expect(form.locator(':focus')).toHaveCount(1);
+
+  // A landscape phone: the form stays on screen and scrolls instead.
+  await page.setViewportSize({ width: 640, height: 300 });
+  const box = await form.boundingBox();
+  expect(box).not.toBeNull();
+  expect(box!.y).toBeGreaterThanOrEqual(0);
+  expect(box!.y + box!.height).toBeLessThanOrEqual(300);
+  await dialog.getByRole('button', { name: 'Create' }).click();
+  await expect(dialog).toHaveCount(0);
+});
