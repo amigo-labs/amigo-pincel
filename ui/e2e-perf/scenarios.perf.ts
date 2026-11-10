@@ -162,10 +162,21 @@ test('image 4K, 10 layers: brush, pan / zoom, recompose, effect, save and export
     await expect(dialog.getByRole('heading', { name: 'Gaussian Blur' })).toBeVisible();
     await startRecording(page);
     await dialog.getByLabel('Radius value').fill('10');
-    await page.waitForTimeout(3_000);
+    // Wait for the preview's first draw instead of a fixed time: how long it
+    // takes is the metric, judged by the budget / baseline check, and a
+    // slower runner must not fail the scenario before it is measured.
+    await expect
+      .poll(
+        () =>
+          page.evaluate(() => {
+            const perf = window.__perf;
+            return perf.draws.some((d) => d > (perf.marks.input ?? Infinity));
+          }),
+        { message: 'the preview reached the canvas', timeout: 60_000 },
+      )
+      .toBe(true);
     const preview = await stopRecording(page, 0);
     const proxyDraw = preview.draws.find((d) => d > (preview.marks.input ?? Infinity));
-    expect(proxyDraw, 'the preview reached the canvas').toBeDefined();
     await startRecording(page);
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(dialog).toBeHidden({ timeout: 60_000 });
