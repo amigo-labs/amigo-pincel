@@ -2,7 +2,7 @@
   "$comment": "Written by .agents/sync.mjs. Do not edit.",
   "source": "https://github.com/amigo-labs/skills.git",
   "ref": "main",
-  "commit": "cb67c3259d03da19eb14f8a99bcd8c8f9b7ddac6",
+  "commit": "2ed37819ecd1fc4936f19efca80989f291a08b90",
   "files": {
     ".agents/skills/spec/SKILL.md": "c95d670f974658909a53d32dd8b88a1af4cef497d01c212e236c25a2729a763a",
     ".agents/skills/spec-build/SKILL.md": "4da095a5cc0195a85ce6cdb46d77fce7b817ec86e620a2b064e671b423f1e8d9",
@@ -15,6 +15,9 @@
     ".agents/skills/qa/scripts/lib.mjs": "667ae7b19434be70452a28af981f316ed13940f92da9167140dd3fea61bf5734",
     ".agents/skills/qa/scripts/open-specs.mjs": "53edc80d6e6cbcab1b64e90cdd9f633c0a1bca67f8d92df316b03d9eba9c5f2d",
     ".agents/skills/ui-polish/SKILL.md": "adab5776f0dbfc2d264a3c6914cbb793010666d042127ca7bde7d88df51933e8",
+    ".agents/skills/improve/SKILL.md": "391f115a0773e1fe1d861f97a837d539e5144e433bc0fac57a973d2b8dafad6c",
+    ".agents/skills/improve/scripts/blind.mjs": "6475e403bce447dc64d24595f8eea514eccc645f60fe484a227dce3551f31c92",
+    ".agents/skills/improve/scripts/sweep.mjs": "f0f8dad2e3e6b2d4ecc844104a8b478ef43372306f94800b5eca2545ac0cbf7c",
     ".claude/hooks/commit-gate.mjs": "21c6c1bce3da6d3f5390e24ff39dfaaf1c128823eef886a76a1bd082d884d4ae",
     ".claude/hooks/guard.mjs": "cd8b046fbe95487b0b8804120dcbc186c6722a8f222902757d7a0cb0f1483661",
     ".claude/hooks/hook-lib.mjs": "3df88c6f0d28e132b57adaf5fddcfb8b0f26082234fc3c1259416b3a4bbfec28",
