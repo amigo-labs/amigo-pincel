@@ -3,6 +3,7 @@
   // AC-27, AC-29): a non-blocking card with a preview of the clipboard
   // image, its size, Open and Ignore. The preview is drawn into a canvas,
   // never read back (AGENTS.md §9).
+  import Button from '../components/Button.svelte';
   import type { Attachment } from 'svelte/attachments';
   import { t } from '../i18n/index.svelte';
   import { markOffered, type OfferImage } from './clipboard-offer.svelte';
@@ -77,10 +78,8 @@
   </div>
   <p class="text-xs text-pc-muted">{t('offer.size', { w: image.width, h: image.height })}</p>
   <div class="flex justify-end gap-2">
-    <button class="panel-btn" onclick={onIgnore}>{t('offer.ignore')}</button>
-    <button class="panel-btn panel-btn-primary" onclick={onOpen} disabled={busy}>
-      {t('offer.open')}
-    </button>
+    <Button onclick={onIgnore}>{t('offer.ignore')}</Button>
+    <Button variant="primary" onclick={onOpen} {busy}>{t('offer.open')}</Button>
   </div>
 </section>
 
