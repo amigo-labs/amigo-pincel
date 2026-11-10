@@ -412,7 +412,11 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
   // (Aseprite / paint.net); every other tool ignores it.
   if (e.button === 2 && !BG_TOOLS.has(activeTool())) return;
   if (e.button !== 0 && e.button !== 2 && !eraserEnd) return;
-  if (!replay && e.pointerType === 'touch' && (isBrushTool(activeTool()) || activeTool() === 'bucket')) {
+  if (
+    !replay &&
+    e.pointerType === 'touch' &&
+    (isBrushTool(activeTool()) || activeTool() === 'bucket')
+  ) {
     // Nothing is written yet: a second finger rolls back to here.
     live.gestureUndoDepth = ed.doc?.undoDepth ?? 0;
     heldTouch = { e, stage, timer: setTimeout(pressHeld, TAP_LIMITS.landMs) };
@@ -474,7 +478,7 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
     if (!toolState.polyPoints) {
       toolState.polyPoints = [point];
       live.dragSelMode = selectionModeFor(e);
-    } else if (e.detail >= 2) {
+    } else if (e.detail >= 2 || closesPolygon(toolState.polyPoints, point)) {
       commitPolygon();
       return;
     } else {
@@ -672,6 +676,18 @@ export function commitPolygonPoints(pts: { x: number; y: number }[], mode: Selec
       error: err instanceof Error ? err.message : String(err),
     });
   }
+}
+
+/** Screen distance (CSS px) within which a press counts as on the first vertex. */
+const POLY_CLOSE_PX = 6;
+
+// A press on the first vertex closes a Polygonal Lasso of three or more
+// vertices (spec §5.2). From zoom 7 up that is the vertex's own pixel;
+// zoomed out, the pixels within a few screen pixels of it count too.
+function closesPolygon(pts: { x: number; y: number }[], at: { x: number; y: number }): boolean {
+  const first = pts[0];
+  if (pts.length < 3 || !first) return false;
+  return Math.max(Math.abs(at.x - first.x), Math.abs(at.y - first.y)) * view.zoom <= POLY_CLOSE_PX;
 }
 
 export function commitPolygon() {

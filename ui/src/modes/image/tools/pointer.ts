@@ -62,7 +62,13 @@ import { TAP_LIMITS, isEraserEnd } from '../../../lib/view/taps';
 import { attachCloneHover, beginCloneStroke, pressCloneSource } from './clone-press';
 
 /** Tools that paint along a polyline, coalesced pen samples and all. */
-const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'recolor', 'smudge', 'clone']);
+const BRUSH_TOOLS: ReadonlySet<ToolKind> = new Set([
+  'pencil',
+  'eraser',
+  'recolor',
+  'smudge',
+  'clone',
+]);
 
 /** The three drag-to-move tools: the layer, the selected pixels, the
  *  outline alone. `move_mask` writes no pixels, so it stays out of
@@ -90,9 +96,18 @@ const WRITES_PIXELS: ReadonlySet<ToolKind> = new Set([
 
 /** Tools that write pixels on press: a touch press with them is held
  *  (tablet-gestures AC-04). */
-const HOLD_TOOLS: ReadonlySet<ToolKind> = new Set(['pencil', 'eraser', 'fill', 'recolor', 'smudge']);
+const HOLD_TOOLS: ReadonlySet<ToolKind> = new Set([
+  'pencil',
+  'eraser',
+  'fill',
+  'recolor',
+  'smudge',
+]);
 
 /** Tools that drag out a selection shape (rubber band / freehand). */
+/** Screen distance (CSS px) within which a press counts as on a polygon's first vertex. */
+const POLY_CLOSE_PX = 10;
+
 const DRAG_SELECT: ReadonlySet<ToolKind> = new Set(['rect_select', 'ellipse_select', 'lasso']);
 
 export { gestureControl };
@@ -498,7 +513,10 @@ export function attachTools(
       // Click near the first vertex closes the polygon.
       const first = polygonPoints[0];
       if (polygonPoints.length >= 3 && first !== undefined) {
-        const near = Math.hypot(point[0] - first[0], point[1] - first[1]) < 8;
+        // Measured on screen: eight image pixels are next to nothing on
+        // a photo shown at 20 %, and far too much at 3200 %.
+        const scale = canvas.getBoundingClientRect().width / Math.max(1, editor.width);
+        const near = Math.hypot(point[0] - first[0], point[1] - first[1]) * scale < POLY_CLOSE_PX;
         if (near) {
           commitPolygon();
           return;
@@ -597,7 +615,13 @@ export function attachTools(
           liveDrag.line = { points: liveDrag.line.points, control };
           liveDrag.insert = null;
         }
-        liveDrag.pendingLine = dragLine(liveDrag.hit, liveDrag.line, liveDrag.start, p, shiftHeld(e));
+        liveDrag.pendingLine = dragLine(
+          liveDrag.hit,
+          liveDrag.line,
+          liveDrag.start,
+          p,
+          shiftHeld(e),
+        );
       } else {
         liveDrag.pending = dragPoints(liveDrag.hit, liveDrag.from, liveDrag.start, p, shiftHeld(e));
       }
@@ -839,6 +863,11 @@ export function attachTools(
   stage.addEventListener('dblclick', onDblClick);
   stage.addEventListener('contextmenu', onContextMenu);
   gestureControl.cancel = abort;
+  gestureControl.commitPolygon = () => {
+    if (tool.kind !== 'polygon_lasso' || polygonPoints.length === 0) return false;
+    commitPolygon();
+    return true;
+  };
   gestureControl.cancelLiveDrag = cancelLiveDrag;
   gestureControl.inProgress = () => active;
   const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
@@ -847,6 +876,7 @@ export function attachTools(
     detachCloneHover();
     brushFrames.dispose();
     gestureControl.cancel = () => false;
+    gestureControl.commitPolygon = () => false;
     gestureControl.cancelLiveDrag = () => false;
     gestureControl.inProgress = () => false;
     endLiveDrag();
