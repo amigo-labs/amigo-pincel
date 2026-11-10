@@ -44,9 +44,12 @@
     align-items: center;
     justify-content: center;
     border-radius: 0.375rem;
+  }
+  .mod-btn:not(.btn-on) {
     color: var(--color-pc-muted);
   }
-  .mod-btn:hover {
+  /* An on toggle keeps the accent glyph of `.btn-on` (app.css). */
+  .mod-btn:not(.btn-on):hover {
     color: var(--color-pc-text);
   }
 </style>

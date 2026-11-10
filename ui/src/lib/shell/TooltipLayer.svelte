@@ -27,7 +27,10 @@
   /** Element whose `title` is parked while its tooltip shows. */
   let host: HTMLElement | null = null;
   let parked = '';
-  let lentLabel = false;
+  /** Attribute lent to the host while its title is parked, if any. */
+  let lent: 'aria-label' | 'aria-description' | null = null;
+  /** The last input was a key: only then does focus show a tooltip. */
+  let keyboard = false;
   let timer: ReturnType<typeof setTimeout> | null = null;
 
   function hide(): void {
@@ -36,7 +39,8 @@
     if (host) {
       // A re-render may have written a new title meanwhile: keep that one.
       if (!host.hasAttribute('title')) host.setAttribute('title', parked);
-      if (lentLabel) host.removeAttribute('aria-label');
+      if (lent) host.removeAttribute(lent);
+      lent = null;
       host = null;
     }
     tip = null;
@@ -50,9 +54,8 @@
     const { label, key } = splitShortcut(text, el.dataset.shortcut);
     host = el;
     parked = text;
-    // The title may be the element's only accessible name: lend it one.
-    lentLabel = !el.hasAttribute('aria-label') && !el.hasAttribute('aria-labelledby');
-    if (lentLabel) el.setAttribute('aria-label', text);
+    lent = lendFor(el);
+    if (lent) el.setAttribute(lent, text);
     el.removeAttribute('title');
     tip = { label, key, hint: el.dataset.tipHint ?? null };
     await tick();
@@ -67,6 +70,24 @@
     );
   }
 
+  /**
+   * What a parked title has to be replaced by for assistive technology:
+   * the name where the title was the element's only one, else the
+   * description (a title next to a label or text content describes).
+   */
+  function lendFor(el: HTMLElement): 'aria-label' | 'aria-description' | null {
+    const labels = (el as HTMLInputElement).labels;
+    const named =
+      el.hasAttribute('aria-label') ||
+      el.hasAttribute('aria-labelledby') ||
+      (labels !== null && labels !== undefined && labels.length > 0) ||
+      (el.textContent ?? '').trim() !== '' ||
+      el.querySelector('img[alt]:not([alt=""])') !== null;
+    if (!named) return 'aria-label';
+    const described = el.hasAttribute('aria-description') || el.hasAttribute('aria-describedby');
+    return described ? null : 'aria-description';
+  }
+
   function enter(el: HTMLElement | null): void {
     if (el === current) return;
     hide();
@@ -76,8 +97,10 @@
 
   function titled(target: EventTarget | null): HTMLElement | null {
     if (!(target instanceof Element)) return null;
-    if (host?.contains(target)) return host;
-    return target.closest<HTMLElement>('[title]');
+    const near = target.closest<HTMLElement>('[title]');
+    // Inside the host a nearer titled element wins; its own title is parked.
+    if (host?.contains(target)) return near && host.contains(near) ? near : host;
+    return near;
   }
 
   onMount(() => {
@@ -88,18 +111,27 @@
     const onLeave = (): void => enter(null);
     const onFocusIn = (e: FocusEvent): void => {
       const el = titled(e.target);
-      if (el && el === e.target && el.matches(':focus-visible')) enter(el);
+      // A tap or click into a field also makes it `:focus-visible`.
+      if (keyboard && el && el === e.target && el.matches(':focus-visible')) enter(el);
     };
     // Dismissed, not left: `current` stays, so it does not show again
     // until the pointer or the focus has been somewhere else.
     const dismiss = (): void => hide();
+    const onKey = (): void => {
+      keyboard = true;
+      hide();
+    };
+    const onPress = (): void => {
+      keyboard = false;
+      hide();
+    };
     const opts = { capture: true, passive: true } as const;
     document.addEventListener('pointerover', onOver, opts);
     document.documentElement.addEventListener('pointerleave', onLeave);
     document.addEventListener('focusin', onFocusIn, opts);
     document.addEventListener('focusout', onLeave, opts);
-    document.addEventListener('pointerdown', dismiss, opts);
-    document.addEventListener('keydown', dismiss, opts);
+    document.addEventListener('pointerdown', onPress, opts);
+    document.addEventListener('keydown', onKey, opts);
     document.addEventListener('wheel', dismiss, opts);
     document.addEventListener('scroll', dismiss, opts);
     window.addEventListener('blur', onLeave);
@@ -109,8 +141,8 @@
       document.documentElement.removeEventListener('pointerleave', onLeave);
       document.removeEventListener('focusin', onFocusIn, opts);
       document.removeEventListener('focusout', onLeave, opts);
-      document.removeEventListener('pointerdown', dismiss, opts);
-      document.removeEventListener('keydown', dismiss, opts);
+      document.removeEventListener('pointerdown', onPress, opts);
+      document.removeEventListener('keydown', onKey, opts);
       document.removeEventListener('wheel', dismiss, opts);
       document.removeEventListener('scroll', dismiss, opts);
       window.removeEventListener('blur', onLeave);

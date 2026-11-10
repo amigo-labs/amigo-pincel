@@ -64,6 +64,52 @@ test.describe('buttons and tooltips', () => {
     await expect(eraser).toHaveCSS('transform', 'none');
   });
 
+  test('a tooltip keeps the name of a control that has one and describes it', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await page.evaluate(() => {
+      const b = document.createElement('button');
+      b.id = 'probe';
+      b.textContent = 'Probe';
+      b.title = 'More about the probe';
+      b.style.cssText = 'position:fixed;left:300px;top:300px;z-index:99';
+      const inner = document.createElement('span');
+      inner.id = 'inner';
+      inner.title = 'Inner warning';
+      inner.textContent = ' !';
+      b.append(inner);
+      document.body.append(b);
+    });
+    const probe = page.locator('#probe');
+    const box = await probe.boundingBox();
+    if (!box) throw new Error('no probe');
+    await page.mouse.move(box.x + 6, box.y + box.height / 2);
+    const tip = page.locator('[data-tooltip]');
+    await expect(tip).toContainText('More about the probe');
+    await expect(probe).not.toHaveAttribute('aria-label');
+    await expect(probe).toHaveAttribute('aria-description', 'More about the probe');
+    // A titled element inside the host gets its own tooltip.
+    await page.locator('#inner').hover();
+    await expect(tip).toContainText('Inner warning');
+    await expect(probe).toHaveAttribute('title', 'More about the probe');
+    await expect(probe).not.toHaveAttribute('aria-description');
+  });
+
+  test('focus by a press shows no tooltip', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await page.evaluate(() => {
+      const i = document.createElement('input');
+      i.id = 'field';
+      i.title = 'Field hint';
+      i.style.cssText = 'position:fixed;left:300px;top:300px;z-index:99';
+      document.body.append(i);
+    });
+    // Touch: no pointerover tooltip, and the focus it gives must not show one either.
+    await page.locator('#field').dispatchEvent('pointerdown', { pointerType: 'touch' });
+    await page.locator('#field').focus();
+    await page.waitForTimeout(700);
+    await expect(page.locator('[data-tooltip]')).toHaveCount(0);
+  });
+
   test("Don't Save is a danger button, Cancel shows its key", async ({ page }) => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     await page.getByTitle('Pencil (B)').click();
@@ -77,7 +123,9 @@ test.describe('buttons and tooltips', () => {
     await page.keyboard.press('Alt+w');
     const prompt = page.getByRole('alertdialog');
     await expect(prompt).toBeVisible();
-    await expect(prompt.getByRole('button', { name: "Don't Save" })).toHaveClass(/panel-btn-danger/);
+    await expect(prompt.getByRole('button', { name: "Don't Save" })).toHaveClass(
+      /panel-btn-danger/,
+    );
     await expect(prompt.getByRole('button', { name: 'Save', exact: true })).toHaveClass(
       /panel-btn-primary/,
     );
