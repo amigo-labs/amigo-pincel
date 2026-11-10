@@ -84,6 +84,15 @@ export const en = {
   'newDoc.w': 'W',
   'newDoc.h': 'H',
   'newDoc.autoOpen': 'Open like this on startup',
+  'newDoc.resultPixel': 'Creates a {w} × {h} pixel sprite',
+  'newDoc.resultImage': 'Creates a {w} × {h} px image',
+  'newDoc.resultStartup': 'Pincel will also start with one like it',
+  'newDoc.empty': 'Empty — {n} will be used',
+  'newDoc.notNumber': 'Not a number — {n} will be used',
+  'newDoc.tooSmall': 'At least 1 — {n} will be used',
+  'newDoc.tooLarge': 'At most {max} — {n} will be used',
+  'newDoc.notWhole': 'Whole pixels only — {n} will be used',
+  'newDoc.tooManyPixels': 'Too many pixels (limit {limit}) — {w} × {h} will be used',
 
   // Recovery dialog
   'recovery.title': 'Recover unsaved work?',

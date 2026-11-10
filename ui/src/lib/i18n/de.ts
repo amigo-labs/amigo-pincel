@@ -86,6 +86,15 @@ export const de: Record<MessageKey, string> = {
   'newDoc.w': 'B',
   'newDoc.h': 'H',
   'newDoc.autoOpen': 'Beim Start automatisch so öffnen',
+  'newDoc.resultPixel': 'Erstellt ein Pixel-Sprite mit {w} × {h}',
+  'newDoc.resultImage': 'Erstellt ein Bild mit {w} × {h} px',
+  'newDoc.resultStartup': 'Pincel startet künftig auch mit so einem',
+  'newDoc.empty': 'Leer — {n} wird verwendet',
+  'newDoc.notNumber': 'Keine Zahl — {n} wird verwendet',
+  'newDoc.tooSmall': 'Mindestens 1 — {n} wird verwendet',
+  'newDoc.tooLarge': 'Höchstens {max} — {n} wird verwendet',
+  'newDoc.notWhole': 'Nur ganze Pixel — {n} wird verwendet',
+  'newDoc.tooManyPixels': 'Zu viele Pixel (Grenze {limit}) — {w} × {h} wird verwendet',
 
   // Recovery dialog
   'recovery.title': 'Ungespeicherte Arbeit wiederherstellen?',
