@@ -2,7 +2,7 @@
   "$comment": "Written by .agents/sync.mjs. Do not edit.",
   "source": "https://github.com/amigo-labs/skills.git",
   "ref": "main",
-  "commit": "2ed37819ecd1fc4936f19efca80989f291a08b90",
+  "commit": "ae809e28e05d7c2e2e1a99598c97ced132ad9194",
   "files": {
     ".agents/skills/spec/SKILL.md": "c95d670f974658909a53d32dd8b88a1af4cef497d01c212e236c25a2729a763a",
     ".agents/skills/spec-build/SKILL.md": "4da095a5cc0195a85ce6cdb46d77fce7b817ec86e620a2b064e671b423f1e8d9",
