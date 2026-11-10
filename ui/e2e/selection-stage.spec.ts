@@ -511,6 +511,26 @@ test('pixel: a click on the first vertex closes the polygonal lasso', async ({ p
   expect(await size(page)).toEqual(closed);
 });
 
+test('pixel: choosing another tool drops an open polygonal lasso', async ({ page }) => {
+  await createDocument(page, 'pixel', { width: PX, height: PX });
+  await useTool(page, 'q', 'Polygonal Lasso');
+  for (const [x, y] of [
+    [2, 2],
+    [10, 2],
+    [10, 10],
+  ] as const)
+    await page.mouse.click(...(await mid(page, 'pixel', x, y)));
+  await page.keyboard.press('b');
+  // The vertices are gone: Enter has nothing to close.
+  await page.keyboard.press('Enter');
+  expect(await size(page)).toEqual([PX, PX]);
+  // And the Pencil paints its whole drag, not only the first dab.
+  await dragFrom(page, await mid(page, 'pixel', 3, 13), await mid(page, 'pixel', 9, 13));
+  await marquee(page, 'pixel', 9, 13, 10, 13);
+  const dab = await copySelection(page);
+  expect(dab.data.slice(0, 4)).not.toEqual([0, 0, 0, 0]);
+});
+
 test('image: Enter closes the polygonal lasso', async ({ page }) => {
   await createDocument(page, 'image', { width: IMG, height: IMG });
   await useTool(page, 'q', 'Polygonal Lasso');
