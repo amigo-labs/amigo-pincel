@@ -73,7 +73,18 @@ pnpm install --frozen-lockfile
 pnpm build
 node "$root/scripts/check-wasm-release.mjs" "$root/ui/dist/app/assets"
 
+# --- OCR models → ui/dist/ocr/tessdata_fast-<version>/ ----------------------
+# Tools ▸ Recognize Text downloads a language's model on first use from this
+# path (docs/specs/ocr-dialog.md; Decision Log 2026-11-08). The files are the
+# ones committed with pincel-ocr; the UI pins their SHA-256
+# (ui/src/modes/image/ocr/catalog.ts). They sit outside /app/, so the PWA's
+# precache never lists them.
+OCR_VERSION=4.1.0
+ocr_dir="$root/ui/dist/ocr/tessdata_fast-$OCR_VERSION"
+mkdir -p "$ocr_dir"
+cp "$root/crates/pincel-ocr/models/deu.traineddata" "$root/crates/pincel-ocr/models/eng.traineddata" "$ocr_dir/"
+
 # --- Root files: redirects, headers, 404 page -----------------------------
 cp "$root/cloudflare/_redirects" "$root/cloudflare/_headers" "$root/cloudflare/404.html" "$root/ui/dist/"
 
-echo "Built the editor into ui/dist/app/ and the root files into ui/dist/"
+echo "Built the editor into ui/dist/app/, the OCR models into ui/dist/ocr/ and the root files into ui/dist/"
