@@ -16,6 +16,7 @@ pub mod document;
 pub mod error;
 pub mod geometry;
 pub mod jobs;
+mod par;
 pub mod render;
 pub mod selection;
 pub mod tools;
