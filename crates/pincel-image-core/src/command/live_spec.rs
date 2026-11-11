@@ -8,7 +8,8 @@ use serde::{Deserialize, Serialize};
 use super::{BoxShape, CommandBus, LiveParams, LiveShapeKind};
 use crate::color::Color;
 use crate::tools::{
-    DashPattern, GradientChannel, GradientKind, ShapeMode, TextAlign, TextLayout, TextStyle,
+    DashPattern, FontFace, GradientChannel, GradientKind, ShapeMode, TextAlign, TextLayout,
+    TextStyle,
 };
 
 /// The live object as the editor sees it; field names and string values
@@ -185,7 +186,10 @@ pub struct TextLayoutRequest {
 /// Lays out `req` with `font` exactly as a live text with these settings is
 /// drawn: line boxes and the caret x of every character boundary. `None`
 /// when the font fails to parse.
-pub fn text_layout(req: &TextLayoutRequest, font: &[u8]) -> Option<TextLayout> {
+pub fn text_layout<'f>(
+    req: &TextLayoutRequest,
+    font: impl Into<FontFace<'f>>,
+) -> Option<TextLayout> {
     let style = TextStyle {
         size: req.size,
         bold: req.bold,
@@ -197,7 +201,7 @@ pub fn text_layout(req: &TextLayoutRequest, font: &[u8]) -> Option<TextLayout> {
         },
         ..TextStyle::default()
     };
-    super::text_box(&req.text, req.x, req.y, &style, font).map(|(_, layout)| layout)
+    super::text_box(&req.text, req.x, req.y, &style, font.into()).map(|(_, layout)| layout)
 }
 
 /// Maps a wire shape name to a live shape kind; `None` for an unknown one.

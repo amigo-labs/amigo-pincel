@@ -41,9 +41,9 @@ pub use render::{RenderCache, compose, compose_over, compose_region};
 pub use selection::{SelectionMask, SelectionMode, apply_mode, magic_wand, masked_region};
 pub use tools::{
     Blend, Brush, BrushShape, CloneSnapshot, CloneStamp, Curve, CurveLine, DEFAULT_BRUSH_ANGLE,
-    DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, Gradient, GradientChannel,
-    GradientKind, LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil,
-    PressureDynamics, Recolor, RecolorOrigins, STAR_INNER_RATIO, STAR_POINTS, SampleSize,
+    DashPattern, Eraser, EraserMode, Eyedropper, Fill, FillOptions, FontFace, Gradient,
+    GradientChannel, GradientKind, LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples,
+    Pencil, PressureDynamics, Recolor, RecolorOrigins, STAR_INNER_RATIO, STAR_POINTS, SampleSize,
     SampleSource, Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign,
     TextLayout, TextStyle, box_outline, copy_selection, delete_selection, fill_selection,
 };
