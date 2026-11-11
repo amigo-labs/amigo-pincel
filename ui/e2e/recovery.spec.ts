@@ -78,6 +78,7 @@ async function seedSnapshots(
   await expect
     .poll(() =>
       page.evaluate(async () =>
+        // The autosave stores exist from schema version 2 on.
         (await indexedDB.databases()).some((d) => d.name === 'pincel' && (d.version ?? 0) >= 2),
       ),
     )

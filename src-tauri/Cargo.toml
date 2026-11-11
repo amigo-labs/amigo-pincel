@@ -27,6 +27,16 @@ pincel-core = { workspace = true }
 # 2026-11-05): pure Rust, the same on Windows, macOS and Linux, and it reuses
 # the ttf-parser 0.25 that ab_glyph already brings.
 fontdb = "0.23"
+# The live MCP endpoint (docs/specs/mcp-live-desktop.md): the tool list and
+# the in-house JSON-RPC routing of the headless server (Decision Log
+# 2026-10-29).
+pincel-agent = { workspace = true }
+pincel-mcp = { workspace = true }
+# HTTP(S) to a ComfyUI server (Decision Log 2026-11-06 "ComfyUI"), already
+# in the tree through the updater plugin; TLS through rustls with the ring
+# provider, installed once process-wide (Decision Log 2026-11-11).
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –

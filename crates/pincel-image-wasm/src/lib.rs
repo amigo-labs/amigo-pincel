@@ -25,14 +25,17 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod agent;
 mod fonts;
 mod history;
+mod ocr;
 mod palette;
 mod vectorize;
 
 #[cfg(test)]
 mod rotate_zoom_tests;
 
+pub use ocr::{OcrModel, OcrProgress, OcrSession, ocr_model, ocr_session};
 pub use palette::{PaletteFile, read_palette_file, write_palette_file};
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
 
@@ -311,6 +314,7 @@ pub fn close_document(handle: u32) {
     CACHES.with(|caches| {
         caches.borrow_mut().remove(&handle);
     });
+    agent::forget(handle);
 }
 
 /// Number of documents open in the core. A diagnostic: tests check that
@@ -888,6 +892,7 @@ mod ts_bindings {
         LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
         TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
         TextLayout::export_all(&cfg).expect("export TextLayout bindings");
+        crate::OcrProgress::export_all(&cfg).expect("export OcrProgress bindings");
     }
 }
 

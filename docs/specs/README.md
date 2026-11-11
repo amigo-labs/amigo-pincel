@@ -25,9 +25,7 @@ Owner priorities lead: performance and MCP. The specs are grouped by area; each 
 
 Agents reach every document-changing capability; live mode last. Runs in parallel with every other group.
 
-| # | Spec | Mode | Size | Depends on | Note |
-| - | ---- | ---- | ---- | ---------- | ---- |
-| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
+Every spec of this group is done.
 
 ### B — Image live objects
 
@@ -117,7 +115,6 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 | - | ---- | ---- | ---- | ---------- | ---- |
 | I1 | [ai-chat-panel](ai-chat-panel.md) | both | L | mcp-live-desktop | Assistant panel, Claude Code CLI over the live endpoint, one undo step per answer |
 | I2 | [ai-chat-clis](ai-chat-clis.md) | both | M | ai-chat-panel | Codex CLI, Gemini CLI, opencode (local models) |
-| I3 | [comfyui-connect](comfyui-connect.md) | shell | M | — | Find / start / connect a ComfyUI server, model list |
 | I4 | [comfyui-install](comfyui-install.md) | shell | L | comfyui-connect | One-click managed install (uv, PyTorch for NVIDIA / Apple Silicon, model catalog) |
 | I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
 | I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
@@ -139,6 +136,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [autosave-recovery](autosave-recovery.md)
 - [clone-stamp](clone-stamp.md)
 - [color-picker](color-picker.md)
+- [comfyui-connect](comfyui-connect.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
@@ -168,6 +166,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [mcp-live-desktop](mcp-live-desktop.md)
 - [mcp-parity-drawing](mcp-parity-drawing.md)
 - [mcp-parity-drawing-image](mcp-parity-drawing-image.md)
 - [mcp-parity-export](mcp-parity-export.md)

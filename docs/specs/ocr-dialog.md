@@ -120,26 +120,26 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `Image mode has a Tools menu between Effects and Help; Pixel mode has none (AC-01)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-02 | `the language of the last recognition is preselected, across sessions (AC-02)`, `German › menu, dialog and messages are German; …` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-03 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `during work the dialog shows the step and a Cancel button (AC-03)` (`ui/e2e/ocr-dialog.spec.ts`); `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`, progress order) | built |        |
+| AC-04 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `without a usable total the download shows only the bytes received (AC-04)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-05 | `a download that does not match its hash is not stored; Retry downloads again (AC-05)` (`ui/e2e/ocr-dialog-model.spec.ts`); `ui/e2e/ocr-sha256.spec.ts` (plain SHA-256 fallback, pinned hashes) | built |        |
+| AC-06 | `a failed download (offline) …`, `a failed download (a server error) stores nothing; Retry downloads again (AC-06)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
+| AC-07 | `first use downloads …` (field, cursor at start, Copy and Close), `an empty page shows "No text found." (AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-08 | `Copy puts the edited text on the clipboard; Copied lasts until the next edit (AC-08)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
+| AC-09 | `a clipboard that refuses the text shows an error and keeps the text (AC-09)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
+| AC-10 | `with a selection only the selected word is read (AC-10)`, `a lasso leaves out a word inside its bounding box (AC-10)` (`ui/e2e/ocr-dialog-result.spec.ts`); `source_area_is_the_selection_bounding_box`, `source_area_fills_unselected_pixels_with_the_border_median`, `source_area_border_median_ignores_ink_inside_the_selection`, `source_area_keeps_pixels_at_least_half_selected`, `source_area_of_an_empty_selection_is_empty` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
+| AC-11 | `a word on a hidden layer is not read, one on a visible layer above is (AC-11)` (`ui/e2e/ocr-dialog-result.spec.ts`); `source_area_leaves_out_hidden_layers` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
+| AC-12 | `Cancel during the download closes the dialog and stores nothing (AC-12)`, `Escape during the download closes the dialog (AC-12)`, `the benchmark screenshot › progress changes per line; Cancel closes within 500 ms and keeps the stored model (AC-12, AC-14)`, `the benchmark screenshot › Escape during recognition closes the dialog (AC-12)` (`ui/e2e/ocr-dialog-cancel.spec.ts`); Close: `first use downloads …` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-13 | `the dialog leaves the document, selection, history and dirty state unchanged (AC-13)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
+| AC-14 | `the benchmark screenshot › progress changes per line; Cancel closes within 500 ms and keeps the stored model (AC-12, AC-14)` (`ui/e2e/ocr-dialog-cancel.spec.ts`) | built |        |
+| AC-15 | `the precache manifest lists no model file and the bundle holds none (AC-15)`, `loading the app and an Image document requests no model (AC-15)` (`ui/e2e/ocr-precache.spec.ts`) | built |        |
+| AC-16 | `German › menu, dialog and messages are German; the text is not translated (AC-02, AC-16)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-17 | `the benchmark screenshot reads exactly as the native snapshot (AC-17)` (`ui/e2e/ocr-dialog.spec.ts`); natively `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
+| AC-18 | `a recognition that fails shows an error with Retry; the editor stays usable (AC-18)`, `a model the engine rejects is removed, so Retry downloads it again (AC-18)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
+| AC-19 | `storage that cannot be read or written: the model serves this recognition, without an error (AC-19)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
+| AC-20 | `a stored model that no longer matches its hash is removed and downloaded again (AC-20)` (`ui/e2e/ocr-dialog-model.spec.ts`); old versions: `storing a newer version removes the older one of that language` | built |        |
 | AC-21 |      | open   |        |
 
 ## Decisions
@@ -147,3 +147,17 @@ Terms used below:
 - 2026-11-08: The owner chose Image mode only, a Tools menu, a dialog with Copy, German and English, and models downloaded on first use from Pincel's website.
 - 2026-11-08 (clarification pass): The dialog is modal, the owner's choice, which removes edits and tab switches during recognition. Transparent and unselected pixels follow `ocr-page`'s flattening, also the owner's choice. "Nothing is stored" on cancel now means only the download in progress. AC-14 is measured in the e2e test. AC-17 to AC-21 were added: wasm equals native, recognition failure, storage failure, a damaged stored model, and the wasm time budget.
 - 2026-11-08 (second clarification pass): OCR runs in a worker of its own, so Cancel can end it without touching autosave or export. Unselected pixels take the background colour along the selection's border instead of transparency, so a lasso on a white page does not turn black. AC-17 compares with `ocr-page`'s committed snapshot.
+- 2026-11-11 (build): Red runs. `pincel-image-wasm`: the `ocr_tests.rs` source-area tests against a stub that returned the whole composite failed 5 of 10 (bounding box, border median, half coverage, empty selection); the session test passed at once against the stub, because without a selection the stub is the real source area. UI: `ui/e2e/ocr-dialog.spec.ts` failed all 7 tests on `feat/ocr-page`'s app (no menu item "Tools" / "Extras").
+- 2026-11-11 (build): The Tools menu sits after View, directly before Help: both orders satisfy AC-01, and "Tools" before "Help" is where desktop apps put it.
+- 2026-11-11 (build): The source area is composed in `pincel-image-wasm` (`src/ocr.rs`) from the snapshot the dialog takes when it opens. "Background around the selection" is the per-channel lower median of the pixels with coverage ≥ 128 that have a 4-neighbour below 128 or outside the canvas; a selection mask without any covered pixel gives an empty area ("No text found.").
+- 2026-11-11 (build): New public API (wasm): `ocr_model(bytes) → OcrModel`, `ocr_session(snapshot) → OcrSession` with `width`, `height` and `read(model, progress) → string`, and the `OcrProgress` type (`{ phase: 'layout' | 'lines', done, total }`), generated to `ui/src/modes/image/core/generated/OcrProgress.ts` by the `export_command_spec` test.
+- 2026-11-11 (build): The OCR worker gets one request (the page's compiled core, the snapshot and the model bytes) and is terminated after its answer or on Cancel; the snapshot is kept by the dialog for Retry and language switches. The dialog does not commit an open live object first (unlike Export SVG), because AC-13 forbids changing the document.
+- 2026-11-11 (build): Models are stored in a new `ocr_models` store of the existing `pincel` database (schema version 4: `system-fonts` took 3 for its font stores, and a profile already at 3 must still run the upgrade that adds this store), rows `{ lang, version, bytes }` keyed `[lang, version]`; storing a version deletes the language's other versions in the same transaction. The download uses `cache: 'no-store'`, so Retry really fetches again. The hash is checked with `crypto.subtle`, or with a plain SHA-256 where a webview has no `crypto.subtle` (`ui/src/modes/image/ocr/sha256.ts`).
+- 2026-11-11 (build): Byte counts show as decimal megabytes with one decimal in the UI locale ("4.1 MB of 4.1 MB", "1,5 MB von 1,5 MB"). The language pref is written when recognition starts (the model is ready), not when the language is only picked. A click outside the dialog does not close it, so a recognized text is not lost by a stray click.
+- 2026-11-11 (build): The e2e tests of AC-08 – AC-11 and AC-13 (`ui/e2e/ocr-dialog-result.spec.ts`) were green at once: the dialog's Copy and the source area were built with the first block, before these tests were written. The source-area logic itself went red first in `ocr_tests.rs` (see the first red-run entry). Windows reads plain text from the clipboard with CRLF line breaks; the AC-08 test compares with LF.
+- 2026-11-11 (build): AC-18 is tested by fault injection: an init script replaces the OCR worker (`ocr-worker-*.js`) with one that fails to start, or that answers as if the engine rejected the model — a model that matches its pinned hash cannot be made invalid otherwise. Red run: both AC-18 tests failed while the worker chunk was still named `worker-*` (the fault did not apply, so no failure message showed). AC-19 blocks `get` and `put` on the `ocr_models` store with a `QuotaExceededError`.
+- 2026-11-11 (build): The AC-05, AC-06, AC-12, AC-19, AC-20 and old-version tests were written after the code and were green at once; a mutation run proved they catch the behaviour: with the rejected model kept, the stored model's hash unchecked, the download not cancelled and older versions not removed, 6 of 13 tests in `ocr-dialog-model.spec.ts` and `ocr-dialog-cancel.spec.ts` failed (AC-12 ×2, the language switch, AC-18 model, AC-20, old versions).
+- 2026-11-11 (build): AC-14 measures in the page, from the Cancel click to the dialog's removal from the DOM (a `MutationObserver`), after the status shows line 3 or later; the per-line check collects every distinct "Recognizing line k of m" of a full run and requires each k from 1 to m.
+- 2026-11-11 (build): AC-15's tests were green at once: the property is an absence, and the models never were in the editor bundle. The website build (`scripts/cf-build.sh`) copies them to `ui/dist/ocr/tessdata_fast-4.1.0/`, beside `ui/dist/app/` and so outside the precache glob; `cloudflare/_headers` serves `/ocr/*` with `Cache-Control: immutable` and `Access-Control-Allow-Origin: *` (static headers cannot echo one of several origins, and the files are public). The desktop app's CSP `connect-src` admits `https://pincel.amigo-labs.dev`, without which the webview refuses the fetch; that change can only be checked in the desktop app (CI's `pincel-tauri` job builds it).
+- 2026-11-11 (build): AC-21 is manual (reference machine). On the development machine the e2e run of the benchmark screenshot (dev wasm build, `pincel-ocr` at `opt-level = 3`) took 4.5 s for the whole test including start-up.
+- 2026-11-11 (verification round 1): AC-04's "only the bytes downloaded when the server sends no total" had no test. The new test answers the model request from a local server in chunked transfer (`route.continue` to it), because `route.fulfill` always sets `Content-Length` and Chromium does not decode a fulfilled gzip body. Red run: with the dialog's no-total branch disabled it failed with "Downloading English model… 0.0 MB of 0.0 MB".

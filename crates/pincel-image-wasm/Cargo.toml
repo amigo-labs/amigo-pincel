@@ -11,9 +11,14 @@ rust-version.workspace = true
 crate-type = ["cdylib", "rlib"]
 
 [dependencies]
+# Live agent calls on the open document (docs/specs/mcp-live-desktop.md,
+# Decision Log 2026-10-29: the tools run in the webview's wasm).
+pincel-agent = { workspace = true }
 pincel-image-core = { workspace = true }
 pincel-effects = { workspace = true }
 pincel-trace = { workspace = true }
+# Recognize Text (docs/specs/ocr-dialog.md, Decision Log 2026-11-08).
+pincel-ocr = { workspace = true }
 # Palette file codecs shared with Pixel mode (docs/specs/pincel.md §15,
 # 2026-11-05).
 pincel-palette = { workspace = true }

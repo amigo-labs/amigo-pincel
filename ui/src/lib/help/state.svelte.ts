@@ -9,6 +9,7 @@
 // renders the dialog: that covers the start screen, where no editor and so
 // no menu bar is mounted at all.
 
+import { comfyDialogOpen } from '../comfyui/state.svelte';
 import { isTauri } from '../platform';
 import type { PaletteSource } from '../shell/command-palette';
 import type { ShortcutSource } from '../shell/shortcut-list';
@@ -74,9 +75,10 @@ export function closePalette(): void {
   help.palette = null;
 }
 
-/** True while a shell dialog (About, Keyboard Shortcuts, command palette) owns the keyboard. */
+/** True while a shell dialog (About, Keyboard Shortcuts, command palette,
+ *  Image generation) owns the keyboard. */
 export function helpDialogOpen(): boolean {
-  return help.about || help.shortcuts !== null || help.palette !== null;
+  return help.about || help.shortcuts !== null || help.palette !== null || comfyDialogOpen();
 }
 
 /** Load what the Help menu draws its update entries from. No-op in a browser. */

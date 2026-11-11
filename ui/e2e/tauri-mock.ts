@@ -41,6 +41,27 @@ export interface TauriMock {
   holdClipboard: boolean;
   clipboardHeld: (() => void)[];
   images: Record<number, ClipImage>;
+  /** Answers of app commands the mock does not model itself, per command:
+   *  each call takes the next one, the last one repeats; `{ __error }`
+   *  rejects. A command without answers resolves `null`. */
+  replies: Record<string, unknown[]>;
+  /** Calls of those commands, in order. */
+  calls: { cmd: string; args: Record<string, unknown> }[];
+  /** Commands whose calls wait in `held` until released (in call order). */
+  hold: string[];
+  held: (() => void)[];
+  /** Replies the UI sent for forwarded MCP calls, by call id. */
+  mcpReplies: Record<number, unknown>;
+  /** `mcp_call_waiting` calls in order: `[id, waiting]`. */
+  mcpWaiting: [number, boolean][];
+  /** Options of the native save / open dialogs the UI showed, in order. */
+  saveDialogs: Record<string, unknown>[];
+  openDialogs: Record<string, unknown>[];
+  /** The mocked MCP endpoint (src-tauri/src/mcp): its commands in call
+   *  order (`mcp_enable:true` for a fresh enable), its state, and the port
+   *  the next start reports as changed. */
+  mcpCommands: string[];
+  mcp: { enabled: boolean; token: string | null; port: number; portChanged: boolean; sessions: number };
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -69,6 +90,33 @@ export async function installTauriMock(page: Page): Promise<void> {
       holdClipboard: false,
       clipboardHeld: [],
       images: {},
+      replies: {},
+      calls: [],
+      hold: [],
+      held: [],
+      mcpReplies: {},
+      mcpWaiting: [],
+      saveDialogs: [],
+      openDialogs: [],
+      mcpCommands: [],
+      mcp: { enabled: false, token: null, port: 39217, portChanged: false, sessions: 0 },
+    };
+    let tokens = 0;
+    const mcpStatus = () => {
+      const m = mock.mcp;
+      const url = `http://127.0.0.1:${m.port}/mcp`;
+      const on = m.enabled && m.token !== null;
+      return {
+        enabled: m.enabled,
+        port: m.enabled ? m.port : null,
+        token: on ? m.token : null,
+        url: on ? url : null,
+        command: on
+          ? `claude mcp add --transport http pincel ${url} --header "Authorization: Bearer ${m.token}"`
+          : null,
+        portChanged: m.portChanged,
+        externalSessions: m.sessions,
+      };
     };
     let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -83,9 +131,39 @@ export async function installTauriMock(page: Page): Promise<void> {
           mock.destroyed += 1;
           return null;
         case 'plugin:dialog|save':
+          mock.saveDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.saveQueue.length > 0 ? mock.saveQueue.shift() : mock.savePick;
         case 'plugin:dialog|open':
+          mock.openDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.openPick;
+        case 'mcp_call_result':
+          mock.mcpReplies[Number(args.id)] = args.reply;
+          return null;
+        case 'mcp_status':
+          mock.mcpCommands.push(cmd);
+          return mcpStatus();
+        case 'mcp_enable':
+          mock.mcpCommands.push(`${cmd}:${String(args.fresh)}`);
+          if (args.fresh === true || mock.mcp.token === null) mock.mcp.token = `token-${++tokens}`;
+          mock.mcp.enabled = true;
+          return mcpStatus();
+        case 'mcp_disable':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.enabled = false;
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_regenerate_token':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.token = `token-${++tokens}`;
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_disconnect':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_call_waiting':
+          mock.mcpWaiting.push([Number(args.id), Boolean(args.waiting)]);
+          return null;
         case 'read_file_bytes': {
           const bytes = mock.disk[String(args.path)];
           if (!bytes) throw new Error('No such file or directory');
@@ -129,8 +207,19 @@ export async function installTauriMock(page: Page): Promise<void> {
         case 'plugin:resources|close':
           delete mock.images[Number(args.rid)];
           return null;
-        default:
-          return null;
+        default: {
+          mock.calls.push({ cmd, args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown> });
+          if (mock.hold.includes(cmd)) {
+            await new Promise<void>((resolve) => mock.held.push(resolve));
+          }
+          const queue = mock.replies[cmd];
+          if (!queue || queue.length === 0) return null;
+          const reply: unknown = queue.length > 1 ? queue.shift() : queue[0];
+          if (typeof reply === 'object' && reply !== null && '__error' in reply) {
+            throw new Error(String((reply as { __error: unknown }).__error));
+          }
+          return reply;
+        }
       }
     };
     Object.assign(window, {
@@ -286,4 +375,39 @@ export async function nativeSave(page: Page, path: string): Promise<Buffer> {
   const bytes = await diskFile(page, path);
   if (!bytes) throw new Error(`${path} was not written`);
   return bytes;
+}
+
+/** Queues the answers of app command `cmd` (see `TauriMock.replies`). */
+export async function reply(page: Page, cmd: string, ...answers: unknown[]): Promise<void> {
+  await page.evaluate(
+    ([c, a]) => {
+      (window as unknown as MockWindow).__mock.replies[c as string] = a as unknown[];
+    },
+    [cmd, answers] as const,
+  );
+}
+
+/** The calls of app commands the mock answers from `replies`. */
+export async function commandCalls(
+  page: Page,
+  cmd?: string,
+): Promise<{ cmd: string; args: Record<string, unknown> }[]> {
+  const calls = await page.evaluate(() => (window as unknown as MockWindow).__mock.calls);
+  return cmd === undefined ? calls : calls.filter((c) => c.cmd === cmd);
+}
+
+/** Holds (or stops holding) the calls of `cmds` that start from now on. */
+export async function holdCommands(page: Page, cmds: string[]): Promise<void> {
+  await page.evaluate((c) => {
+    (window as unknown as MockWindow).__mock.hold = c;
+  }, cmds);
+}
+
+/** Lets every held command call answer. */
+export async function releaseCommands(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const mock = (window as unknown as MockWindow).__mock;
+    const held = mock.held.splice(0);
+    for (const release of held) release();
+  });
 }
