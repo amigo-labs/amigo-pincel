@@ -10,6 +10,7 @@
 //! `docs/specs/pincel.md` §15 (2026-10-29).
 
 mod args;
+pub mod base64;
 mod clipboard;
 mod image;
 mod pixel;

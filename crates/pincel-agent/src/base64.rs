@@ -1,4 +1,5 @@
-//! Standard base64 (RFC 4648, with padding) for MCP image content.
+//! Standard base64 (RFC 4648, with padding) for MCP image content and the
+//! files a live call hands to the desktop app.
 
 const ALPHABET: &[u8; 64] = b"ABCDEFGHIJKLMNOPQRSTUVWXYZabcdefghijklmnopqrstuvwxyz0123456789+/";
 

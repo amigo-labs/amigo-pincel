@@ -3,7 +3,7 @@
 //! newline-delimited over stdio. See docs/specs/mcp-headless-pixel.md and
 //! the Decision Log in docs/specs/pincel.md §15 (2026-10-29).
 
-pub mod base64;
+pub use pincel_agent::base64;
 pub mod sandbox;
 pub mod server;
 
