@@ -83,8 +83,6 @@ The connection runs in the Tauri backend (Decision Log 2026-11-06 "ComfyUI"), so
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- **HTTPS for custom URLs (AC-08) needs a new direct dependency.** `reqwest` (approved, Decision Log 2026-11-06) is compiled with `rustls-no-provider` through the updater plugin and panics when a client is built without a process-wide rustls crypto provider; installing one needs `rustls = { version = "0.23", default-features = false, features = ["ring"] }` as a direct dependency of `pincel-tauri` (already in `Cargo.lock`, no new crate) — not approved yet. Until then the connection speaks plain HTTP through a small `std::net` client (`src-tauri/src/comfyui/http.rs`) and an `https://` URL reports "HTTPS is not supported yet". Approve `rustls` (Decision Log entry) and the transport moves to `reqwest` in one file?
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -111,7 +109,7 @@ The connection runs in the Tauri backend (Decision Log 2026-11-06 "ComfyUI"), so
 - 2026-11-06: Automatic prefers the managed installation, then 8188, then 8000 — a server Pincel installed is the one it can also start, update and stop (clarification pass).
 - 2026-11-06: A server is started when something needs it (dialog, visible Generate panel, generation), not at app start — no GPU memory is taken while the user does not use generation (clarification pass).
 - 2026-11-11: The settings (`comfyui.json`) and the record of a started server (`comfyui-run.json`) live in the app config dir, read and written by `pincel-tauri` — the backend resolves the server for the dialog, the Generate panel and `gen.*` calls alike, without asking the webview.
-- 2026-11-11: Plain HTTP through a `std::net` client instead of `reqwest` for now — `reqwest` cannot build a client without a rustls crypto provider, and installing one needs an unapproved dependency (Open questions). Local ComfyUI servers speak HTTP, so only `https://` custom URLs wait for the answer.
+- 2026-11-11: HTTP and HTTPS go through `reqwest` with `rustls` (ring) installed once as the process-wide crypto provider — approved by the owner on 2026-11-11 (Decision Log 2026-11-11 "rustls"), after a first cut had used a plain-HTTP `std::net` client because `reqwest` panics without a provider. Loopback probes bypass the system proxy; other hosts use it.
 - 2026-11-11: A ComfyUI Desktop folder is the Electron app's folder (`resources/app.asar`, `ComfyUI.exe`, `Contents/Resources/app.asar`) or its data folder (`.venv` and `models`, but no `main.py`) — the app keeps `main.py` inside its own resources.
 - 2026-11-11: On Windows a started server is ended with `taskkill /T /F` — a venv's `python.exe` is a launcher that runs the interpreter as a child, so killing the launcher alone leaves the server running.
 - 2026-11-11: Pincel owns at most one server: starting another installation ends the one it started before, so two servers never compete for the GPU.
