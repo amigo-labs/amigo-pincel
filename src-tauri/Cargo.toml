@@ -37,6 +37,10 @@ pincel-mcp = { workspace = true }
 # provider, installed once process-wide (Decision Log 2026-11-11).
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# The native job backend (docs/specs/performance-desktop-jobs.md) runs the
+# Image-mode job functions the wasm job worker runs, on all cores.
+pincel-effects = { workspace = true }
+pincel-image-core = { workspace = true, features = ["parallel"] }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –

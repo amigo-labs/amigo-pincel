@@ -18,6 +18,7 @@ mod fonts;
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod mcp;
+mod native_jobs;
 mod open_files;
 mod updater;
 mod webview_data;
@@ -507,6 +508,7 @@ fn main() {
         .manage(updater::UpdaterState::default())
         .manage(open_files::OpenFiles::default())
         .manage(fonts::SystemFonts::default())
+        .manage(native_jobs::NativeJobs::default())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             files_exist,
@@ -517,6 +519,7 @@ fn main() {
             open_files::take_open_files,
             fonts::system_font_faces,
             fonts::system_font_file,
+            native_jobs::image_job,
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_mode,
