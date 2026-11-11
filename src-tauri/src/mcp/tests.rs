@@ -697,3 +697,22 @@ fn an_unwritable_config_leaves_the_setting_off_and_nothing_listening() {
     assert!(!s.enabled);
     assert_eq!(s.port, None);
 }
+
+#[test]
+fn a_chat_that_cannot_store_the_port_leaves_nothing_listening() {
+    let dir = tempfile::tempdir().unwrap();
+    let path = dir.path().join("mcp.json");
+    std::fs::create_dir_all(&path).unwrap();
+    let ep = Endpoint::new(
+        Box::new(Arc::new(Mock::default())),
+        path,
+        free_port(),
+        timing(),
+    );
+    assert!(ep.chat_start("c", true).is_err());
+    assert_eq!(
+        ep.status().port,
+        None,
+        "no chat holds a token, nothing listens"
+    );
+}

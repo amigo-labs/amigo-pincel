@@ -369,7 +369,18 @@ impl Endpoint {
             let mut cfg = Config::load(&self.0.config_path);
             self.0.ensure_server(&mut st, &mut cfg)?;
             // Keep the port for later starts; the stored token stays.
-            cfg.save(&self.0.config_path)?;
+            if let Err(e) = cfg.save(&self.0.config_path) {
+                // The chat does not start (ai-chat-panel AC-28): nothing
+                // may listen without the setting or a chat token (AC-03).
+                let server = if st.chats.is_empty() && !st.enabled {
+                    st.server.take()
+                } else {
+                    None
+                };
+                drop(st);
+                halt(server);
+                return Err(e);
+            }
         }
         let port = st.server.as_ref().map_or(0, |s| s.port);
         let entry = st.chats.entry(chat.to_owned()).or_insert_with(|| Chat {
