@@ -3218,6 +3218,7 @@ version = "1.10.1"
 dependencies = [
  "console_error_panic_hook",
  "js-sys",
+ "pincel-agent",
  "pincel-effects",
  "pincel-image-core",
  "pincel-palette",
@@ -3263,7 +3264,9 @@ name = "pincel-tauri"
 version = "1.10.1"
 dependencies = [
  "fontdb",
+ "pincel-agent",
  "pincel-core",
+ "pincel-mcp",
  "serde",
  "serde_json",
  "tauri",
@@ -3287,9 +3290,12 @@ dependencies = [
 name = "pincel-wasm"
 version = "1.10.1"
 dependencies = [
+ "pincel-agent",
  "pincel-core",
  "pincel-effects",
  "pincel-trace",
+ "serde_json",
+ "uuid",
  "wasm-bindgen",
 ]
 

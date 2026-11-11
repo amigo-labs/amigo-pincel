@@ -10,7 +10,7 @@ import {
   advance,
   startCursor,
 } from './playback';
-import { syncMeta } from './render';
+import { syncMeta, syncSelection } from './render';
 import { colors, ed, live, play, toolState } from './stores/editor.svelte';
 import { layerTreeOrder } from './layer-order';
 import { packColor, unpackColor } from '../../lib/color';
@@ -225,6 +225,30 @@ export function undo() {
     const msg = err instanceof Error ? err.message : String(err);
     ed.status = t('status.failed', { action: t('act.undo'), error: msg });
   }
+}
+
+/** Runs a live agent tool on the active document as one undo step and
+ *  refreshes the editor like after Undo; the layer the agent selected
+ *  becomes the active one (docs/specs/mcp-live-desktop.md AC-07). */
+export function runAgentCall(
+  docId: string,
+  name: string,
+  argsJson: string,
+  file: { path: string; bytes: Uint8Array } | null,
+): string {
+  const doc = ed.doc;
+  if (!doc) return JSON.stringify({ ok: false, error: 'no document is open' });
+  const target = doc.paintTargetLayer();
+  const reply = doc.agentCall(docId, name, argsJson, file?.path, file?.bytes);
+  const next = doc.paintTargetLayer();
+  if (next !== target && next !== 0xffffffff) ed.activeLayerId = next;
+  live.needsRecompose = true;
+  syncMeta();
+  syncSelection();
+  ed.docRev += 1;
+  reconcileActiveSlice();
+  reconcileActiveLayerAndStamp();
+  return reply;
 }
 
 /** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History

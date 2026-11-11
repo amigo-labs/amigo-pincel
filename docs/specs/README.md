@@ -25,9 +25,7 @@ Owner priorities lead: performance and MCP. The specs are grouped by area; each 
 
 Agents reach every document-changing capability; live mode last. Runs in parallel with every other group.
 
-| # | Spec | Mode | Size | Depends on | Note |
-| - | ---- | ---- | ---- | ---------- | ---- |
-| A8 | [mcp-live-desktop](mcp-live-desktop.md) | both | L | mcp-headless-image | Only MCP part touching UI and Tauri; revised 2026-11-06 for the in-app chat (I1) |
+Every spec of this group is done.
 
 ### B — Image live objects
 
@@ -168,6 +166,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [linked-cels-group-compose](linked-cels-group-compose.md)
 - [mcp-headless-image](mcp-headless-image.md)
 - [mcp-headless-pixel](mcp-headless-pixel.md)
+- [mcp-live-desktop](mcp-live-desktop.md)
 - [mcp-parity-drawing](mcp-parity-drawing.md)
 - [mcp-parity-drawing-image](mcp-parity-drawing-image.md)
 - [mcp-parity-export](mcp-parity-export.md)

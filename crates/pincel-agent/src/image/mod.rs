@@ -171,6 +171,33 @@ impl ImageDoc {
         doc
     }
 
+    /// An Image document the desktop editor owns, with the agent state
+    /// it keeps between live calls (`ids`, `next_stroke`).
+    pub(crate) fn from_live(
+        bus: CommandBus,
+        scratch: StrokeScratch,
+        ids: Vec<(u128, u32)>,
+        next_stroke: u64,
+    ) -> Self {
+        let mut doc = Self {
+            bus,
+            scratch,
+            ids,
+            next_stroke,
+            path: None,
+            source: None,
+            jpeg_quality: None,
+            dirty: false,
+        };
+        doc.sync_ids();
+        doc
+    }
+
+    /// The editor's parts and the agent state, back after a live call.
+    pub(crate) fn into_live(self) -> (CommandBus, StrokeScratch, Vec<(u128, u32)>, u64) {
+        (self.bus, self.scratch, self.ids, self.next_stroke)
+    }
+
     pub fn document(&self) -> &Document {
         &self.bus.document
     }

@@ -4,14 +4,16 @@
 //! One registry of `area.verb` tools ([`list_tools`] / [`call`]) runs over
 //! an in-memory [`Workspace`] of documents. The crate does no I/O: tools
 //! that read or write files go through the host's [`FileHost`], which owns
-//! the workspace sandbox. Hosts are the `pincel-mcp` binary (stdio) and,
-//! later, the desktop app (live mode). See
+//! the workspace sandbox. Hosts are the `pincel-mcp` binary (stdio) and the
+//! desktop app, which lends its open documents to the tools ([`live`]). See
 //! `docs/specs/mcp-headless-pixel.md` and the Decision Log in
 //! `docs/specs/pincel.md` §15 (2026-10-29).
 
 mod args;
+pub mod base64;
 mod clipboard;
 mod image;
+pub mod live;
 mod pixel;
 mod preview;
 mod resources;

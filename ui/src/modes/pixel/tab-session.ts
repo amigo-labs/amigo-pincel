@@ -12,6 +12,7 @@ import { listRecents, upsertRecent } from '../../lib/idb/recent-files';
 import { hasFsAccess } from '../../lib/fs';
 import { isTauri } from '../../lib/platform';
 import type { EditorDocument } from '../../lib/shell/types';
+import { runAgentCall } from './doc-ops';
 import { ed, file, tabs, type PixelTab } from './stores/editor.svelte';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 
@@ -87,6 +88,16 @@ export function attachTab(tab: PixelTab, opts: { docId?: string; recovered?: boo
     discard: () => autosave.finish(),
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
+    saveAs: () => saveTab(tab, true),
+    agentCall: (docId, name, argsJson, file) => {
+      // The shell activates the tab before a call that may change it;
+      // `doc.list` reads background tabs in place, without switching the
+      // editor behind the shell's back. Their view refreshes when shown.
+      if (tabs.active === tab) return runAgentCall(docId, name, argsJson, file);
+      const d = tab.doc.doc;
+      if (d === null) return JSON.stringify({ ok: false, error: 'no document is open' });
+      return d.agentCall(docId, name, argsJson, file?.path, file?.bytes);
+    },
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

@@ -19,6 +19,7 @@
 //! testable on the host target — `JsError::new` panics outside of
 //! `wasm32-unknown-unknown` because it imports JS-side machinery.
 
+mod agent;
 mod animation;
 mod clipboard;
 mod effects;
