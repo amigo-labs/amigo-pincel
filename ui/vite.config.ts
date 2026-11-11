@@ -22,20 +22,19 @@ import { VitePWA } from 'vite-plugin-pwa';
 //   * `server.strictPort` makes Vite fail loudly if 5173 is taken so
 //     Tauri's `devUrl` never points at the wrong process.
 //
-// Base path: the web build is served at https://pincel.amigo-labs.dev/app/
-// (`/` redirects to amigo-labs.dev/pincel; docs/specs/pincel.md §15,
-// 2026-11-09), so it is built with `base: '/app/'` into `dist/app/`, and
-// scripts/cf-build.sh adds the root files from `cloudflare/` to `dist/`,
-// which the Worker serves. The Tauri CLI sets `TAURI_ENV_PLATFORM` for
-// its before-dev / before-build commands; the native shell loads the bundle
-// from its own origin, so it keeps the root base and `dist/`.
+// Base path: the web build is served at the root of
+// https://pincel.amigo-labs.dev/ (until 2026-11-11 at /app/; docs/specs/
+// pincel.md §15). The web app manifest keeps `id: '/app/'`, the id installed
+// copies were given then, so they stay the same app. The Tauri CLI sets
+// `TAURI_ENV_PLATFORM` for its before-dev / before-build commands; the native
+// shell needs no PWA (see below).
 const isTauri = Boolean(process.env.TAURI_ENV_PLATFORM);
-const base = isTauri ? '/' : '/app/';
+const base = '/';
 
 export default defineConfig({
   base,
   build: {
-    outDir: isTauri ? 'dist' : 'dist/app',
+    outDir: 'dist',
     emptyOutDir: true,
   },
   clearScreen: false,
@@ -58,6 +57,9 @@ export default defineConfig({
         name: 'Pincel',
         short_name: 'Pincel',
         description: 'Pixel-art and image editor: Aseprite-compatible sprites, tilemaps and animation, plus layered editing of photos, screenshots and artwork.',
+        // The id PWAs installed from /app/ carry (the manifest had no id, so
+        // it was the start URL); without it they would be a different app.
+        id: '/app/',
         start_url: base,
         scope: base,
         display: 'standalone',

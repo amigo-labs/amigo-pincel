@@ -14,7 +14,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
-| Both modes | [i18n](i18n.md) |
+| Both modes | [i18n](i18n.md), [autosave-recovery](autosave-recovery.md) (AC-15 reworded 2026-11-11: the web editor at the root) |
 | Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
 
 ## Planned features — order
@@ -133,7 +133,6 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
-- [autosave-recovery](autosave-recovery.md)
 - [clone-stamp](clone-stamp.md)
 - [color-picker](color-picker.md)
 - [comfyui-connect](comfyui-connect.md)
