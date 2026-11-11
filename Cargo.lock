@@ -3135,6 +3135,7 @@ dependencies = [
  "flate2",
  "gif",
  "pincel-effects",
+ "pincel-palette",
  "png",
  "thiserror 2.0.21",
 ]
@@ -3172,6 +3173,7 @@ dependencies = [
  "js-sys",
  "pincel-effects",
  "pincel-image-core",
+ "pincel-palette",
  "pincel-trace",
  "serde",
  "serde-wasm-bindgen",
@@ -3193,6 +3195,14 @@ dependencies = [
 
 [[package]]
 name = "pincel-ocr"
+version = "1.10.1"
+dependencies = [
+ "png",
+ "thiserror 2.0.21",
+]
+
+[[package]]
+name = "pincel-palette"
 version = "1.10.1"
 dependencies = [
  "png",

@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -469,7 +469,7 @@ The project facts the shared spec skills (`spec`, `spec-build`, `spec-check`, `s
 
 - **Design spec** — `docs/specs/pincel.md` (architecture, data model, Decision Log §15, competitive landscape §18); also `canvas.md`, `cli.md`, `lessons.md`, `mcp.md`. Index: `docs/specs/README.md`.
 - **Decisions** — a Decision Log entry in `docs/specs/pincel.md` §15 (§2.1).
-- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`; agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
+- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`, `pincel-palette` (palette file codecs); agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
 - **Spec questions** — Mode: Pixel, Image, both or shell? Does the document model or a file format change (`.aseprite`, `.ora`, …)? UI: which menu, tool, panel or dialog, which keyboard shortcut (`ui/src/lib/shell/shortcuts.ts`), what undo behavior? Front matter: `mode: {Pixel | Image | both | shell}`.
 - **AC subject** — "The editor …".
 - **Performance AC example** — "Image compose of a 1024×1024 document with 4 layers takes under 16 ms in the benchmark".
@@ -570,6 +570,7 @@ crates/pincel-image-core/     Image-mode core (from amigo-fineliner): layers, br
 crates/pincel-effects/        Stateless effects + adjustments, shared by both cores
 crates/pincel-trace/          Raster → SVG tracing (Potrace port of Vectorizer, pixel-exact mode), shared by both modes
 crates/pincel-ocr/            Text recognition: Rust port of Tesseract's LSTM line recognizer + tessdata_fast models (Apache-2.0)
+crates/pincel-palette/        Palette file codecs (.gpl, .hex, .pal, PNG strip), shared by both modes
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib

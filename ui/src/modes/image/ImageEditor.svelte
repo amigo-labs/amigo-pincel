@@ -97,6 +97,7 @@
   import { formatPixels, type ViewUnit } from './view-units';
   import ToolOptions from './components/toolbar/ToolOptions.svelte';
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
+  import { loadImagePalette } from './stores/palette.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
@@ -824,6 +825,7 @@
 
   onMount(() => {
     void loadRecent('image');
+    void loadImagePalette();
     void loadViewAids();
     void Promise.all([loadColorPref(FG_PREF), loadColorPref(BG_PREF)]).then(([fg, bg]) => {
       if (fg) [tool.foreground, tool.foregroundAlpha] = [toHex(fg), fg.a];
