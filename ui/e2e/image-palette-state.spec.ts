@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, setColor, storedPref } from './helpers';
+import { createDocument, gotoStart, menu, setColor, storedPref, waitForEditor } from './helpers';
 import {
   colorsPanel,
   loadPalette,
@@ -13,6 +13,14 @@ import {
   swatches,
 } from './palette-helpers';
 import { expectDirty, tab } from './tab-helpers';
+import {
+  closeWindow,
+  destroyed,
+  installTauriMock,
+  launchDesktop,
+  putFile,
+  setMock,
+} from './tauri-mock';
 
 // Image mode's palette as app state (docs/specs/image-palette-gradient.md):
 // Add color, Reset, persistence in IndexedDB, one palette for every Image
@@ -143,6 +151,45 @@ test('the palette survives a reload with colors, alpha and names (AC-13)', async
   await expect.poll(() => storedPref(page, PREF)).toHaveLength(4);
   await createDocument(page, 'image', { width: 16, height: 16 });
   await expect.poll(() => swatchNames(page)).toEqual(expected);
+});
+
+test.describe('desktop', () => {
+  test.beforeEach(async ({ page }) => {
+    page.on('dialog', (d) => void d.accept());
+    await installTauriMock(page);
+  });
+
+  /** Creates a 16 × 16 Image document from the desktop start screen. */
+  async function newImage(page: Page): Promise<void> {
+    await page.getByRole('button', { name: 'New image' }).click();
+    const card = page.getByRole('form', { name: 'New image' });
+    for (const label of ['Width', 'Height']) await card.getByLabel(label).fill('16');
+    await card.getByRole('button', { name: 'Create' }).click();
+    await waitForEditor(page, 'image');
+  }
+
+  test('the palette survives quitting the app (AC-13)', async ({ page }) => {
+    await launchDesktop(page);
+    await newImage(page);
+    // Load palette… through the native open dialog.
+    await putFile(page, '/home/u/named.gpl', Buffer.from(NAMED_GPL));
+    await setMock(page, { openPick: '/home/u/named.gpl' });
+    await openPaletteMenu(page);
+    await page.getByRole('menuitem', { name: 'Load palette…' }).click();
+    await expect(statusBar(page)).toContainText('loaded 3 palette colours');
+    await setColor(page, 'fg', '#11223380');
+    await addButton(page).click();
+    const expected = ['Black #000000', '#ffffff', 'Deep sea #0a141e', '#11223380'];
+    await expect.poll(() => swatchNames(page)).toEqual(expected);
+    await expect.poll(() => storedPref(page, PREF)).toHaveLength(4);
+
+    // Quit (the window's close button), then start the app again.
+    await closeWindow(page);
+    await expect.poll(() => destroyed(page)).toBe(1);
+    await launchDesktop(page);
+    await newImage(page);
+    await expect.poll(() => swatchNames(page)).toEqual(expected);
+  });
 });
 
 test('an unreadable stored palette falls back silently (AC-14)', async ({ page }) => {
