@@ -17,11 +17,14 @@ libm = "0.2"
 # `pincel-tauri` enables `parallel`, the wasm builds never link rayon
 # (docs/specs/pincel.md §15, 2026-10-29; docs/specs/performance-desktop-jobs.md).
 rayon = { version = "1", optional = true }
+# Runtime dispatch of the row kernels to an AVX2 build, for the same
+# native backend only (docs/specs/pincel.md §15, 2026-11-11).
+multiversion = { version = "0.9", optional = true }
 
 [features]
-# Run row-independent kernels on all cores. Results are byte-identical
-# with and without it.
-parallel = ["dep:rayon"]
+# Run row-independent kernels on all cores, each row in an AVX2 build
+# where the CPU has it. Results are byte-identical with and without it.
+parallel = ["dep:rayon", "dep:multiversion"]
 
 [lints]
 workspace = true
