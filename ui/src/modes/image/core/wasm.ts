@@ -833,5 +833,5 @@ export const core = {
     return out;
   },
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
-  registerFont: (data: Uint8Array): number => register_font(data),
+  registerFont: (data: Uint8Array, faceIndex?: number): number => register_font(data, faceIndex),
 };
