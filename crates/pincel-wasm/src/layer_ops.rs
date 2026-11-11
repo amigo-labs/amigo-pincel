@@ -364,7 +364,7 @@ mod tests {
             env!("CARGO_MANIFEST_DIR"),
             "/../pincel-core/tests/fixtures/LiberationSans-Regular.ttf"
         ));
-        let font = crate::text::register_font(FONT);
+        let font = crate::text::register_font(FONT, None);
         let red = 0xFF0000FF;
         let mut doc = Document::new(8, 8).expect("dims");
         doc.apply_tool("pencil", 1, 1, 0x00FF00FF).expect("paint");
