@@ -117,6 +117,8 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- `.agents/gates.json` does not list `pincel-palette` yet: its `rust-clippy` (fast and full) and `rust-test` (full) commands need `-p pincel-palette` after `-p pincel-ocr`, as `.github/workflows/ci.yml`, `release.yml` and AGENTS.md §10 now have it. Without it the gates neither lint the crate's tests nor run them (no other listed package runs a dependency's tests), so the full gates prove AC-21 only through the unchanged `pincel-core` / `pincel-wasm` / `pincel-agent` palette tests. The gate configuration changes only with the owner's approval (AGENTS.md "Quality gates"; Technical notes of this spec).
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -141,7 +143,7 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
+| AC-21 | `pincel-palette`: `formats::tests::*` (15 codec tests), `gpl::tests::*` (4) — `crates/pincel-palette/src/{formats,gpl}.rs`; `pincel-core`: `codec::gpl::tests::*`, `codec::palette_formats::tests::*` (unchanged assertions); `pincel-wasm`: `tests::import_palette_*`, `tests::export_palette_writes_each_format`, `tests::palette_presets_and_gpl_round_trip_through_undo`, `tests::import_gpl_invalid_file_returns_err_and_keeps_palette`; `pincel-agent`: `tests::tags_palette::palette_*`; e2e `ui/e2e/palette.spec.ts` | built |        |
 | AC-22 |      | open   |        |
 | AC-23 |      | open   |        |
 | AC-24 |      | open   |        |
@@ -160,4 +162,5 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 - 2026-11-05: Reset removes the stored palette instead of storing the default (AC-22), because users who never customized their palette should get a later improved default.
 - 2026-11-05: A failed IndexedDB write keeps the change for the session and says so (AC-25), because discarding a change the user just made is worse than losing it at reload, and the notice lets the user save the palette as a file first.
 - 2026-11-05: Status messages reuse Pixel mode's wording and the shared `status.failed` pattern ("{action} failed: {error}"), because one vocabulary across modes keeps strings and translations small.
+- 2026-11-11 (spec-build): `pincel-core` keeps `codec/gpl.rs` and `codec/palette_formats.rs` as thin adapters over `pincel-palette` (same function names, signatures and re-exports; `GplError`, `PaletteFormat`, `PaletteFormatError` are re-exported from the new crate), so callers and the existing `pincel-core` codec tests stay unchanged; the same tests are ported to `pincel-palette`'s `Vec<PaletteEntry>` with their input bytes and expectations. `MAX_PALETTE_ENTRIES` is now `pincel_palette::MAX_ENTRIES` (256), one limit for both. The AC-21 tests were green at once: the code moved unchanged, so there is no red run; the PNG decode / encode error texts are kept byte for byte (including the doubled `png decode failed:` prefix `pincel-core` produced), because AC-21 asks for unchanged errors.
 - 2026-11-05: A duplicate wins over a full palette in Add color's message (AC-10, AC-11), because "already in the palette" tells the user the color is available, while "full" would suggest it is missing.
