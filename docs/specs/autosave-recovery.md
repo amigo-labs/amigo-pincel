@@ -1,5 +1,5 @@
 ---
-status: implemented
+status: todo
 created: 2026-10-29
 size: M
 mode: both
@@ -47,7 +47,7 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [x] AC-12 (event): When the user changes the foreground or background color in Pixel mode and reloads, then a new Pixel document starts with those colors.
 - [x] AC-13 (error): If IndexedDB is unavailable, then the app still starts and both editors create, edit and save documents; autosave, recovery, recent files and stored preferences are silently skipped.
 - [x] AC-14 (event): When the web app has been loaded once and the network then goes offline, then reloading it shows the start screen and both editors open new documents.
-- [x] AC-15 (always): The web build serves a web app manifest named "Pincel" with `display: standalone`, whose start URL and scope are the app's base path (`/app/` on the web).
+- [ ] AC-15 (always): The web build serves a web app manifest named "Pincel" with `display: standalone`, whose start URL and scope are the app's base path (`/` on the web, since 2026-11-11) and whose id is `/app/`, the id of copies installed while the editor lived at `/app/`.
 
 ## Technical notes
 
@@ -104,7 +104,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-12 | `ui/e2e/recovery.spec.ts › the last Pixel colors start the next session’s new documents` | verified | 22f5a52 |
 | AC-13 | `ui/e2e/recovery.spec.ts › without IndexedDB › both editors create, edit and save; storage is skipped silently` | verified | 3678aba |
 | AC-14 | `ui/e2e/recovery.spec.ts › installed web app › loads offline once cached and opens both editors` | verified | 48b5d53 |
-| AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` | verified | 6aed618 |
+| AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` (start URL, scope and id) | open |        |
 
 
 ## Decisions
@@ -115,3 +115,4 @@ Hints, not contracts — paths drift; grep for the names.
 - 2026-11-04: AC-04 reworded for mixed-mode tabs: the dialog lists the snapshots of both modes at the first editor start; back to `open`.
 - 2026-11-05 (spec-build): AC-05 after the `document-tabs` rewording: two real autosaved documents (two tabs) are recovered one by one into a fresh session. Green at once (the behavior came with `document-tabs`); red against a deliberate break that closed the dialog after the first Recover, then reverted.
 - 2026-11-05 (spec-check rework): AC-09 reworded for `document-tabs` and `unsaved-changes-prompt`: New and Open open tabs without asking, so work is discarded by closing its tab with "Don't Save"; the existing test already covers that path. The edge case on a second editor mount now speaks of tabs.
+- 2026-11-11: AC-15 reworded: the web editor moved from `/app/` to the root (`pincel.md` §15, 2026-11-11), so start URL and scope are `/`, and the manifest keeps the id `/app/` so installed copies stay the same app. The test now also checks the id; back to `open` and the spec to `status: todo` until `/spec-check` accepts it again.

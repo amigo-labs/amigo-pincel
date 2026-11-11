@@ -54,7 +54,7 @@ platforms: [windows, macos, linux, web]
 license: MIT OR Apache-2.0
 launch:
   label: { en: Open the editor, de: Editor öffnen }
-  url: https://pincel.amigo-labs.dev/app/
+  url: https://pincel.amigo-labs.dev/
 
 screenshots:
   - src: screenshots/pixel-mode.png

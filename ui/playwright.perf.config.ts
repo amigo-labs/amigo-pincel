@@ -18,7 +18,7 @@ export default defineConfig({
   reporter: 'list',
   timeout: 600_000,
   use: {
-    baseURL: `http://localhost:${port}/app/`,
+    baseURL: `http://localhost:${port}/`,
     serviceWorkers: 'block',
     locale: 'en-US',
     trace: 'off',
@@ -26,7 +26,7 @@ export default defineConfig({
   projects: [{ name: 'chromium', use: { ...devices['Desktop Chrome'] } }],
   webServer: {
     command: `pnpm preview --port ${port} --strictPort`,
-    url: `http://localhost:${port}/app/`,
+    url: `http://localhost:${port}/`,
     reuseExistingServer: !process.env.CI,
     timeout: 60_000,
   },

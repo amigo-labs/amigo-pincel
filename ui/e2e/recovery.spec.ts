@@ -541,12 +541,15 @@ test.describe('installed web app', () => {
     const manifest = (await res.json()) as {
       name?: string;
       display?: string;
+      id?: string;
       start_url?: string;
       scope?: string;
     };
     expect(manifest.name).toBe('Pincel');
     expect(manifest.display).toBe('standalone');
-    expect(new URL(manifest.start_url ?? '', url).pathname).toBe('/app/');
-    expect(new URL(manifest.scope ?? '', url).pathname).toBe('/app/');
+    expect(new URL(manifest.start_url ?? '', url).pathname).toBe('/');
+    expect(new URL(manifest.scope ?? '', url).pathname).toBe('/');
+    // PWAs installed while the editor lived at /app/ keep their identity.
+    expect(new URL(manifest.id ?? '', url).pathname).toBe('/app/');
   });
 });

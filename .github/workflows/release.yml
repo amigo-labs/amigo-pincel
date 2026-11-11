@@ -8,9 +8,9 @@ name: Release
 # this after a release PR is merged (it creates the tag and the draft
 # release); by hand, run it for an existing tag. See docs/RELEASING.md.
 #
-# The web deploy (site + editor at /app/) is not done here: Cloudflare's
-# Git integration builds and serves it from main (root wrangler.toml,
-# scripts/cf-build.sh).
+# The web editor at pincel.amigo-labs.dev is deployed here too, and only
+# here: `deploy-web` runs `wrangler deploy` on the released pincel-web.zip
+# (root wrangler.toml; docs/specs/pincel.md §15, 2026-11-11).
 #
 # No code signing certificate from a CA, as in amigo-blinzel: no
 # Authenticode, no notarization, so Windows SmartScreen and macOS
@@ -26,6 +26,11 @@ name: Release
 # signed):
 #   secret   MACOS_SIGNING_CERT                  self-signed code signing .p12, base64
 #   secret   MACOS_SIGNING_CERT_PASSWORD         its password
+#
+# Needed for the web deploy (repository or organization secrets; a
+# Cloudflare API token with "Workers Scripts: Edit" on the account):
+#   secret   CLOUDFLARE_API_TOKEN
+#   secret   CLOUDFLARE_ACCOUNT_ID
 #
 # The npm publish needs no secret: `publish-npm` authenticates through
 # OIDC trusted publishing and runs when the repository variable
@@ -99,8 +104,8 @@ jobs:
       # Ubuntu's apt binaryen (108) rebinds wasm-bindgen's exported
       # `__wbindgen_externrefs` table to the funcref table, and the module
       # then fails to load (`Table.grow()`); v1.6.0's web bundle and npm
-      # package shipped that way. Use the binaryen release that
-      # scripts/cf-build.sh pins (BINARYEN_VERSION there and here).
+      # package shipped that way. Use the pinned binaryen release
+      # (BINARYEN_VERSION, the same in the web, desktop and npm jobs).
       - name: install binaryen
         env:
           BINARYEN_VERSION: '133'
@@ -138,6 +143,12 @@ jobs:
         env:
           VITE_APP_VERSION: ${{ inputs.tag }}
         run: pnpm build
+      # The whole site the Worker serves: the editor at the root plus the
+      # OCR models and cloudflare/ (redirects, headers, 404, /app/sw.js).
+      - name: assemble the site
+        run: |
+          bash scripts/web-site.sh
+          node scripts/check-wasm-release.mjs ui/dist/assets
       - name: package web bundle
         run: |
           mkdir dist
@@ -216,7 +227,7 @@ jobs:
         run: node scripts/check-wasm-simd.mjs crates/pincel-wasm/pkg crates/pincel-image-wasm/pkg
       # The desktop bundle ships the same optimized modules as the web one.
       # wasm-pack's own wasm-opt pass is off and only Linux has binaryen in
-      # apt, so every runner fetches the pinned release (as cf-build.sh does).
+      # apt, so every runner fetches the pinned release (as the web job does).
       - name: optimize wasm (pinned binaryen)
         shell: bash
         env:
@@ -472,6 +483,45 @@ jobs:
           gh release upload "$TAG" --clobber dist/*
           gh release edit "$TAG" --draft=false --latest --title "Pincel ${TAG#v}"
 
+  # The web editor follows the release: deploy exactly the attached
+  # pincel-web.zip, after the release is published, so the web app and the
+  # desktop app carry the same version. Cloudflare's Git integration no
+  # longer deploys pushes (docs/RELEASING.md "Web deploy").
+  deploy-web:
+    name: Deploy the web editor (pincel.amigo-labs.dev)
+    needs: [web, publish]
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - uses: actions/checkout@v7
+        with:
+          ref: ${{ inputs.tag }}
+      - name: Cloudflare credentials are set
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ] || [ -z "$CLOUDFLARE_ACCOUNT_ID" ]; then
+            echo "::error::CLOUDFLARE_API_TOKEN / CLOUDFLARE_ACCOUNT_ID are not set; the web editor was not deployed (docs/RELEASING.md \"Web deploy\")"
+            exit 1
+          fi
+      - uses: actions/download-artifact@v8
+        with:
+          name: web
+          path: dist
+      - name: unpack the site
+        run: |
+          mkdir -p ui/dist
+          unzip -q dist/pincel-web.zip -d ui/dist
+          test -f ui/dist/index.html
+          test -f ui/dist/app/sw.js
+      - name: wrangler deploy
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ACCOUNT_ID: ${{ secrets.CLOUDFLARE_ACCOUNT_ID }}
+        run: npx --yes wrangler@4.158.0 deploy
+
   # Authenticates through npm's OIDC trusted publishing, not a token:
   # npm revoked all classic tokens in December 2025, and a granular
   # token of the "Read and write (stage only)" kind — the one npm steers
@@ -530,8 +580,8 @@ jobs:
       # Ubuntu's apt binaryen (108) rebinds wasm-bindgen's exported
       # `__wbindgen_externrefs` table to the funcref table, and the module
       # then fails to load (`Table.grow()`); v1.6.0's web bundle and npm
-      # package shipped that way. Use the binaryen release that
-      # scripts/cf-build.sh pins (BINARYEN_VERSION there and here).
+      # package shipped that way. Use the pinned binaryen release
+      # (BINARYEN_VERSION, the same in the web, desktop and npm jobs).
       - name: install binaryen
         env:
           BINARYEN_VERSION: '133'

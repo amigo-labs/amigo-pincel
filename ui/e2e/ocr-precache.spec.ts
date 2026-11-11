@@ -9,7 +9,7 @@ import { serveModels } from './ocr-helpers';
 // and an Image document requests none. Reads the built bundle (`pnpm
 // build` runs before the e2e suite).
 
-const DIST = join(import.meta.dirname, '..', 'dist', 'app');
+const DIST = join(import.meta.dirname, '..', 'dist');
 
 /** Every file path under `dir`, relative to it. */
 function files(dir: string, prefix = ''): string[] {
