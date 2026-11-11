@@ -23,6 +23,10 @@ tauri-build = { version = "2", features = [] }
 # M11.2 doesn't yet exercise the dependency — the FS bridge moves
 # raw bytes — but slice-aware native commands in later milestones will.
 pincel-core = { workspace = true }
+# System fonts for the Text tools (docs/specs/system-fonts.md, Decision Log
+# 2026-11-05): pure Rust, the same on Windows, macOS and Linux, and it reuses
+# the ttf-parser 0.25 that ab_glyph already brings.
+fontdb = "0.23"
 # The live MCP endpoint (docs/specs/mcp-live-desktop.md): the tool list and
 # the in-house JSON-RPC routing of the headless server (Decision Log
 # 2026-10-29).

@@ -138,30 +138,30 @@ The MCP side (`draw.text` with a `font` argument, a font list for agents, fonts 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
+| AC-01 | `ui/e2e/system-fonts-list.spec.ts` `AC-01: both Text tools show the family; Liberation Sans is always listed`, `AC-01: with system fonts granted the list offers no "Add font file…"` | built |        |
+| AC-02 | `ui/e2e/system-fonts-list.spec.ts` `AC-02 / AC-03: each family once, sorted, and searchable`; `ui/e2e/system-fonts-faces.spec.ts` `AC-02 / AC-03: each family once, sorted case-insensitively, filtered by substring` | built |        |
+| AC-03 | `ui/e2e/system-fonts-list.spec.ts` `AC-02 / AC-03: each family once, sorted, and searchable`; `ui/e2e/system-fonts-faces.spec.ts` `AC-02 / AC-03: each family once, sorted case-insensitively, filtered by substring` | built |        |
+| AC-04 | `ui/e2e/system-fonts-list.spec.ts` `AC-04: each entry renders its name in its own font` | built |        |
+| AC-05 | `ui/e2e/system-fonts-list.spec.ts` `AC-05: opening, searching and scrolling the list reads no system face`; `ui/e2e/system-fonts-fallback.spec.ts` `AC-05: a face is read once per session, across commits and both modes`; `ui/e2e/system-fonts-desktop.spec.ts` `AC-15: text placed with a system family equals the core output for its Regular face` (one file read for two faces); `ui/e2e/system-fonts-added.spec.ts` `AC-20: every face of a collection is added; added families stay once access is granted` (an added family named like a system one is listed without reading the system face) | built |        |
+| AC-06 | `ui/e2e/system-fonts-text.spec.ts` `AC-06 (pixel): placed text equals the core output for the family Regular face`, `AC-06 (image): committed text equals the core output for the family Regular face` | built |        |
+| AC-07 | `ui/e2e/system-fonts-text.spec.ts` `AC-07 (pixel): Bold and Italic use the real faces, not synthesis`, `AC-07 (pixel): a missing Bold Italic falls back to Bold plus synthesized italic`, `AC-07 (image): Bold Italic uses the Bold Italic face; Bold alone without a Bold face is synthesized`; `ui/e2e/system-fonts-faces.spec.ts` `AC-07: Bold / Italic use real faces, the missing style is synthesized`, `face choice: Regular nearest 400, Bold nearest 700 at 600 or more`; `crates/pincel-image-core/tests/live_text.rs` `edit_live_font_id_redraws_the_text_with_that_face_as_one_step` | built |        |
+| AC-08 | `ui/e2e/system-fonts-text.spec.ts` `AC-08: a face of a collection is used, not the collection first face`; `ui/e2e/system-fonts-faces.spec.ts` `AC-08: a face is found by its PostScript name inside a collection`; `crates/pincel-core/src/command/draw_text.rs` `with_face_index_collection_face_draws_that_face_not_the_first`; `crates/pincel-image-core/src/tools/text/tests.rs` `render_collection_face_draws_that_face_not_the_first`, `layout_lines_collection_face_measures_that_face`; `crates/pincel-image-core/tests/live_text.rs` `begin_live_text_collection_face_draws_that_face`; `crates/pincel-wasm/src/text.rs` `register_font_face_index_names_a_face_of_a_collection`; `crates/pincel-image-wasm/src/fonts.rs` `register_same_bytes_and_index_returns_the_same_id` | built |        |
+| AC-09 | `ui/e2e/system-fonts-text.spec.ts` `AC-09 (pixel): the preview follows the family and keeps the previous face while one is read`, `AC-09 (image): the live text shows the chosen face and follows a family change`, `AC-09 (image): the live text keeps the previous face while a new one is read` | built |        |
+| AC-10 | `ui/e2e/system-fonts-fallback.spec.ts` `AC-10: each mode remembers its own family across a reload` | built |        |
+| AC-11 | `ui/e2e/system-fonts-fallback.spec.ts` `AC-11: an uninstalled family falls back to Liberation Sans with a mark and a message`, `AC-11: with access denied the remembered system family falls back when the Pixel dialog opens`, `AC-11: a face that cannot be parsed falls back and marks the family`; `ui/e2e/system-fonts-added.spec.ts` `AC-11: an added family gone from IndexedDB falls back to Liberation Sans` | built |        |
+| AC-12 | `ui/e2e/system-fonts-list.spec.ts` `AC-12: opening the list asks for the permission from that click and fills in on approval` | built |        |
+| AC-13 | `ui/e2e/system-fonts-list.spec.ts` `AC-13: denied access lists the bundled family with a note, no error dialog`, `AC-13: a dismissed prompt says that opening the list asks again, and it does`, `AC-13: a browser without Local Font Access says so in the list` | built |        |
+| AC-14 | `ui/e2e/system-fonts-list.spec.ts` `AC-14: with access granted the remembered family is there at start, without a prompt` | built |        |
+| AC-15 | `ui/e2e/system-fonts-desktop.spec.ts` `AC-15 / AC-16: the font list shows the families the shell reports, without a prompt`, `AC-15: text placed with a system family equals the core output for its Regular face`; `src-tauri/src/fonts.rs` `from_db_lists_each_face_with_its_file_and_index`, `read_file_returns_a_listed_file_and_refuses_others` (CI: pincel-tauri; also run locally on Windows) | built |        |
+| AC-16 | `src-tauri/src/fonts.rs` `from_db_lists_each_face_with_its_file_and_index` (a non-font file is not listed; CI: pincel-tauri); `ui/e2e/system-fonts-desktop.spec.ts` `AC-15 / AC-16: the font list shows the families the shell reports, without a prompt`; PWA: `ui/e2e/system-fonts-fallback.spec.ts` `AC-11: a face that cannot be parsed falls back and marks the family` | built |        |
+| AC-17 | `ui/e2e/system-fonts-fallback.spec.ts` `AC-17: fonts make no network request and leave no trace in an export` | built |        |
+| AC-18 | `ui/e2e/system-fonts-text.spec.ts` `AC-18 (pixel): Place waits for a face still being read, with a loading notice`, `AC-18 (image): Finish waits for a family change still being read and uses that family` | built |        |
+| AC-19 | manual check pending: real installs on Windows, macOS and Linux | open |        |
+| AC-20 | `ui/e2e/system-fonts-added.spec.ts` `AC-20: added faces join both modes, become current, and survive a reload`, `AC-20: every face of a collection is added; added families stay once access is granted`, `AC-20: a font added from the Pixel Text dialog becomes the Pixel family`; `ui/e2e/system-fonts-faces.spec.ts` `AC-20: the reader lists each face with names, weight and slant` | built |        |
+| AC-21 | `ui/e2e/system-fonts-added.spec.ts` `AC-21: refused files are named with their reasons; the others are added`, `AC-21: a file that cannot be stored is refused with that reason`; `ui/e2e/system-fonts-faces.spec.ts` `AC-21: web fonts, other files and damaged fonts are refused with a reason` | built |        |
+| AC-22 | `ui/e2e/system-fonts-fallback.spec.ts` `AC-22: an undecided permission is asked for from the first Text press; approval uses the family`, `AC-22: a refused prompt from the first Text press falls back per AC-11` | built |        |
+| AC-23 | `ui/e2e/system-fonts-text.spec.ts` `AC-23: the Liberation Sans entry keeps the bundled face upright and takes system Bold`; `ui/e2e/system-fonts-faces.spec.ts` `AC-23: the Liberation Sans entry keeps the bundled face for upright regular text` | built |        |
+| AC-24 | `ui/e2e/system-fonts-added.spec.ts` `AC-24: a newer face with the same family and style replaces the older one`; `ui/e2e/system-fonts-faces.spec.ts` `AC-24: an added face with the same family and style replaces the earlier one` | built |        |
 
 ## Decisions
 
@@ -174,3 +174,13 @@ The MCP side (`draw.text` with a `font` argument, a font list for agents, fonts 
 - 2026-11-05 (clarification pass): The bundled face always serves upright regular "Liberation Sans" — because the default output must not change between machines that do or do not have Liberation Sans installed (AC-17, and MCP `draw.text` without `font`).
 - 2026-11-05 (clarification pass): A newer added face with the same family and style replaces the older one — because the font list and the Bold / Italic toggles address faces by family and style only, two such faces could not be told apart, and the newer pick is the user's latest intent (e.g. an updated version of the font).
 - 2026-11-05 (clarification pass): A system family remembered while the permission is undecided asks for it on the first Text-tool press — because that press is a user gesture, so the remembered choice works without forcing the user to open the font list first.
+- 2026-11-11 (spec-build): Test fixtures are "Pincel Test Serif": Liberation Serif 2.1.5 subset to ASCII and renamed (the OFL forbids the Reserved Font Names "Liberation" / "Tinos" on a modified version), four faces plus a Regular + Bold collection, built by `crates/pincel-core/tests/fixtures/make-test-serif.py` — because the spec asks for a second OFL family with Bold / Italic faces and a collection, and the subset keeps each file at about 12 KB.
+- 2026-11-11 (spec-build): New public API: `pincel-core` `DrawText::with_face_index`; `pincel-image-core` `FontFace` (bytes + face index, `From<&[u8]>`), `run_command(…, fonts: &[FontFace])`, `Text::render` / `Text::layout_lines` / `live_spec::text_layout` taking `impl Into<FontFace>`, `text_box(…, FontFace)`, `LiveFont::index` / `LiveFont::face`, `LiveEdit::font`, `CommandSpec::EditLive::font_id`; `registerFont(bytes, faceIndex?)` in `pincel-wasm` and `register_font(bytes, faceIndex?)` in `pincel-image-wasm`; desktop commands `system_font_faces` / `system_font_file` — because AC-07 / AC-08 / AC-09 need a face index in both cores and a font switch of an open live text.
+- 2026-11-11 (spec-build): An added file is parsed in TypeScript (`ui/src/lib/fonts/sfnt.ts`: names, `OS/2` weight / width / slant, collection header) and refused when it is a web font, not an sfnt, lacks the `head` / `hhea` / `maxp` tables `ttf-parser` needs, or has no outlines — because exposing `ttf-parser` to the wasm crates would be a new direct dependency, and the same reader finds a Local Font Access face by PostScript name inside a collection (AC-08). A face the check passes but the core still refuses is handled by AC-11 at use.
+- 2026-11-11 (spec-build): The desktop list builds its style names from `fontdb`'s weight, width and slant ("Bold Italic") — because `fontdb` keeps no subfamily name; the face choice uses the attributes anyway.
+- 2026-11-11 (spec-build): A failed face read is retried at the next use, while the family stays marked missing for the session — because Image mode's bundled-font load must keep retrying on the next press (`image-live-text` AC-19), and "read once" applies to faces that were read.
+- 2026-11-11 (spec-build): In Image mode a family, Bold or Italic change of an open live text is one `edit_live` with the new `font_id` and the synthesis flags; the toggled option's flag is always part of its edit — because each option stays its own undo group as `image-live-text` AC-08 requires.
+- 2026-11-11 (spec-build): Added fonts live in two IndexedDB stores (schema v3): `font_faces`, one row per face keyed by family + style (AC-24 replaces by key), and `font_files` with the bytes; a file left without faces is dropped — because listing must not read font bytes (AC-05).
+- 2026-11-11 (spec-build): The core-side tests (Rust) were red first; the UI tests were written together with the UI code, so their red evidence is mutation runs: 5 of 9 Node-side face / reader tests and 19 of 46 system-fonts e2e tests failed with the face choice, PostScript lookup, read cache, gesture-bound permission request, fallback notice, live family switch, synthesis flags and file clean-up broken.
+- 2026-11-11 (spec-build): `src-tauri/src/fonts.rs` tests run in the `pincel-tauri` CI job (they also pass locally on Windows); the desktop UI paths run in e2e against the mocked Tauri bridge. Adding `fontdb` let cargo re-pick `windows-sys` 0.61.2 (already in the lockfile) for a few Windows-only dependencies.
+- 2026-11-11 (spec-build, verifier round 1): An added family is rendered in the font list from its added faces only — the first round found that a system family of the same name made the list read a system face (AC-05); the regression assertion was red before the fix. The two tests added for the round's coverage gaps (Image-mode preview while a face is read, AC-09; adding from the Pixel dialog, AC-20) were green on their first run: the behavior existed, only the tests were missing.

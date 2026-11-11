@@ -565,41 +565,6 @@ export function drawShape(a: [number, number], b: [number, number], shape: Shape
   notePainted(before, shapeColors(shape));
 }
 
-// The default font is fetched once and registered with the core (ADR-012,
-// Option B). Live text and `draw_text` reference it by id. The promise is
-// cached so concurrent presses await a single load/registration.
-let fontLoad: Promise<number> | null = null;
-let fontId: number | null = null;
-
-/** Loads and registers the bundled default font, returning its core id.
- *
- * The successful promise is cached so repeat presses reuse one registration;
- * a failed load resets the cache so the next press retries (offline/404,
- * docs/specs/image-live-text.md AC-19). */
-export async function ensureFont(): Promise<number> {
-  if (!fontLoad) {
-    fontLoad = (async () => {
-      await initCore();
-      const res = await fetch(`${import.meta.env.BASE_URL}fonts/LiberationSans-Regular.ttf`);
-      if (!res.ok) {
-        throw new Error(`font fetch failed: ${res.status}`);
-      }
-      const bytes = new Uint8Array(await res.arrayBuffer());
-      fontId = core.registerFont(bytes);
-      return fontId;
-    })().catch((err: unknown) => {
-      fontLoad = null; // allow a later press to retry
-      throw err;
-    });
-  }
-  return fontLoad;
-}
-
-/** The registered font's id once `ensureFont` has loaded it, else `null`. */
-export function loadedFontId(): number | null {
-  return fontId;
-}
-
 /** The foreground color as RGBA bytes, recorded as painted with when the
  *  document gained a step since `depthBefore` (color-picker AC-24). */
 export function noteTextPainted(depthBefore: number): void {

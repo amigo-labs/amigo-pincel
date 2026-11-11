@@ -185,7 +185,12 @@ blend: string, } | { "type": "edit_live", gesture?: number, points?: [[number, n
 /**
  * A line's control points, all of them, in order.
  */
-control?: Array<[number, number]>, start_cap?: string, end_cap?: string, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, 
+control?: Array<[number, number]>, start_cap?: string, end_cap?: string, 
+/**
+ * A live text's new font, a `register_font` id
+ * (docs/specs/system-fonts.md AC-07, AC-09).
+ */
+font_id?: number, } | { "type": "begin_live_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, underline: boolean, strikethrough: boolean, 
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
