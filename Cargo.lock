@@ -3200,6 +3200,14 @@ dependencies = [
 ]
 
 [[package]]
+name = "pincel-palette"
+version = "1.10.1"
+dependencies = [
+ "png",
+ "thiserror 2.0.21",
+]
+
+[[package]]
 name = "pincel-tauri"
 version = "1.10.1"
 dependencies = [
