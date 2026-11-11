@@ -1,0 +1,50 @@
+Inbox
+
+Inbox (12)
+
+Starred
+
+Sent
+
+Drafts (3)
+
+Archive
+
+Spam
+
+Anna Schmidt
+Meeting notes for Thursday
+
+Build server
+Nightly build passed: 214 tests
+
+Tom Becker
+Re: Sprite sheet for level 4
+
+Design team
+New icons are ready for review
+
+Calendar
+Reminder: release planning at 3 pm
+
+10:42
+
+09:15
+
+Yesterday
+
+Yesterday
+
+Mon
+
+Meeting notes for Thursday
+
+Hi everyone,
+here are the notes from our last meeting. We agreed to finish the
+animation export before the end of the month and to test the new
+brush engine on large images. Please send me your comments by Friday.
+Best regards, Anna
+
+Reply
+
+Forward

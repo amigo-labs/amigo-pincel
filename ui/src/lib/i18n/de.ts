@@ -1178,6 +1178,17 @@ export const de: Record<MessageKey, string> = {
   'palette.exportPng8': 'PNG-Streifen (8 px)',
   'palette.imported': '{count} Palettenfarben importiert',
   'palette.exported': '{count} Palettenfarben exportiert',
+  'palette.load': 'Palette laden',
+  'palette.loadAction': 'Palette laden…',
+  'palette.save': 'Palette speichern',
+  'palette.reset': 'Auf Standardpalette zurücksetzen',
+  'palette.addColor': 'Farbe hinzufügen',
+  'palette.loaded': '{count} Palettenfarben geladen',
+  'palette.saved': '{count} Palettenfarben gespeichert',
+  'palette.full': 'Die Palette ist voll (256 Farben)',
+  'palette.duplicate': 'Die Farbe ist bereits in der Palette',
+  'palette.storeFailed': 'Die Palette konnte nicht gespeichert werden; sie bleibt bis zum Neuladen erhalten',
+  'palette.swatchNamed': '{name} {hex}',
 
   // Keyboard Shortcuts dialog
   'keys.filter': 'Tastenkürzel filtern',

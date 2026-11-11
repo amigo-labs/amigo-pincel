@@ -1,0 +1,6 @@
+Seite
+Auf dieser Seite stehen Texte sehr verschiedener Größe. Die Überschrift
+oben ist quer durch den Raum lesbar, während die Fußnote am Ende
+der Seite winzig ist und eine Lupe braucht.
+
+1) Kleingedrucktes: alle Größen in Pixeln des Seitenbildes.

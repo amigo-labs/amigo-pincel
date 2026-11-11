@@ -27,11 +27,13 @@ use wasm_bindgen::prelude::*;
 
 mod fonts;
 mod history;
+mod palette;
 mod vectorize;
 
 #[cfg(test)]
 mod rotate_zoom_tests;
 
+pub use palette::{PaletteFile, read_palette_file, write_palette_file};
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
 
 thread_local! {

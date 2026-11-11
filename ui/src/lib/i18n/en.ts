@@ -1171,6 +1171,17 @@ export const en = {
   'palette.exportPng8': 'PNG strip (8 px)',
   'palette.imported': 'imported {count} palette colours',
   'palette.exported': 'exported {count} palette colours',
+  'palette.load': 'Load palette',
+  'palette.loadAction': 'Load palette…',
+  'palette.save': 'Save palette',
+  'palette.reset': 'Reset to default palette',
+  'palette.addColor': 'Add color',
+  'palette.loaded': 'loaded {count} palette colours',
+  'palette.saved': 'saved {count} palette colours',
+  'palette.full': 'The palette is full (256 colours)',
+  'palette.duplicate': 'The color is already in the palette',
+  'palette.storeFailed': 'The palette could not be stored; it is kept until the app reloads',
+  'palette.swatchNamed': '{name} {hex}',
 
   // Keyboard Shortcuts dialog
   'keys.filter': 'Filter shortcuts',

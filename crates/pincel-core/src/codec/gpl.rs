@@ -12,85 +12,29 @@
 //! Entries are opaque RGB; alpha is not part of the format. `Name:` and
 //! `Columns:` headers and `#` comments are optional and skipped on read.
 
-use thiserror::Error;
+use super::palette_formats::{from_palette, to_palette};
+use crate::document::Palette;
 
-use crate::document::{MAX_PALETTE_ENTRIES, Palette, PaletteEntry, Rgba};
-
-/// Why a `.gpl` file could not be read.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum GplError {
-    /// The first non-empty line is not `GIMP Palette`.
-    #[error("not a GIMP palette (missing `GIMP Palette` header)")]
-    MissingHeader,
-    /// A colour line is not three numbers `0..=255` (1-based line number).
-    #[error("line {0}: expected `R G B [name]` with values 0–255")]
-    BadLine(usize),
-    /// More entries than a palette can hold.
-    #[error("palette has more than {MAX_PALETTE_ENTRIES} colours")]
-    TooManyEntries,
-}
+pub use pincel_palette::GplError;
 
 /// Parse a GIMP palette. Unnamed entries (or GIMP's `Untitled`) get no name.
+///
+/// The codec lives in `pincel-palette`, shared with Image mode
+/// (image-palette-gradient); this converts its entries into a [`Palette`].
 pub fn read_gpl(text: &str) -> Result<Palette, GplError> {
-    let mut lines = text.lines().enumerate();
-    let header = lines
-        .by_ref()
-        .find(|(_, l)| !l.trim().is_empty())
-        .map(|(_, l)| l.trim().trim_start_matches('\u{feff}'));
-    if header != Some("GIMP Palette") {
-        return Err(GplError::MissingHeader);
-    }
-    let mut colors = Vec::new();
-    for (i, raw) in lines {
-        let line = raw.trim();
-        if line.is_empty()
-            || line.starts_with('#')
-            || line.starts_with("Name:")
-            || line.starts_with("Columns:")
-        {
-            continue;
-        }
-        let mut parts = line.split_whitespace();
-        let mut channel = || -> Result<u8, GplError> {
-            parts
-                .next()
-                .and_then(|p| p.parse::<u8>().ok())
-                .ok_or(GplError::BadLine(i + 1))
-        };
-        let (r, g, b) = (channel()?, channel()?, channel()?);
-        let name = parts.collect::<Vec<_>>().join(" ");
-        if colors.len() >= MAX_PALETTE_ENTRIES {
-            return Err(GplError::TooManyEntries);
-        }
-        let rgba = Rgba::new(r, g, b, 255);
-        colors.push(if name.is_empty() || name == "Untitled" {
-            PaletteEntry::new(rgba)
-        } else {
-            PaletteEntry::with_name(rgba, name)
-        });
-    }
-    Ok(Palette::from_entries(colors))
+    pincel_palette::read_gpl(text).map(to_palette)
 }
 
 /// Write `palette` as a GIMP palette called `name`. Alpha is dropped; an
 /// unnamed entry is labelled with its hex code, as GIMP does.
 pub fn write_gpl(palette: &Palette, name: &str) -> String {
-    let mut out = format!("GIMP Palette\nName: {name}\nColumns: 8\n#\n");
-    for e in &palette.colors {
-        let Rgba { r, g, b, .. } = e.rgba;
-        let label = e
-            .name
-            .clone()
-            .unwrap_or_else(|| format!("#{r:02x}{g:02x}{b:02x}"));
-        out.push_str(&format!("{r:3} {g:3} {b:3}\t{label}\n"));
-    }
-    out
+    pincel_palette::write_gpl(&from_palette(palette), name)
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::document::PalettePreset;
+    use crate::document::{PalettePreset, Rgba};
 
     #[test]
     fn write_then_read_round_trips_colours_and_names() {

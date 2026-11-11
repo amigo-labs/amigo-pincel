@@ -1,0 +1,15 @@
+[package]
+name = "pincel-palette"
+version.workspace = true
+description = "Palette file codecs for Pincel (GIMP .gpl, Lospec .hex, JASC .pal, PNG palette images), shared by the Pixel and Image modes"
+edition.workspace = true
+license.workspace = true
+repository.workspace = true
+rust-version.workspace = true
+
+[dependencies]
+png = { workspace = true }
+thiserror = { workspace = true }
+
+[lints]
+workspace = true
