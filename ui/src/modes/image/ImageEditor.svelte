@@ -31,6 +31,8 @@
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
   import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
+  import { imageFont } from './core/text-font';
+  import { initFontSource } from '../../lib/fonts/source.svelte';
   import { closeTextBox, installLiveText } from './core/live-text.svelte';
   import {
     addGroup,
@@ -824,6 +826,9 @@
   });
 
   onMount(() => {
+    // The Text tool's fonts (docs/specs/system-fonts.md).
+    void initFontSource();
+    void imageFont.load();
     void loadRecent('image');
     void loadImagePalette();
     void loadViewAids();

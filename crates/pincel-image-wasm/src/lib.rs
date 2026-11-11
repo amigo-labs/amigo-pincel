@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod fonts;
 mod history;
 mod palette;
 mod vectorize;
@@ -50,10 +51,6 @@ thread_local! {
     /// created on its first `composite_region` and fed the bus's damage on
     /// every one after.
     static CACHES: RefCell<HashMap<u32, RenderCache>> = RefCell::new(HashMap::new());
-    /// Registered font byte blobs, indexed by font id (see `register_font`).
-    /// The Text tool re-parses these per commit (ADR-012), so JS uploads each
-    /// face once and references it by id rather than passing bytes per command.
-    static FONTS: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
 }
 
 /// Installs a panic hook that logs Rust panics to the browser console.
@@ -65,18 +62,13 @@ pub fn init() {
 /// Registers a TrueType/OpenType font and returns its id for use in `DrawText`
 /// commands (spec §9.2 Text; ADR-012, Option B — the caller supplies the font).
 ///
-/// Re-registering byte-identical data returns the existing id, so repeated
-/// setup (e.g. per document open) does not accumulate copies.
+/// `face_index` names a face inside a font collection (`.ttc` / `.otc`) and
+/// defaults to 0 (docs/specs/system-fonts.md AC-08). Re-registering
+/// byte-identical data with the same index returns the existing id, so
+/// repeated setup (e.g. per document open) does not accumulate copies.
 #[wasm_bindgen]
-pub fn register_font(data: &[u8]) -> u32 {
-    FONTS.with(|fonts| {
-        let mut fonts = fonts.borrow_mut();
-        if let Some(id) = fonts.iter().position(|f| f == data) {
-            return id as u32;
-        }
-        fonts.push(data.to_vec());
-        (fonts.len() - 1) as u32
-    })
+pub fn register_font(data: &[u8], face_index: Option<u32>) -> u32 {
+    fonts::register(data, face_index.unwrap_or(0))
 }
 
 /// Inserts a bus into the arena and returns its (never reused) handle.
@@ -401,11 +393,7 @@ pub fn apply_command(handle: u32, command: &str) -> Result<(), JsError> {
         STROKES.with(|strokes| {
             let mut strokes = strokes.borrow_mut();
             let scratch = strokes.entry(handle).or_default();
-            FONTS.with(|fonts| {
-                let fonts = fonts.borrow();
-                let faces: Vec<&[u8]> = fonts.iter().map(Vec::as_slice).collect();
-                run_command(bus, spec, scratch, &faces).map_err(to_js)
-            })
+            fonts::with_faces(|faces| run_command(bus, spec, scratch, faces).map_err(to_js))
         })
     })
 }
@@ -453,12 +441,11 @@ pub fn set_active_layer(handle: u32, index: usize) -> Result<(), JsError> {
 pub fn text_layout(font_id: u32, request: &str) -> Result<JsValue, JsError> {
     let req: TextLayoutRequest =
         serde_json::from_str(request).map_err(|e| JsError::new(&e.to_string()))?;
-    let layout = FONTS.with(|fonts| {
-        let fonts = fonts.borrow();
-        let bytes = fonts
+    let layout = fonts::with_faces(|faces| {
+        let face = faces
             .get(font_id as usize)
             .ok_or_else(|| JsError::new("unknown font id"))?;
-        layout_text(&req, bytes).ok_or_else(|| JsError::new("the font could not be read"))
+        layout_text(&req, *face).ok_or_else(|| JsError::new("the font could not be read"))
     })?;
     serde_wasm_bindgen::to_value(&layout).map_err(|e| JsError::new(&e.to_string()))
 }

@@ -280,7 +280,7 @@ impl ImageDoc {
     pub fn run(&mut self, spec: CommandSpec) -> Result<bool, AgentError> {
         self.check_spec(&spec)?;
         let before = self.bus.history.undo_depth();
-        run_command(&mut self.bus, spec, &mut self.scratch, &[FONT]).map_err(core_err)?;
+        run_command(&mut self.bus, spec, &mut self.scratch, &[FONT.into()]).map_err(core_err)?;
         Ok(self.recorded(before))
     }
 
@@ -315,8 +315,13 @@ impl ImageDoc {
     pub fn run_if_changed(&mut self, build: impl Fn() -> CommandSpec) -> Result<bool, AgentError> {
         self.check_spec(&build())?;
         let mut copy = CommandBus::new(self.bus.document.clone());
-        run_command(&mut copy, build(), &mut StrokeScratch::default(), &[FONT])
-            .map_err(core_err)?;
+        run_command(
+            &mut copy,
+            build(),
+            &mut StrokeScratch::default(),
+            &[FONT.into()],
+        )
+        .map_err(core_err)?;
         let mut before = self.bus.document.clone();
         let mut after = copy.document;
         before

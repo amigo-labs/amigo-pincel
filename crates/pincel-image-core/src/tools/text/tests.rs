@@ -437,3 +437,54 @@ fn layout_reports_aligned_lines_inside_one_box() {
     assert!(second.top > first.top);
     assert!((second.top - first.top - layout.line_height).abs() < 1e-3);
 }
+
+/// Pincel Test Serif (a renamed Liberation Serif subset, OFL; LICENSE with
+/// `pincel-core`'s fixtures): its Regular and Bold faces, and a collection
+/// holding both in that order.
+const SERIF_REGULAR: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../pincel-core/tests/fixtures/PincelTestSerif-Regular.ttf"
+));
+const SERIF_BOLD: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../pincel-core/tests/fixtures/PincelTestSerif-Bold.ttf"
+));
+const SERIF_TTC: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../pincel-core/tests/fixtures/PincelTestSerif.ttc"
+));
+
+/// The layer after drawing "Hg" with `font`.
+fn drawn(font: FontFace<'_>) -> crate::ImageBuffer {
+    let mut doc = Document::new(120, 60).unwrap();
+    let text = Text::new("Hg", Point::new(4.0, 4.0), style(32.0));
+    let mut cmd = text.render(0, &doc, font).unwrap();
+    cmd.apply(&mut doc).unwrap();
+    doc.layers[0].pixels.clone()
+}
+
+#[test]
+fn render_collection_face_draws_that_face_not_the_first() {
+    let regular = drawn(SERIF_REGULAR.into());
+    assert_eq!(drawn(FontFace::new(SERIF_TTC, 0)), regular);
+    assert_eq!(drawn(FontFace::new(SERIF_TTC, 1)), drawn(SERIF_BOLD.into()));
+    assert_ne!(drawn(FontFace::new(SERIF_TTC, 1)), regular);
+}
+
+#[test]
+fn layout_lines_collection_face_measures_that_face() {
+    let text = Text::new("Hg Hg", Point::new(0.0, 0.0), style(32.0));
+    let width = |font: FontFace<'_>| text.layout_lines(font).unwrap().width;
+    assert_eq!(width(FontFace::new(SERIF_TTC, 1)), width(SERIF_BOLD.into()));
+    assert_ne!(
+        width(FontFace::new(SERIF_TTC, 1)),
+        width(SERIF_REGULAR.into())
+    );
+}
+
+#[test]
+fn render_face_index_past_the_collection_returns_none() {
+    let doc = Document::new(40, 40).unwrap();
+    let text = Text::new("a", Point::new(0.0, 0.0), style(12.0));
+    assert!(text.render(0, &doc, FontFace::new(SERIF_TTC, 2)).is_none());
+}

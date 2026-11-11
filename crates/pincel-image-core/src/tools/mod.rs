@@ -37,7 +37,7 @@ pub use move_tool::Move;
 pub use recolor::{Recolor, RecolorOrigins};
 pub use shapes::{DashPattern, Shape, ShapeMode, ShapeStyle, Shapes};
 pub use smudge::{Smudge, SmudgeCarry};
-pub use text::{LineLayout, Text, TextAlign, TextLayout, TextStyle};
+pub use text::{FontFace, LineLayout, Text, TextAlign, TextLayout, TextStyle};
 
 use crate::color::Color;
 use crate::command::HistoryKind;

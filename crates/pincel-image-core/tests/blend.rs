@@ -21,7 +21,7 @@ fn try_run(
     scratch: &mut StrokeScratch,
 ) -> Result<(), DocumentError> {
     let spec: CommandSpec = serde_json::from_str(json).expect("json");
-    run_command(bus, spec, scratch, &[FONT])
+    run_command(bus, spec, scratch, &[FONT.into()])
 }
 
 fn run(bus: &mut CommandBus, json: &str) {
