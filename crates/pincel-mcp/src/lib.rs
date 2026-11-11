@@ -4,6 +4,7 @@
 //! the Decision Log in docs/specs/pincel.md §15 (2026-10-29).
 
 pub mod base64;
+pub mod fonts;
 pub mod sandbox;
 pub mod server;
 

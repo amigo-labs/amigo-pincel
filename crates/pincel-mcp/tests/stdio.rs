@@ -603,3 +603,66 @@ fn workspace_option_and_read_only_mode() {
         .collect();
     assert_eq!(names, ["seed.aseprite"]);
 }
+
+/// The families `font.list` returns, in order.
+fn family_names(result: &Value) -> Vec<String> {
+    let text = result["content"][0]["text"].as_str().expect("text result");
+    let list: Value = serde_json::from_str(text).expect("JSON result");
+    list["families"]
+        .as_array()
+        .expect("families")
+        .iter()
+        .map(|f| f["name"].as_str().expect("name").to_owned())
+        .collect()
+}
+
+#[test]
+fn font_list_reports_the_bundled_and_the_system_families() {
+    // docs/specs/system-fonts-mcp.md AC-09: the running server lists
+    // Liberation Sans plus every family fontdb finds on this machine,
+    // without any user interaction.
+    let ws = temp_workspace("fonts");
+    let mut c = Client::spawn(&["--workspace", ws.to_str().expect("utf8 path")], &ws);
+    c.initialize();
+    let r = c.tool("font.list", json!({}));
+    assert_eq!(r["isError"], false, "{r}");
+    let got = family_names(&r);
+
+    let mut db = fontdb::Database::new();
+    db.load_system_fonts();
+    let mut want: Vec<String> = db
+        .faces()
+        .filter(|f| !matches!(f.source, fontdb::Source::Binary(_)))
+        .filter_map(|f| f.families.first().map(|(name, _)| name.clone()))
+        .chain(std::iter::once("Liberation Sans".to_owned()))
+        .collect();
+    want.sort_by(|a, b| {
+        a.to_lowercase()
+            .cmp(&b.to_lowercase())
+            .then_with(|| a.cmp(b))
+    });
+    want.dedup();
+    assert_eq!(got, want);
+
+    // A listed system family draws (the bundled one where none is
+    // installed, as in a bare container).
+    let family = got
+        .iter()
+        .find(|f| *f != "Liberation Sans")
+        .cloned()
+        .unwrap_or_else(|| "Liberation Sans".to_owned());
+    c.tool(
+        "doc.new",
+        json!({ "mode": "image", "width": 64, "height": 32 }),
+    );
+    let r = c.tool(
+        "draw.text",
+        json!({ "text": "Ag", "x": 2, "y": 2, "size": 20, "font": family }),
+    );
+    // A face fontdb lists may still be unusable (AC-08); then the error
+    // names the family.
+    if r["isError"] == true {
+        let text = r["content"][0]["text"].as_str().unwrap_or_default();
+        assert!(text.contains(&family), "{text}");
+    }
+}

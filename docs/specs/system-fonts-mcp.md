@@ -95,7 +95,7 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 | AC-06 | `draw_text_font_matches_one_family_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
 | AC-07 | `draw_text_unknown_or_empty_font_fails_and_points_to_font_list` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
 | AC-08 | `draw_text_unreadable_face_fails_naming_family_and_reason` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-09 |      | open   |        |
+| AC-09 | `font_list_reports_the_bundled_and_the_system_families` (`crates/pincel-mcp/tests/stdio.rs`); `faces_lists_each_face_with_family_style_and_attributes`, `read_returns_the_file_and_face_index_of_a_listed_face`, `read_of_a_removed_file_fails_with_the_reason` (`crates/pincel-mcp/src/fonts.rs`) | built | |
 | AC-10 | `font_list_reads_no_face_and_draw_text_reads_each_face_once` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
 | AC-11 |      | open   |        |
 | AC-12 | `guide_describes_font_list_and_the_font_matching_rules` (`crates/pincel-agent/src/resources.rs`) | built | |
@@ -112,5 +112,6 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 - 2026-11-11 (spec-build): A read face counts as usable only when the Text tool's own parser accepts it (`Text::layout_lines` of `pincel-image-core`), else AC-08 — because the Image core silently draws nothing with an unparseable face, which would turn a broken font into an unchanged document without an error.
 - 2026-11-11 (spec-build): `font.list` takes the optional `doc` every tool takes and ignores it, as `doc.list` does — because `mcp-headless-pixel` makes `doc` part of every tool's schema (`tool_schemas_are_valid`).
 - 2026-11-11 (spec-build): Without `font`, Bold / Italic stay synthesized on the bundled face even where Liberation Sans Bold is installed; with `font: "Liberation Sans"` the installed faces serve Bold / Italic — because AC-04 keeps calls without `font` exactly as before this spec, while the edge-case table asks for the editor's choice once the family is named.
+- 2026-11-11 (spec-build): `pincel-mcp` depends on `fontdb` 0.23, the version `src-tauri` uses (Decision Log 2026-11-05 names both hosts), enumerates on the first `font.list` or `draw.text` with `font` and keeps the catalog for the run; it repeats the desktop list's 30-line `style_name` instead of sharing it — because `pincel-mcp` and `pincel-tauri` share no crate that could hold it without a new dependency edge, and both must build style names the same way.
 - 2026-11-11 (spec-build): `ui/e2e/system-fonts-mcp.spec.ts` was green on its first run: it checks the editor's existing face choice (built by `system-fonts`) against the new table; its red counterpart is the Rust table test, which failed until `pincel-agent` had the rules.
 - 2026-11-11 (spec-build): The tests use the `Pincel Test Serif` fixtures of `system-fonts` (`crates/pincel-core/tests/fixtures`: Regular, Italic, Bold Italic files and a collection whose Bold is face 1) in place of Liberation Serif — because they are already in the repository, cover a collection face, and are told apart from the bundled Liberation Sans.

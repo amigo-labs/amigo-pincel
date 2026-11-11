@@ -2,7 +2,9 @@
 //! one message out. The stdio loop in `main.rs` feeds it lines; the live
 //! desktop host can feed it HTTP bodies (Decision Log 2026-10-29).
 
-use pincel_agent::{AgentError, FileHost, Workspace, list_resources, list_tools, read_resource};
+use pincel_agent::{
+    AgentError, FileHost, FontProvider, Workspace, list_resources, list_tools, read_resource,
+};
 use serde_json::{Value, json};
 
 use crate::base64;
@@ -29,6 +31,15 @@ impl<H: FileHost> Server<H> {
     pub fn new(host: H) -> Self {
         Self {
             ws: Workspace::new(),
+            host,
+        }
+    }
+
+    /// A server whose `draw.text` and `font.list` also offer the faces of
+    /// `fonts` (docs/specs/system-fonts-mcp.md).
+    pub fn with_fonts(host: H, fonts: impl FontProvider + 'static) -> Self {
+        Self {
+            ws: Workspace::with_fonts(fonts),
             host,
         }
     }
