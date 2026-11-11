@@ -18,6 +18,11 @@ export interface EncodeJob {
   readonly quality: number;
 }
 
+/** The 1–100 JPEG quality the encoder gets for `quality`. */
+export function jpegQuality(quality: number): number {
+  return Math.min(100, Math.max(1, Math.round(quality)));
+}
+
 /** Encodes the open document `handle` as `format`. */
 export function encodeHandle(
   handle: number,
@@ -31,7 +36,7 @@ export function encodeHandle(
     case 'png':
       return core.exportPng(handle, level);
     case 'jpeg':
-      return core.exportJpeg(handle, Math.min(100, Math.max(1, Math.round(quality))));
+      return core.exportJpeg(handle, jpegQuality(quality));
     case 'webp':
       return core.exportWebp(handle);
     case 'bmp':

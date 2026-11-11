@@ -19,6 +19,11 @@ export interface ClipImage {
 /** The mocked system clipboard: an image, no image, or a refused read. */
 export type ClipContent = ClipImage | null | 'error';
 
+/** How the native job command (`image_job`) answers: as a build without
+ *  the command, with an error, or with `nativeAnswer`
+ *  (docs/specs/performance-desktop-jobs.md). */
+export type NativeJobMode = 'missing' | 'fail' | 'answer';
+
 export interface TauriMock {
   emit(event: string, payload: unknown): void;
   destroyed: number;
@@ -62,6 +67,11 @@ export interface TauriMock {
    *  the next start reports as changed. */
   mcpCommands: string[];
   mcp: { enabled: boolean; token: string | null; port: number; portChanged: boolean; sessions: number };
+  nativeJob: NativeJobMode;
+  /** The bytes `image_job` answers with in `answer` mode. */
+  nativeAnswer: number[];
+  /** The jobs the UI sent the native command (their header JSON). */
+  nativeJobs: Record<string, unknown>[];
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -100,6 +110,9 @@ export async function installTauriMock(page: Page): Promise<void> {
       openDialogs: [],
       mcpCommands: [],
       mcp: { enabled: false, token: null, port: 39217, portChanged: false, sessions: 0 },
+      nativeJob: 'missing',
+      nativeAnswer: [],
+      nativeJobs: [],
     };
     let tokens = 0;
     const mcpStatus = () => {
@@ -119,8 +132,21 @@ export async function installTauriMock(page: Page): Promise<void> {
       };
     };
     let nextRid = 1;
-    const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
+    const invoke = async (
+      cmd: string,
+      args: Record<string, unknown>,
+      options?: { headers?: Record<string, string> },
+    ): Promise<unknown> => {
       switch (cmd) {
+        case 'image_job': {
+          mock.nativeJobs.push(
+            JSON.parse(options?.headers?.['pincel-job'] ?? '{}') as Record<string, unknown>,
+          );
+          // Tauri rejects with a plain string.
+          if (mock.nativeJob === 'missing') throw 'Command image_job not found';
+          if (mock.nativeJob === 'fail') throw 'the native job failed';
+          return new Uint8Array(mock.nativeAnswer).buffer;
+        }
         case 'plugin:event|listen': {
           const event = String(args.event);
           const handler = Number(args.handler);
@@ -266,7 +292,16 @@ export async function destroyed(page: Page): Promise<number> {
 export async function setMock(
   page: Page,
   patch: Partial<
-    Pick<TauriMock, 'writeMode' | 'savePick' | 'openPick' | 'saveQueue' | 'writeQueue'>
+    Pick<
+      TauriMock,
+      | 'writeMode'
+      | 'savePick'
+      | 'openPick'
+      | 'saveQueue'
+      | 'writeQueue'
+      | 'nativeJob'
+      | 'nativeAnswer'
+    >
   >,
 ): Promise<void> {
   await page.evaluate((p) => Object.assign((window as unknown as MockWindow).__mock, p), patch);
@@ -282,6 +317,11 @@ export async function putFile(page: Page, path: string, bytes: Buffer | null): P
     },
     [path, bytes === null ? null : Array.from(bytes)] as const,
   );
+}
+
+/** The jobs the UI sent the native job command, oldest first. */
+export async function nativeJobs(page: Page): Promise<Record<string, unknown>[]> {
+  return page.evaluate(() => (window as unknown as MockWindow).__mock.nativeJobs);
 }
 
 /** The paths written to the virtual disk. */
