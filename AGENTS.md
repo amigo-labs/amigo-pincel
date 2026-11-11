@@ -637,6 +637,9 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 
 - **Harness specs can race Vite's dependency optimizer on Windows.** `ui/e2e/tool-flyout-harness.spec.ts` starts a Vite dev server; in a full parallel run on Windows the optimizer's rename `node_modules/.vite/deps_temp_* → deps` can fail with `EPERM` (a file still held open), and the spec fails before any assertion. It is not a code failure: rerun that spec alone before chasing it.
 - **A shared cargo target dir runs the wrong crate.** Worktrees (or copies) of this repo built with one `CARGO_TARGET_DIR` share the artifact names of `pincel-core` & co., and cargo does not rebuild a same-named crate from another path: `cargo test` in checkout B silently runs checkout A's test binary. Give every checkout its own target dir, and check the test names in the log.
+- **A killed Windows build leaves link artifacts the linker rejects.** When a `cargo build` / `cargo test` is stopped mid-link (a restarted agent, a closed terminal), the next run can fail with `LNK1207` (incompatible PDB) or `LNK1328` (string table missing) for that test binary — not a code failure. `cargo clean -p <crate>` and rerun.
+- **Worktrees share one stash list.** `git stash` in a worktree writes to the repository's single stash stack, so `stash@{0}` may be another worktree's work. Pop or drop only an entry whose message names your branch.
+- **The OCR wasm32 test builds its own target.** `read_page_8192_square_page_reads_in_wasm32` (`crates/pincel-ocr/tests/page.rs`) builds an example for `wasm32-unknown-unknown` under `target/tmp/` and runs it in Node: it needs that target and Node, and its first build adds about a minute to `cargo test -p pincel-ocr`.
 
 ---
 
