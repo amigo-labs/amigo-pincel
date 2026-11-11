@@ -77,7 +77,7 @@ export function startOcr(snapshot: Uint8Array, lang: OcrLang, on: OcrCallbacks):
   /** Reads `model` in a fresh worker; `null` once cancelled. */
   const read = (model: Uint8Array): Promise<OcrReply | null> =>
     new Promise((resolve) => {
-      const w = new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' });
+      const w = new Worker(new URL('./ocr-worker.ts', import.meta.url), { type: 'module' });
       const end = (reply: OcrReply | null): void => {
         w.terminate();
         settleWorker = null;

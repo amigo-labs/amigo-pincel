@@ -1,7 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
-import { dragFiles, gotoStart, menu, waitForEditor } from './helpers';
+import { dragFiles, gotoStart, imageCanvas, menu, waitForEditor } from './helpers';
 
 // Helpers for the Recognize Text dialog (docs/specs/ocr-dialog.md). The
 // language models are the files committed with `pincel-ocr`; the specs
@@ -165,4 +165,142 @@ export async function recordedSteps(page: Page): Promise<string[]> {
 export async function recognizedText(page: Page, timeout = 60_000): Promise<string> {
   await expect(ocrField(page)).toBeVisible({ timeout });
   return ocrField(page).inputValue();
+}
+
+/** Screen point of the document position `(x, y)` on a `w × h` canvas. */
+export async function docPoint(
+  page: Page,
+  size: { width: number; height: number },
+  x: number,
+  y: number,
+): Promise<[number, number]> {
+  const box = await imageCanvas(page).boundingBox();
+  if (!box) throw new Error('canvas not visible');
+  return [box.x + (x * box.width) / size.width, box.y + (y * box.height) / size.height];
+}
+
+/** Picks the tool `name` of the group under `key`. */
+export async function useTool(page: Page, key: string, name: string): Promise<void> {
+  const button = page.getByRole('button', { name: new RegExp(`(^|: )${name}$`) });
+  await page.keyboard.press(key);
+  if ((await button.count()) === 0) await page.getByRole('radio', { name, exact: true }).click();
+  await expect(button).toHaveCount(1);
+}
+
+/** Rectangle Select of the document rect from `(x0, y0)` to `(x1, y1)`. */
+export async function rectSelect(
+  page: Page,
+  size: { width: number; height: number },
+  [x0, y0]: [number, number],
+  [x1, y1]: [number, number],
+): Promise<void> {
+  await useTool(page, 'm', 'Rectangle Select');
+  await page.mouse.move(...(await docPoint(page, size, x0, y0)));
+  await page.mouse.down();
+  await page.mouse.move(...(await docPoint(page, size, x1, y1)), { steps: 4 });
+  await page.mouse.up();
+}
+
+/** A freehand Lasso along the document points `path` (closed on release). */
+export async function lassoSelect(
+  page: Page,
+  size: { width: number; height: number },
+  path: readonly [number, number][],
+): Promise<void> {
+  await useTool(page, 'q', 'Lasso');
+  const [first, ...rest] = path;
+  if (!first) return;
+  await page.mouse.move(...(await docPoint(page, size, ...first)));
+  await page.mouse.down();
+  for (const p of rest) await page.mouse.move(...(await docPoint(page, size, ...p)), { steps: 8 });
+  await page.mouse.up();
+}
+
+/** A stored model row, as the test reads it from IndexedDB. */
+export interface StoredModel {
+  readonly lang: string;
+  readonly version: string;
+  readonly size: number;
+}
+
+/** The rows of the `ocr_models` store, sorted by language and version. */
+export async function storedModels(page: Page): Promise<StoredModel[]> {
+  return page.evaluate(
+    () =>
+      new Promise<StoredModel[]>((resolve, reject) => {
+        const open = indexedDB.open('pincel');
+        open.onerror = () => reject(open.error ?? new Error('open failed'));
+        open.onsuccess = () => {
+          const db = open.result;
+          if (!db.objectStoreNames.contains('ocr_models')) {
+            db.close();
+            resolve([]);
+            return;
+          }
+          const all = db.transaction('ocr_models').objectStore('ocr_models').getAll();
+          all.onerror = () => reject(all.error ?? new Error('read failed'));
+          all.onsuccess = () => {
+            const rows = (all.result as { lang: string; version: string; bytes: Uint8Array }[])
+              .map((r) => ({ lang: r.lang, version: r.version, size: r.bytes.byteLength }))
+              .sort((a, b) => `${a.lang}${a.version}`.localeCompare(`${b.lang}${b.version}`));
+            db.close();
+            resolve(rows);
+          };
+        };
+      }),
+  );
+}
+
+/** Puts `bytes` into the `ocr_models` store as `lang`'s model `version`. */
+export async function putStoredModel(
+  page: Page,
+  lang: string,
+  version: string,
+  bytes: number[],
+): Promise<void> {
+  await page.evaluate(
+    ([l, v, b]) =>
+      new Promise<void>((resolve, reject) => {
+        const open = indexedDB.open('pincel');
+        open.onerror = () => reject(open.error ?? new Error('open failed'));
+        open.onsuccess = () => {
+          const db = open.result;
+          const tx = db.transaction('ocr_models', 'readwrite');
+          tx.objectStore('ocr_models').put({ lang: l, version: v, bytes: new Uint8Array(b) });
+          tx.oncomplete = () => {
+            db.close();
+            resolve();
+          };
+          tx.onerror = () => reject(tx.error ?? new Error('write failed'));
+        };
+      }),
+    [lang, version, bytes] as const,
+  );
+}
+
+/**
+ * Lets a test break the OCR worker: after this init script,
+ * `window.__ocrFault = 'crash'` makes the next OCR worker fail to start and
+ * `'model'` makes it answer as if the engine rejected the model.
+ */
+export async function installOcrFaults(page: Page): Promise<void> {
+  await page.addInitScript(() => {
+    const w = window as unknown as { __ocrFault: string | null; Worker: typeof Worker };
+    w.__ocrFault = null;
+    const Original = w.Worker;
+    const scripts: Record<string, string> = {
+      crash: "throw new Error('the engine could not start');",
+      model:
+        "onmessage = () => postMessage({ kind: 'error', failure: 'model', message: 'not a .traineddata file' });",
+    };
+    w.Worker = class extends Original {
+      constructor(url: string | URL, options?: WorkerOptions) {
+        const fault = w.__ocrFault;
+        const script =
+          fault !== null && String(url).includes('ocr-worker') ? scripts[fault] : undefined;
+        if (script === undefined) super(url, options);
+        else super(URL.createObjectURL(new Blob([script], { type: 'text/javascript' })));
+      }
+    };
+  });
 }

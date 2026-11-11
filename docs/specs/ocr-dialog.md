@@ -127,12 +127,12 @@ Terms used below:
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 | `first use downloads …` (field, cursor at start, Copy and Close), `an empty page shows "No text found." (AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-08 | `Copy puts the edited text on the clipboard; Copied lasts until the next edit (AC-08)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
+| AC-09 | `a clipboard that refuses the text shows an error and keeps the text (AC-09)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
+| AC-10 | `with a selection only the selected word is read (AC-10)`, `a lasso leaves out a word inside its bounding box (AC-10)` (`ui/e2e/ocr-dialog-result.spec.ts`); `source_area_is_the_selection_bounding_box`, `source_area_fills_unselected_pixels_with_the_border_median`, `source_area_border_median_ignores_ink_inside_the_selection`, `source_area_keeps_pixels_at_least_half_selected`, `source_area_of_an_empty_selection_is_empty` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
+| AC-11 | `a word on a hidden layer is not read, one on a visible layer above is (AC-11)` (`ui/e2e/ocr-dialog-result.spec.ts`); `source_area_leaves_out_hidden_layers` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
 | AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-13 | `the dialog leaves the document, selection, history and dirty state unchanged (AC-13)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
 | AC-16 | `German › menu, dialog and messages are German; the text is not translated (AC-02, AC-16)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
@@ -154,3 +154,4 @@ Terms used below:
 - 2026-11-11 (build): The OCR worker gets one request (the page's compiled core, the snapshot and the model bytes) and is terminated after its answer or on Cancel; the snapshot is kept by the dialog for Retry and language switches. The dialog does not commit an open live object first (unlike Export SVG), because AC-13 forbids changing the document.
 - 2026-11-11 (build): Models are stored in a new `ocr_models` store of the existing `pincel` database (schema version 3), rows `{ lang, version, bytes }` keyed `[lang, version]`; storing a version deletes the language's other versions in the same transaction. The download uses `cache: 'no-store'`, so Retry really fetches again. The hash is checked with `crypto.subtle`, or with a plain SHA-256 where a webview has no `crypto.subtle` (`ui/src/modes/image/ocr/sha256.ts`).
 - 2026-11-11 (build): Byte counts show as decimal megabytes with one decimal in the UI locale ("4.1 MB of 4.1 MB", "1,5 MB von 1,5 MB"). The language pref is written when recognition starts (the model is ready), not when the language is only picked. A click outside the dialog does not close it, so a recognized text is not lost by a stray click.
+- 2026-11-11 (build): The e2e tests of AC-08 – AC-11 and AC-13 (`ui/e2e/ocr-dialog-result.spec.ts`) were green at once: the dialog's Copy and the source area were built with the first block, before these tests were written. The source-area logic itself went red first in `ocr_tests.rs` (see the first red-run entry). Windows reads plain text from the clipboard with CRLF line breaks; the AC-08 test compares with LF.
