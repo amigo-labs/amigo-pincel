@@ -69,7 +69,7 @@ links them that way, so renaming a file means changing it there too:
 
 | File | What |
 |------|------|
-| `pincel-web.zip` | The PWA build (contains `app/`, built for `/app/`) |
+| `pincel-web.zip` | The web site the `amigo-pincel` Worker serves: the editor at the root, `ocr/`, the files of `cloudflare/`; `deploy-web` deploys exactly this zip |
 | `pincel-windows-x64-setup.exe`, `pincel-windows-x64.msi` | Windows installers (NSIS, MSI) |
 | `pincel-macos-universal.dmg` | macOS disk image (Apple silicon + Intel) |
 | `pincel-linux-x64.AppImage`, `.deb`, `.rpm` | Linux (glibc 2.35+, Ubuntu 22.04 and newer) |
@@ -295,23 +295,43 @@ by-hand sequence of step 1 instead.
 
 ### Web deploy (Cloudflare)
 
-No secrets needed. Cloudflare's Git integration (project `amigo-pincel`,
-root `wrangler.toml`) builds every push with `scripts/cf-build.sh`: it
-installs Rust + wasm-pack, builds the editor into `ui/dist/app/` and
-copies `cloudflare/` (`_redirects`, `_headers`, `404.html`) to `ui/dist/`.
-The Worker serves the editor at **https://pincel.amigo-labs.dev/app/**;
-the old marketing pages (`/`, `/features`, `/download`, `/about`,
-`/embed`, `/de/…`) redirect to **https://amigo-labs.dev/pincel/**, which
-is built from `docs/site/` (issue #141). Every branch preview URL carries
-the editor at `/app/` too. The only one-time step is attaching
-`pincel.amigo-labs.dev` as a *Custom Domain* of the `amigo-pincel`
-Worker (dashboard → Workers → amigo-pincel → Settings → Domains &
-Routes).
+The web editor is deployed by the release, and only by it
+(`docs/specs/pincel.md` §15, 2026-11-11): the `web` job builds the
+editor (`base: '/'`, into `ui/dist/`), `scripts/web-site.sh` adds the OCR
+models (`ocr/`) and `cloudflare/` (`_redirects`, `_headers`, `404.html`,
+`app/sw.js`), and the job zips that site as `pincel-web.zip`. After the
+release is published, `deploy-web` unpacks exactly that zip into
+`ui/dist/` and runs `wrangler deploy` (root `wrangler.toml`, Worker
+`amigo-pincel`). The web app therefore always carries the version of the
+desktop app.
 
-The web build uses `base: '/app/'` and writes into `ui/dist/app/`
-(Workers static assets match the full request path), so the release zip
-contains an `app/` folder. The Tauri build keeps the root base
-(`ui/vite.config.ts` keys on `TAURI_ENV_PLATFORM`).
+The Worker serves the editor at **https://pincel.amigo-labs.dev/**; the
+old marketing pages (`/features`, `/download`, `/about`, `/embed`,
+`/de/…`) redirect to **https://amigo-labs.dev/pincel/**, built from
+`docs/site/` (issue #141). The editor's old path `/app/` redirects to `/`,
+except `/app/sw.js`: browsers refuse a redirected service-worker script,
+so that file is a stand-in worker that removes the old `/app/` precache,
+unregisters itself and sends installed copies to `/`. The manifest keeps
+the id `/app/`, so those copies stay the same installed app; their
+IndexedDB data belongs to the origin and is kept.
+
+One-time setup:
+
+1. Secrets `CLOUDFLARE_API_TOKEN` (an API token with *Account → Workers
+   Scripts → Edit*) and `CLOUDFLARE_ACCOUNT_ID` in the repository or the
+   organization. Without them `deploy-web` fails with a message and the
+   site stays as it was.
+2. Disconnect Cloudflare's Git integration from the `amigo-pincel` Worker
+   (dashboard → Workers → amigo-pincel → Settings → Build), so pushes to
+   `main` no longer deploy. `wrangler.toml` has no build step any more, so
+   a build it still started would only fail.
+3. `pincel.amigo-labs.dev` stays the *Custom Domain* of the `amigo-pincel`
+   Worker (Settings → Domains & Routes).
+
+A deploy between releases (say, a fix to `cloudflare/_headers`): run
+`release.yml` by hand for the latest tag; it rebuilds and deploys that
+tag. The Tauri build uses the same root base (`ui/vite.config.ts`) and
+no service worker.
 
 The wasm optimization step fetches the pinned `binaryen` release (not
 Ubuntu's apt package, which breaks wasm-bindgen's externref table) and runs
