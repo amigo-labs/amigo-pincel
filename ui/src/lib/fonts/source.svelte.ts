@@ -415,7 +415,12 @@ export function cssFamily(family: string): string {
     aliasCount += 1;
     alias = `pincel-font-${aliasCount}`;
     cssAliases.set(family, alias);
-    const faces = familyFaces(family);
+    // Only the bundled or added bytes: listing never reads a system face,
+    // also when a system family has the same name (AC-05).
+    const faces =
+      source === 'added'
+        ? chooseFaces(fontSource.added.filter((f) => f.family === family))
+        : bundledFamilyFaces([]);
     if (faces) {
       const name = alias;
       void readFace(faces.regular)
