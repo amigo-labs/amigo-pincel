@@ -105,7 +105,7 @@ impl Gradient {
         let dy = b.y - a.y;
         let ramp = Ramp {
             line: GradientLine::new(dx, dy)?,
-            base_angle: dy.atan2(dx),
+            base_angle: libm::atan2f(dy, dx),
         };
 
         let w = src.width();
@@ -138,7 +138,7 @@ impl Gradient {
             GradientKind::Conical => {
                 // `rem_euclid` wraps the turn into [0, TAU) so the seam sits
                 // exactly along the drag.
-                (py.atan2(px) - r.base_angle).rem_euclid(TAU) / TAU
+                (libm::atan2f(py, px) - r.base_angle).rem_euclid(TAU) / TAU
             }
             GradientKind::Diamond => {
                 // Manhattan distance in the drag's own frame: the axes are
@@ -196,9 +196,9 @@ fn spiral(px: f32, py: f32, r: &Ramp, turn: f32) -> f32 {
     let theta = if px == 0.0 && py == 0.0 {
         0.0
     } else {
-        (py.atan2(px) - r.base_angle).rem_euclid(TAU) / TAU
+        (libm::atan2f(py, px) - r.base_angle).rem_euclid(TAU) / TAU
     };
-    let v = px.hypot(py) / r.line.len() + turn * theta;
+    let v = libm::hypotf(px, py) / r.line.len() + turn * theta;
     // `floor`, not truncation, so a negative `v` keeps winding; rounding can
     // land exactly on 1.0, which is the seam's start color.
     let f = v - v.floor();

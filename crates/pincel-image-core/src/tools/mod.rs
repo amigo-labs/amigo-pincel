@@ -345,7 +345,7 @@ impl Brush {
         let region = ctx.region;
         let radius = self.dab_radius(dab.p);
         let strength = ctx.strength * self.dab_strength(dab.p);
-        let rot = (dab.angle.cos(), dab.angle.sin());
+        let rot = (libm::cosf(dab.angle), libm::sinf(dab.angle));
         let cx0 = (center.x - radius).floor() as i32;
         let cy0 = (center.y - radius).floor() as i32;
         let cx1 = (center.x + radius).ceil() as i32;
