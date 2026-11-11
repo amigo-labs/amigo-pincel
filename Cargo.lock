@@ -3204,7 +3204,9 @@ dependencies = [
 name = "pincel-tauri"
 version = "1.10.1"
 dependencies = [
+ "pincel-agent",
  "pincel-core",
+ "pincel-mcp",
  "serde",
  "serde_json",
  "tauri",

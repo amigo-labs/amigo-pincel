@@ -23,6 +23,11 @@ tauri-build = { version = "2", features = [] }
 # M11.2 doesn't yet exercise the dependency — the FS bridge moves
 # raw bytes — but slice-aware native commands in later milestones will.
 pincel-core = { workspace = true }
+# The live MCP endpoint (docs/specs/mcp-live-desktop.md): the tool list and
+# the in-house JSON-RPC routing of the headless server (Decision Log
+# 2026-10-29).
+pincel-agent = { workspace = true }
+pincel-mcp = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –

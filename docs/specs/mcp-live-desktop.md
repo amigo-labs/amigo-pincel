@@ -110,10 +110,10 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-02 |      | open   |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-05 | `src-tauri/src/mcp/tests.rs` `requests_without_or_with_a_wrong_token_are_refused_and_run_nothing` | built | |
+| AC-06 | `src-tauri/src/mcp/tests.rs` `tools_list_matches_the_headless_server`, `a_chat_session_lists_and_runs_only_its_tools` | built | |
 | AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-08 | `src-tauri/src/mcp/tests.rs` `concurrent_calls_each_get_their_own_result` | built | |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
@@ -127,8 +127,8 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
 | AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
+| AC-22 | `src-tauri/src/mcp/tests.rs` `a_chat_token_works_while_the_setting_is_off_and_ends_with_the_chat` | built | |
+| AC-23 | `src-tauri/src/mcp/tests.rs` `an_external_call_during_a_chat_answer_is_refused_at_once` | built | |
 
 ## Decisions
 
@@ -148,3 +148,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-10-29: The endpoint uses a fixed default port (39217); if it is taken, an OS-assigned port is bound, persisted and announced in the AI agents dialog with the updated command (AC-21) — the endpoint keeps working and the user gets the exact fix (owner accepted the recommendation).
 - 2026-11-06: Revision for the in-app chat: internal sessions with a per-process token, independent of the setting (AC-22; AC-01 and AC-03 amended); `tools/list` adds desktop host tools such as `gen.*` (AC-06); `gen.*` calls time out after 5 minutes (AC-19); generative models leave this spec's out-of-scope list for `comfyui-generate` — the owner wants a chat and image generation in the app (Decision Log 2026-11-06, specs `ai-chat-panel`, `comfyui-generate`).
 - 2026-11-06 (clarification pass): AC-15 follows the mixed document tabs (Decision Log 2026-11-04): opening never replaces a document, so the unsaved-changes prompt guards `doc.close` instead of `doc.open` / `doc.new`. Chat tokens are per chat, not per process, because one chat runs one CLI process per answer and keeps one MCP config; they live in memory only. Chat sessions do not show the indicator, which warns about control from outside the app, and the setting does not govern them. External calls during a chat answer are refused so the answer stays one undo step (owner). File-reading and file-writing tools added by the parity specs go through the open / save dialogs like `doc.save`; time spent in a dialog opened by the call does not count towards the timeout. `gen.*` gets 5 minutes because a first generation loads the model and takes minutes on mid-range GPUs.
+- 2026-11-11 (spec-build): The endpoint is a small HTTP/1.1 server on `std::net` (one thread per connection, `Content-Length` and chunked bodies, keep-alive) instead of `hyper`: hyper 1.x needs tokio's `TcpListener` and `http-body-util` as further direct dependencies the approval does not cover, and one local route with JSON bodies needs no more; no dependency is added. Tokens and session ids come from the standard library's OS-seeded `RandomState` keys (a fresh thread per 64 bits) for the same reason. Requests with a foreign `Origin` are refused (DNS rebinding), `GET` answers 405 (no SSE stream).
+- 2026-11-11 (spec-build): `pincel-tauri` depends on the workspace crates `pincel-agent` (the tool list) and `pincel-mcp` (its JSON-RPC routing, now `route` / `live_response` / `tool_error`), so `tools/list` is the headless server's by construction (AC-06).
+- 2026-11-11 (spec-build): The chat side of AC-22 / AC-23 is the endpoint's commands `mcp_chat_start` / `mcp_chat_end` / `mcp_chat_answering` / `mcp_chat_image_access`; the Assistant panel that calls them comes with `ai-chat-panel`. Chat sessions get the list of `ai-chat-panel` AC-17 / AC-26 (hidden tools are refused too, "not available in the chat" / "image access is off").
+- 2026-11-11 (spec-build): "Regenerate token" also ends the open external sessions — they cannot send another request with the old token anyway, and the indicator should not show clients that are cut off.
