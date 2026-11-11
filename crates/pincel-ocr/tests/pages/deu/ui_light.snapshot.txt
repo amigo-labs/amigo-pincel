@@ -1,0 +1,77 @@
+Datei Bearbeiten Ansicht Bild Ebene Auswahl Hilfe
+
+PROJEKT
+
+Ül Übersicht
+
+® Ebenen
+
+& Pinsel
+
+Farben
+
+Verlauf
+
+Exportieren
+
+Einstellungen
+
+LETZTE DATEIEN
+
+sonnenuntergang.png
+titelbild.png
+kacheln_wald.png
+held_laufen.png
+knoepfe_v2.png
+
+Projekteinstellungen
+Diese Einstellungen gelten für alle Bilder in diesem Projekt. Änderungen
+werden automatisch gespeichert und lassen sich im Verlauf rückgängig machen.
+
+Name
+
+Autorin
+
+Größe
+
+Format
+
+Sprites für den Abend
+
+Jürgen Weiß
+
+1920 x 1080 Pixel
+
+PNG mit Alpha
+
+Änderungen speichern
+
+Abbrechen
+
+Exportoptionen
+Das aktuelle Bild lässt sich als PNG, JPEG oder WebP exportieren. Die Qualität
+wirkt nur auf JPEG- und WebP-Dateien; PNG-Dateien sind immer verlustfrei.
+Große Bilder brauchen beim Export einige Sekunden.
+
+Über dieses Projekt
+Erstellt am 12. März 2026 von Jürgen Weiß. Zuletzt geöffnet gestern um 18:40.
+Der Projektordner enthält 46 Dateien mit insgesamt 128 MB.
+
+Bereit
+
+Eigenschaften
+
+Breite: 1920 Pixel
+Höhe: 1080 Pixel
+Auflösung: 72 dpi
+Ebenen: 12
+Deckkraft: 85 %
+Modus: Normal
+
+Notizen
+
+Farben vor dem Export
+auf einem zweiten
+Bildschirm prüfen.
+
+Zoom 100 %

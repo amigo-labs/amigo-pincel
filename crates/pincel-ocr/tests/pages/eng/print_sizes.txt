@@ -1,0 +1,6 @@
+Pages
+This page mixes text of very different sizes. The heading above is
+large enough to read from across the room, while the note at the
+bottom of the page is tiny and needs a magnifying glass.
+
+1) Small print: all sizes are given in pixels of the page image.

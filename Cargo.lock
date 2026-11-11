@@ -3197,6 +3197,8 @@ dependencies = [
 name = "pincel-ocr"
 version = "1.10.1"
 dependencies = [
+ "criterion",
+ "pincel-effects",
  "png",
  "thiserror 2.0.21",
 ]
