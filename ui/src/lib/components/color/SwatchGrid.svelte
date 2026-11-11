@@ -4,18 +4,51 @@
   // click picks the color for the foreground; a right click, a touch or pen
   // long press (the tool rail's gesture) or the context-menu key picks it
   // for the background, and the browser's context menu stays closed.
+  // A named swatch (a `.gpl` entry) shows its name next to its hex value;
+  // with `maxRows` the grid stops growing at that many rows and scrolls
+  // vertically (image-palette-gradient AC-08, AC-19).
   import { onDestroy } from 'svelte';
   import { toHex, type Rgba8 } from '../../color';
+  import { t } from '../../i18n/index.svelte';
   import { LONG_PRESS_MS, LONG_PRESS_SLOP } from '../layout/tools';
 
   interface Props {
     label: string;
     colors: readonly Rgba8[];
+    /** Names lined up with `colors`; `undefined` where a swatch has none. */
+    names?: readonly (string | undefined)[];
+    /** Rows shown before the grid scrolls vertically; unlimited without. */
+    maxRows?: number;
     onPick: (c: Rgba8, target: 'fg' | 'bg') => void;
   }
-  const { label, colors, onPick }: Props = $props();
+  const { label, colors, names, maxRows, onPick }: Props = $props();
 
-  const name = (c: Rgba8): string => toHex(c, c.a !== 255);
+  const hex = (c: Rgba8): string => toHex(c, c.a !== 255);
+  const name = (c: Rgba8, i: number): string => {
+    const n = names?.[i];
+    return n ? t('palette.swatchNamed', { name: n, hex: hex(c) }) : hex(c);
+  };
+
+  // The height of `maxRows` rows of swatches, measured from the first one
+  // (swatches stretch with the panel width).
+  let grid = $state<HTMLDivElement | null>(null);
+  let maxHeight = $state<number | null>(null);
+  $effect(() => {
+    const el = grid;
+    void colors.length;
+    if (!el || maxRows === undefined) return;
+    const rows = maxRows;
+    const measure = (): void => {
+      const first = el.firstElementChild;
+      if (!(first instanceof HTMLElement)) return;
+      const gap = Number.parseFloat(getComputedStyle(el).rowGap) || 0;
+      maxHeight = rows * first.offsetHeight + (rows - 1) * gap;
+    };
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(el);
+    return () => observer.disconnect();
+  });
 
   // A touch / pen hold on one swatch; `fired` once it picked the background.
   let press: {
@@ -79,17 +112,20 @@
 <div class="flex flex-col gap-1 text-xs">
   <span class="text-pc-muted">{label}</span>
   <div
+    bind:this={grid}
     class="grid min-h-5 grid-cols-[repeat(auto-fill,minmax(1.125rem,1fr))] gap-1"
+    class:capped={maxRows !== undefined}
+    style:max-height={maxRows !== undefined && maxHeight !== null ? `${maxHeight}px` : undefined}
     role="group"
     aria-label={label}
   >
-    {#each colors as c, i (`${i}-${name(c)}`)}
+    {#each colors as c, i (`${i}-${hex(c)}`)}
       <button
         type="button"
         class="chip aspect-square min-h-4 min-w-4 rounded-sm border border-pc-border"
         style:--chip={`rgb(${c.r} ${c.g} ${c.b} / ${c.a / 255})`}
-        title={name(c)}
-        aria-label={name(c)}
+        title={name(c, i)}
+        aria-label={name(c, i)}
         onclick={() => onClick(c)}
         oncontextmenu={(e) => onContextMenu(e, c)}
         onpointerdown={(e) => onPointerDown(e, c)}
@@ -102,6 +138,10 @@
 </div>
 
 <style>
+  .capped {
+    overflow-x: hidden;
+    overflow-y: auto;
+  }
   .chip {
     background:
       linear-gradient(var(--chip), var(--chip)),

@@ -123,31 +123,31 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-01 | `the Colors panel has the palette menu, its Save submenu and Add color (AC-01)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-02 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-03 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)`, `a file loads the same colors in the same order as Pixel mode imports it (AC-03)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_detects_the_format_from_the_content` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
+| AC-04 | `an unreadable file keeps the palette and names the reason (AC-04)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_unreadable_file_names_the_reason` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
+| AC-05 | `dismissing the file picker of Load palette… changes nothing and says nothing (AC-05)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-06 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-07 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_then_read_round_trips_every_format` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
+| AC-08 | `.gpl entry names survive load and save and show on the swatches (AC-08)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_gpl_keeps_entry_names` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
+| AC-09 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-10 | `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-11 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)`, `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-12 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-13 | `the palette survives a reload with colors, alpha and names (AC-13)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-14 | `an unreadable stored palette falls back silently (AC-14)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-15 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-16 | `every Image tab shows the same palette (AC-16)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-17 | `Image and Pixel palettes do not touch each other (AC-17)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-18 | `loaded swatches pick foreground and background with alpha, without a context menu (AC-18)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-19 | `a 256-color palette wraps, stops at 8 rows and scrolls on its own in a 240 px sidebar (AC-19)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-20 | `the palette menu, Add color and the palette messages are German in the German UI (AC-20)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
 | AC-21 | `pincel-palette`: `formats::tests::*` (15 codec tests), `gpl::tests::*` (4) — `crates/pincel-palette/src/{formats,gpl}.rs`; `pincel-core`: `codec::gpl::tests::*`, `codec::palette_formats::tests::*` (unchanged assertions); `pincel-wasm`: `tests::import_palette_*`, `tests::export_palette_writes_each_format`, `tests::palette_presets_and_gpl_round_trip_through_undo`, `tests::import_gpl_invalid_file_returns_err_and_keeps_palette`; `pincel-agent`: `tests::tags_palette::palette_*`; e2e `ui/e2e/palette.spec.ts` | built |        |
-| AC-22 |      | open   |        |
-| AC-23 |      | open   |        |
-| AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
+| AC-22 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-23 | `dismissing the save dialog writes nothing and says nothing (AC-23)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-24 | `a failed write says so and keeps the palette (AC-24)` — `ui/e2e/image-palette.spec.ts` | built |        |
+| AC-25 | `a palette that cannot be stored stays until reload and says so (AC-25)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
 
 ## Decisions
 
@@ -162,5 +162,12 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 - 2026-11-05: Reset removes the stored palette instead of storing the default (AC-22), because users who never customized their palette should get a later improved default.
 - 2026-11-05: A failed IndexedDB write keeps the change for the session and says so (AC-25), because discarding a change the user just made is worse than losing it at reload, and the notice lets the user save the palette as a file first.
 - 2026-11-05: Status messages reuse Pixel mode's wording and the shared `status.failed` pattern ("{action} failed: {error}"), because one vocabulary across modes keeps strings and translations small.
-- 2026-11-11 (spec-build): `pincel-core` keeps `codec/gpl.rs` and `codec/palette_formats.rs` as thin adapters over `pincel-palette` (same function names, signatures and re-exports; `GplError`, `PaletteFormat`, `PaletteFormatError` are re-exported from the new crate), so callers and the existing `pincel-core` codec tests stay unchanged; the same tests are ported to `pincel-palette`'s `Vec<PaletteEntry>` with their input bytes and expectations. `MAX_PALETTE_ENTRIES` is now `pincel_palette::MAX_ENTRIES` (256), one limit for both. The AC-21 tests were green at once: the code moved unchanged, so there is no red run; the PNG decode / encode error texts are kept byte for byte (including the doubled `png decode failed:` prefix `pincel-core` produced), because AC-21 asks for unchanged errors.
 - 2026-11-05: A duplicate wins over a full palette in Add color's message (AC-10, AC-11), because "already in the palette" tells the user the color is available, while "full" would suggest it is missing.
+- 2026-11-11 (spec-build): `pincel-core` keeps `codec/gpl.rs` and `codec/palette_formats.rs` as thin adapters over `pincel-palette` (same function names, signatures and re-exports; `GplError`, `PaletteFormat`, `PaletteFormatError` are re-exported from the new crate), so callers and the existing `pincel-core` codec tests stay unchanged; the same tests are ported to `pincel-palette`'s `Vec<PaletteEntry>` with their input bytes and expectations. `MAX_PALETTE_ENTRIES` is now `pincel_palette::MAX_ENTRIES` (256), one limit for both. The AC-21 tests were green at once: the code moved unchanged, so there is no red run; the PNG decode / encode error texts are kept byte for byte (including the doubled `png decode failed:` prefix `pincel-core` produced), because AC-21 asks for unchanged errors.
+- 2026-11-11 (spec-build): `pincel-image-wasm` reads and writes palette files directly through `pincel-palette` (`read_palette_file` → `PaletteFile` with packed `0xRRGGBBAA` colors and names, `write_palette_file(colors, names, format, name, cell)`); `pincel-image-core` is not involved, because the palette is no document state. New public API: these three in `pincel-image-wasm`, and `pincel-palette`'s `Rgba`, `PaletteEntry`, `MAX_ENTRIES` plus the moved codec functions and error types.
+- 2026-11-11 (spec-build): The palette state lives in `ui/src/modes/image/stores/palette.svelte.ts` (`custom: null` = built-in default), its pure rules (stored form, AC-14 reading, Add color's duplicate-before-full check) in the rune-free `ui/src/modes/image/palette.ts`. The stored form is `{ rgba, name? }[]` with `rgba` packed `0xRRGGBBAA` as the Technical notes suggest; an entry is readable when `rgba` is an integer 0 … 0xFFFFFFFF and `name` is absent or a string.
+- 2026-11-11 (spec-build): A named swatch's tooltip and accessible name are `{name} {hex}` (e.g. "Deep sea #0a141e"); a name equal to the swatch's own `#rrggbb` is not repeated, because a `.gpl` written by Pincel labels unnamed entries with their hex code (Pixel mode's export does the same) and reading it back yields that label as the name.
+- 2026-11-11 (spec-build): Saving names the GIMP palette `palette` (the suggested file name's stem); Add color and Reset show no status message on success — the swatches change visibly and the ACs ask for none.
+- 2026-11-11 (spec-build): The 8-row cap (AC-19) is measured, not fixed: the swatches stretch with the panel width, so `SwatchGrid` (new optional `maxRows` and `names` props) sets its `max-height` from the first swatch's height and the row gap through a `ResizeObserver`, and scrolls vertically past it.
+- 2026-11-11 (spec-build): AC-13's desktop half (quit and restart) is not automated: the desktop app keeps IndexedDB in its WebView2 profile across restarts like every other pref (`recentColors:*`, `layout:*`), so the reload test covers the same storage path.
+- 2026-11-11 (spec-build): Red runs: the five `pincel-image-wasm` palette tests failed against stub `read` / `write` bodies (4 of 5; `write_refuses_unknown_format_and_empty_strip` passed against the stub's error, it checks refusals only), and all 19 e2e tests of `image-palette.spec.ts` / `image-palette-state.spec.ts` failed against the UI without the palette menu (missing "Palette options" / "Add color", AC-14 showing the default instead of the stored entries).
