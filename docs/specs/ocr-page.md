@@ -121,7 +121,7 @@ Terms used below:
 | AC-10 | `read_page_cancel_returns_cancelled_without_further_reports` (`tests/page.rs`): cancel at the first layout report, at "0 of n" and after line 2 | built |        |
 | AC-11 | `read_page_shared_model_on_threads_matches_alone` (`tests/page.rs`) | built |        |
 | AC-12 | `read_page_8192_square_page_with_three_lines_reads` (native), `read_page_8192_square_page_reads_in_wasm32` (`tests/page.rs`, runs `examples/wasm_large_page.rs` built for `wasm32-unknown-unknown` in Node) | built |        |
-| AC-13 |      | open   |        |
+| AC-13 | `cargo bench -p pincel-ocr --bench ocr_page` → `ocr-page/ocr-page-screenshot` (`crates/pincel-ocr/benches/ocr_page.rs`); 0.94 s median on the development machine (2026-11-11), not yet on the reference machine | built |        |
 | AC-14 | `check_snapshot` in the nine corpus tests (`tests/page_corpus.rs`), snapshots `tests/pages/<lang>/<page>.snapshot.txt` | built |        |
 
 ## Decisions
