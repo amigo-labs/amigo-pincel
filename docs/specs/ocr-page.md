@@ -114,13 +114,13 @@ Terms used below:
 | AC-03 | `check_order` in the same nine tests (`tests/page_corpus.rs`) | built |        |
 | AC-04 | `read_page_ui_dark_meets_accuracy_and_order`, `read_page_ui_mockup_meets_accuracy_and_order`, `read_page_ui_transparent_meets_accuracy_and_order` (`tests/page_corpus.rs`) | built |        |
 | AC-05 | `read_page_print_rotated_meets_accuracy_and_order`, `read_page_rotated_page_word_boxes_hold_recorded_centres` (`tests/page_corpus.rs`) | built |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-06 | `read_page_without_text_returns_empty` (`crates/pincel-ocr/tests/page.rs`): single colour, 1 × 1, transparent, Clouds and Add Noise (defaults, seed 1) on white 512 × 512 | built |        |
+| AC-07 | `read_page_wrong_buffer_length_returns_bad_image`, `read_page_beyond_image_mode_limits_returns_too_large`, `read_page_zero_width_or_height_returns_empty` (`tests/page.rs`) | built |        |
+| AC-08 | `read_page_print_sizes_meets_accuracy_and_order` (`tests/page_corpus.rs`); `read_page_text_of_any_height_returns_without_error` (`tests/page.rs`) | built |        |
+| AC-09 | `read_page_reports_layout_progress_then_each_line`, `read_page_without_lines_reports_zero_of_zero` (`tests/page.rs`) | built |        |
+| AC-10 | `read_page_cancel_returns_cancelled_without_further_reports` (`tests/page.rs`): cancel at the first layout report, at "0 of n" and after line 2 | built |        |
+| AC-11 | `read_page_shared_model_on_threads_matches_alone` (`tests/page.rs`) | built |        |
+| AC-12 | `read_page_8192_square_page_with_three_lines_reads` (native), `read_page_8192_square_page_reads_in_wasm32` (`tests/page.rs`, runs `examples/wasm_large_page.rs` built for `wasm32-unknown-unknown` in Node) | built |        |
 | AC-13 |      | open   |        |
 | AC-14 | `check_snapshot` in the nine corpus tests (`tests/page_corpus.rs`), snapshots `tests/pages/<lang>/<page>.snapshot.txt` | built |        |
 
@@ -138,3 +138,5 @@ Terms used below:
 - 2026-11-11 (build): AC-03 matching: when several page-text blocks reach the same best accuracy (a block text that occurs twice, like "Yesterday"), the reference block takes the first of them after the previous match. Character accuracy asserts that neither text holds combining marks or singleton code points, under which NFC is the identity, instead of adding a normalization dependency.
 - 2026-11-11 (build): The corpus (`crates/pincel-ocr/tests/pages/make_pages.py`) renders with DejaVu Sans 2.37 and Liberation Sans / Serif 2.1.5, downloaded once and checked against pinned SHA-256 sums. Each drawn text item is a line; the reference blocks and their order come from the spec's definitions applied to the items' ink boxes, and the script warns when a gap lies near a threshold the implementation estimates, so the layouts keep clear margins. Every reference was checked by hand against its image.
 - 2026-11-11 (build): New public API: `Model::read_page`, `PageResult`, `PageBlock`, `PageLine`, `PageWord`, `PageBox`, `Progress`, `Control`, `PageError` (`BadImage`, `TooLarge`, `Cancelled`; its own enum rather than new `RecognizeError` kinds, one error enum per operation).
+- 2026-11-11 (build): The wasm32 half of AC-12 runs inside `cargo test`: `read_page_8192_square_page_reads_in_wasm32` builds `examples/wasm_large_page.rs` for `wasm32-unknown-unknown` in its own target directory (`CARGO_TARGET_TMPDIR`, so it does not wait for the running build's lock) and calls the module's exported `main` in Node; the example needs no imports, so no wasm-bindgen or new dependency, and a failed check traps. It needs the `wasm32-unknown-unknown` target and Node, which CI's rust job and every UI developer have; the first build takes about 50 s, later runs about 3 s. No CI or gate configuration changes.
+- 2026-11-11 (build): The no-text images of AC-06 use the catalog defaults (Clouds: scale 250, roughness 50, black to white, Normal; Add Noise: 20 %, Uniform, RGB) with seed 1, through `pincel-effects` as a dev-dependency (a workspace crate). AC-08's "any height" check rescales a corpus page to text below 3 px and a heading to letters of about 700 and 1600 px, and reads one-pixel strips.

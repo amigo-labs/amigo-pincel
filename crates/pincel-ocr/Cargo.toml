@@ -13,6 +13,7 @@ rust-version.workspace = true
 thiserror = { workspace = true }
 
 [dev-dependencies]
+pincel-effects = { workspace = true }
 png = { workspace = true }
 
 [lints]
