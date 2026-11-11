@@ -12,6 +12,8 @@
   import AboutDialog from './lib/components/AboutDialog.svelte';
   import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
+  import ComfyUiDialog from './lib/comfyui/ComfyUiDialog.svelte';
+  import { closeImageGeneration, comfy } from './lib/comfyui/state.svelte';
   import {
     closeAbout,
     closePalette,
@@ -877,6 +879,10 @@
 
 {#if help.palette}
   <CommandPalette source={help.palette} onClose={closePalette} />
+{/if}
+
+{#if comfy.open}
+  <ComfyUiDialog onClose={closeImageGeneration} />
 {/if}
 
 {#if shellError}

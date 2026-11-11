@@ -41,6 +41,15 @@ export interface TauriMock {
   holdClipboard: boolean;
   clipboardHeld: (() => void)[];
   images: Record<number, ClipImage>;
+  /** Answers of app commands the mock does not model itself, per command:
+   *  each call takes the next one, the last one repeats; `{ __error }`
+   *  rejects. A command without answers resolves `null`. */
+  replies: Record<string, unknown[]>;
+  /** Calls of those commands, in order. */
+  calls: { cmd: string; args: Record<string, unknown> }[];
+  /** Commands whose calls wait in `held` until released (in call order). */
+  hold: string[];
+  held: (() => void)[];
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -69,6 +78,10 @@ export async function installTauriMock(page: Page): Promise<void> {
       holdClipboard: false,
       clipboardHeld: [],
       images: {},
+      replies: {},
+      calls: [],
+      hold: [],
+      held: [],
     };
     let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -129,8 +142,19 @@ export async function installTauriMock(page: Page): Promise<void> {
         case 'plugin:resources|close':
           delete mock.images[Number(args.rid)];
           return null;
-        default:
-          return null;
+        default: {
+          mock.calls.push({ cmd, args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown> });
+          if (mock.hold.includes(cmd)) {
+            await new Promise<void>((resolve) => mock.held.push(resolve));
+          }
+          const queue = mock.replies[cmd];
+          if (!queue || queue.length === 0) return null;
+          const reply: unknown = queue.length > 1 ? queue.shift() : queue[0];
+          if (typeof reply === 'object' && reply !== null && '__error' in reply) {
+            throw new Error(String((reply as { __error: unknown }).__error));
+          }
+          return reply;
+        }
       }
     };
     Object.assign(window, {
@@ -286,4 +310,39 @@ export async function nativeSave(page: Page, path: string): Promise<Buffer> {
   const bytes = await diskFile(page, path);
   if (!bytes) throw new Error(`${path} was not written`);
   return bytes;
+}
+
+/** Queues the answers of app command `cmd` (see `TauriMock.replies`). */
+export async function reply(page: Page, cmd: string, ...answers: unknown[]): Promise<void> {
+  await page.evaluate(
+    ([c, a]) => {
+      (window as unknown as MockWindow).__mock.replies[c as string] = a as unknown[];
+    },
+    [cmd, answers] as const,
+  );
+}
+
+/** The calls of app commands the mock answers from `replies`. */
+export async function commandCalls(
+  page: Page,
+  cmd?: string,
+): Promise<{ cmd: string; args: Record<string, unknown> }[]> {
+  const calls = await page.evaluate(() => (window as unknown as MockWindow).__mock.calls);
+  return cmd === undefined ? calls : calls.filter((c) => c.cmd === cmd);
+}
+
+/** Holds (or stops holding) the calls of `cmds` that start from now on. */
+export async function holdCommands(page: Page, cmds: string[]): Promise<void> {
+  await page.evaluate((c) => {
+    (window as unknown as MockWindow).__mock.hold = c;
+  }, cmds);
+}
+
+/** Lets every held command call answer. */
+export async function releaseCommands(page: Page): Promise<void> {
+  await page.evaluate(() => {
+    const mock = (window as unknown as MockWindow).__mock;
+    const held = mock.held.splice(0);
+    for (const release of held) release();
+  });
 }
