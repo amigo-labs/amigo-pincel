@@ -100,6 +100,35 @@ fn read_request_path(mut stream: &TcpStream) -> Option<String> {
     text.split_whitespace().nth(1).map(str::to_string)
 }
 
+/// A TCP server that keeps the first bytes each client sends and closes
+/// the connection: it shows what a client speaks (TLS starts with 0x16).
+pub struct RecordingTcp {
+    pub port: u16,
+    pub first: std::sync::Arc<std::sync::Mutex<Vec<u8>>>,
+}
+
+impl RecordingTcp {
+    pub fn start() -> Self {
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let first = std::sync::Arc::new(std::sync::Mutex::new(Vec::new()));
+        let sink = std::sync::Arc::clone(&first);
+        thread::spawn(move || {
+            for mut stream in listener.incoming().flatten() {
+                let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+                let mut buf = [0u8; 16];
+                if let Ok(n) = stream.read(&mut buf) {
+                    let mut first = sink.lock().expect("lock");
+                    if first.is_empty() {
+                        first.extend_from_slice(&buf[..n]);
+                    }
+                }
+            }
+        });
+        Self { port, first }
+    }
+}
+
 /// A port nothing listens on (bound once, then released).
 pub fn dead_port() -> u16 {
     let listener = TcpListener::bind("127.0.0.1:0").expect("bind");

@@ -30,6 +30,7 @@ pub struct ComfyState(Arc<Manager>);
 /// Creates the connection and, off the start path, takes over a server an
 /// earlier run left running (AC-10).
 pub fn setup<R: Runtime>(app: &AppHandle<R>) {
+    http::install_crypto_provider();
     let Ok(dir) = app.path().app_config_dir() else {
         eprintln!("pincel: no app config directory, ComfyUI connection disabled");
         return;

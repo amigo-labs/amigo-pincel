@@ -57,8 +57,6 @@ pub enum ProbeError {
     NotComfy,
     /// 401, 403 or 407 — a proxy or server that wants credentials.
     Refused(u16),
-    /// `https://` (see `http`).
-    Unsupported,
 }
 
 /// Timeouts of one probe.
@@ -71,10 +69,8 @@ pub struct Timeouts {
 }
 
 fn fetch_json(url: &Url, path: &str, timeout: Duration) -> Result<Value, ProbeError> {
-    let res = http::get(url, path, timeout).map_err(|e| match e {
-        HttpError::Unreachable(_) => ProbeError::Unreachable,
-        HttpError::Unsupported => ProbeError::Unsupported,
-    })?;
+    let res = http::get(url, path, timeout)
+        .map_err(|HttpError::Unreachable(_)| ProbeError::Unreachable)?;
     match res.status {
         200 => serde_json::from_slice(&res.body).map_err(|_| ProbeError::NotComfy),
         401 | 403 | 407 => Err(ProbeError::Refused(res.status)),

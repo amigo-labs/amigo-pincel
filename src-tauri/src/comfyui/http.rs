@@ -1,23 +1,15 @@
-//! A minimal HTTP/1.1 GET client over `std::net` for ComfyUI's JSON API
-//! (docs/specs/comfyui-connect.md, Decisions: "std HTTP client").
-//!
-//! Only plain `http://` is spoken: `reqwest` (approved in the Decision Log)
-//! panics without a rustls crypto provider, and installing one needs a
-//! dependency that is not approved yet (the spec's Open questions).
+//! HTTP(S) GET for ComfyUI's JSON API through `reqwest`, with rustls and
+//! the ring provider installed process-wide (Decision Log 2026-11-11).
+//! Callers are blocking threads; each request runs on Tauri's async runtime.
 
-use std::io::{Read, Write};
-use std::net::{SocketAddr, TcpStream, ToSocketAddrs};
-use std::time::{Duration, Instant};
-
-/// Largest response body read (ComfyUI's `/object_info` with many custom
-/// nodes runs to a few MB).
-const MAX_BODY: usize = 64 * 1024 * 1024;
+use std::net::IpAddr;
+use std::sync::OnceLock;
+use std::time::Duration;
 
 /// A server address: scheme, host, port and an optional path prefix (a
 /// reverse proxy may serve ComfyUI below `/comfy`).
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Url {
-    /// `https://` — parsed, but not spoken yet (see the module docs).
     pub https: bool,
     /// Host name or IP literal, without brackets.
     pub host: String,
@@ -37,7 +29,14 @@ impl Url {
         }
     }
 
-    /// The URL as text, e.g. `http://127.0.0.1:8188/comfy`.
+    /// Whether the host is this machine (`localhost`, 127.0.0.0/8, `::1`).
+    pub fn is_loopback(&self) -> bool {
+        self.host.eq_ignore_ascii_case("localhost")
+            || self.host.parse::<IpAddr>().is_ok_and(|ip| ip.is_loopback())
+    }
+
+    /// The URL as text, e.g. `http://127.0.0.1:8188/comfy`; the scheme's
+    /// default port is left out.
     pub fn display(&self) -> String {
         let scheme = if self.https { "https" } else { "http" };
         let host = if self.host.contains(':') {
@@ -45,7 +44,12 @@ impl Url {
         } else {
             self.host.clone()
         };
-        format!("{scheme}://{host}:{}{}", self.port, self.prefix)
+        let default_port = if self.https { 443 } else { 80 };
+        if self.port == default_port {
+            format!("{scheme}://{host}{}", self.prefix)
+        } else {
+            format!("{scheme}://{host}:{}{}", self.port, self.prefix)
+        }
     }
 }
 
@@ -102,12 +106,6 @@ pub fn parse_url(text: &str) -> Option<Url> {
     })
 }
 
-fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
-    let head = text.get(..prefix.len())?;
-    head.eq_ignore_ascii_case(prefix)
-        .then(|| &text[prefix.len()..])
-}
-
 /// A response: status code and body.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Response {
@@ -118,151 +116,75 @@ pub struct Response {
 /// Why a request got no HTTP response.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub enum HttpError {
-    /// No connection, a timeout, or an answer that is not HTTP.
+    /// No connection, a failed TLS handshake, a timeout, or an answer that
+    /// is not HTTP.
     Unreachable(String),
-    /// `https://` (see the module docs).
-    Unsupported,
 }
 
-/// `GET <prefix><path>` with `timeout` for the whole exchange.
+/// Installs rustls' ring provider as the process-wide default, once. The
+/// `reqwest` in this tree is built without a provider of its own and
+/// panics when a client is built before one is installed.
+pub fn install_crypto_provider() {
+    static ONCE: OnceLock<()> = OnceLock::new();
+    ONCE.get_or_init(|| {
+        if rustls::crypto::CryptoProvider::get_default().is_none() {
+            // Losing a race to another installer leaves a provider in place.
+            let _ = rustls::crypto::ring::default_provider().install_default();
+        }
+    });
+}
+
+/// The shared client: loopback requests bypass the system proxy, which
+/// would otherwise see (or block) traffic to this machine.
+fn client(loopback: bool) -> Result<&'static reqwest::Client, HttpError> {
+    static LOCAL: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+    static REMOTE: OnceLock<Result<reqwest::Client, String>> = OnceLock::new();
+    let cell = if loopback { &LOCAL } else { &REMOTE };
+    cell.get_or_init(|| {
+        install_crypto_provider();
+        let builder = reqwest::Client::builder().user_agent("Pincel");
+        let builder = if loopback {
+            builder.no_proxy()
+        } else {
+            builder
+        };
+        builder.build().map_err(|e| e.to_string())
+    })
+    .as_ref()
+    .map_err(|e| HttpError::Unreachable(e.clone()))
+}
+
+fn unreachable(e: reqwest::Error) -> HttpError {
+    HttpError::Unreachable(e.to_string())
+}
+
+/// `GET <prefix><path>` with `timeout` for the whole exchange. Blocks the
+/// calling thread, which must not be an async task.
 pub fn get(url: &Url, path: &str, timeout: Duration) -> Result<Response, HttpError> {
-    if url.https {
-        return Err(HttpError::Unsupported);
-    }
-    let deadline = Instant::now() + timeout;
-    let mut stream = connect(url, timeout)?;
-    let host = if url.host.contains(':') {
-        format!("[{}]:{}", url.host, url.port)
-    } else {
-        format!("{}:{}", url.host, url.port)
-    };
-    let request = format!(
-        "GET {}{} HTTP/1.1\r\nHost: {host}\r\nAccept: application/json\r\nUser-Agent: Pincel\r\nConnection: close\r\n\r\n",
-        url.prefix, path
-    );
-    stream
-        .write_all(request.as_bytes())
-        .map_err(|e| HttpError::Unreachable(e.to_string()))?;
-    let mut raw = Vec::new();
-    let mut buf = [0u8; 16 * 1024];
-    loop {
-        let left = deadline.saturating_duration_since(Instant::now());
-        if left.is_zero() {
-            return Err(HttpError::Unreachable("timed out".to_string()));
-        }
-        stream
-            .set_read_timeout(Some(left))
-            .map_err(|e| HttpError::Unreachable(e.to_string()))?;
-        match stream.read(&mut buf) {
-            Ok(0) => break,
-            Ok(n) => {
-                raw.extend_from_slice(&buf[..n]);
-                if raw.len() > MAX_BODY {
-                    return Err(HttpError::Unreachable("response too large".to_string()));
-                }
-                if complete(&raw) {
-                    break;
-                }
-            }
-            Err(e) if e.kind() == std::io::ErrorKind::Interrupted => {}
-            Err(e) => return Err(HttpError::Unreachable(e.to_string())),
-        }
-    }
-    parse_response(&raw).ok_or_else(|| HttpError::Unreachable("not an HTTP answer".to_string()))
-}
-
-fn connect(url: &Url, timeout: Duration) -> Result<TcpStream, HttpError> {
-    let addrs: Vec<SocketAddr> = (url.host.as_str(), url.port)
-        .to_socket_addrs()
-        .map_err(|e| HttpError::Unreachable(e.to_string()))?
-        .collect();
-    let mut last = "no address".to_string();
-    for addr in addrs {
-        match TcpStream::connect_timeout(&addr, timeout) {
-            Ok(stream) => {
-                stream
-                    .set_write_timeout(Some(timeout))
-                    .map_err(|e| HttpError::Unreachable(e.to_string()))?;
-                return Ok(stream);
-            }
-            Err(e) => last = e.to_string(),
-        }
-    }
-    Err(HttpError::Unreachable(last))
-}
-
-/// Header block and body split at the first blank line.
-fn split_head(raw: &[u8]) -> Option<(&[u8], &[u8])> {
-    let end = raw.windows(4).position(|w| w == b"\r\n\r\n")?;
-    Some((&raw[..end], &raw[end + 4..]))
-}
-
-/// Header `name` (case-insensitive) from a header block.
-fn header<'a>(head: &'a str, name: &str) -> Option<&'a str> {
-    head.lines().skip(1).find_map(|line| {
-        let (k, v) = line.split_once(':')?;
-        k.trim().eq_ignore_ascii_case(name).then(|| v.trim())
+    let request = client(url.is_loopback())?
+        .get(format!("{}{path}", url.display()))
+        .header(reqwest::header::ACCEPT, "application/json")
+        .timeout(timeout);
+    tauri::async_runtime::block_on(async move {
+        let response = request.send().await.map_err(unreachable)?;
+        let status = response.status().as_u16();
+        let body = response.bytes().await.map_err(unreachable)?.to_vec();
+        Ok(Response { status, body })
     })
 }
 
-/// Whether `raw` already holds the whole response (so a server that keeps
-/// the connection open despite `Connection: close` doesn't stall us).
-fn complete(raw: &[u8]) -> bool {
-    let Some((head, body)) = split_head(raw) else {
-        return false;
-    };
-    let head = String::from_utf8_lossy(head);
-    if let Some(len) = header(&head, "content-length").and_then(|v| v.parse::<usize>().ok()) {
-        return body.len() >= len;
-    }
-    if header(&head, "transfer-encoding").is_some_and(|v| v.eq_ignore_ascii_case("chunked")) {
-        return body.ends_with(b"0\r\n\r\n");
-    }
-    false
-}
-
-fn parse_response(raw: &[u8]) -> Option<Response> {
-    let (head, body) = split_head(raw)?;
-    let head = String::from_utf8_lossy(head);
-    let status_line = head.lines().next()?;
-    let mut parts = status_line.split_whitespace();
-    if !parts.next()?.starts_with("HTTP/") {
-        return None;
-    }
-    let status = parts.next()?.parse::<u16>().ok()?;
-    let body = if header(&head, "transfer-encoding")
-        .is_some_and(|v| v.eq_ignore_ascii_case("chunked"))
-    {
-        dechunk(body)?
-    } else if let Some(len) = header(&head, "content-length").and_then(|v| v.parse::<usize>().ok())
-    {
-        body.get(..len)?.to_vec()
-    } else {
-        body.to_vec()
-    };
-    Some(Response { status, body })
-}
-
-fn dechunk(mut body: &[u8]) -> Option<Vec<u8>> {
-    let mut out = Vec::new();
-    loop {
-        let line_end = body.windows(2).position(|w| w == b"\r\n")?;
-        let size_text = std::str::from_utf8(&body[..line_end]).ok()?;
-        let size_text = size_text.split(';').next()?.trim();
-        let size = usize::from_str_radix(size_text, 16).ok()?;
-        body = &body[line_end + 2..];
-        if size == 0 {
-            return Some(out);
-        }
-        out.extend_from_slice(body.get(..size)?);
-        body = body.get(size + 2..)?;
-    }
+fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
+    let head = text.get(..prefix.len())?;
+    head.eq_ignore_ascii_case(prefix)
+        .then(|| &text[prefix.len()..])
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
-    use crate::comfyui::testing::{FakeHttp, Route, dead_port};
+    use std::time::Instant;
+
+    use crate::comfyui::testing::{FakeHttp, RecordingTcp, Route, dead_port};
 
     #[test]
     fn parse_url_accepts_http_https_ports_and_prefixes() {
@@ -303,6 +225,29 @@ mod tests {
     }
 
     #[test]
+    fn is_loopback_only_for_this_machine() {
+        assert!(parse_url("http://localhost:1").unwrap().is_loopback());
+        assert!(parse_url("http://127.0.0.2:1").unwrap().is_loopback());
+        assert!(parse_url("http://[::1]:1").unwrap().is_loopback());
+        assert!(!parse_url("http://192.168.1.5:1").unwrap().is_loopback());
+        assert!(!parse_url("https://gpu.example.com").unwrap().is_loopback());
+    }
+
+    #[test]
+    fn display_leaves_out_the_default_port() {
+        assert_eq!(
+            parse_url("https://gpu.example.com/comfy/")
+                .unwrap()
+                .display(),
+            "https://gpu.example.com/comfy"
+        );
+        assert_eq!(
+            parse_url("http://[::1]:8188").unwrap().display(),
+            "http://[::1]:8188"
+        );
+    }
+
+    #[test]
     fn get_reads_status_and_body_below_the_prefix() {
         let server = FakeHttp::start(vec![Route::json("/comfy/system_stats", 200, "{\"a\":1}")]);
         let url = parse_url(&format!("http://127.0.0.1:{}/comfy", server.port)).unwrap();
@@ -337,11 +282,21 @@ mod tests {
     }
 
     #[test]
-    fn get_https_is_unsupported() {
-        let url = parse_url("https://127.0.0.1:1").unwrap();
-        assert_eq!(
-            get(&url, "/", Duration::from_secs(1)),
-            Err(HttpError::Unsupported)
-        );
+    fn get_https_speaks_tls_and_a_failed_handshake_is_unreachable() {
+        let server = RecordingTcp::start();
+        let url = parse_url(&format!("https://127.0.0.1:{}", server.port)).unwrap();
+        let err = get(&url, "/system_stats", Duration::from_secs(2)).unwrap_err();
+        assert!(matches!(err, HttpError::Unreachable(_)), "{err:?}");
+        let first = server.first.lock().unwrap().clone();
+        // A TLS handshake record (ClientHello), not a plain GET.
+        assert_eq!(first.get(..2), Some(&[0x16, 0x03][..]), "{first:?}");
+    }
+
+    #[test]
+    fn get_https_to_a_plain_http_server_is_unreachable() {
+        let server = FakeHttp::comfy("", "{}", "{}");
+        let url = parse_url(&format!("https://127.0.0.1:{}", server.port)).unwrap();
+        let err = get(&url, "/system_stats", Duration::from_secs(2)).unwrap_err();
+        assert!(matches!(err, HttpError::Unreachable(_)), "{err:?}");
     }
 }

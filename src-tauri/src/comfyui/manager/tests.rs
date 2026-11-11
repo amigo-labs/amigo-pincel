@@ -419,6 +419,30 @@ fn test_url_classifies_every_outcome() {
     assert_eq!(env.manager.settings().server, ServerChoice::Custom);
 }
 
+#[test]
+fn test_url_over_https_reaches_the_server_and_reports_failures() {
+    let env = Env::new(vec![]);
+    let dead = dead_port();
+    assert_eq!(
+        env.manager
+            .test_url(&format!("https://127.0.0.1:{dead}/comfy"))
+            .unwrap(),
+        Status::Unreachable {
+            url: format!("https://127.0.0.1:{dead}/comfy")
+        }
+    );
+    // A server without TLS: the handshake fails, nothing is mistaken for ComfyUI.
+    let plain = comfy();
+    assert_eq!(
+        env.manager
+            .test_url(&format!("https://localhost:{}", plain.port))
+            .unwrap(),
+        Status::Unreachable {
+            url: format!("https://localhost:{}", plain.port)
+        }
+    );
+}
+
 // AC-09
 
 #[test]

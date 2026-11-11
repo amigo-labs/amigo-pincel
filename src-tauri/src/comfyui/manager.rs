@@ -84,8 +84,6 @@ pub enum Status {
     NotComfy { url: String },
     /// AC-08: 401, 403 or 407.
     Refused { status: u16 },
-    /// `https://` is not spoken yet (see `http`).
-    Unsupported,
     /// The process could not be started at all.
     Failed { message: String },
 }
@@ -122,7 +120,6 @@ pub fn require_usable(status: &Status) -> Result<ServerInfo, String> {
         Status::Unreachable { .. } => Err("not reachable".to_string()),
         Status::NotComfy { .. } => Err("not a ComfyUI server".to_string()),
         Status::Refused { status } => Err(format!("the server refused access ({status})")),
-        Status::Unsupported => Err("https is not supported yet".to_string()),
         Status::Failed { message } => Err(format!("ComfyUI could not be started: {message}")),
     }
 }
@@ -342,7 +339,6 @@ impl Manager {
             Err(ProbeError::Unreachable) => Status::Unreachable { url: url.display() },
             Err(ProbeError::NotComfy) => Status::NotComfy { url: url.display() },
             Err(ProbeError::Refused(status)) => Status::Refused { status },
-            Err(ProbeError::Unsupported) => Status::Unsupported,
         }
     }
 

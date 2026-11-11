@@ -3204,6 +3204,8 @@ name = "pincel-tauri"
 version = "1.10.1"
 dependencies = [
  "pincel-core",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",

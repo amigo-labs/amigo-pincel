@@ -23,6 +23,11 @@ tauri-build = { version = "2", features = [] }
 # M11.2 doesn't yet exercise the dependency — the FS bridge moves
 # raw bytes — but slice-aware native commands in later milestones will.
 pincel-core = { workspace = true }
+# HTTP(S) to a ComfyUI server (Decision Log 2026-11-06 "ComfyUI"), already
+# in the tree through the updater plugin; TLS through rustls with the ring
+# provider, installed once process-wide (Decision Log 2026-11-11).
+reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
+rustls = { version = "0.23", default-features = false, features = ["ring"] }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –
