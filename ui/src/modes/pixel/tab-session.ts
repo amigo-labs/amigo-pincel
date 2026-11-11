@@ -12,6 +12,7 @@ import { listRecents, upsertRecent } from '../../lib/idb/recent-files';
 import { hasFsAccess } from '../../lib/fs';
 import { isTauri } from '../../lib/platform';
 import type { EditorDocument } from '../../lib/shell/types';
+import { runAgentCall } from './doc-ops';
 import { ed, file, tabs, type PixelTab } from './stores/editor.svelte';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 
@@ -87,6 +88,12 @@ export function attachTab(tab: PixelTab, opts: { docId?: string; recovered?: boo
     discard: () => autosave.finish(),
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
+    saveAs: () => saveTab(tab, true),
+    agentCall: (docId, name, argsJson, file) => {
+      // The shell activates the tab first; `ed` is the active tab's state.
+      if (tabs.active !== tab) activateTab(tab);
+      return runAgentCall(docId, name, argsJson, file);
+    },
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

@@ -112,19 +112,19 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-04 |      | open   |        |
 | AC-05 | `src-tauri/src/mcp/tests.rs` `requests_without_or_with_a_wrong_token_are_refused_and_run_nothing` | built | |
 | AC-06 | `src-tauri/src/mcp/tests.rs` `tools_list_matches_the_headless_server`, `a_chat_session_lists_and_runs_only_its_tools` | built | |
-| AC-07 |      | open   |        |
+| AC-07 | `crates/pincel-agent/src/tests/live.rs` `call_pixel_draws_on_the_lent_document_as_one_undo_step`, `call_image_draws_on_the_lent_bus_as_one_undo_step`; `crates/pincel-wasm/src/agent.rs` `agent_call_draw_is_one_undo_step_and_queues_a_redraw`; `crates/pincel-image-wasm/src/agent.rs` `agent_call_stroke_is_one_undo_step_on_the_open_document`; `ui/e2e/mcp-live.spec.ts` "AC-07 a pixel / image tool call …" | built | |
 | AC-08 | `src-tauri/src/mcp/tests.rs` `concurrent_calls_each_get_their_own_result` | built | |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
+| AC-09 | `ui/e2e/mcp-live.spec.ts` "AC-09 a document tool without an open document fails" | built | |
+| AC-10 | `ui/e2e/mcp-live.spec.ts` "AC-10 AC-11 doc.save: …" | built | |
+| AC-11 | `ui/e2e/mcp-live.spec.ts` "AC-10 AC-11 doc.save: …" | built | |
 | AC-12 |      | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-15 | `ui/e2e/mcp-live.spec.ts` "AC-15 doc.new opens a new tab; doc.close of a dirty tab asks …" | built | |
+| AC-16 | `ui/e2e/mcp-live.spec.ts` "AC-16 exports go through the save dialog …"; `crates/pincel-agent/src/tests/live.rs` `call_pixel_export_hands_the_file_to_the_host_instead_of_writing_it`, `call_pixel_reads_only_the_file_the_user_picked` | built | |
+| AC-17 | `ui/e2e/mcp-live.spec.ts` "AC-17 a call during a stroke waits for pointerup" | built | |
+| AC-18 | `ui/e2e/mcp-live.spec.ts` "AC-18 a call while a modal dialog is open fails at once …" | built | |
+| AC-19 | `src-tauri/src/mcp/tests.rs` `a_call_without_answer_times_out_but_not_while_a_dialog_waits`, `generation_tools_get_five_minutes`; `ui/e2e/mcp-live.spec.ts` "AC-10 AC-11 doc.save: …" (the dialog pauses the clock) | built | |
 | AC-20 |      | open   |        |
 | AC-21 |      | open   |        |
 | AC-22 | `src-tauri/src/mcp/tests.rs` `a_chat_token_works_while_the_setting_is_off_and_ends_with_the_chat` | built | |
@@ -152,3 +152,6 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-11-11 (spec-build): `pincel-tauri` depends on the workspace crates `pincel-agent` (the tool list) and `pincel-mcp` (its JSON-RPC routing, now `route` / `live_response` / `tool_error`), so `tools/list` is the headless server's by construction (AC-06).
 - 2026-11-11 (spec-build): The chat side of AC-22 / AC-23 is the endpoint's commands `mcp_chat_start` / `mcp_chat_end` / `mcp_chat_answering` / `mcp_chat_image_access`; the Assistant panel that calls them comes with `ai-chat-panel`. Chat sessions get the list of `ai-chat-panel` AC-17 / AC-26 (hidden tools are refused too, "not available in the chat" / "image access is off").
 - 2026-11-11 (spec-build): "Regenerate token" also ends the open external sessions — they cannot send another request with the old token anyway, and the indicator should not show clients that are cut off.
+- 2026-11-11 (spec-build): A call that targets a tab makes it the active tab first, so the user sees every change; only `doc.list` reads the tabs in place. Calls run one after another in the webview; the dialog check of AC-18 happens on arrival and also counts the native file dialogs a call has open. Chat calls act on the active tab like external ones until `ai-chat-panel` binds them to the chat's tab.
+- 2026-11-11 (spec-build): `doc.open` shows the open dialog starting at `path` (reading a file stays the user's choice, as for `layer.import`); `doc.save` with `path` runs the editor's Save As with all its dialogs (format, JPEG quality), so `flatten` / `quality` are left to those dialogs; `doc.new` with a `palette` other than db32 adds a `palette.load_preset` step; `doc.list` reports each tab's `doc.info` plus its name. A writing tool asks one save dialog per file (file name = the base name of its path), writes only after every dialog was confirmed, and adds `saved_to` to its result.
+- 2026-11-11 (spec-build): With `pincel-agent` (and through it `pincel-image-core` / `pincel-core`) in both wasm modules, the release `.wasm` before wasm-opt grows from 1.7 to 5.2 MB (`pincel-wasm`) and from 4.1 to 6.1 MB (`pincel-image-wasm`); the dev builds pass 16 MiB, so the PWA precache limit is 32 MiB now. The PWA loads that code without using it — a candidate for a feature-gated build later.

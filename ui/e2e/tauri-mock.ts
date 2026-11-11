@@ -41,6 +41,13 @@ export interface TauriMock {
   holdClipboard: boolean;
   clipboardHeld: (() => void)[];
   images: Record<number, ClipImage>;
+  /** Replies the UI sent for forwarded MCP calls, by call id. */
+  mcpReplies: Record<number, unknown>;
+  /** `mcp_call_waiting` calls in order: `[id, waiting]`. */
+  mcpWaiting: [number, boolean][];
+  /** Options of the native save / open dialogs the UI showed, in order. */
+  saveDialogs: Record<string, unknown>[];
+  openDialogs: Record<string, unknown>[];
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -69,6 +76,10 @@ export async function installTauriMock(page: Page): Promise<void> {
       holdClipboard: false,
       clipboardHeld: [],
       images: {},
+      mcpReplies: {},
+      mcpWaiting: [],
+      saveDialogs: [],
+      openDialogs: [],
     };
     let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -83,9 +94,17 @@ export async function installTauriMock(page: Page): Promise<void> {
           mock.destroyed += 1;
           return null;
         case 'plugin:dialog|save':
+          mock.saveDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.saveQueue.length > 0 ? mock.saveQueue.shift() : mock.savePick;
         case 'plugin:dialog|open':
+          mock.openDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.openPick;
+        case 'mcp_call_result':
+          mock.mcpReplies[Number(args.id)] = args.reply;
+          return null;
+        case 'mcp_call_waiting':
+          mock.mcpWaiting.push([Number(args.id), Boolean(args.waiting)]);
+          return null;
         case 'read_file_bytes': {
           const bytes = mock.disk[String(args.path)];
           if (!bytes) throw new Error('No such file or directory');

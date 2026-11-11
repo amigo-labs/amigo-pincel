@@ -28,6 +28,7 @@ import initWasm, {
   get_layer_thumbnail,
   undo,
   redo,
+  agent_call,
   undo_kinds,
   redo_kinds,
   history_dropped,
@@ -52,6 +53,7 @@ import initWasm, {
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../../../lib/diagnostics';
+import type { AgentFile } from '../../../lib/shell/types';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
 import type { TextLayout } from './generated/TextLayout';
 import type { TextLayoutRequest } from './generated/TextLayoutRequest';
@@ -784,6 +786,16 @@ export const core = {
   layerThumbnail: (handle: number, layerId: string): Uint8ClampedArray<ArrayBuffer> =>
     get_layer_thumbnail(handle, layerId) as Uint8ClampedArray<ArrayBuffer>,
   undo: (handle: number): boolean => undo(handle),
+  /** Runs a `pincel-agent` tool on the document as one undo step and
+   *  returns its JSON reply (docs/specs/mcp-live-desktop.md); `file` is
+   *  the file the user picked for a reading tool. */
+  agentCall: (
+    handle: number,
+    docId: string,
+    name: string,
+    argsJson: string,
+    file: AgentFile | null,
+  ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes),
   redo: (handle: number): boolean => redo(handle),
   /** Kind ids of the undo steps (oldest first) and the redo steps (next
    *  redo first), and whether a step was dropped (history-panel AC-02). */
