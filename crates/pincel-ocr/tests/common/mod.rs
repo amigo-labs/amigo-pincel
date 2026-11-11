@@ -12,7 +12,7 @@ pub struct Line {
     pub rgba: Vec<u8>,
 }
 
-/// Decodes a corpus PNG (RGB or RGBA) to RGBA.
+/// Decodes a corpus PNG (RGB, RGBA or 8-bit grey) to RGBA.
 pub fn load_png(path: &Path) -> Line {
     let file = std::fs::File::open(path).expect("corpus PNG exists");
     let mut reader = png::Decoder::new(std::io::BufReader::new(file))
@@ -27,6 +27,7 @@ pub fn load_png(path: &Path) -> Line {
             .flat_map(|p| [p[0], p[1], p[2], 255])
             .collect(),
         png::ColorType::Rgba => data.to_vec(),
+        png::ColorType::Grayscale => data.iter().flat_map(|&v| [v, v, v, 255]).collect(),
         other => panic!("unexpected PNG colour type {other:?}"),
     };
     Line {
@@ -75,4 +76,52 @@ pub fn corpus(lang: &str) -> Vec<PathBuf> {
         .collect();
     paths.sort();
     paths
+}
+
+/// The page corpus directory of a language (docs/specs/ocr-page.md).
+pub fn page_dir(lang: &str) -> PathBuf {
+    Path::new(env!("CARGO_MANIFEST_DIR"))
+        .join("tests/pages")
+        .join(lang)
+}
+
+/// Text with every run of whitespace turned into one space, trimmed
+/// (docs/specs/ocr-page.md, "Character accuracy").
+pub fn normalize(text: &str) -> Vec<char> {
+    let joined = text.split_whitespace().collect::<Vec<_>>().join(" ");
+    let chars: Vec<char> = joined.chars().collect();
+    // NFC is the identity on text without combining marks and without the
+    // few singleton decompositions; corpus and models use precomposed
+    // characters, and this checks that it stays that way.
+    assert!(
+        !chars.iter().any(|&c| ('\u{0300}'..='\u{036f}').contains(&c)
+            || matches!(c, '\u{212b}' | '\u{2126}' | '\u{212a}')),
+        "text is not in NFC: {text:?}"
+    );
+    chars
+}
+
+/// Levenshtein distance between two code-point sequences.
+pub fn edit_distance(a: &[char], b: &[char]) -> usize {
+    let mut prev: Vec<usize> = (0..=b.len()).collect();
+    let mut cur = vec![0; b.len() + 1];
+    for (i, &ca) in a.iter().enumerate() {
+        cur[0] = i + 1;
+        for (j, &cb) in b.iter().enumerate() {
+            let sub = prev[j] + usize::from(ca != cb);
+            cur[j + 1] = sub.min(prev[j + 1] + 1).min(cur[j] + 1);
+        }
+        std::mem::swap(&mut prev, &mut cur);
+    }
+    prev[b.len()]
+}
+
+/// Character accuracy of `text` against `reference`: 1 − edit distance /
+/// reference length, after whitespace normalization.
+pub fn accuracy(text: &str, reference: &str) -> f64 {
+    let (t, r) = (normalize(text), normalize(reference));
+    if r.is_empty() {
+        return if t.is_empty() { 1.0 } else { 0.0 };
+    }
+    1.0 - edit_distance(&t, &r) as f64 / r.len() as f64
 }

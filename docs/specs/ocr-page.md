@@ -109,23 +109,34 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-01 | `check_structure` in every `read_page_<page>_meets_accuracy_and_order` test (`crates/pincel-ocr/tests/page_corpus.rs`): boxes nest, page text is the joined blocks, lines and words | built |        |
+| AC-02 | `read_page_ui_light_…`, `read_page_ui_dark_…`, `read_page_ui_mockup_…`, `read_page_ui_transparent_…`, `read_page_print_single_…`, `read_page_print_columns_…`, `read_page_print_scan_…`, `read_page_print_sizes_…`, `read_page_print_rotated_meets_accuracy_and_order` (`tests/page_corpus.rs`), `eng` and `deu` each | built |        |
+| AC-03 | `check_order` in the same nine tests (`tests/page_corpus.rs`) | built |        |
+| AC-04 | `read_page_ui_dark_meets_accuracy_and_order`, `read_page_ui_mockup_meets_accuracy_and_order`, `read_page_ui_transparent_meets_accuracy_and_order` (`tests/page_corpus.rs`) | built |        |
+| AC-05 | `read_page_print_rotated_meets_accuracy_and_order`, `read_page_rotated_page_word_boxes_hold_recorded_centres` (`tests/page_corpus.rs`) | built |        |
+| AC-06 | `read_page_without_text_returns_empty` (`crates/pincel-ocr/tests/page.rs`): single colour, 1 × 1, transparent, Clouds and Add Noise (defaults, seed 1) on white 512 × 512 | built |        |
+| AC-07 | `read_page_wrong_buffer_length_returns_bad_image`, `read_page_beyond_image_mode_limits_returns_too_large`, `read_page_zero_width_or_height_returns_empty` (`tests/page.rs`) | built |        |
+| AC-08 | `read_page_print_sizes_meets_accuracy_and_order` (`tests/page_corpus.rs`); `read_page_text_of_any_height_returns_without_error` (`tests/page.rs`) | built |        |
+| AC-09 | `read_page_reports_layout_progress_then_each_line`, `read_page_without_lines_reports_zero_of_zero` (`tests/page.rs`) | built |        |
+| AC-10 | `read_page_cancel_returns_cancelled_without_further_reports` (`tests/page.rs`): cancel at the first layout report, at "0 of n" and after line 2 | built |        |
+| AC-11 | `read_page_shared_model_on_threads_matches_alone` (`tests/page.rs`) | built |        |
+| AC-12 | `read_page_8192_square_page_with_three_lines_reads` (native), `read_page_8192_square_page_reads_in_wasm32` (`tests/page.rs`, runs `examples/wasm_large_page.rs` built for `wasm32-unknown-unknown` in Node) | built |        |
+| AC-13 | `cargo bench -p pincel-ocr --bench ocr_page` → `ocr-page/ocr-page-screenshot` (`crates/pincel-ocr/benches/ocr_page.rs`); 0.94 s median on the development machine (2026-11-11), not yet on the reference machine | built |        |
+| AC-14 | `check_snapshot` in the nine corpus tests (`tests/page_corpus.rs`), snapshots `tests/pages/<lang>/<page>.snapshot.txt` | built |        |
 
 ## Decisions
 
 - 2026-11-08: A smaller layout analysis of its own instead of porting Tesseract's. Screenshots and prints are the target, and porting the full analysis would double the work.
 - 2026-11-08 (clarification pass): Transparency follows the contrast rule (owner's choice); the "always white" rule contradicted the dark-UI case. Text block, column gap, reading order, box and character accuracy are now defined terms. The corpus is listed page by page, with two accuracy groups. Cancel is an error kind, and progress also comes during layout. AC IDs were reassigned before any build: AC-11 (concurrency) and AC-12 (large page) are new, and the performance check moved to AC-13.
 - 2026-11-08 (second clarification pass): The page result holds the blocks, which the page text needs. A column gap must span the region being split, so a heading above two columns reads first. AC-14 (page-text snapshots) is new, so `ocr-dialog` has a native result to compare with. Large pages are tested at Image mode's limit.
+- 2026-11-11 (build): The implementation was written before its tests while the corpus was being built, so the red runs are the new tests against `main`'s crate: `tests/page.rs` and `tests/page_corpus.rs` fail to compile there (`no method named read_page`, unresolved `pincel_ocr::{Control, PageError, PageResult, Progress}`), and the corpus tests failed on the missing `.snapshot.txt` files before the snapshots were written.
+- 2026-11-11 (build): Ink is a 3 × 3 morphological gradient of the flattened luma at or above a threshold (40, raised to three times the page's median gradient on noisy pages, at most 160), not a Sauvola threshold: edges mark text in both polarities and on any background colour alike, and leave flat areas, soft gradients and faint separators out. Components are labelled from runs in bands of at most one million pixels, which are also the layout progress steps; the layout total is twice the pixel count, for the noise pass and the labelling pass.
+- 2026-11-11 (build): Rectangles around other ink (buttons, input fields, panels; 85 % of their ink within a few pixels of their box) and thin rules (10 : 1) are not text; they and other lines' ink are painted over with the line's background in each line image. Ink inside another component's box (counters, specks in letters) is ignored by the layout.
+- 2026-11-11 (build): The skew comes from a projection profile of the components' bottom centres over ±5° (0.1°, then 0.01° steps); a page that lines up as well level is read level. Lines on a skewed page are cut out straightened (bilinear) and their word boxes mapped back as the bounding boxes of the rotated boxes.
+- 2026-11-11 (build): The x-height of a line or gap side is the height of the densest band of its ink profile, kept between half and three quarters of its ink height (the profile alone fails on hollow outlines of very large letters). "Line height" in the text-block rule is the line's box height but at least two x-heights, so a line without ascenders and descenders stays in its paragraph. A column gap is free of text-line boxes (other ink does not count); the leftmost qualifying gap is cut first, and of equally wide horizontal gaps the topmost.
+- 2026-11-11 (build): Line images lower than 40 px are scaled up twofold before recognition: on the corpus the `deu` model otherwise reads stray low quotes before capitals in UI text (12 per corpus run, 0 after). Lines taller than 160 px are scaled down to about 100 px (area average).
+- 2026-11-11 (build): AC-03 matching: when several page-text blocks reach the same best accuracy (a block text that occurs twice, like "Yesterday"), the reference block takes the first of them after the previous match. Character accuracy asserts that neither text holds combining marks or singleton code points, under which NFC is the identity, instead of adding a normalization dependency.
+- 2026-11-11 (build): The corpus (`crates/pincel-ocr/tests/pages/make_pages.py`) renders with DejaVu Sans 2.37 and Liberation Sans / Serif 2.1.5, downloaded once and checked against pinned SHA-256 sums. Each drawn text item is a line; the reference blocks and their order come from the spec's definitions applied to the items' ink boxes, and the script warns when a gap lies near a threshold the implementation estimates, so the layouts keep clear margins. Every reference was checked by hand against its image.
+- 2026-11-11 (build): New public API: `Model::read_page`, `PageResult`, `PageBlock`, `PageLine`, `PageWord`, `PageBox`, `Progress`, `Control`, `PageError` (`BadImage`, `TooLarge`, `Cancelled`; its own enum rather than new `RecognizeError` kinds, one error enum per operation).
+- 2026-11-11 (build): The wasm32 half of AC-12 runs inside `cargo test`: `read_page_8192_square_page_reads_in_wasm32` builds `examples/wasm_large_page.rs` for `wasm32-unknown-unknown` in its own target directory (`CARGO_TARGET_TMPDIR`, so it does not wait for the running build's lock) and calls the module's exported `main` in Node; the example needs no imports, so no wasm-bindgen or new dependency, and a failed check traps. It needs the `wasm32-unknown-unknown` target and Node, which CI's rust job and every UI developer have; the first build takes about 50 s, later runs about 3 s. No CI or gate configuration changes.
+- 2026-11-11 (build): The no-text images of AC-06 use the catalog defaults (Clouds: scale 250, roughness 50, black to white, Normal; Add Noise: 20 %, Uniform, RGB) with seed 1, through `pincel-effects` as a dev-dependency (a workspace crate). AC-08's "any height" check rescales a corpus page to text below 3 px and a heading to letters of about 700 and 1600 px, and reads one-pixel strips.

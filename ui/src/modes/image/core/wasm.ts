@@ -48,6 +48,8 @@ import initWasm, {
   live_object,
   text_layout,
   register_font,
+  read_palette_file,
+  write_palette_file,
   vectorizer,
   type Vectorizer,
 } from 'pincel-image-wasm';
@@ -117,6 +119,15 @@ export interface DocumentInfo {
 }
 
 export type Rgba = [number, number, number, number];
+
+/** One entry of a palette file: packed `0xRRGGBBAA` and its name, if any. */
+export interface PaletteFileEntry {
+  rgba: number;
+  name?: string;
+}
+
+/** A Save palette format (docs/specs/image-palette-gradient.md AC-06). */
+export type PaletteFileFormat = 'gpl' | 'hex' | 'pal' | 'png';
 /** Brush tip shapes (spec §9.2 Pencil). */
 export type BrushShape = 'hard_round' | 'soft_round' | 'flat';
 /** Color sampling source shared by Fill and Eyedropper (spec §9.2). */
@@ -846,4 +857,36 @@ export const core = {
   },
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
   registerFont: (data: Uint8Array): number => register_font(data),
+  /** The entries of a palette file — `.gpl`, `.hex`, `.pal` or a PNG
+   *  palette image, detected from the content; throws the reader's reason
+   *  (docs/specs/image-palette-gradient.md AC-03, AC-04). */
+  readPaletteFile: (data: Uint8Array): PaletteFileEntry[] => {
+    const file = read_palette_file(data);
+    try {
+      const names = file.names;
+      return Array.from(file.colors, (rgba, i) => {
+        const name = names[i];
+        return name ? { rgba, name } : { rgba };
+      });
+    } finally {
+      file.free();
+    }
+  },
+  /** `entries` as a palette file: a GIMP palette called `name`, Lospec
+   *  `.hex`, JASC `.pal` or a PNG strip of `cell` px swatches (AC-06). */
+  writePaletteFile: (
+    entries: readonly PaletteFileEntry[],
+    format: PaletteFileFormat,
+    name: string,
+    cell: number,
+  ): Uint8Array<ArrayBuffer> =>
+    new Uint8Array(
+      write_palette_file(
+        Uint32Array.from(entries, (e) => e.rgba),
+        entries.map((e) => e.name ?? ''),
+        format,
+        name,
+        cell,
+      ),
+    ),
 };

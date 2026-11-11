@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -469,7 +469,7 @@ The project facts the shared spec skills (`spec`, `spec-build`, `spec-check`, `s
 
 - **Design spec** — `docs/specs/pincel.md` (architecture, data model, Decision Log §15, competitive landscape §18); also `canvas.md`, `cli.md`, `lessons.md`, `mcp.md`. Index: `docs/specs/README.md`.
 - **Decisions** — a Decision Log entry in `docs/specs/pincel.md` §15 (§2.1).
-- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`; agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
+- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`, `pincel-palette` (palette file codecs); agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
 - **Spec questions** — Mode: Pixel, Image, both or shell? Does the document model or a file format change (`.aseprite`, `.ora`, …)? UI: which menu, tool, panel or dialog, which keyboard shortcut (`ui/src/lib/shell/shortcuts.ts`), what undo behavior? Front matter: `mode: {Pixel | Image | both | shell}`.
 - **AC subject** — "The editor …".
 - **Performance AC example** — "Image compose of a 1024×1024 document with 4 layers takes under 16 ms in the benchmark".
@@ -570,6 +570,7 @@ crates/pincel-image-core/     Image-mode core (from amigo-fineliner): layers, br
 crates/pincel-effects/        Stateless effects + adjustments, shared by both cores
 crates/pincel-trace/          Raster → SVG tracing (Potrace port of Vectorizer, pixel-exact mode), shared by both modes
 crates/pincel-ocr/            Text recognition: Rust port of Tesseract's LSTM line recognizer + tessdata_fast models (Apache-2.0)
+crates/pincel-palette/        Palette file codecs (.gpl, .hex, .pal, PNG strip), shared by both modes
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
@@ -639,6 +640,9 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 - **`pnpm build` can fail after rewriting `dist/`.** The PWA plugin builds the service worker last and fails when a precached file passes `maximumFileSizeToCacheInBytes` (`ui/vite.config.ts`; the dev-profile wasm modules carry the agent tools and are ~20 MB each). By then the client bundle in `dist/` is already new, so an e2e run after a red build tests fresh code that would not ship. Read the build's exit code, not the e2e result.
 - **`JsError` panics in native tests.** Building a `wasm_bindgen::JsError` outside wasm32 panics ("cannot call wasm-bindgen imported functions on non-wasm targets"), so a `cargo test` of a wasm crate cannot assert the `Err` of an exported function that returns `Result<_, JsError>` (an unknown handle, say). Test the Rust helper behind it instead.
 - **A shared cargo target dir runs the wrong crate.** Worktrees (or copies) of this repo built with one `CARGO_TARGET_DIR` share the artifact names of `pincel-core` & co., and cargo does not rebuild a same-named crate from another path: `cargo test` in checkout B silently runs checkout A's test binary. Give every checkout its own target dir, and check the test names in the log.
+- **A killed Windows build leaves link artifacts the linker rejects.** When a `cargo build` / `cargo test` is stopped mid-link (a restarted agent, a closed terminal), the next run can fail with `LNK1207` (incompatible PDB) or `LNK1328` (string table missing) for that test binary — not a code failure. `cargo clean -p <crate>` and rerun.
+- **Worktrees share one stash list.** `git stash` in a worktree writes to the repository's single stash stack, so `stash@{0}` may be another worktree's work. Pop or drop only an entry whose message names your branch.
+- **The OCR wasm32 test builds its own target.** `read_page_8192_square_page_reads_in_wasm32` (`crates/pincel-ocr/tests/page.rs`) builds an example for `wasm32-unknown-unknown` under `target/tmp/` and runs it in Node: it needs that target and Node, and its first build adds about a minute to `cargo test -p pincel-ocr`.
 
 ---
 

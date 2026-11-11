@@ -89,7 +89,7 @@ jobs:
       # performance-build-simd AC-04: the tests pass under the release
       # profile that ships (fat LTO, one codegen unit).
       - name: gate — rust core tests (release profile)
-        run: cargo test --release -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp
+        run: cargo test --release -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp
       - name: build wasm packages (release profile)
         working-directory: ui
         run: pnpm wasm:build:release

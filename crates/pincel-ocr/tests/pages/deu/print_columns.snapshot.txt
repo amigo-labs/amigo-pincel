@@ -1,0 +1,24 @@
+Über Farbe und Licht
+
+Jede Farbe, die wir sehen, ist Licht, das ein
+Gegenstand zurückwirft. Ein roter Apfel
+schluckt den größten Teil des Lichts und
+wirft vor allem den roten Anteil des
+Spektrums zurück.
+
+Maler mischen Pigmente, die Licht
+abziehen, während Bildschirme Licht
+addieren. Deshalb ergeben gemischte
+Farben dunklere Töne, gemischtes Licht
+auf dem Bildschirm aber hellere.
+
+Druckereien verwenden Cyan, Magenta,
+Gelb und Schwarz. Bildschirme nutzen
+rote, grüne und blaue Pixel. Beim
+Umrechnen zwischen beiden Systemen
+ändern sich immer einige Farben.
+
+Ein guter Monitor sollte mindestens einmal
+im Jahr kalibriert werden, damit die Farben
+auf dem Bildschirm zum gedruckten
+Ergebnis passen.

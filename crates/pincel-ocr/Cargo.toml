@@ -1,7 +1,7 @@
 [package]
 name = "pincel-ocr"
 version.workspace = true
-description = "Text recognition for Pincel: a Rust port of Tesseract's LSTM line recognizer that reads tessdata_fast models"
+description = "Text recognition for Pincel: a Rust port of Tesseract's LSTM line recognizer that reads tessdata_fast models, and a page layout that reads whole pages"
 edition.workspace = true
 # A derivative work of Tesseract (Apache-2.0), so Apache-2.0 only
 # (docs/specs/pincel.md §15, 2026-11-08). See NOTICE.
@@ -13,7 +13,13 @@ rust-version.workspace = true
 thiserror = { workspace = true }
 
 [dev-dependencies]
+criterion = { workspace = true }
+pincel-effects = { workspace = true }
 png = { workspace = true }
 
 [lints]
 workspace = true
+
+[[bench]]
+name = "ocr_page"
+harness = false

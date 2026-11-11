@@ -1,0 +1,23 @@
+Notes on Colour and Light
+
+Every colour we see is light that an object
+reflects. A red apple absorbs most of the
+light that falls on it and reflects mainly the
+red part of the spectrum back to our eyes.
+
+Painters mix pigments, which subtract
+light, while screens add light. That is why
+mixing paints gives darker colours, but
+mixing coloured light on a screen gives
+brighter ones.
+
+Printers use cyan, magenta, yellow and
+black inks. Screens use red, green and blue
+pixels. Converting an image between the
+two systems always changes some of its
+colours.
+
+A good monitor should be calibrated at
+least once a year, so that the colours on the
+screen match the colours of the printed
+result.
