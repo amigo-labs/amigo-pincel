@@ -90,6 +90,24 @@ test('first use downloads the model with progress, then recognizes the image (AC
   expect(requests.count('eng')).toBe(1);
 });
 
+test('without a usable total the download shows only the bytes received (AC-04)', async ({
+  page,
+}) => {
+  // A chunked answer: no Content-Length.
+  const requests = await serveModels(page, () => 'chunked');
+  await openThreeWords(page);
+  await recordSteps(page);
+  await openOcr(page);
+  expect(words(await recognizedText(page))).toEqual(['apple', 'river', 'garden']);
+  const download = (await recordedSteps(page)).filter((s) =>
+    s.startsWith('Downloading English model…'),
+  );
+  expect(download.length).toBeGreaterThan(0);
+  for (const step of download) expect(step).toMatch(/^Downloading English model… \d+\.\d MB$/);
+  expect(download.at(-1)).toBe('Downloading English model… 4.1 MB');
+  expect(requests.count('eng')).toBe(1);
+});
+
 test('during work the dialog shows the step and a Cancel button (AC-03)', async ({ page }) => {
   let release = () => {};
   const held = new Promise<void>((resolve) => (release = resolve));

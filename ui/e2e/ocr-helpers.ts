@@ -1,5 +1,7 @@
 import { readFileSync } from 'node:fs';
 import { join } from 'node:path';
+import { createServer } from 'node:http';
+import type { AddressInfo } from 'node:net';
 import { expect, type Locator, type Page, type Route } from '@playwright/test';
 import { dragFiles, gotoStart, imageCanvas, menu, waitForEditor } from './helpers';
 
@@ -32,7 +34,32 @@ export function pagePng(lang: OcrLang, page: string): Buffer {
 }
 
 /** What a model route answers; `serve` is the committed file. */
-export type ModelAnswer = 'serve' | 'abort' | { status: number } | { body: Buffer };
+export type ModelAnswer =
+  | 'serve'
+  | 'abort'
+  /** The committed file from a server that sends no Content-Length
+   *  (chunked transfer). */
+  | 'chunked'
+  | { status: number }
+  | { body: Buffer };
+
+/**
+ * A local server that answers with `lang`'s model in chunked transfer, so
+ * the response has no Content-Length; returns its URL. It closes after
+ * one answer.
+ */
+async function chunkedServer(lang: OcrLang): Promise<string> {
+  const bytes = modelBytes(lang);
+  const server = createServer((_req, res) => {
+    res.writeHead(200, { 'Content-Type': 'application/octet-stream' });
+    const half = Math.floor(bytes.length / 2);
+    res.write(bytes.subarray(0, half));
+    res.end(bytes.subarray(half), () => server.close());
+  });
+  await new Promise<void>((resolve) => server.listen(0, '127.0.0.1', resolve));
+  const { port } = server.address() as AddressInfo;
+  return `http://127.0.0.1:${port}/${lang}.traineddata`;
+}
 
 /** The model requests the page made, by language. */
 export interface ModelRequests {
@@ -64,6 +91,7 @@ export async function serveModels(
         body: modelBytes(lang),
       });
     }
+    if (a === 'chunked') return route.continue({ url: await chunkedServer(lang) });
     if ('status' in a) return route.fulfill({ status: a.status, body: 'error' });
     return route.fulfill({ status: 200, contentType: 'application/octet-stream', body: a.body });
   });
