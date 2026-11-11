@@ -16,6 +16,9 @@ pincel-effects = { workspace = true }
 pincel-trace = { workspace = true }
 # Recognize Text (docs/specs/ocr-dialog.md, Decision Log 2026-11-08).
 pincel-ocr = { workspace = true }
+# Palette file codecs shared with Pixel mode (docs/specs/pincel.md §15,
+# 2026-11-05).
+pincel-palette = { workspace = true }
 # Enables uuid's JS getrandom backend so v4 UUIDs work under wasm32.
 uuid = { workspace = true, features = ["js"] }
 wasm-bindgen = { workspace = true }

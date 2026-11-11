@@ -9,6 +9,7 @@ import type { LiveObjectSpec } from './wasm';
 import { activeColor, colorWithOpacity, opacity01 } from './controller';
 import { editLive } from './live';
 import { endBurst, requestTextFocus } from './live-text.svelte';
+import { ensureFace, imageFont, trackFontEdit } from './text-font';
 
 /** Runs `apply` with the live object whenever `read` changes value. */
 function onChange<T>(read: () => T, apply: (obj: LiveObjectSpec, value: T) => void): void {
@@ -78,8 +79,29 @@ export function installLiveSync(): void {
     requestTextFocus();
   };
   onChange(() => tool.fontSize, (obj, size) => text(obj, { size }));
-  onChange(() => tool.textBold, (obj, bold) => text(obj, { bold }));
-  onChange(() => tool.textItalic, (obj, italic) => text(obj, { italic }));
+  // Family, Bold and Italic choose the face; the live text switches to it
+  // once it is read, and only what the face lacks is synthesized
+  // (docs/specs/system-fonts.md AC-07, AC-09). The toggled option is always
+  // part of its edit, so each option stays its own undo group.
+  let fontSeq = 0;
+  const font = (field: 'bold' | 'italic' | null) => (obj: LiveObjectSpec) => {
+    if (obj.type !== 'text') return;
+    fontSeq += 1;
+    const seq = fontSeq;
+    const edit = ensureFace().then((face) => {
+      const cur = live.object;
+      if (seq !== fontSeq || cur?.type !== 'text') return;
+      const fields: Parameters<typeof editLive>[0] = {};
+      if (face.id !== cur.font_id) fields.font_id = face.id;
+      if (field === 'bold' || face.synthBold !== cur.bold) fields.bold = face.synthBold;
+      if (field === 'italic' || face.synthItalic !== cur.italic) fields.italic = face.synthItalic;
+      if (Object.keys(fields).length > 0) text(cur, fields);
+    });
+    trackFontEdit(edit.catch(() => undefined));
+  };
+  onChange(() => tool.textBold, (obj) => font('bold')(obj));
+  onChange(() => tool.textItalic, (obj) => font('italic')(obj));
+  onChange(() => imageFont.state.family, (obj) => font(null)(obj));
   onChange(() => tool.textUnderline, (obj, underline) => text(obj, { underline }));
   onChange(() => tool.textStrikethrough, (obj, strikethrough) => text(obj, { strikethrough }));
   onChange(() => tool.textAlign, (obj, align) => text(obj, { align }));

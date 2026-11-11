@@ -334,7 +334,7 @@ Quick reference. All commands run from repo root unless noted.
 cargo check                                  # all crates (pincel-tauri needs GTK/WebKit libs)
 cargo check -p pincel-core                   # one crate
 cargo test -p pincel-core
-cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
+cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings
 cargo fmt
 cargo doc --workspace --no-deps --open
 
@@ -383,7 +383,7 @@ pnpm tauri:build                             # release binary
 ### Full pre-commit gate
 
 ```bash
-cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
+cargo fmt && cargo clippy -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp --all-targets -- -D warnings && cargo test -p pincel-core -p pincel-effects -p pincel-trace -p pincel-ocr -p pincel-palette -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm -p pincel-agent -p pincel-mcp && cd ui && pnpm lint && pnpm check && pnpm build && pnpm test:e2e
 ```
 
 If any step fails, do not commit.
@@ -469,7 +469,7 @@ The project facts the shared spec skills (`spec`, `spec-build`, `spec-check`, `s
 
 - **Design spec** — `docs/specs/pincel.md` (architecture, data model, Decision Log §15, competitive landscape §18); also `canvas.md`, `cli.md`, `lessons.md`, `mcp.md`. Index: `docs/specs/README.md`.
 - **Decisions** — a Decision Log entry in `docs/specs/pincel.md` §15 (§2.1).
-- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`; agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
+- **Code map** — Pixel mode: `pincel-core` (document model, commands and their undo, codecs under `codec/`), `aseprite-writer`, `pincel-wasm` and the adapter `ui/src/lib/core/`; Image mode: `pincel-image-core`, `pincel-image-wasm` and `ui/src/modes/image/core/`; shared: `pincel-effects`, `pincel-trace`, `pincel-ocr`, `pincel-palette` (palette file codecs); agents: `pincel-agent`, `pincel-mcp`; UI: `ui/src/modes/<mode>/` (components, stores, menus), shared `ui/src/lib/` (shell, shortcuts, i18n keys); native shell `src-tauri/`. Layout in §14.
 - **Spec questions** — Mode: Pixel, Image, both or shell? Does the document model or a file format change (`.aseprite`, `.ora`, …)? UI: which menu, tool, panel or dialog, which keyboard shortcut (`ui/src/lib/shell/shortcuts.ts`), what undo behavior? Front matter: `mode: {Pixel | Image | both | shell}`.
 - **AC subject** — "The editor …".
 - **Performance AC example** — "Image compose of a 1024×1024 document with 4 layers takes under 16 ms in the benchmark".
@@ -570,6 +570,7 @@ crates/pincel-image-core/     Image-mode core (from amigo-fineliner): layers, br
 crates/pincel-effects/        Stateless effects + adjustments, shared by both cores
 crates/pincel-trace/          Raster → SVG tracing (Potrace port of Vectorizer, pixel-exact mode), shared by both modes
 crates/pincel-ocr/            Text recognition: Rust port of Tesseract's LSTM line recognizer + tessdata_fast models (Apache-2.0)
+crates/pincel-palette/        Palette file codecs (.gpl, .hex, .pal, PNG strip), shared by both modes
 crates/aseprite-writer/       Standalone, publishable, MIT/Apache
 crates/pincel-wasm/           wasm-bindgen layer for pincel-core, cdylib
 crates/pincel-image-wasm/     wasm-bindgen layer for pincel-image-core, cdylib
@@ -636,6 +637,7 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 - **An Image-mode Save ignores the next one until its tail is done.** `saveTab` (`ui/src/modes/image/core/tab-session.ts`) drops a Save / Save As while the previous one still runs, and that run outlives the download or the cancelled picker: it still writes the autosave snapshot and the recents. An e2e spec that opens Save As right after a save can hit that tail under load and wait forever for a dialog that never comes. Open it through a retrying helper (`openSaveAs` in `ui/e2e/save-original.spec.ts`).
 
 - **Harness specs can race Vite's dependency optimizer on Windows.** `ui/e2e/tool-flyout-harness.spec.ts` starts a Vite dev server; in a full parallel run on Windows the optimizer's rename `node_modules/.vite/deps_temp_* → deps` can fail with `EPERM` (a file still held open), and the spec fails before any assertion. It is not a code failure: rerun that spec alone before chasing it.
+- **Faked Local Font Access sessions stack.** `addInitScript` scripts accumulate and run in order on every load, so an e2e spec simulates a later session (font uninstalled, permission revoked) by calling `installLocalFonts` again before the next `createDocument`: the newer fake replaces `queryLocalFonts` and the permission query (`ui/e2e/font-helpers.ts`). Image mode's status notice is reset by the next action (Copy, a commit), so assert a font notice right after the press that raises it.
 - **A shared cargo target dir runs the wrong crate.** Worktrees (or copies) of this repo built with one `CARGO_TARGET_DIR` share the artifact names of `pincel-core` & co., and cargo does not rebuild a same-named crate from another path: `cargo test` in checkout B silently runs checkout A's test binary. Give every checkout its own target dir, and check the test names in the log.
 - **Windows reads clipboard text back with CRLF.** Text an e2e spec copies with LF line breaks (`navigator.clipboard.writeText`) comes back from `readText()` with CRLF on a Windows host and with LF on Linux CI; normalize CRLF to LF before comparing (`ui/e2e/ocr-dialog-result.spec.ts`).
 - **The pincel IndexedDB schema version moves.** `ui/src/lib/idb/db.ts` raises `DB_VERSION` when a store is added (3 since `ocr-dialog`); an e2e helper that waits for the app's database checks for a minimum version, never an exact one (`seedSnapshots` in `ui/e2e/recovery.spec.ts`).

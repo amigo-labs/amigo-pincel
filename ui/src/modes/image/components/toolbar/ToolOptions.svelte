@@ -21,6 +21,8 @@
   } from '../../core/controller';
   import { t } from '../../../../lib/i18n/index.svelte';
   import { commitText, textBoxOpen } from '../../core/live-text.svelte';
+  import { imageFont } from '../../core/text-font';
+  import FontPicker from '../../../../lib/components/fonts/FontPicker.svelte';
   import CloneOptions from './CloneOptions.svelte';
 
   // Hardness only matters for soft/flat tips.
@@ -310,6 +312,16 @@
 
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>
   {:else if tool.kind === 'text'}
+    <div class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('font.label')}</span>
+      <FontPicker
+        family={imageFont.state.family}
+        missing={imageFont.availability() === 'missing'}
+        onPick={(f) => imageFont.pick(f)}
+        onAdded={(r) => imageFont.added(r)}
+      />
+    </div>
+
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
       <input

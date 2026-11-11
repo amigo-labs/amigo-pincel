@@ -12,6 +12,10 @@
 //                             Schema is created here; the timer +
 //                             recovery dialog land in M10.3.
 //   * `autosave_meta`      — metadata of the autosave snapshots (v2).
+//   * `font_faces` / `font_files` — font files added for the Text
+//                             tools (docs/specs/system-fonts.md AC-20): one
+//                             row per face (names only, so listing reads
+//                             no font bytes) and one per file's bytes (v3).
 //   * `ocr_models`         — downloaded OCR language models keyed by
 //                             `[lang, version]` (v3,
 //                             docs/specs/ocr-dialog.md).
@@ -31,6 +35,9 @@ export const STORE_AUTOSAVE = 'autosave_snapshots';
 // reading the (potentially multi-MB) bytes payload until the user
 // actually clicks Recover.
 export const STORE_AUTOSAVE_META = 'autosave_meta';
+// v3 — fonts added through "Add font file…" (docs/specs/system-fonts.md).
+export const STORE_FONT_FACES = 'font_faces';
+export const STORE_FONT_FILES = 'font_files';
 // v3 — OCR language models, rows `{ lang, version, bytes }`.
 export const STORE_OCR_MODELS = 'ocr_models';
 
@@ -74,6 +81,12 @@ export function openDb(): Promise<IDBDatabase> {
           db.createObjectStore(STORE_AUTOSAVE_META, {
             keyPath: ['docId', 'ts'],
           });
+        }
+        if (!db.objectStoreNames.contains(STORE_FONT_FACES)) {
+          db.createObjectStore(STORE_FONT_FACES, { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains(STORE_FONT_FILES)) {
+          db.createObjectStore(STORE_FONT_FILES, { keyPath: 'id' });
         }
         if (!db.objectStoreNames.contains(STORE_OCR_MODELS)) {
           db.createObjectStore(STORE_OCR_MODELS, {

@@ -13,7 +13,7 @@ const FONT: &[u8] = include_bytes!(concat!(
 
 fn run(bus: &mut CommandBus, json: &str) -> Result<(), DocumentError> {
     let spec: CommandSpec = serde_json::from_str(json).expect("json");
-    run_command(bus, spec, &mut StrokeScratch::default(), &[FONT])
+    run_command(bus, spec, &mut StrokeScratch::default(), &[FONT.into()])
 }
 
 fn bus() -> CommandBus {
@@ -182,4 +182,66 @@ fn text_layout_query_matches_the_drawn_box() {
         assert!((centre - (20.0 + layout.width / 2.0)).abs() < 1e-3);
     }
     assert_eq!(layout.lines[1].carets.len(), "there".len() + 1);
+}
+
+/// Pincel Test Serif (OFL, a renamed Liberation Serif subset) as a collection
+/// of its Regular (face 0) and Bold (face 1) faces, and its Bold face alone.
+const SERIF_TTC: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../pincel-core/tests/fixtures/PincelTestSerif.ttc"
+));
+const SERIF_BOLD: &[u8] = include_bytes!(concat!(
+    env!("CARGO_MANIFEST_DIR"),
+    "/../pincel-core/tests/fixtures/PincelTestSerif-Bold.ttf"
+));
+
+/// Runs `json` with font ids 0 = collection face 0, 1 = collection face 1,
+/// 2 = the Bold file.
+fn run_serif(bus: &mut CommandBus, json: &str) -> Result<(), DocumentError> {
+    let spec: CommandSpec = serde_json::from_str(json).expect("json");
+    let fonts = [
+        pincel_image_core::FontFace::new(SERIF_TTC, 0),
+        pincel_image_core::FontFace::new(SERIF_TTC, 1),
+        SERIF_BOLD.into(),
+    ];
+    run_command(bus, spec, &mut StrokeScratch::default(), &fonts)
+}
+
+fn begin_serif(font_id: u32) -> String {
+    format!(
+        r#"{{"type":"begin_live_text","layer":0,"font_id":{font_id},"text":"Hg",
+            "x":10,"y":10,"size":28,"color":[0,0,0,255]}}"#
+    )
+}
+
+#[test]
+fn begin_live_text_collection_face_draws_that_face() {
+    let mut face1 = bus();
+    run_serif(&mut face1, &begin_serif(1)).expect("begin");
+    let mut bold = bus();
+    run_serif(&mut bold, &begin_serif(2)).expect("begin");
+    let mut face0 = bus();
+    run_serif(&mut face0, &begin_serif(0)).expect("begin");
+    assert_eq!(pixels(&face1), pixels(&bold));
+    assert_ne!(pixels(&face1), pixels(&face0));
+}
+
+#[test]
+fn edit_live_font_id_redraws_the_text_with_that_face_as_one_step() {
+    let mut edited = bus();
+    run_serif(&mut edited, &begin_serif(0)).expect("begin");
+    run_serif(&mut edited, r#"{"type":"edit_live","font_id":1}"#).expect("font");
+    let Some(LiveObjectSpec::Text { font_id, .. }) = live_object_spec(&edited) else {
+        panic!("a live text")
+    };
+    assert_eq!(font_id, 1);
+    let mut direct = bus();
+    run_serif(&mut direct, &begin_serif(1)).expect("begin");
+    let mut face0 = bus();
+    run_serif(&mut face0, &begin_serif(0)).expect("begin");
+    assert_eq!(pixels(&edited), pixels(&direct));
+    assert_ne!(pixels(&edited), pixels(&face0));
+    assert_eq!(edited.history.undo_depth(), 2, "the font change is a step");
+    edited.undo().expect("undo");
+    assert_eq!(pixels(&edited), pixels(&face0));
 }
