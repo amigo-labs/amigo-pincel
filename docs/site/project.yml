@@ -222,6 +222,12 @@ pages:
       en: "For tool makers: the editor as a framework-agnostic npm package — not published yet."
       de: "Für Tool-Entwickler: der Editor als Framework-unabhängiges npm-Paket – noch nicht veröffentlicht."
     body: { en: pages/embed.md, de: pages/embed.de.md }
+  - slug: mcp
+    title: { en: Use Pincel from an AI agent, de: Pincel aus einem KI-Agenten nutzen }
+    summary:
+      en: "pincel-mcp: a headless MCP server that lets Claude and other agents draw, preview and export."
+      de: "pincel-mcp: ein MCP-Server ohne Oberfläche, mit dem Claude und andere Agenten zeichnen, Vorschauen ansehen und exportieren."
+    body: { en: pages/mcp.md, de: pages/mcp.de.md }
   - slug: about
     title: { en: About Pincel, de: Über Pincel }
     summary:
