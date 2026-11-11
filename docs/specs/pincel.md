@@ -882,6 +882,7 @@ Out of scope indefinitely. Local-first by design.
 3. ~~**PWA deployment target**~~ — resolved 2026-10-11: `https://pincel.amigo-labs.dev/app/` on Cloudflare Workers (see §15). COOP/COEP stay unset until a feature needs `SharedArrayBuffer`; they would go in `cloudflare/_headers` scoped to `/app/*`. Since 2026-10-13 one Worker serves site and editor, since 2026-11-09 the editor only (§15).
 4. **Tauri auto-update**: Tauri 2's update plugin requires a signed-update server. Do we run one, or push releases via GitHub-Releases-only and require manual update?
 5. **Touch/pen UX on tablets**: iPad with Apple Pencil is a real target for pixel art. PWA-on-iPad gives us pen pressure via `PointerEvent`. Tauri-on-iPad doesn't exist (Tauri mobile is Android-first; iOS support is alpha). Decide whether iPad is "PWA only" officially.
+6. **Images beyond 64 Mpx**: the Image core lives in 32-bit wasm (4 GB address space) in both builds, and a job holds the document plus its snapshot and copies, so documents stay at or below about 64 Mpx. Larger images would need documents that live natively in the desktop app or wasm Memory64. Out of scope until someone needs it (`performance-desktop-jobs`, 2026-11-11).
 
 ---
 
