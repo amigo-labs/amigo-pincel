@@ -15,6 +15,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 
 mod comfyui;
 mod fonts;
+mod job_server;
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod mcp;
@@ -519,7 +520,7 @@ fn main() {
             open_files::take_open_files,
             fonts::system_font_faces,
             fonts::system_font_file,
-            native_jobs::image_job,
+            job_server::job_endpoint,
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_mode,
@@ -557,6 +558,14 @@ fn main() {
             // Stopped until the user allows AI agents or a chat starts it
             // (mcp-live-desktop AC-01).
             app.manage(mcp::create(handle));
+            // The native job backend's endpoint; without it the UI keeps
+            // every job in the Web Worker.
+            let jobs = app.state::<native_jobs::NativeJobs>().inner().clone();
+            let endpoint = job_server::start(jobs).map_err(|e| e.to_string());
+            if let Err(e) = &endpoint {
+                eprintln!("native job endpoint unavailable: {e}");
+            }
+            app.manage(job_server::JobEndpointState(endpoint));
             if NATIVE_MENU {
                 let menu = build_menu(handle)?;
                 app.set_menu(menu)?;

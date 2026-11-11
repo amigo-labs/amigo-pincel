@@ -117,31 +117,6 @@ impl NativeJobs {
     }
 }
 
-/// Runs one job off the main thread: the job from the [`JOB_HEADER`]
-/// header, the snapshot from the raw body; answers the raw result bytes.
-#[tauri::command]
-pub async fn image_job(
-    request: tauri::ipc::Request<'_>,
-    jobs: tauri::State<'_, NativeJobs>,
-) -> Result<tauri::ipc::Response, String> {
-    let header = request
-        .headers()
-        .get(JOB_HEADER)
-        .ok_or("the job header is missing")?
-        .to_str()
-        .map_err(|e| e.to_string())?;
-    let job: NativeJob = serde_json::from_str(header).map_err(|e| e.to_string())?;
-    let body = match request.body() {
-        tauri::ipc::InvokeBody::Raw(bytes) => bytes.clone(),
-        tauri::ipc::InvokeBody::Json(_) => Vec::new(),
-    };
-    let jobs = jobs.inner().clone();
-    let out = tauri::async_runtime::spawn_blocking(move || jobs.run(job, &body))
-        .await
-        .map_err(|e| e.to_string())??;
-    Ok(tauri::ipc::Response::new(out))
-}
-
 #[cfg(test)]
 mod tests {
     use super::*;
