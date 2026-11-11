@@ -3173,6 +3173,7 @@ dependencies = [
  "js-sys",
  "pincel-effects",
  "pincel-image-core",
+ "pincel-palette",
  "pincel-trace",
  "serde",
  "serde-wasm-bindgen",
