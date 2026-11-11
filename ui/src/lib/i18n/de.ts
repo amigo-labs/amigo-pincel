@@ -168,7 +168,6 @@ export const de: Record<MessageKey, string> = {
   'comfy.unreachable': 'Nicht erreichbar',
   'comfy.notComfy': 'Kein ComfyUI-Server',
   'comfy.refused': 'Der Server hat den Zugriff verweigert ({status})',
-  'comfy.unsupported': 'HTTPS wird noch nicht unterstützt',
   'comfy.failed': 'ComfyUI konnte nicht gestartet werden: {error}',
   'comfy.error': 'Die Verbindung ist fehlgeschlagen: {error}',
   'comfy.folderNotFound': 'Diesen Ordner gibt es nicht',

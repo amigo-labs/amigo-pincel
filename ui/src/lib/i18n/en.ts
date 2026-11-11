@@ -166,7 +166,6 @@ export const en = {
   'comfy.unreachable': 'Not reachable',
   'comfy.notComfy': 'Not a ComfyUI server',
   'comfy.refused': 'The server refused access ({status})',
-  'comfy.unsupported': 'HTTPS is not supported yet',
   'comfy.failed': 'ComfyUI could not be started: {error}',
   'comfy.error': 'The connection failed: {error}',
   'comfy.folderNotFound': 'This folder does not exist',

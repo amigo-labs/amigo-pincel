@@ -195,8 +195,6 @@
         <p class="text-pc-danger-text">{t('comfy.notComfy')}</p>
       {:else if status.kind === 'refused'}
         <p class="text-pc-danger-text">{t('comfy.refused', { status: status.status })}</p>
-      {:else if status.kind === 'unsupported'}
-        <p class="text-pc-danger-text">{t('comfy.unsupported')}</p>
       {:else if status.kind === 'failed'}
         <p class="text-pc-danger-text">{t('comfy.failed', { error: status.message })}</p>
       {/if}

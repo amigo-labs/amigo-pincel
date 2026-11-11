@@ -46,7 +46,6 @@ export type ComfyStatus =
   | { kind: 'unreachable'; url: string }
   | { kind: 'notComfy'; url: string }
   | { kind: 'refused'; status: number }
-  | { kind: 'unsupported' }
   | { kind: 'failed'; message: string };
 
 /** `FolderCheck` in src-tauri/src/comfyui/manager.rs. */
