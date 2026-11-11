@@ -51,6 +51,10 @@ import initWasm, {
   read_palette_file,
   write_palette_file,
   vectorizer,
+  ocr_model,
+  ocr_session,
+  type OcrModel,
+  type OcrSession,
   type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
@@ -62,7 +66,7 @@ import type { TextLayoutRequest } from './generated/TextLayoutRequest';
 
 export type { LiveObjectSpec, TextLayout, TextLayoutRequest };
 
-export type { Vectorizer };
+export type { OcrModel, OcrSession, Vectorizer };
 
 /** Why a PSD opened as its flattened composite (`PsdFallback` in Rust). */
 export type PsdFallback = 'no_layers' | 'compressed' | 'unreadable' | 'unrepresentable';
@@ -749,6 +753,11 @@ export const core = {
     composite(handle) as Uint8ClampedArray<ArrayBuffer>,
   /** A tracer over the composite for File ▸ Export ▸ SVG… (vectorize-dialog); free it when done. */
   vectorizer: (handle: number): Vectorizer => vectorizer(handle),
+  /** Loads an OCR language model; throws when the engine rejects it
+   *  (docs/specs/ocr-dialog.md). */
+  ocrModel: (bytes: Uint8Array): OcrModel => ocr_model(bytes),
+  /** An OCR session over the source area of `snapshotDocument` bytes. */
+  ocrSession: (snapshot: Uint8Array): OcrSession => ocr_session(snapshot),
   applyCommand: (handle: number, command: ToolCommand): void =>
     apply_command(handle, JSON.stringify(command)),
   /** Applies effect `name` with positional `params` (the shared

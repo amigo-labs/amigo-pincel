@@ -3221,6 +3221,7 @@ dependencies = [
  "pincel-agent",
  "pincel-effects",
  "pincel-image-core",
+ "pincel-ocr",
  "pincel-palette",
  "pincel-trace",
  "serde",
