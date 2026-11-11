@@ -368,9 +368,15 @@ impl Workspace {
     fn insert_entry(&mut self, entry: Entry) -> String {
         self.next_id += 1;
         let id = format!("doc-{}", self.next_id);
-        self.docs.push((id.clone(), entry));
-        self.active = Some(id.clone());
+        self.insert_as(id.clone(), entry);
         id
+    }
+
+    /// Add `entry` under the host's own id `id` and make it active (live
+    /// mode: the desktop app names its tabs).
+    pub(crate) fn insert_as(&mut self, id: String, entry: Entry) {
+        self.docs.push((id.clone(), entry));
+        self.active = Some(id);
     }
 
     pub(crate) fn remove(&mut self, id: &str) -> Option<Entry> {
