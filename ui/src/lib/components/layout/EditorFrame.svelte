@@ -11,6 +11,7 @@
   // over the canvas area (docked to the bottom edge on phones) and the
   // regions around the canvas area are dimmed and inert (effect-panel spec).
   import { onMount, tick, type Snippet } from 'svelte';
+  import AgentIndicator from '../../agent/AgentIndicator.svelte';
   import Icon from '../icons/Icon.svelte';
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
@@ -395,6 +396,7 @@
           class="relative flex h-7 shrink-0 items-center gap-3 overflow-hidden border-t border-pc-border bg-pc-panel px-3 text-xs whitespace-nowrap text-pc-faint"
         >
           {@render statusbar()}
+          <AgentIndicator />
         </footer>
       {/if}
     </div>

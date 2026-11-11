@@ -93,6 +93,8 @@
   import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
+  import AgentsDialog from './lib/agent/AgentsDialog.svelte';
+  import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
   import { t } from './lib/i18n/index.svelte';
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
   import { actionFor, hint, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
@@ -671,6 +673,7 @@
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
     // MCP clients' tool calls on the open documents (mcp-live-desktop).
+    const stopAgentAccess = startAgentAccess();
     const stopLiveHost = tauriHost
       ? startLiveHost({
           openFile: (opened, mode) =>
@@ -746,6 +749,7 @@
     return () => {
       cancelled = true;
       stopLiveHost?.();
+      stopAgentAccess();
       recovery.stop();
       stopDrops();
       if (unlistenMenu) unlistenMenu();
@@ -848,6 +852,9 @@
   />
 {/if}
 
+{#if agentAccess.dialogOpen}
+  <AgentsDialog onClose={() => (agentAccess.dialogOpen = false)} />
+{/if}
 {#if newDialog}
   {#key newDialog}
     <NewDocumentDialog
