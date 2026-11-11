@@ -547,3 +547,14 @@ fn a_missing_installation_folder_is_reported_with_its_path() {
         Status::InstallationNotFound { path: gone }
     );
 }
+
+#[test]
+fn config_default_tries_8188_then_8000_and_waits_120_s() {
+    // The defaults the app runs with (AC-03 port order, AC-07 start
+    // timeout, the 2 s probe of the Technical notes); every other test
+    // builds its own Config.
+    let config = Config::default();
+    assert_eq!(config.auto_ports, [8188, 8000]);
+    assert_eq!(config.start_timeout, Duration::from_secs(120));
+    assert_eq!(config.timeouts.probe, Duration::from_secs(2));
+}
