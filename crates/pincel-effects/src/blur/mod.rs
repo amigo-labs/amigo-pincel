@@ -75,9 +75,9 @@ pub(crate) fn convolve_axis(
     if w == 0 {
         return out;
     }
-    for (y, row) in out.chunks_exact_mut(w * 4).enumerate() {
+    crate::par::for_each_row(&mut out, w * 4, |y, row| {
         axis_row(src, w, h, kernel, horizontal, y, row);
-    }
+    });
     out
 }
 

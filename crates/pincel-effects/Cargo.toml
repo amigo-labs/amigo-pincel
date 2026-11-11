@@ -9,6 +9,15 @@ rust-version.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+# Data-parallel kernels for the desktop app's native job backend only:
+# `pincel-tauri` enables `parallel`, the wasm builds never link rayon
+# (docs/specs/pincel.md §15, 2026-10-29; docs/specs/performance-desktop-jobs.md).
+rayon = { version = "1", optional = true }
+
+[features]
+# Run row-independent kernels on all cores. Results are byte-identical
+# with and without it.
+parallel = ["dep:rayon"]
 
 [lints]
 workspace = true

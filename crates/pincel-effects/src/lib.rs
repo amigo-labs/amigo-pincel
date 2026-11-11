@@ -36,6 +36,7 @@ mod effect;
 mod error;
 mod image;
 mod kernel;
+mod par;
 mod random;
 mod spec;
 

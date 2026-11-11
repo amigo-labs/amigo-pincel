@@ -16,9 +16,9 @@ pub(crate) fn convolve_3x3(src: &[f32], w: usize, h: usize, kernel: &[f32; 9]) -
     if w == 0 {
         return out;
     }
-    for (y, row) in out.chunks_exact_mut(w * 4).enumerate() {
+    crate::par::for_each_row(&mut out, w * 4, |y, row| {
         conv3x3_row(src, w, h, kernel, y, row);
-    }
+    });
     out
 }
 
