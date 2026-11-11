@@ -161,7 +161,7 @@ impl Server {
                 }
             };
             let origin = head.header("origin").map(str::to_string);
-            let response = self.respond(&head, &mut reader);
+            let response = self.respond(&head, &mut reader, &mut writer);
             let allowed = origin.filter(|o| self.origins.iter().any(|a| a == o));
             let close = response.close;
             if write_response(&mut writer, allowed.as_deref(), response).is_err() || close {
@@ -171,7 +171,7 @@ impl Server {
     }
 
     /// The response to `head`, reading its body from `reader`.
-    fn respond<R: Read>(&self, head: &Head, reader: &mut R) -> Response {
+    fn respond<R: Read, W: Write>(&self, head: &Head, reader: &mut R, writer: &mut W) -> Response {
         if head.header("host") != Some(self.host.as_str()) {
             return Response::text(403, "Forbidden", "host not allowed").closing();
         }
@@ -194,14 +194,22 @@ impl Server {
         match (head.method.as_str(), head.path.as_str()) {
             ("OPTIONS", "/job") => self.preflight(head),
             ("POST", "/job") => {
+                if head
+                    .header("expect")
+                    .is_some_and(|e| e.eq_ignore_ascii_case("100-continue"))
+                {
+                    let _ = writer.write_all(b"HTTP/1.1 100 Continue\r\n\r\n");
+                }
                 // The body is read whatever the outcome, so the connection
-                // stays usable.
+                // stays usable; one `read_exact` into the whole buffer keeps
+                // the reads large.
                 let mut body = Vec::new();
                 let read = usize::try_from(length).ok().and_then(|n| {
                     body.try_reserve_exact(n).ok()?;
-                    reader.take(length).read_to_end(&mut body).ok()
+                    body.resize(n, 0);
+                    reader.read_exact(&mut body).ok()
                 });
-                if read.map(|n| n as u64) != Some(length) {
+                if read.is_none() {
                     return Response::text(400, "Bad Request", "body cut short").closing();
                 }
                 self.run(head, &body)
