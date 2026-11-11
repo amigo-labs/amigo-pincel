@@ -1,9 +1,14 @@
 <script lang="ts">
   import { t } from '../../../lib/i18n/index.svelte';
+  import FontPicker from '../../../lib/components/fonts/FontPicker.svelte';
+  import { pixelFont } from '../text-font';
   // Text tool dialog. The parent owns the wasm `Document`, runs
   // `previewText` on every `onPreview(params)` and commits via
   // `onApply(params)`; `onCancel` restores the un-previewed composite.
   export type TextParams = {
+    /** The font family (docs/specs/system-fonts.md); the face is resolved
+     *  by the text tool. */
+    family: string;
     text: string;
     size: number;
     bold: boolean;
@@ -34,6 +39,7 @@
   let align = $state<'left' | 'center' | 'right'>('left');
 
   const params = $derived<TextParams>({
+    family: pixelFont.state.family,
     text,
     size: Math.max(1, Math.min(2000, Math.round(Number.isFinite(size) ? size : 12))),
     bold,
@@ -94,6 +100,15 @@
       class="rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-sm"
       aria-label={t('text.content')}
     ></textarea>
+    <div class="flex items-center gap-2 text-xs text-pc-text">
+      <span>{t('font.label')}</span>
+      <FontPicker
+        family={pixelFont.state.family}
+        missing={pixelFont.availability() === 'missing'}
+        onPick={(f) => pixelFont.pick(f)}
+        onAdded={(r) => pixelFont.added(r)}
+      />
+    </div>
     <div class="flex items-center gap-3 text-xs text-pc-text">
       <label class="flex items-center gap-1">
         <span>{t('opt.size')}</span>

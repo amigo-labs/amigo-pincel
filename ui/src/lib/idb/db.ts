@@ -11,13 +11,17 @@
 //   * `autosave_snapshots` — autosave bytes keyed by `(docId, ts)`.
 //                             Schema is created here; the timer +
 //                             recovery dialog land in M10.3.
+//   * `font_faces` / `font_files` — font files added for the Text
+//                             tools (docs/specs/system-fonts.md AC-20): one
+//                             row per face (names only, so listing reads
+//                             no font bytes) and one per file's bytes.
 //
 // Direct IDB rather than the `idb` npm wrapper — CLAUDE.md §9 forbids
 // new runtime deps without explicit approval, and the request /
 // transaction surface we touch is small enough to wrap inline.
 
 const DB_NAME = 'pincel';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORE_PREFS = 'prefs';
 export const STORE_RECENT_FILES = 'recent_files';
@@ -27,6 +31,9 @@ export const STORE_AUTOSAVE = 'autosave_snapshots';
 // reading the (potentially multi-MB) bytes payload until the user
 // actually clicks Recover.
 export const STORE_AUTOSAVE_META = 'autosave_meta';
+// v3 — fonts added through "Add font file…" (docs/specs/system-fonts.md).
+export const STORE_FONT_FACES = 'font_faces';
+export const STORE_FONT_FILES = 'font_files';
 
 let openPromise: Promise<IDBDatabase> | null = null;
 
@@ -68,6 +75,12 @@ export function openDb(): Promise<IDBDatabase> {
           db.createObjectStore(STORE_AUTOSAVE_META, {
             keyPath: ['docId', 'ts'],
           });
+        }
+        if (!db.objectStoreNames.contains(STORE_FONT_FACES)) {
+          db.createObjectStore(STORE_FONT_FACES, { keyPath: 'key' });
+        }
+        if (!db.objectStoreNames.contains(STORE_FONT_FILES)) {
+          db.createObjectStore(STORE_FONT_FILES, { keyPath: 'id' });
         }
         // Backfill `autosave_meta` from existing `autosave_snapshots`
         // rows when migrating v1 → v2. New installs (oldVersion === 0)

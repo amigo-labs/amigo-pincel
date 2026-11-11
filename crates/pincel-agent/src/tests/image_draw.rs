@@ -20,7 +20,13 @@ fn spec(v: Value) -> CommandSpec {
 fn editor(s: &S, id: &str, cmds: Vec<Value>) -> Document {
     let mut bus = CommandBus::new(s.image(id).document().clone());
     for cmd in cmds {
-        run_command(&mut bus, spec(cmd), &mut StrokeScratch::default(), &[FONT]).expect("runs");
+        run_command(
+            &mut bus,
+            spec(cmd),
+            &mut StrokeScratch::default(),
+            &[FONT.into()],
+        )
+        .expect("runs");
     }
     bus.document
 }

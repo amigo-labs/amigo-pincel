@@ -19,11 +19,11 @@ use crate::document::{Document, LayerPlacement};
 use crate::error::DocumentError;
 use crate::{
     Blend, BlendMode, Brush, BrushShape, CloneSnapshot, Color, Curve, CurveLine, DashPattern,
-    Eraser, EraserMode, Fill, FillOptions, Gradient, GradientChannel, GradientKind, Interpolation,
-    LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil, Point, PressureDynamics,
-    Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode, Shape, ShapeMode,
-    ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle, apply_mode,
-    delete_selection, fill_selection, magic_wand,
+    Eraser, EraserMode, Fill, FillOptions, FontFace, Gradient, GradientChannel, GradientKind,
+    Interpolation, LineCap, MAX_LINE_POINTS, Move, OverwriteMemory, PenSamples, Pencil, Point,
+    PressureDynamics, Recolor, RecolorOrigins, Rect, SampleSource, SelectionMask, SelectionMode,
+    Shape, ShapeMode, ShapeStyle, Shapes, Smudge, SmudgeCarry, Text, TextAlign, TextStyle,
+    apply_mode, delete_selection, fill_selection, magic_wand,
 };
 
 /// One drag's worth of tool memory, reset when a new `stroke_id` arrives.
@@ -884,6 +884,11 @@ pub enum CommandSpec {
         #[serde(default)]
         #[cfg_attr(feature = "ts", ts(optional))]
         end_cap: Option<String>,
+        /// A live text's new font, a `register_font` id
+        /// (docs/specs/system-fonts.md AC-07, AC-09).
+        #[serde(default)]
+        #[cfg_attr(feature = "ts", ts(optional))]
+        font_id: Option<u32>,
     },
     /// Begin a live text (docs/specs/image-live-text.md): `(x, y)` is the
     /// top-left of its box for every alignment, `font_id` a `register_font`
@@ -1054,7 +1059,7 @@ pub fn run_command(
     bus: &mut CommandBus,
     spec: CommandSpec,
     scratch: &mut StrokeScratch,
-    fonts: &[&[u8]],
+    fonts: &[FontFace<'_>],
 ) -> Result<(), DocumentError> {
     match spec {
         CommandSpec::PencilStroke {
@@ -1771,7 +1776,16 @@ pub fn run_command(
             control,
             start_cap,
             end_cap,
+            font_id,
         } => {
+            // An unknown font id keeps the font, as `draw_text` ignores one.
+            let font = font_id.and_then(|id| {
+                fonts.get(id as usize).map(|f| super::LiveFont {
+                    id,
+                    bytes: std::sync::Arc::from(f.bytes),
+                    index: f.index,
+                })
+            });
             let cap = |c: Option<String>| -> Result<Option<LineCap>, DocumentError> {
                 c.map(|c| LineCap::parse(&c).ok_or(DocumentError::LiveEditMismatch))
                     .transpose()
@@ -1814,6 +1828,7 @@ pub fn run_command(
                 control: control.map(|c| c.iter().map(|q| Point::new(q[0], q[1])).collect()),
                 start_cap,
                 end_cap,
+                font,
             };
             bus.edit_live(&edit, gesture)
         }
@@ -1833,7 +1848,7 @@ pub fn run_command(
             strikethrough,
             blend,
         } => {
-            let Some(bytes) = fonts.get(font_id as usize) else {
+            let Some(face) = fonts.get(font_id as usize) else {
                 return Ok(()); // unknown font: a no-op, as for draw_text
             };
             let params = super::LiveParams::Text(super::LiveText {
@@ -1853,7 +1868,8 @@ pub fn run_command(
                 },
                 font: super::LiveFont {
                     id: font_id,
-                    bytes: std::sync::Arc::from(*bytes),
+                    bytes: std::sync::Arc::from(face.bytes),
+                    index: face.index,
                 },
             });
             bus.begin_live(layer, params).map(|_| ())
@@ -1888,8 +1904,8 @@ pub fn run_command(
                 strikethrough,
                 blend: parse_blend(&blend),
             };
-            let cmd = fonts.get(font_id as usize).and_then(|bytes| {
-                Text::new(text, Point::new(x, y), style).render(layer, &bus.document, bytes)
+            let cmd = fonts.get(font_id as usize).and_then(|face| {
+                Text::new(text, Point::new(x, y), style).render(layer, &bus.document, *face)
             });
             match cmd {
                 Some(cmd) => bus.apply(Box::new(cmd)),

@@ -37,6 +37,8 @@
 *.woff2         binary
 *.ttf           binary
 *.otf           binary
+*.ttc           binary
+*.otc           binary
 *.pdf           binary
 *.zip           binary
 *.traineddata   binary

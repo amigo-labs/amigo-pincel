@@ -584,6 +584,8 @@ export interface EditLiveCommand {
   control?: Array<[number, number]>;
   start_cap?: LineCap;
   end_cap?: LineCap;
+  /** A live text's new font, a `registerFont` id (docs/specs/system-fonts.md). */
+  font_id?: number;
 }
 
 /** Begins a live text whose box has its top-left at `(x, y)`
@@ -844,7 +846,7 @@ export const core = {
     return out;
   },
   /** Registers a font's bytes and returns its id for `draw_text` commands. */
-  registerFont: (data: Uint8Array): number => register_font(data),
+  registerFont: (data: Uint8Array, faceIndex?: number): number => register_font(data, faceIndex),
   /** The entries of a palette file — `.gpl`, `.hex`, `.pal` or a PNG
    *  palette image, detected from the content; throws the reader's reason
    *  (docs/specs/image-palette-gradient.md AC-03, AC-04). */

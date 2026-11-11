@@ -184,6 +184,8 @@ pub struct LiveEdit {
     pub start_cap: Option<LineCap>,
     /// A Line's new end cap.
     pub end_cap: Option<LineCap>,
+    /// A live text's new font (docs/specs/system-fonts.md AC-07).
+    pub font: Option<super::LiveFont>,
 }
 
 /// Parameter groups whose consecutive edits merge into one step (AC-03).
@@ -213,6 +215,7 @@ mod group {
     pub const CAPS: u32 = 1 << 22;
     pub const STAR_POINTS: u32 = 1 << 23;
     pub const INNER_RATIO: u32 = 1 << 24;
+    pub const FONT: u32 = 1 << 25;
 
     /// What a Line or box shape accepts.
     pub const SHAPE_FIELDS: u32 = GEOMETRY
@@ -242,7 +245,8 @@ mod group {
         | UNDERLINE
         | STRIKETHROUGH
         | ALIGN
-        | BLEND;
+        | BLEND
+        | FONT;
 }
 
 impl LiveEdit {
@@ -288,6 +292,7 @@ impl LiveEdit {
         add(self.bold.is_some(), group::BOLD);
         add(self.italic.is_some(), group::ITALIC);
         add(self.underline.is_some(), group::UNDERLINE);
+        add(self.font.is_some(), group::FONT);
         add(self.strikethrough.is_some(), group::STRIKETHROUGH);
         add(self.align.is_some(), group::ALIGN);
         add(self.blend.is_some(), group::BLEND);
@@ -449,6 +454,9 @@ impl LiveParams {
                 st.align = edit.align.unwrap_or(st.align);
                 st.anti_alias = edit.anti_alias.unwrap_or(st.anti_alias);
                 st.blend = edit.blend.unwrap_or(st.blend);
+                if let Some(font) = &edit.font {
+                    t.font = font.clone();
+                }
             }
         }
         Ok(out.clamped())

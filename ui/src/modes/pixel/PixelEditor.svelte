@@ -176,6 +176,8 @@
   } from './pointer';
   import { createRenderer, syncMeta, syncSelection, tick, toggleProbe } from './render';
   import { applyTextParams, cancelText, previewTextParams } from './text-tool';
+  import { pixelFont } from './text-font';
+  import { initFontSource } from '../../lib/fonts/source.svelte';
   import { MAX_ZOOM, MIN_ZOOM, onWheel, resetView, zoomActual, zoomIn, zoomOut } from './view-ops';
   import {
     MAX_DOC_SIZE,
@@ -730,6 +732,10 @@
 
   onMount(() => {
     let cancelled = false;
+    // The Text tool's fonts: system fonts where no prompt is needed, the
+    // added ones, Pixel mode's remembered family (docs/specs/system-fonts.md).
+    void initFontSource();
+    void pixelFont.load();
     // The core and the base-layer renderer, before the first document.
     // The base canvas is bound by the time onMount runs (spec §4.4, M12.5).
     const ready = loadCore().then(async () => {
