@@ -115,6 +115,8 @@
   import { canDeleteLayer, canMergeDown, editRefused, treeOrder } from './core/layer-tree';
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
+  import OcrDialog from './components/dialogs/OcrDialog.svelte';
+  import { toolsMenu } from './ocr/menu';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
@@ -199,6 +201,9 @@
   let jpegDialogOpen = $state(false);
   /** File ▸ Export ▸ SVG… is open (vectorize-dialog). */
   let svgOpen = $state(false);
+  /** The snapshot Tools ▸ Recognize Text… reads while its dialog is open
+   *  (docs/specs/ocr-dialog.md); the document never changes meanwhile. */
+  let ocrSnapshot = $state.raw<Uint8Array | null>(null);
   let transformDialog = $state<'resize' | 'scale' | null>(null);
   // The open effect (effect-panel spec), shown in the frame's sidebar.
   let effectOpen = $state<EffectSession | null>(null);
@@ -445,6 +450,11 @@
   /** Image ▸ Auto Crop; a notice when nothing is cropped (image-resize-autocrop AC-15). */
   function runAutoCrop(): void {
     editor.notice = autoCrop() ? null : t('image.nothingToCrop');
+  }
+
+  function openOcr(): void {
+    if (editor.handle === null) return;
+    ocrSnapshot = core.snapshotDocument(editor.handle);
   }
 
   function openSvgExport(): void {
@@ -1160,6 +1170,7 @@
       transformDialog !== null ||
       jpegDialogOpen ||
       svgOpen ||
+      ocrSnapshot !== null ||
       printOpen ||
       radiusOp !== null ||
       pasteDialog !== null;
@@ -1280,7 +1291,11 @@
   let effectHandle: number | null = null;
   $effect(() => {
     const handle = editor.handle;
-    if (handle !== effectHandle && effectOpen) closeEffect();
+    if (handle !== effectHandle) {
+      if (effectOpen) closeEffect();
+      // A document replaced in place ends Recognize Text as well.
+      ocrSnapshot = null;
+    }
     effectHandle = handle;
   });
 
@@ -1584,6 +1599,7 @@
         languageMenu(),
       ],
     },
+    toolsMenu(openOcr, !hasDoc),
     ...helpMenus(openOverview, 'image'),
   ]);
 </script>
@@ -1779,6 +1795,10 @@
     }}
     onCancel={closeSvg}
   />
+{/if}
+
+{#if ocrSnapshot}
+  <OcrDialog snapshot={ocrSnapshot} onClose={() => (ocrSnapshot = null)} />
 {/if}
 
 {#if jpegDialogOpen}

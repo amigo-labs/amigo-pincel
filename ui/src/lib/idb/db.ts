@@ -1,6 +1,6 @@
 // IndexedDB substrate for Pincel.
 //
-// One database (`pincel`) with three object stores:
+// One database (`pincel`) with these object stores:
 //
 //   * `prefs`              — primitive key/value (foreground color,
 //                             zoom, panel visibility…).
@@ -11,13 +11,17 @@
 //   * `autosave_snapshots` — autosave bytes keyed by `(docId, ts)`.
 //                             Schema is created here; the timer +
 //                             recovery dialog land in M10.3.
+//   * `autosave_meta`      — metadata of the autosave snapshots (v2).
+//   * `ocr_models`         — downloaded OCR language models keyed by
+//                             `[lang, version]` (v3,
+//                             docs/specs/ocr-dialog.md).
 //
 // Direct IDB rather than the `idb` npm wrapper — CLAUDE.md §9 forbids
 // new runtime deps without explicit approval, and the request /
 // transaction surface we touch is small enough to wrap inline.
 
 const DB_NAME = 'pincel';
-const DB_VERSION = 2;
+const DB_VERSION = 3;
 
 export const STORE_PREFS = 'prefs';
 export const STORE_RECENT_FILES = 'recent_files';
@@ -27,6 +31,8 @@ export const STORE_AUTOSAVE = 'autosave_snapshots';
 // reading the (potentially multi-MB) bytes payload until the user
 // actually clicks Recover.
 export const STORE_AUTOSAVE_META = 'autosave_meta';
+// v3 — OCR language models, rows `{ lang, version, bytes }`.
+export const STORE_OCR_MODELS = 'ocr_models';
 
 let openPromise: Promise<IDBDatabase> | null = null;
 
@@ -67,6 +73,11 @@ export function openDb(): Promise<IDBDatabase> {
         if (!db.objectStoreNames.contains(STORE_AUTOSAVE_META)) {
           db.createObjectStore(STORE_AUTOSAVE_META, {
             keyPath: ['docId', 'ts'],
+          });
+        }
+        if (!db.objectStoreNames.contains(STORE_OCR_MODELS)) {
+          db.createObjectStore(STORE_OCR_MODELS, {
+            keyPath: ['lang', 'version'],
           });
         }
         // Backfill `autosave_meta` from existing `autosave_snapshots`

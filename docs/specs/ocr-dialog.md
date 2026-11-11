@@ -120,13 +120,13 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-01 | `Image mode has a Tools menu between Effects and Help; Pixel mode has none (AC-01)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-02 | `the language of the last recognition is preselected, across sessions (AC-02)`, `German › menu, dialog and messages are German; …` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-03 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `during work the dialog shows the step and a Cancel button (AC-03)` (`ui/e2e/ocr-dialog.spec.ts`); `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`, progress order) | built |        |
+| AC-04 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-07 | `first use downloads …` (field, cursor at start, Copy and Close), `an empty page shows "No text found." (AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
@@ -135,8 +135,8 @@ Terms used below:
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
 | AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-16 | `German › menu, dialog and messages are German; the text is not translated (AC-02, AC-16)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-17 | `the benchmark screenshot reads exactly as the native snapshot (AC-17)` (`ui/e2e/ocr-dialog.spec.ts`); natively `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
 | AC-18 |      | open   |        |
 | AC-19 |      | open   |        |
 | AC-20 |      | open   |        |
@@ -147,3 +147,10 @@ Terms used below:
 - 2026-11-08: The owner chose Image mode only, a Tools menu, a dialog with Copy, German and English, and models downloaded on first use from Pincel's website.
 - 2026-11-08 (clarification pass): The dialog is modal, the owner's choice, which removes edits and tab switches during recognition. Transparent and unselected pixels follow `ocr-page`'s flattening, also the owner's choice. "Nothing is stored" on cancel now means only the download in progress. AC-14 is measured in the e2e test. AC-17 to AC-21 were added: wasm equals native, recognition failure, storage failure, a damaged stored model, and the wasm time budget.
 - 2026-11-08 (second clarification pass): OCR runs in a worker of its own, so Cancel can end it without touching autosave or export. Unselected pixels take the background colour along the selection's border instead of transparency, so a lasso on a white page does not turn black. AC-17 compares with `ocr-page`'s committed snapshot.
+- 2026-11-11 (build): Red runs. `pincel-image-wasm`: the `ocr_tests.rs` source-area tests against a stub that returned the whole composite failed 5 of 10 (bounding box, border median, half coverage, empty selection); the session test passed at once against the stub, because without a selection the stub is the real source area. UI: `ui/e2e/ocr-dialog.spec.ts` failed all 7 tests on `feat/ocr-page`'s app (no menu item "Tools" / "Extras").
+- 2026-11-11 (build): The Tools menu sits after View, directly before Help: both orders satisfy AC-01, and "Tools" before "Help" is where desktop apps put it.
+- 2026-11-11 (build): The source area is composed in `pincel-image-wasm` (`src/ocr.rs`) from the snapshot the dialog takes when it opens. "Background around the selection" is the per-channel lower median of the pixels with coverage ≥ 128 that have a 4-neighbour below 128 or outside the canvas; a selection mask without any covered pixel gives an empty area ("No text found.").
+- 2026-11-11 (build): New public API (wasm): `ocr_model(bytes) → OcrModel`, `ocr_session(snapshot) → OcrSession` with `width`, `height` and `read(model, progress) → string`, and the `OcrProgress` type (`{ phase: 'layout' | 'lines', done, total }`), generated to `ui/src/modes/image/core/generated/OcrProgress.ts` by the `export_command_spec` test.
+- 2026-11-11 (build): The OCR worker gets one request (the page's compiled core, the snapshot and the model bytes) and is terminated after its answer or on Cancel; the snapshot is kept by the dialog for Retry and language switches. The dialog does not commit an open live object first (unlike Export SVG), because AC-13 forbids changing the document.
+- 2026-11-11 (build): Models are stored in a new `ocr_models` store of the existing `pincel` database (schema version 3), rows `{ lang, version, bytes }` keyed `[lang, version]`; storing a version deletes the language's other versions in the same transaction. The download uses `cache: 'no-store'`, so Retry really fetches again. The hash is checked with `crypto.subtle`, or with a plain SHA-256 where a webview has no `crypto.subtle` (`ui/src/modes/image/ocr/sha256.ts`).
+- 2026-11-11 (build): Byte counts show as decimal megabytes with one decimal in the UI locale ("4.1 MB of 4.1 MB", "1,5 MB von 1,5 MB"). The language pref is written when recognition starts (the model is ready), not when the language is only picked. A click outside the dialog does not close it, so a recognized text is not lost by a stray click.
