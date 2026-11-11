@@ -124,8 +124,8 @@ Terms used below:
 | AC-02 | `the language of the last recognition is preselected, across sessions (AC-02)`, `German › menu, dialog and messages are German; …` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-03 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `during work the dialog shows the step and a Cancel button (AC-03)` (`ui/e2e/ocr-dialog.spec.ts`); `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`, progress order) | built |        |
 | AC-04 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-05 | `a download that does not match its hash is not stored; Retry downloads again (AC-05)` (`ui/e2e/ocr-dialog-model.spec.ts`); `ui/e2e/ocr-sha256.spec.ts` (plain SHA-256 fallback, pinned hashes) | built |        |
+| AC-06 | `a failed download (offline) …`, `a failed download (a server error) stores nothing; Retry downloads again (AC-06)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
 | AC-07 | `first use downloads …` (field, cursor at start, Copy and Close), `an empty page shows "No text found." (AC-07)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-08 | `Copy puts the edited text on the clipboard; Copied lasts until the next edit (AC-08)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
 | AC-09 | `a clipboard that refuses the text shows an error and keeps the text (AC-09)` (`ui/e2e/ocr-dialog-result.spec.ts`) | built |        |
@@ -137,9 +137,9 @@ Terms used below:
 | AC-15 |      | open   |        |
 | AC-16 | `German › menu, dialog and messages are German; the text is not translated (AC-02, AC-16)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-17 | `the benchmark screenshot reads exactly as the native snapshot (AC-17)` (`ui/e2e/ocr-dialog.spec.ts`); natively `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`) | built |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
+| AC-18 | `a recognition that fails shows an error with Retry; the editor stays usable (AC-18)`, `a model the engine rejects is removed, so Retry downloads it again (AC-18)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
+| AC-19 | `storage that cannot be read or written: the model serves this recognition, without an error (AC-19)` (`ui/e2e/ocr-dialog-model.spec.ts`) | built |        |
+| AC-20 | `a stored model that no longer matches its hash is removed and downloaded again (AC-20)` (`ui/e2e/ocr-dialog-model.spec.ts`); old versions: `storing a newer version removes the older one of that language` | built |        |
 | AC-21 |      | open   |        |
 
 ## Decisions
@@ -155,3 +155,5 @@ Terms used below:
 - 2026-11-11 (build): Models are stored in a new `ocr_models` store of the existing `pincel` database (schema version 3), rows `{ lang, version, bytes }` keyed `[lang, version]`; storing a version deletes the language's other versions in the same transaction. The download uses `cache: 'no-store'`, so Retry really fetches again. The hash is checked with `crypto.subtle`, or with a plain SHA-256 where a webview has no `crypto.subtle` (`ui/src/modes/image/ocr/sha256.ts`).
 - 2026-11-11 (build): Byte counts show as decimal megabytes with one decimal in the UI locale ("4.1 MB of 4.1 MB", "1,5 MB von 1,5 MB"). The language pref is written when recognition starts (the model is ready), not when the language is only picked. A click outside the dialog does not close it, so a recognized text is not lost by a stray click.
 - 2026-11-11 (build): The e2e tests of AC-08 – AC-11 and AC-13 (`ui/e2e/ocr-dialog-result.spec.ts`) were green at once: the dialog's Copy and the source area were built with the first block, before these tests were written. The source-area logic itself went red first in `ocr_tests.rs` (see the first red-run entry). Windows reads plain text from the clipboard with CRLF line breaks; the AC-08 test compares with LF.
+- 2026-11-11 (build): AC-18 is tested by fault injection: an init script replaces the OCR worker (`ocr-worker-*.js`) with one that fails to start, or that answers as if the engine rejected the model — a model that matches its pinned hash cannot be made invalid otherwise. Red run: both AC-18 tests failed while the worker chunk was still named `worker-*` (the fault did not apply, so no failure message showed). AC-19 blocks `get` and `put` on the `ocr_models` store with a `QuotaExceededError`.
+- 2026-11-11 (build): The AC-05, AC-06, AC-12, AC-19, AC-20 and old-version tests were written after the code and were green at once; a mutation run proved they catch the behaviour: with the rejected model kept, the stored model's hash unchecked, the download not cancelled and older versions not removed, 6 of 13 tests in `ocr-dialog-model.spec.ts` and `ocr-dialog-cancel.spec.ts` failed (AC-12 ×2, the language switch, AC-18 model, AC-20, old versions).
