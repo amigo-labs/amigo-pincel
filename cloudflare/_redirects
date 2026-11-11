@@ -1,11 +1,15 @@
 # pincel.amigo-labs.dev — the marketing site moved to amigo-labs.dev/pincel
-# (issue #141). Only the editor stays here, at /app/. Cloudflare Workers
-# Static Assets reads this file from the root of `[assets].directory`
-# (wrangler.toml); scripts/cf-build.sh copies it there.
+# (issue #141); the editor is served at the root since 2026-11-11, before
+# that at /app/ (docs/specs/pincel.md §15). Cloudflare Workers Static Assets
+# reads this file from the root of `[assets].directory` (wrangler.toml);
+# scripts/web-site.sh copies it there.
 # Docs: https://developers.cloudflare.com/workers/static-assets/redirects/
 
-/                https://amigo-labs.dev/pincel/          301
-/index.html      https://amigo-labs.dev/pincel/          301
+# The editor's old path. /app/sw.js is not redirected: it is the stand-in
+# worker (cloudflare/app/sw.js) that hands installed copies over to /.
+/app             /                                        301
+/app/            /                                        301
+/app/index.html  /                                        301
 /features        https://amigo-labs.dev/pincel/          301
 /features/       https://amigo-labs.dev/pincel/          301
 /download        https://amigo-labs.dev/pincel/          301
