@@ -102,12 +102,21 @@ fn blend_from_op(op: &str) -> BlendMode {
     }
 }
 
+/// Options for an archive entry: stored (PNGs are already deflated; the
+/// XML is tiny) and marked as made on Unix on every platform — the zip
+/// crate's default is the host OS, which made the desktop app's files
+/// differ from the browser's (docs/specs/performance-desktop-jobs.md).
+fn stored() -> SimpleFileOptions {
+    SimpleFileOptions::default()
+        .compression_method(CompressionMethod::Stored)
+        .system(zip::System::Unix)
+}
+
 /// Serialize `doc` as an OpenRaster archive. `compression` is the 0–9 PNG
 /// level for the layer images (autosave passes a fast level).
 pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError> {
     let mut zip = ZipWriter::new(Cursor::new(Vec::new()));
-    let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
-    // PNGs are already deflated; the XML is tiny. Store everything.
+    let stored = stored();
     zip.start_file("mimetype", stored)?;
     zip.write_all(ORA_MIMETYPE.as_bytes())?;
 
@@ -168,7 +177,7 @@ fn write_run<W: Write + std::io::Seek>(
         i = end;
     }
     let indent = "  ".repeat(depth);
-    let stored = SimpleFileOptions::default().compression_method(CompressionMethod::Stored);
+    let stored = stored();
     // stack.xml lists layers top-most first; storage is bottom-up.
     for (index, end) in roots.into_iter().rev() {
         let layer = &layers[index];
@@ -531,6 +540,19 @@ mod tests {
             "data/layer0.png",
         ] {
             assert!(zip.by_name(name).is_ok(), "{name} present");
+        }
+    }
+
+    #[test]
+    fn to_ora_bytes_marks_every_entry_made_by_unix_on_every_platform() {
+        // The zip crate defaults to the host OS (DOS on Windows), so the
+        // same document gave different bytes in the desktop app than in
+        // the browser (docs/specs/performance-desktop-jobs.md AC-01).
+        let bytes = to_ora_bytes(&sample_doc(), 6).expect("write");
+        let mut zip = ZipArchive::new(Cursor::new(bytes.as_slice())).expect("zip");
+        for i in 0..zip.len() {
+            let entry = zip.by_index(i).expect("entry");
+            assert_eq!(entry.system(), zip::System::Unix, "{:?}", entry.name());
         }
     }
 
