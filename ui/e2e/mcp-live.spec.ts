@@ -198,3 +198,19 @@ test('AC-18 a call while a modal dialog is open fails at once and changes nothin
   await expect(about).toBeHidden();
   expect((await call(page, 'doc.info')).json?.undo_depth).toBe(0);
 });
+
+test('doc.list reads background tabs without switching the shown document', async ({ page }) => {
+  await start(page, 'pixel');
+  for (let i = 0; i < 2; i += 1) {
+    expect((await call(page, 'doc.new', { mode: 'pixel', width: 16, height: 16 })).ok).toBe(true);
+  }
+  await tabs(page).nth(1).click();
+  await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+  expect((await call(page, 'draw.rect', RECT)).ok).toBe(true);
+  const shown = await pixelCanvas(page).screenshot();
+  const listed = await call(page, 'doc.list');
+  expect((listed.json?.documents as unknown[]).length).toBe(3);
+  expect(listed.json?.active).toBe((await call(page, 'doc.info')).json?.doc);
+  await page.waitForTimeout(200);
+  expect((await pixelCanvas(page).screenshot()).equals(shown)).toBe(true);
+});
