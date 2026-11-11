@@ -666,3 +666,34 @@ fn a_foreign_origin_and_a_get_stream_are_refused() {
     assert_eq!(r.status, 202);
     ep.disable();
 }
+
+#[test]
+fn switching_on_again_with_a_new_token_ends_the_old_sessions() {
+    let dir = tempfile::tempdir().unwrap();
+    let (ep, mock) = endpoint(dir.path(), timing());
+    let s = ep.enable(true).unwrap();
+    initialize(s.port.unwrap(), s.token.as_deref().unwrap());
+    assert_eq!(ep.status().external_sessions, 1);
+    ep.enable(true).unwrap();
+    assert_eq!(ep.status().external_sessions, 0);
+    assert_eq!(mock.sessions.lock().unwrap().last(), Some(&0));
+    ep.disable();
+}
+
+#[test]
+fn an_unwritable_config_leaves_the_setting_off_and_nothing_listening() {
+    let dir = tempfile::tempdir().unwrap();
+    // A directory where the config file should be: it cannot be written.
+    let path = dir.path().join("mcp.json");
+    std::fs::create_dir_all(&path).unwrap();
+    let ep = Endpoint::new(
+        Box::new(Arc::new(Mock::default())),
+        path,
+        free_port(),
+        timing(),
+    );
+    assert!(ep.enable(true).is_err());
+    let s = ep.status();
+    assert!(!s.enabled);
+    assert_eq!(s.port, None);
+}

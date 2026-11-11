@@ -259,11 +259,29 @@ impl Endpoint {
         if fresh || cfg.token.is_none() {
             cfg.token = Some(new_token());
         }
+        let started = st.server.is_none();
         self.0.ensure_server(&mut st, &mut cfg)?;
-        cfg.save(&self.0.config_path)?;
+        if let Err(e) = cfg.save(&self.0.config_path) {
+            // Without a stored token the setting cannot survive a restart:
+            // stay off, and stop a listener started only for it.
+            let server = if started && st.chats.is_empty() {
+                st.server.take()
+            } else {
+                None
+            };
+            drop(st);
+            halt(server);
+            return Err(e);
+        }
+        if st.token != cfg.token {
+            // Sessions opened with the old token cannot go on.
+            st.sessions.retain(|_, s| s.kind != Kind::External);
+        }
         st.enabled = true;
         st.token = cfg.token;
-        Ok(self.0.status(&st))
+        let status = self.0.status(&st);
+        self.0.report(st);
+        Ok(status)
     }
 
     /// Turn the setting off (AC-04): end the external sessions and, unless
