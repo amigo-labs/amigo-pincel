@@ -89,20 +89,20 @@ The connection runs in the Tauri backend (Decision Log 2026-11-06 "ComfyUI"), so
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
+| AC-01 | e2e `the PWA has no View ▸ Image generation… (AC-01)`, `both editors offer View ▸ Image generation… (AC-01)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-02 | `settings_default_to_automatic_and_persist_across_restarts` (src-tauri/src/comfyui/manager/tests.rs); `settings_default_to_automatic`, `settings_round_trip_through_the_file` (src-tauri/src/comfyui/settings.rs); e2e `the dialog shows the stored choice and stores a new one (AC-02)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-03 | `ensure_automatic_prefers_the_first_port`, `ensure_automatic_skips_a_server_that_is_not_comfyui`, `ensure_automatic_without_a_server_is_not_found`, `ensure_automatic_uses_the_managed_installation_first` (src-tauri/src/comfyui/manager/tests.rs); e2e `opening the dialog looks for a server; none found offers the ways on (AC-03)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-04 | `ensure_reports_version_gpu_checkpoints_and_loras` (src-tauri/src/comfyui/manager/tests.rs); `fetch_info_reads_version_gpu_checkpoints_and_loras`, `parse_object_info_reads_v3_combo_options` (src-tauri/src/comfyui/api.rs); e2e `a connected server shows version, GPU and models (AC-04)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-05 | `choose_folder_accepts_an_installation_and_refuses_others` (src-tauri/src/comfyui/manager/tests.rs); `detect_*` (src-tauri/src/comfyui/install.rs); e2e `a picked folder is accepted or refused with the reason (AC-05)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-06 | `ensure_starts_the_existing_installation_bound_to_loopback`, `requests_during_a_start_wait_for_the_same_start`, `ensure_starts_again_after_the_server_stopped` (src-tauri/src/comfyui/manager/tests.rs); e2e `a start shows "Starting ComfyUI…" until the server answers (AC-06)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-07 | `a_start_that_never_answers_stops_with_the_last_50_lines`, `a_process_that_exits_while_starting_stops_with_its_output`, `a_started_server_that_exits_later_reports_stopped` (src-tauri/src/comfyui/manager/tests.rs); e2e `a server that stops shows "ComfyUI stopped" with its output (AC-07)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-08 | `test_url_classifies_every_outcome` (src-tauri/src/comfyui/manager/tests.rs); `identify_classifies_refused_and_foreign_servers` (src-tauri/src/comfyui/api.rs); `parse_url_*`, `get_*` (src-tauri/src/comfyui/http.rs); e2e `Test connection reports each outcome; remote hosts get a notice (AC-08)` (ui/e2e/comfyui-connect.spec.ts) — http only, https blocked by the Open question | open |        |
 | AC-09 | `comfyui::manager::tests::shutdown_ends_the_started_server_and_no_other` (src-tauri/src/comfyui/manager/tests.rs) | built |        |
 | AC-10 | `comfyui::manager::tests::a_new_run_adopts_the_server_an_earlier_run_left_running`, `a_record_whose_server_is_gone_is_forgotten` (src-tauri/src/comfyui/manager/tests.rs) | built |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
+| AC-11 | `a_server_without_a_required_node_type_is_too_old` (src-tauri/src/comfyui/manager/tests.rs); `parse_object_info_names_missing_node_types` (src-tauri/src/comfyui/api.rs); e2e `a server lacking core node types is too old (AC-11)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-12 | `a_server_without_checkpoints_has_no_model_installed` (src-tauri/src/comfyui/manager/tests.rs); e2e `a server without checkpoints has no model installed (AC-12)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-13 | `a_missing_installation_folder_is_reported_with_its_path` (src-tauri/src/comfyui/manager/tests.rs); e2e `a vanished installation folder asks for another (AC-13)` (ui/e2e/comfyui-connect.spec.ts) | built |        |
+| AC-14 | e2e `dialog, status texts and errors are translated (AC-14)` (ui/e2e/comfyui-connect.spec.ts); en/de key parity in `pnpm check` (`de: Record<MessageKey, string>`) and `scripts/ui-lint.mjs` | built |        |
 
 ## Decisions
 
@@ -118,3 +118,7 @@ The connection runs in the Tauri backend (Decision Log 2026-11-06 "ComfyUI"), so
 - 2026-11-11: At app start the backend probes the recorded port once (2 s, off the start path); a server that answers is adopted and ended on quit even if nothing needs a server in this run (AC-10), a silent one's record is dropped.
 - 2026-11-11: The Generate panel and the `gen.*` tools do not exist yet (`comfyui-generate` depends on this spec). The parts of AC-03 and AC-12 that name them are covered by the backend contract they will call — `Manager::ensure` / `ensure_usable` and the `comfyui_usable` command, which fails with "no model installed" — and tested there; the panel's disabled Generate and the tools' errors are `comfyui-generate` AC-02 and AC-19.
 - 2026-11-11: The process tests run a fake `main.py` (a small Python HTTP server) through a `--without-pip` venv made from the Python 3 on `PATH`; the `pincel-tauri` CI job (Ubuntu) has `python3`.
+- 2026-11-11: The menu entry reads "Image Generation…" — Title Case like every other menu entry (View ▸ Touch Gestures, Help ▸ Check for Updates…); the dialog title is "Image generation".
+- 2026-11-11: "Install ComfyUI…" (AC-03) is shown disabled with the tooltip "Installing ComfyUI from Pincel is not available yet" until `comfyui-install` gives it a dialog to open.
+- 2026-11-11: Choosing Automatic or an installation connects at once; choosing Custom URL waits for "Test connection" (or Enter in the field), which stores the URL and probes it. The non-loopback notice follows the typed URL, before any test.
+- 2026-11-11: AC-01's PWA half (no entry in a browser) held before the change, so its e2e test was green on the red run; the desktop half and every other e2e test were red (the menu entry did not exist).
