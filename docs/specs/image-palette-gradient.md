@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: L
 mode: Image
@@ -52,31 +52,31 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Image mode's Colors panel has a palette menu offering Load palette…, a Save palette submenu with the entries GIMP `.gpl`, Lospec `.hex`, JASC `.pal`, "PNG strip (1 px)" and "PNG strip (8 px)", and Reset to default palette, plus an Add color button; each has an accessible name.
-- [ ] AC-02 (event): When the user loads a palette file, then the palette in the Colors panel is replaced by the file's colors, and the status bar shows "loaded {count} palette colours" (German: "{count} Palettenfarben geladen") with the number of loaded colors.
-- [ ] AC-03 (always): Loading a file in Image mode yields the same colors (R, G, B, A) in the same order as Pixel mode's Palette ▸ Import of the same file: the format is detected from the content, not the file name (a `.txt` file with hex lines loads as `.hex`), and the reading rules of `palette-formats` AC-02 – AC-05 apply.
-- [ ] AC-04 (error): If a loaded file cannot be read, then the palette stays unchanged and the status bar shows "Load palette failed: {reason}" (German through the same pattern), where the reason is the one Pixel mode's import gives: for a `.gpl`, `.hex` or `.pal` colour line that cannot be read, its 1-based line number; for a `.pal` without its `0100` or count line, the missing header; for more than 256 entries, the limit; for a file without colour entries, "no colours found"; for a file with the PNG signature that cannot be decoded, the decode failure; for a PNG with more than 256 distinct non-transparent colours, "not a palette image". Bytes that are not PNG, `.gpl` or `.pal` are read as `.hex` (`palette-formats` AC-02), so an arbitrary file fails with the `.hex` error for its first unreadable line.
-- [ ] AC-05 (event): When the user dismisses the file picker of Load palette… without choosing a file, then the palette stays unchanged and no message is shown.
-- [ ] AC-06 (event): When the user chooses an entry of the Save palette submenu, then a file in that format is written as in Pixel mode's export (`palette-formats` AC-10 – AC-12), with the suggested name `palette.gpl`, `palette.hex`, `palette.pal` or `palette.png`, and the status bar shows "saved {count} palette colours" (German: "{count} Palettenfarben gespeichert") with the number of saved entries.
-- [ ] AC-07 (always): Saving the palette in any of the five Save palette entries and loading that file again gives the same colors in the same order, with alpha set to 255 for `.gpl`, `.hex` and `.pal`, which store none; for a PNG strip this holds for a palette without duplicate and without fully transparent entries.
-- [ ] AC-08 (always): A `.gpl` file with named entries, loaded and saved again as `.gpl`, keeps every entry's name; a swatch with a name shows it in its tooltip and accessible name next to its hex value.
-- [ ] AC-09 (event): When the user presses Add color, then the current foreground color, including its alpha, is appended as the last palette entry.
-- [ ] AC-10 (error): If the user presses Add color while the palette holds 256 entries and none of them equals the foreground color, then the palette stays unchanged and the status bar says that the palette is full.
-- [ ] AC-11 (error): If the user presses Add color while an entry with the same R, G, B and A as the foreground color is already in the palette, then the palette stays unchanged and the status bar says that the color is already in the palette — also when the palette holds 256 entries, because the duplicate is the more useful message.
-- [ ] AC-12 (event): When the user chooses Reset to default palette, then the palette becomes the default palette of `color-picker` AC-27 (48 colors), without a confirmation prompt.
-- [ ] AC-13 (event): When the app is reloaded, or the desktop app is quit and started again, then Image mode's palette is restored with the same colors, alpha and names in the same order as before.
-- [ ] AC-14 (error): If the stored palette cannot be read (not a list, malformed entries), then Image mode starts with the stored entries that are readable, at most the first 256 of them, or with the default palette when none is readable; no error is shown.
-- [ ] AC-15 (always): Loading, saving, adding to or resetting the palette adds no undo step to any document and does not mark any document as having unsaved changes.
-- [ ] AC-16 (state): While several Image documents are open in tabs, every Image tab shows the same palette, and a change made in one tab shows in the others when they become active.
-- [ ] AC-17 (always): No Image-mode palette action changes the palette of a Pixel document or what Pixel mode's palette panel shows, and no Pixel-mode palette action changes Image mode's palette.
-- [ ] AC-18 (always): A loaded or extended palette's swatches behave as the default palette's (`color-picker` AC-26): a left click sets the foreground color, a right click or long press the background color, each including alpha, and no context menu opens.
-- [ ] AC-19 (state): While the palette holds more swatches than fit in one row of the Colors panel, the palette wraps into more rows with every swatch at least 16 px and no horizontal scrolling; while it needs more than 8 rows, the palette area is 8 rows of swatches high and scrolls vertically on its own, and the foreground / background swatches and the recent-colors row stay visible.
-- [ ] AC-20 (option): Where the UI language is German, the palette menu, its entries, the Add color button and the palette's status messages are German.
-- [ ] AC-21 (always): Pixel mode reads and writes palette files exactly as before the codecs were shared: the `pincel-core` and `pincel-wasm` palette tests (`.gpl` import / export, `importGpl` / `exportGpl` / `importPalette` / `exportPalette`) and the e2e palette specs stay green with unchanged assertions, and the codec tests of `palette-formats` AC-02 – AC-15 that move to the shared code keep their input bytes and their expected colors, order, alpha, names, errors and line numbers — only the type they are written against may change.
-- [ ] AC-22 (state): While the user has not loaded a palette or added a color since the last Reset to default palette (or ever), Image mode stores no palette of its own and shows the built-in default palette of the running app version, so a later change of the built-in default reaches that user; after a load or an add, the stored palette is shown instead.
-- [ ] AC-23 (event): When the user dismisses the save dialog of a Save palette entry, then nothing is written and no message is shown.
-- [ ] AC-24 (error): If writing the saved palette file fails, then the status bar shows "Save palette failed: {reason}" and the palette is unchanged.
-- [ ] AC-25 (error): If storing the changed palette in IndexedDB fails (e.g. the storage quota is full), then the change stays in effect until the app is reloaded and the status bar says that the palette could not be stored.
+- [x] AC-01 (always): Image mode's Colors panel has a palette menu offering Load palette…, a Save palette submenu with the entries GIMP `.gpl`, Lospec `.hex`, JASC `.pal`, "PNG strip (1 px)" and "PNG strip (8 px)", and Reset to default palette, plus an Add color button; each has an accessible name.
+- [x] AC-02 (event): When the user loads a palette file, then the palette in the Colors panel is replaced by the file's colors, and the status bar shows "loaded {count} palette colours" (German: "{count} Palettenfarben geladen") with the number of loaded colors.
+- [x] AC-03 (always): Loading a file in Image mode yields the same colors (R, G, B, A) in the same order as Pixel mode's Palette ▸ Import of the same file: the format is detected from the content, not the file name (a `.txt` file with hex lines loads as `.hex`), and the reading rules of `palette-formats` AC-02 – AC-05 apply.
+- [x] AC-04 (error): If a loaded file cannot be read, then the palette stays unchanged and the status bar shows "Load palette failed: {reason}" (German through the same pattern), where the reason is the one Pixel mode's import gives: for a `.gpl`, `.hex` or `.pal` colour line that cannot be read, its 1-based line number; for a `.pal` without its `0100` or count line, the missing header; for more than 256 entries, the limit; for a file without colour entries, "no colours found"; for a file with the PNG signature that cannot be decoded, the decode failure; for a PNG with more than 256 distinct non-transparent colours, "not a palette image". Bytes that are not PNG, `.gpl` or `.pal` are read as `.hex` (`palette-formats` AC-02), so an arbitrary file fails with the `.hex` error for its first unreadable line.
+- [x] AC-05 (event): When the user dismisses the file picker of Load palette… without choosing a file, then the palette stays unchanged and no message is shown.
+- [x] AC-06 (event): When the user chooses an entry of the Save palette submenu, then a file in that format is written as in Pixel mode's export (`palette-formats` AC-10 – AC-12), with the suggested name `palette.gpl`, `palette.hex`, `palette.pal` or `palette.png`, and the status bar shows "saved {count} palette colours" (German: "{count} Palettenfarben gespeichert") with the number of saved entries.
+- [x] AC-07 (always): Saving the palette in any of the five Save palette entries and loading that file again gives the same colors in the same order, with alpha set to 255 for `.gpl`, `.hex` and `.pal`, which store none; for a PNG strip this holds for a palette without duplicate and without fully transparent entries.
+- [x] AC-08 (always): A `.gpl` file with named entries, loaded and saved again as `.gpl`, keeps every entry's name; a swatch with a name shows it in its tooltip and accessible name next to its hex value.
+- [x] AC-09 (event): When the user presses Add color, then the current foreground color, including its alpha, is appended as the last palette entry.
+- [x] AC-10 (error): If the user presses Add color while the palette holds 256 entries and none of them equals the foreground color, then the palette stays unchanged and the status bar says that the palette is full.
+- [x] AC-11 (error): If the user presses Add color while an entry with the same R, G, B and A as the foreground color is already in the palette, then the palette stays unchanged and the status bar says that the color is already in the palette — also when the palette holds 256 entries, because the duplicate is the more useful message.
+- [x] AC-12 (event): When the user chooses Reset to default palette, then the palette becomes the default palette of `color-picker` AC-27 (48 colors), without a confirmation prompt.
+- [x] AC-13 (event): When the app is reloaded, or the desktop app is quit and started again, then Image mode's palette is restored with the same colors, alpha and names in the same order as before.
+- [x] AC-14 (error): If the stored palette cannot be read (not a list, malformed entries), then Image mode starts with the stored entries that are readable, at most the first 256 of them, or with the default palette when none is readable; no error is shown.
+- [x] AC-15 (always): Loading, saving, adding to or resetting the palette adds no undo step to any document and does not mark any document as having unsaved changes.
+- [x] AC-16 (state): While several Image documents are open in tabs, every Image tab shows the same palette, and a change made in one tab shows in the others when they become active.
+- [x] AC-17 (always): No Image-mode palette action changes the palette of a Pixel document or what Pixel mode's palette panel shows, and no Pixel-mode palette action changes Image mode's palette.
+- [x] AC-18 (always): A loaded or extended palette's swatches behave as the default palette's (`color-picker` AC-26): a left click sets the foreground color, a right click or long press the background color, each including alpha, and no context menu opens.
+- [x] AC-19 (state): While the palette holds more swatches than fit in one row of the Colors panel, the palette wraps into more rows with every swatch at least 16 px and no horizontal scrolling; while it needs more than 8 rows, the palette area is 8 rows of swatches high and scrolls vertically on its own, and the foreground / background swatches and the recent-colors row stay visible.
+- [x] AC-20 (option): Where the UI language is German, the palette menu, its entries, the Add color button and the palette's status messages are German.
+- [x] AC-21 (always): Pixel mode reads and writes palette files exactly as before the codecs were shared: the `pincel-core` and `pincel-wasm` palette tests (`.gpl` import / export, `importGpl` / `exportGpl` / `importPalette` / `exportPalette`) and the e2e palette specs stay green with unchanged assertions, and the codec tests of `palette-formats` AC-02 – AC-15 that move to the shared code keep their input bytes and their expected colors, order, alpha, names, errors and line numbers — only the type they are written against may change.
+- [x] AC-22 (state): While the user has not loaded a palette or added a color since the last Reset to default palette (or ever), Image mode stores no palette of its own and shows the built-in default palette of the running app version, so a later change of the built-in default reaches that user; after a load or an add, the stored palette is shown instead.
+- [x] AC-23 (event): When the user dismisses the save dialog of a Save palette entry, then nothing is written and no message is shown.
+- [x] AC-24 (error): If writing the saved palette file fails, then the status bar shows "Save palette failed: {reason}" and the palette is unchanged.
+- [x] AC-25 (error): If storing the changed palette in IndexedDB fails (e.g. the storage quota is full), then the change stays in effect until the app is reloaded and the status bar says that the palette could not be stored.
 
 ## Technical notes
 
@@ -121,31 +121,40 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `the Colors panel has the palette menu, its Save submenu and Add color (AC-01)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-02 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-03 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)`, `a file loads the same colors in the same order as Pixel mode imports it (AC-03)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_detects_the_format_from_the_content` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
-| AC-04 | `an unreadable file keeps the palette and names the reason (AC-04)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_unreadable_file_names_the_reason` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
-| AC-05 | `dismissing the file picker of Load palette… changes nothing and says nothing (AC-05)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-06 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-07 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_then_read_round_trips_every_format` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
-| AC-08 | `.gpl entry names survive load and save and show on the swatches (AC-08)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_gpl_keeps_entry_names` — `crates/pincel-image-wasm/src/palette.rs` | built |        |
-| AC-09 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-10 | `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-11 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)`, `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-12 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-13 | `the palette survives a reload with colors, alpha and names (AC-13)`, `desktop › the palette survives quitting the app (AC-13)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-14 | `an unreadable stored palette falls back silently (AC-14)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-15 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-16 | `every Image tab shows the same palette (AC-16)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-17 | `Image and Pixel palettes do not touch each other (AC-17)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-18 | `loaded swatches pick foreground and background with alpha, without a context menu (AC-18)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-19 | `a 256-color palette wraps, stops at 8 rows and scrolls on its own in a 240 px sidebar (AC-19)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-20 | `the palette menu, Add color and the palette messages are German in the German UI (AC-20)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-21 | `pincel-palette`: `formats::tests::*` (15 codec tests), `gpl::tests::*` (4) — `crates/pincel-palette/src/{formats,gpl}.rs`; `pincel-core`: `codec::gpl::tests::*`, `codec::palette_formats::tests::*` (unchanged assertions); `pincel-wasm`: `tests::import_palette_*`, `tests::export_palette_writes_each_format`, `tests::palette_presets_and_gpl_round_trip_through_undo`, `tests::import_gpl_invalid_file_returns_err_and_keeps_palette`; `pincel-agent`: `tests::tags_palette::palette_*`; e2e `ui/e2e/palette.spec.ts` | built |        |
-| AC-22 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
-| AC-23 | `dismissing the save dialog writes nothing and says nothing (AC-23)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-24 | `a failed write says so and keeps the palette (AC-24)` — `ui/e2e/image-palette.spec.ts` | built |        |
-| AC-25 | `a palette that cannot be stored stays until reload and says so (AC-25)` — `ui/e2e/image-palette-state.spec.ts` | built |        |
+| AC-01 | `the Colors panel has the palette menu, its Save submenu and Add color (AC-01)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-02 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-03 | `loading a .txt file with hex lines replaces the palette and says how many (AC-02, AC-03)`, `a file loads the same colors in the same order as Pixel mode imports it (AC-03)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_detects_the_format_from_the_content` — `crates/pincel-image-wasm/src/palette.rs` | verified | 421d265a |
+| AC-04 | `an unreadable file keeps the palette and names the reason (AC-04)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::read_unreadable_file_names_the_reason` — `crates/pincel-image-wasm/src/palette.rs` | verified | 421d265a |
+| AC-05 | `dismissing the file picker of Load palette… changes nothing and says nothing (AC-05)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-06 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-07 | `each Save palette entry writes its format; loading it back gives the colors (AC-06, AC-07)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_then_read_round_trips_every_format` — `crates/pincel-image-wasm/src/palette.rs` | verified | 421d265a |
+| AC-08 | `.gpl entry names survive load and save and show on the swatches (AC-08)` — `ui/e2e/image-palette.spec.ts`; `palette::tests::write_gpl_keeps_entry_names` — `crates/pincel-image-wasm/src/palette.rs` | verified | 421d265a |
+| AC-09 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-10 | `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-11 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)`, `Add color on a full palette says it is full, unless the color is in it (AC-10, AC-11)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-12 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-13 | `the palette survives a reload with colors, alpha and names (AC-13)`, `desktop › the palette survives quitting the app (AC-13)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-14 | `an unreadable stored palette falls back silently (AC-14)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-15 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-16 | `every Image tab shows the same palette (AC-16)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-17 | `Image and Pixel palettes do not touch each other (AC-17)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-18 | `loaded swatches pick foreground and background with alpha, without a context menu (AC-18)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-19 | `a 256-color palette wraps, stops at 8 rows and scrolls on its own in a 240 px sidebar (AC-19)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-20 | `the palette menu, Add color and the palette messages are German in the German UI (AC-20)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-21 | `pincel-palette`: `formats::tests::*` (15 codec tests), `gpl::tests::*` (4) — `crates/pincel-palette/src/{formats,gpl}.rs`; `pincel-core`: `codec::gpl::tests::*`, `codec::palette_formats::tests::*` (unchanged assertions); `pincel-wasm`: `tests::import_palette_*`, `tests::export_palette_writes_each_format`, `tests::palette_presets_and_gpl_round_trip_through_undo`, `tests::import_gpl_invalid_file_returns_err_and_keeps_palette`; `pincel-agent`: `tests::tags_palette::palette_*`; e2e `ui/e2e/palette.spec.ts` | verified | 87539fa0 |
+| AC-22 | `Add color appends the foreground with its alpha, refuses a duplicate; Reset brings the default back (AC-09, AC-11, AC-12, AC-15, AC-22)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+| AC-23 | `dismissing the save dialog writes nothing and says nothing (AC-23)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-24 | `a failed write says so and keeps the palette (AC-24)` — `ui/e2e/image-palette.spec.ts` | verified | 5cd3e20d |
+| AC-25 | `a palette that cannot be stored stays until reload and says so (AC-25)` — `ui/e2e/image-palette-state.spec.ts` | verified | 5cd3e20d |
+
+## Summary
+
+> Completed: 2026-11-11
+
+- Image mode's Colors panel has a palette menu (Load palette…, Save palette as GIMP `.gpl`, Lospec `.hex`, JASC `.pal`, PNG strip 1 px / 8 px, Reset to default palette) and an Add color button that appends the foreground with its alpha, refusing duplicates before a full palette.
+- The palette is Image-mode app state in the IndexedDB pref `palette:image`, shared by every Image tab, restored after a reload or desktop restart, never on the undo stack; Reset removes the pref so the built-in default of the running version shows.
+- The palette file codecs moved from `pincel-core` into the new shared crate `pincel-palette`; `pincel-core` keeps thin adapters (Pixel mode unchanged), `pincel-image-wasm` exposes `read_palette_file` / `write_palette_file`.
+- `SwatchGrid` shows `.gpl` entry names in tooltip and accessible name and caps the palette at 8 rows with its own vertical scroll; English and German strings.
 
 ## Decisions
 
