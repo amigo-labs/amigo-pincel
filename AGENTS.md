@@ -637,6 +637,8 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 
 - **Harness specs can race Vite's dependency optimizer on Windows.** `ui/e2e/tool-flyout-harness.spec.ts` starts a Vite dev server; in a full parallel run on Windows the optimizer's rename `node_modules/.vite/deps_temp_* → deps` can fail with `EPERM` (a file still held open), and the spec fails before any assertion. It is not a code failure: rerun that spec alone before chasing it.
 - **A shared cargo target dir runs the wrong crate.** Worktrees (or copies) of this repo built with one `CARGO_TARGET_DIR` share the artifact names of `pincel-core` & co., and cargo does not rebuild a same-named crate from another path: `cargo test` in checkout B silently runs checkout A's test binary. Give every checkout its own target dir, and check the test names in the log.
+- **`reqwest` in `pincel-tauri` panics without a rustls crypto provider.** The updater plugin compiles it with `rustls-no-provider`; `Client::new()` / `ClientBuilder::build()` panic ("No provider set") until something installs a process-wide provider, which the updater only does inside its own check. Using `reqwest` elsewhere needs `rustls::crypto::ring::default_provider().install_default()` first — and `rustls` as a direct dependency (`docs/specs/comfyui-connect.md`, Open questions).
+- **A venv's `python.exe` on Windows is a launcher.** It runs the real interpreter as a child process, so `Child::kill()` on it leaves the server running. End a started Python process tree with `taskkill /PID <pid> /T /F` (`src-tauri/src/comfyui/process.rs`).
 
 ---
 
