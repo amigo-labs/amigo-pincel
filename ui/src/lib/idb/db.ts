@@ -17,7 +17,7 @@
 //                             row per face (names only, so listing reads
 //                             no font bytes) and one per file's bytes (v3).
 //   * `ocr_models`         — downloaded OCR language models keyed by
-//                             `[lang, version]` (v3,
+//                             `[lang, version]` (v4,
 //                             docs/specs/ocr-dialog.md).
 //
 // Direct IDB rather than the `idb` npm wrapper — CLAUDE.md §9 forbids
@@ -25,7 +25,7 @@
 // transaction surface we touch is small enough to wrap inline.
 
 const DB_NAME = 'pincel';
-const DB_VERSION = 3;
+const DB_VERSION = 4;
 
 export const STORE_PREFS = 'prefs';
 export const STORE_RECENT_FILES = 'recent_files';
@@ -38,7 +38,7 @@ export const STORE_AUTOSAVE_META = 'autosave_meta';
 // v3 — fonts added through "Add font file…" (docs/specs/system-fonts.md).
 export const STORE_FONT_FACES = 'font_faces';
 export const STORE_FONT_FILES = 'font_files';
-// v3 — OCR language models, rows `{ lang, version, bytes }`.
+// v4 — OCR language models, rows `{ lang, version, bytes }`.
 export const STORE_OCR_MODELS = 'ocr_models';
 
 let openPromise: Promise<IDBDatabase> | null = null;
