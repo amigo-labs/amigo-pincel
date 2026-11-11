@@ -26,11 +26,13 @@ use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
 mod history;
+mod ocr;
 mod vectorize;
 
 #[cfg(test)]
 mod rotate_zoom_tests;
 
+pub use ocr::{OcrModel, OcrProgress, OcrSession, ocr_model, ocr_session};
 pub use vectorize::{VectorizeResult, Vectorizer, vectorizer};
 
 thread_local! {
@@ -899,6 +901,7 @@ mod ts_bindings {
         LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
         TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
         TextLayout::export_all(&cfg).expect("export TextLayout bindings");
+        crate::OcrProgress::export_all(&cfg).expect("export OcrProgress bindings");
     }
 }
 
