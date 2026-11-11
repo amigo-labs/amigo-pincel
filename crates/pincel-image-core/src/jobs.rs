@@ -7,8 +7,8 @@
 //! docs/specs/performance-desktop-jobs.md AC-01).
 
 use crate::codec::{
-    CodecError, OraError, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes, to_tiff_bytes,
-    to_webp_bytes,
+    CodecError, OraError, to_bmp_bytes, to_ico_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes,
+    to_tga_bytes, to_tiff_bytes, to_webp_bytes,
 };
 use crate::document::{Document, ImageBuffer};
 use crate::error::DocumentError;
@@ -59,11 +59,15 @@ pub enum EncodeFormat {
     Bmp,
     /// Flattened lossless TIFF.
     Tiff,
+    /// Flattened RLE-compressed 32-bit TGA.
+    Tga,
+    /// Flattened one-image ICO (at most 256 × 256 px).
+    Ico,
 }
 
 impl EncodeFormat {
     /// The format named `name` (`"ora"`, `"png"`, `"jpeg"`, `"webp"`,
-    /// `"bmp"`, `"tiff"` — the UI's `EncodeFormat`).
+    /// `"bmp"`, `"tiff"`, `"tga"`, `"ico"` — the UI's `EncodeFormat`).
     pub fn parse(name: &str) -> Result<Self, JobError> {
         Ok(match name {
             "ora" => Self::Ora,
@@ -72,6 +76,8 @@ impl EncodeFormat {
             "webp" => Self::Webp,
             "bmp" => Self::Bmp,
             "tiff" => Self::Tiff,
+            "tga" => Self::Tga,
+            "ico" => Self::Ico,
             other => return Err(JobError::UnknownFormat(other.to_string())),
         })
     }
@@ -93,6 +99,8 @@ pub fn encode(
         EncodeFormat::Webp => to_webp_bytes(&compose(doc.layers()))?,
         EncodeFormat::Bmp => to_bmp_bytes(&compose(doc.layers()))?,
         EncodeFormat::Tiff => to_tiff_bytes(&compose(doc.layers()))?,
+        EncodeFormat::Tga => to_tga_bytes(&compose(doc.layers()))?,
+        EncodeFormat::Ico => to_ico_bytes(&compose(doc.layers()))?,
     })
 }
 
@@ -176,6 +184,8 @@ mod tests {
     #[test]
     fn encode_format_parse_unknown_name_returns_err() {
         assert_eq!(EncodeFormat::parse("png").ok(), Some(EncodeFormat::Png));
+        assert_eq!(EncodeFormat::parse("tga").ok(), Some(EncodeFormat::Tga));
+        assert_eq!(EncodeFormat::parse("ico").ok(), Some(EncodeFormat::Ico));
         assert!(matches!(
             EncodeFormat::parse("psd"),
             Err(JobError::UnknownFormat(_))
