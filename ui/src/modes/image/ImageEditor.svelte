@@ -30,6 +30,7 @@
   import { printComposite, type PrintPlacement } from './core/print';
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
   import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
+  import { agentsMenuItems } from '../../lib/agent/access.svelte';
   import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
   import { imageFont } from './core/text-font';
@@ -1588,6 +1589,7 @@
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
         reduceMotionMenuItem(),
         touchGesturesItem(),
+        ...agentsMenuItems(),
         ...imageGenerationItems(),
         { kind: 'separator' },
         languageMenu(),

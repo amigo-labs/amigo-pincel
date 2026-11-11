@@ -25,6 +25,7 @@ use std::collections::HashMap;
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
+mod agent;
 mod fonts;
 mod history;
 mod palette;
@@ -311,6 +312,7 @@ pub fn close_document(handle: u32) {
     CACHES.with(|caches| {
         caches.borrow_mut().remove(&handle);
     });
+    agent::forget(handle);
 }
 
 /// Number of documents open in the core. A diagnostic: tests check that

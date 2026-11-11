@@ -45,6 +45,22 @@ export interface EditorDocument {
    *  runs, the unsaved-changes prompt first when it has unsaved changes
    *  (document-tabs AC-07, AC-08, AC-17). */
   close(): void;
+  /** File ▸ Save As, with every dialog it shows; resolves like `save()`
+   *  (docs/specs/mcp-live-desktop.md AC-10). */
+  saveAs(): Promise<boolean>;
+  /** Run the agent tool `name` with `argsJson` on this document as one
+   *  undo step, under the id `docId`, and refresh the editor like after
+   *  any command; returns the JSON reply of `pincel_agent::live`
+   *  (docs/specs/mcp-live-desktop.md AC-07). The caller makes the tab
+   *  active first. */
+  agentCall(docId: string, name: string, argsJson: string, file: AgentFile | null): string;
+}
+
+/** The file the user picked for an agent tool that reads one. */
+export interface AgentFile {
+  /** The `path` argument of the call. */
+  path: string;
+  bytes: Uint8Array;
 }
 
 /** What an editor does with the documents the shell routes to it

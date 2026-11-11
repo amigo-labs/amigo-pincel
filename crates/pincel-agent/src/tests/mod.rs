@@ -18,6 +18,7 @@ mod image_clone;
 mod image_draw;
 mod image_gradient_spiral;
 mod layers;
+mod live;
 mod pixel_paint;
 mod preview;
 mod rotate_zoom;

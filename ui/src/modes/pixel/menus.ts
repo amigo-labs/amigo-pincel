@@ -12,6 +12,7 @@ import { hint } from '../../lib/shell/shortcuts';
 import { languageMenu } from '../../lib/i18n/locale';
 import { reduceMotionMenuItem } from '../../lib/motion.svelte';
 import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
+import { agentsMenuItems } from '../../lib/agent/access.svelte';
 import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
@@ -317,6 +318,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
         reduceMotionMenuItem(),
         touchGesturesItem(),
+        ...agentsMenuItems(),
         ...imageGenerationItems(),
         { kind: 'separator' },
         languageMenu(),

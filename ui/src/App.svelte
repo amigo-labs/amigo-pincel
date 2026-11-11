@@ -94,6 +94,9 @@
   import { listRecents, type RecentFile } from './lib/idb/recent-files';
   import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
+  import { startLiveHost } from './lib/agent/live-host';
+  import AgentsDialog from './lib/agent/AgentsDialog.svelte';
+  import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
   import { t } from './lib/i18n/index.svelte';
   import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
   import { actionFor, hint, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
@@ -671,6 +674,16 @@
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
+    // MCP clients' tool calls on the open documents (mcp-live-desktop).
+    const stopAgentAccess = startAgentAccess();
+    const stopLiveHost = tauriHost
+      ? startLiveHost({
+          openFile: (opened, mode) =>
+            new Promise<boolean>((resolve) => {
+              void serial(async () => resolve(await routeFile(opened, mode ? { mode } : {})));
+            }),
+        })
+      : null;
     if (tauriHost) {
       // `getCurrentWindow()` throws at once without the window's metadata
       // (a Tauri 1 or partial bridge); starting it inside a promise turns
@@ -737,6 +750,8 @@
     }
     return () => {
       cancelled = true;
+      stopLiveHost?.();
+      stopAgentAccess();
       recovery.stop();
       stopDrops();
       if (unlistenMenu) unlistenMenu();
@@ -839,6 +854,9 @@
   />
 {/if}
 
+{#if agentAccess.dialogOpen}
+  <AgentsDialog onClose={() => (agentAccess.dialogOpen = false)} />
+{/if}
 {#if newDialog}
   {#key newDialog}
     <NewDocumentDialog
