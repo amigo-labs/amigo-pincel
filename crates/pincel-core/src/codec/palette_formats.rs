@@ -12,76 +12,15 @@
 //!
 //! [`read_palette`] detects the format by content ([`detect_palette_format`])
 //! so a mislabeled file still imports. Every reader caps the palette at
-//! [`MAX_PALETTE_ENTRIES`] and refuses a file without colours.
+//! [`crate::MAX_PALETTE_ENTRIES`] and refuses a file without colours.
+//!
+//! The codecs live in `pincel-palette`, shared with Image mode (Decision
+//! Log 2026-11-05); these functions convert its entries to and from the
+//! document [`Palette`].
 
-use std::collections::HashSet;
+use crate::document::{Palette, PaletteEntry, Rgba};
 
-use thiserror::Error;
-
-use super::gpl::{GplError, read_gpl};
-use super::png::{encode_png, import_png};
-use crate::document::{MAX_PALETTE_ENTRIES, Palette, PaletteEntry, Rgba};
-
-/// The 8-byte PNG file signature.
-const PNG_SIGNATURE: [u8; 8] = [0x89, b'P', b'N', b'G', b'\r', b'\n', 0x1a, b'\n'];
-
-/// A palette file format Pincel reads and writes.
-#[derive(Debug, Clone, Copy, PartialEq, Eq)]
-pub enum PaletteFormat {
-    /// GIMP palette (`GIMP Palette` header), see [`super::read_gpl`].
-    Gpl,
-    /// Lospec's plain list, one `RRGGBB` per line.
-    Hex,
-    /// JASC-PAL (Paint Shop Pro, Aseprite, Pyxel).
-    JascPal,
-    /// A palette image: every distinct colour in reading order.
-    Png,
-}
-
-/// Why a palette file could not be read or written.
-#[derive(Debug, Error, PartialEq, Eq)]
-pub enum PaletteFormatError {
-    /// The `.gpl` reader refused the file.
-    #[error(transparent)]
-    Gpl(#[from] GplError),
-    /// A colour line (or the `.pal` count line) cannot be read; 1-based
-    /// line number.
-    #[error("line {0}: not a colour")]
-    BadLine(usize),
-    /// The `.pal` file ends before its `0100` and count lines.
-    #[error("not a JASC palette (missing `0100` or count line)")]
-    MissingPalHeader,
-    /// More entries than a palette can hold.
-    #[error("palette has more than {MAX_PALETTE_ENTRIES} colours")]
-    TooManyEntries,
-    /// The file holds no colour entries.
-    #[error("no colours found")]
-    NoColours,
-    /// A PNG with more than [`MAX_PALETTE_ENTRIES`] distinct colours.
-    #[error("not a palette image (more than {MAX_PALETTE_ENTRIES} colours)")]
-    NotPaletteImage,
-    /// The PNG could not be decoded.
-    #[error("png decode failed: {0}")]
-    Decode(String),
-    /// The PNG strip could not be encoded (empty palette or cell size 0).
-    #[error("png encode failed: {0}")]
-    Encode(String),
-}
-
-/// Detect the palette format from the file content: PNG signature → PNG;
-/// first non-empty line `GIMP Palette` → `.gpl`; `JASC-PAL` → `.pal`;
-/// anything else → `.hex`. A leading UTF-8 BOM and whitespace are ignored.
-pub fn detect_palette_format(bytes: &[u8]) -> PaletteFormat {
-    if bytes.starts_with(&PNG_SIGNATURE) {
-        return PaletteFormat::Png;
-    }
-    let text = String::from_utf8_lossy(bytes);
-    match lines(&text).map(|(_, l)| l).find(|l| !l.is_empty()) {
-        Some("GIMP Palette") => PaletteFormat::Gpl,
-        Some("JASC-PAL") => PaletteFormat::JascPal,
-        _ => PaletteFormat::Hex,
-    }
-}
+pub use pincel_palette::{PaletteFormat, PaletteFormatError, detect_palette_format};
 
 /// Read a palette file of any supported format, detected by content
 /// ([`detect_palette_format`]).
@@ -91,16 +30,7 @@ pub fn detect_palette_format(bytes: &[u8]) -> PaletteFormat {
 /// The format reader's error; [`PaletteFormatError::NoColours`] when the
 /// file has no entries.
 pub fn read_palette(bytes: &[u8]) -> Result<Palette, PaletteFormatError> {
-    let format = detect_palette_format(bytes);
-    if format == PaletteFormat::Png {
-        return palette_from_png(bytes);
-    }
-    let text = String::from_utf8_lossy(bytes);
-    match format {
-        PaletteFormat::Gpl => non_empty(read_gpl(&text)?),
-        PaletteFormat::JascPal => read_jasc_pal(&text),
-        PaletteFormat::Hex | PaletteFormat::Png => read_hex(&text),
-    }
+    pincel_palette::read_palette(bytes).map(to_palette)
 }
 
 /// Read a Lospec `.hex` palette: one `RRGGBB` (optionally `#RRGGBB`) per
@@ -113,30 +43,13 @@ pub fn read_palette(bytes: &[u8]) -> Result<Palette, PaletteFormatError> {
 /// [`PaletteFormatError::TooManyEntries`] above 256 entries,
 /// [`PaletteFormatError::NoColours`] for an empty file.
 pub fn read_hex(text: &str) -> Result<Palette, PaletteFormatError> {
-    let mut colors = Vec::new();
-    for (n, line) in lines(text) {
-        if line.is_empty() || line.starts_with(';') || line.starts_with("//") {
-            continue;
-        }
-        let digits = line.strip_prefix('#').unwrap_or(line);
-        if digits.len() != 6 || !digits.bytes().all(|b| b.is_ascii_hexdigit()) {
-            return Err(PaletteFormatError::BadLine(n));
-        }
-        let v = u32::from_str_radix(digits, 16).map_err(|_| PaletteFormatError::BadLine(n))?;
-        let [_, r, g, b] = v.to_be_bytes();
-        push(&mut colors, Rgba::new(r, g, b, 255))?;
-    }
-    non_empty(Palette::from_entries(colors))
+    pincel_palette::read_hex(text).map(to_palette)
 }
 
 /// Write `palette` as Lospec `.hex`: one lowercase `rrggbb` line per entry,
 /// alpha and names dropped.
 pub fn write_hex(palette: &Palette) -> String {
-    palette
-        .colors
-        .iter()
-        .map(|e| format!("{:02x}{:02x}{:02x}\n", e.rgba.r, e.rgba.g, e.rgba.b))
-        .collect()
+    pincel_palette::write_hex(&from_palette(palette))
 }
 
 /// Read a JASC `.pal` palette (`JASC-PAL`, `0100`, a count, then `R G B`
@@ -149,40 +62,13 @@ pub fn write_hex(palette: &Palette) -> String {
 /// [`PaletteFormatError::TooManyEntries`] above 256 entries,
 /// [`PaletteFormatError::NoColours`] without colour lines.
 pub fn read_jasc_pal(text: &str) -> Result<Palette, PaletteFormatError> {
-    let mut rows = lines(text).filter(|(_, l)| !l.is_empty());
-    if rows.next().map(|(_, l)| l) != Some("JASC-PAL") {
-        return Err(PaletteFormatError::MissingPalHeader);
-    }
-    rows.next().ok_or(PaletteFormatError::MissingPalHeader)?;
-    let (n, count) = rows.next().ok_or(PaletteFormatError::MissingPalHeader)?;
-    count
-        .parse::<usize>()
-        .map_err(|_| PaletteFormatError::BadLine(n))?;
-    let mut colors = Vec::new();
-    for (n, line) in rows {
-        let values = line
-            .split_whitespace()
-            .map(str::parse::<u8>)
-            .collect::<Result<Vec<_>, _>>()
-            .map_err(|_| PaletteFormatError::BadLine(n))?;
-        let rgba = match values[..] {
-            [r, g, b] => Rgba::new(r, g, b, 255),
-            [r, g, b, a] => Rgba::new(r, g, b, a),
-            _ => return Err(PaletteFormatError::BadLine(n)),
-        };
-        push(&mut colors, rgba)?;
-    }
-    non_empty(Palette::from_entries(colors))
+    pincel_palette::read_jasc_pal(text).map(to_palette)
 }
 
 /// Write `palette` as a classic three-column JASC `.pal` (CRLF line ends),
 /// alpha and names dropped.
 pub fn write_jasc_pal(palette: &Palette) -> String {
-    let mut out = format!("JASC-PAL\r\n0100\r\n{}\r\n", palette.len());
-    for e in &palette.colors {
-        out.push_str(&format!("{} {} {}\r\n", e.rgba.r, e.rgba.g, e.rgba.b));
-    }
-    out
+    pincel_palette::write_jasc_pal(&from_palette(palette))
 }
 
 /// Read a palette image: pixels top to bottom, left to right; fully
@@ -195,20 +81,7 @@ pub fn write_jasc_pal(palette: &Palette) -> String {
 /// [`PaletteFormatError::NotPaletteImage`] above 256 distinct colours,
 /// [`PaletteFormatError::NoColours`] for a fully transparent image.
 pub fn palette_from_png(bytes: &[u8]) -> Result<Palette, PaletteFormatError> {
-    let image = import_png(bytes).map_err(|e| PaletteFormatError::Decode(e.to_string()))?;
-    let (pixels, _) = image.rgba.as_chunks::<4>();
-    let mut seen = HashSet::new();
-    let mut colors = Vec::new();
-    for &[r, g, b, a] in pixels {
-        if a == 0 || !seen.insert([r, g, b, a]) {
-            continue;
-        }
-        if colors.len() >= MAX_PALETTE_ENTRIES {
-            return Err(PaletteFormatError::NotPaletteImage);
-        }
-        colors.push(PaletteEntry::new(Rgba::new(r, g, b, a)));
-    }
-    non_empty(Palette::from_entries(colors))
+    pincel_palette::palette_from_png(bytes).map(to_palette)
 }
 
 /// Write `palette` as a one-row PNG strip, `entries × cell` by `cell`
@@ -218,57 +91,45 @@ pub fn palette_from_png(bytes: &[u8]) -> Result<Palette, PaletteFormatError> {
 ///
 /// [`PaletteFormatError::Encode`] for an empty palette or `cell == 0`.
 pub fn palette_to_png(palette: &Palette, cell: u32) -> Result<Vec<u8>, PaletteFormatError> {
-    if palette.is_empty() || cell == 0 {
-        return Err(PaletteFormatError::Encode(
-            "a strip needs at least one colour and a cell size of 1 px or more".to_owned(),
-        ));
-    }
-    let entries = u32::try_from(palette.len())
-        .map_err(|_| PaletteFormatError::Encode("palette too large".to_owned()))?;
-    let width = entries
-        .checked_mul(cell)
-        .ok_or_else(|| PaletteFormatError::Encode("strip too large".to_owned()))?;
-    let mut row = Vec::with_capacity(width as usize * 4);
-    for e in &palette.colors {
-        let Rgba { r, g, b, a } = e.rgba;
-        for _ in 0..cell {
-            row.extend_from_slice(&[r, g, b, a]);
-        }
-    }
-    let pixels = row.repeat(cell as usize);
-    encode_png(&pixels, width, cell).map_err(|e| PaletteFormatError::Encode(e.to_string()))
+    pincel_palette::palette_to_png(&from_palette(palette), cell)
 }
 
-/// `text`'s lines with 1-based numbers, a leading BOM removed and each line
-/// trimmed (`str::lines` already accepts CRLF).
-fn lines(text: &str) -> impl Iterator<Item = (usize, &str)> {
-    text.trim_start_matches('\u{feff}')
-        .lines()
-        .enumerate()
-        .map(|(i, l)| (i + 1, l.trim()))
+/// `pincel-palette`'s entries as a document [`Palette`].
+pub(super) fn to_palette(entries: Vec<pincel_palette::PaletteEntry>) -> Palette {
+    Palette::from_entries(
+        entries
+            .into_iter()
+            .map(|e| {
+                let pincel_palette::Rgba { r, g, b, a } = e.rgba;
+                PaletteEntry {
+                    rgba: Rgba::new(r, g, b, a),
+                    name: e.name,
+                }
+            })
+            .collect(),
+    )
 }
 
-/// Append `rgba`, refusing to grow past [`MAX_PALETTE_ENTRIES`].
-fn push(colors: &mut Vec<PaletteEntry>, rgba: Rgba) -> Result<(), PaletteFormatError> {
-    if colors.len() >= MAX_PALETTE_ENTRIES {
-        return Err(PaletteFormatError::TooManyEntries);
-    }
-    colors.push(PaletteEntry::new(rgba));
-    Ok(())
-}
-
-/// `palette`, or [`PaletteFormatError::NoColours`] when it is empty.
-fn non_empty(palette: Palette) -> Result<Palette, PaletteFormatError> {
-    if palette.is_empty() {
-        Err(PaletteFormatError::NoColours)
-    } else {
-        Ok(palette)
-    }
+/// A document [`Palette`] as `pincel-palette`'s entries.
+pub(super) fn from_palette(palette: &Palette) -> Vec<pincel_palette::PaletteEntry> {
+    palette
+        .colors
+        .iter()
+        .map(|e| {
+            let Rgba { r, g, b, a } = e.rgba;
+            pincel_palette::PaletteEntry {
+                rgba: pincel_palette::Rgba::new(r, g, b, a),
+                name: e.name.clone(),
+            }
+        })
+        .collect()
 }
 
 #[cfg(test)]
 mod tests {
     use super::*;
+    use crate::codec::png::{encode_png, import_png};
+    use pincel_palette::GplError;
 
     fn rgb(p: &Palette) -> Vec<(u8, u8, u8)> {
         p.colors

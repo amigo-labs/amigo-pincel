@@ -7,16 +7,27 @@ use std::sync::Arc;
 use super::SetPixels;
 use crate::document::Document;
 use crate::geometry::Point;
-use crate::tools::{Text, TextAlign, TextLayout, TextStyle};
+use crate::tools::{FontFace, Text, TextAlign, TextLayout, TextStyle};
 
 /// The font a live text is drawn with: its registry id (as `draw_text` names
-/// it) and its bytes. Two fonts are equal when their ids are.
+/// it), its bytes and the face inside them. Two fonts are equal when their
+/// ids are.
 #[derive(Debug, Clone)]
 pub struct LiveFont {
     /// The font id `draw_text` uses.
     pub id: u32,
     /// The TrueType / OpenType bytes.
     pub bytes: Arc<[u8]>,
+    /// The face inside a collection; 0 for a single-face file
+    /// (docs/specs/system-fonts.md AC-08).
+    pub index: u32,
+}
+
+impl LiveFont {
+    /// The face this font names.
+    pub fn face(&self) -> FontFace<'_> {
+        FontFace::new(&self.bytes, self.index)
+    }
 }
 
 impl PartialEq for LiveFont {
@@ -51,7 +62,7 @@ impl LiveText {
             self.left,
             self.top,
             &self.style,
-            &self.font.bytes,
+            self.font.face(),
         )
     }
 
@@ -59,7 +70,7 @@ impl LiveText {
     /// nothing (empty, only whitespace, off the canvas).
     pub(crate) fn draw(&self, layer: usize, doc: &Document) -> Option<SetPixels> {
         let (text, _) = self.anchored()?;
-        text.render(layer, doc, &self.font.bytes)
+        text.render(layer, doc, self.font.face())
     }
 }
 
@@ -72,7 +83,7 @@ pub fn text_box(
     left: f32,
     top: f32,
     style: &TextStyle,
-    font: &[u8],
+    font: FontFace<'_>,
 ) -> Option<(Text, TextLayout)> {
     let width = Text::new(content, Point::new(left, top), style.clone())
         .layout_lines(font)?

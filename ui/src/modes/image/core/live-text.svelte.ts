@@ -20,8 +20,15 @@ import {
   type CaretMove,
   type Pt,
 } from '../tools/text-caret';
-import { ensureFont, loadedFontId } from './controller';
 import { beginText, cancelLive, commitLive, editLive } from './live';
+import {
+  currentFace,
+  ensureFace,
+  fontEditPending,
+  fontEditsDone,
+  imageFont,
+  loadedFace,
+} from './text-font';
 import { core, type LiveObjectSpec, type TextLayout } from './wasm';
 
 /** The core's live text. */
@@ -79,15 +86,15 @@ export function textView(): TextView | null {
     return { text: obj.text, layout, box: boxOf(layout, obj.x, obj.y, obj.size) };
   }
   const at = textEdit.pending;
-  const fontId = loadedFontId();
-  if (at === null || fontId === null) return null;
-  const layout = core.textLayout(fontId, {
+  const face = loadedFace();
+  if (at === null || face === null) return null;
+  const layout = core.textLayout(face.id, {
     text: '',
     x: at[0],
     y: at[1],
     size: tool.fontSize,
-    bold: tool.textBold,
-    italic: tool.textItalic,
+    bold: face.synthBold,
+    italic: face.synthItalic,
     align: tool.textAlign,
   });
   return { text: '', layout, box: boxOf(layout, at[0], at[1], tool.fontSize) };
@@ -129,7 +136,8 @@ function openBox(p: Pt): void {
 /**
  * A Text-tool press that hits no open box: closes an empty box and opens a
  * new one at `p` once the font is loaded (AC-01, AC-19). A press while the
- * font loads moves the pending box.
+ * font loads moves the pending box. The press asks for an undecided
+ * local-font permission (docs/specs/system-fonts.md AC-22).
  */
 export async function pressText(p: Pt): Promise<void> {
   if (textEdit.loading !== null) {
@@ -137,13 +145,13 @@ export async function pressText(p: Pt): Promise<void> {
     return;
   }
   textEdit.pending = null;
-  if (loadedFontId() !== null) {
+  if (currentFace() !== null) {
     openBox(p);
     return;
   }
   textEdit.loading = p;
   try {
-    await ensureFont();
+    await ensureFace(true);
   } catch {
     textEdit.loading = null;
     editor.notice = t('img.fontFailed');
@@ -192,12 +200,12 @@ export function typeText(raw: string): void {
     return;
   }
   const at = textEdit.pending;
-  const fontId = loadedFontId();
-  if (at === null || fontId === null) return;
+  const face = currentFace() ?? loadedFace();
+  if (at === null || face === null) return;
   known = s;
   textEdit.pending = null;
   endBurst();
-  if (beginText(at, s, fontId)) setSel(charsOf(s).length);
+  if (beginText(at, s, face)) setSel(charsOf(s).length);
 }
 
 /** Backspace (`forward` false) or Delete (AC-03). */
@@ -252,8 +260,16 @@ export function closeTextBox(): boolean {
   return open;
 }
 
-/** Commits the live text, or closes an empty box (AC-11). */
+/** Commits the live text, or closes an empty box (AC-11); a font change
+ *  still being read is waited for (docs/specs/system-fonts.md AC-18). */
 export function commitText(): void {
+  if (fontEditPending()) {
+    void fontEditsDone().then(() => {
+      commitLive();
+      closeTextBox();
+    });
+    return;
+  }
   commitLive();
   closeTextBox();
 }
@@ -298,6 +314,11 @@ export function installLiveText(): void {
         setSel(end);
       }
     });
+  });
+  // Selecting the Text tool needs its family: a missing one is announced
+  // (docs/specs/system-fonts.md AC-11).
+  $effect(() => {
+    if (tool.kind === 'text') untrack(() => void imageFont.needed());
   });
   // Another tool or another document drops an empty or loading box (AC-19).
   $effect(() => {

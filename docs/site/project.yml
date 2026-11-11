@@ -56,6 +56,16 @@ launch:
   label: { en: Open the editor, de: Editor öffnen }
   url: https://pincel.amigo-labs.dev/app/
 
+screenshots:
+  - src: screenshots/pixel-mode.png
+    alt:
+      en: Pixel mode with the sample sprite open — tools on the left, palette, layers and the animation timeline with four frames
+      de: Pixel-Modus mit dem Beispiel-Sprite – Werkzeuge links, Palette, Ebenen und die Animations-Zeitleiste mit vier Frames
+  - src: screenshots/image-mode.png
+    alt:
+      en: Image mode with the sample postcard open — brush options on top, three layers with opacity and blend mode on the right
+      de: Bild-Modus mit der Beispiel-Postkarte – Pinsel-Optionen oben, drei Ebenen mit Deckkraft und Mischmodus rechts
+
 features:
   - title: { en: The canvas, de: Die Arbeitsfläche }
     text:
@@ -212,6 +222,12 @@ pages:
       en: "For tool makers: the editor as a framework-agnostic npm package — not published yet."
       de: "Für Tool-Entwickler: der Editor als Framework-unabhängiges npm-Paket – noch nicht veröffentlicht."
     body: { en: pages/embed.md, de: pages/embed.de.md }
+  - slug: mcp
+    title: { en: Use Pincel from an AI agent, de: Pincel aus einem KI-Agenten nutzen }
+    summary:
+      en: "pincel-mcp: a headless MCP server that lets Claude and other agents draw, preview and export."
+      de: "pincel-mcp: ein MCP-Server ohne Oberfläche, mit dem Claude und andere Agenten zeichnen, Vorschauen ansehen und exportieren."
+    body: { en: pages/mcp.md, de: pages/mcp.de.md }
   - slug: about
     title: { en: About Pincel, de: Über Pincel }
     summary:

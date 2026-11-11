@@ -14,179 +14,46 @@
 </p>
 <!-- /amigo-labs header -->
 
-Pincel is a pixel-art and image editor in one app. For pixel art and game
-assets it aims at the feature level of [Aseprite](https://www.aseprite.org/);
-for everything else — photos, screenshots, UI mockups, artwork — it is a
-paint.net-style layered image editor. One Svelte UI and two Rust cores ship
-two ways: as an installable PWA (WebAssembly) and as a native desktop app
-(Tauri 2).
+Pincel is a pixel-art and image editor in one app. **Pixel mode** makes sprites, tilemaps and animations and reads and writes the `.aseprite` format. **Image mode** edits layered images — photos, screenshots, mockups — with brushes, selections, effects and adjustments. The mode follows the file you open. It runs as an installable web app and as a desktop app.
 
-- **Pixel mode** makes sprites, tilemaps and animations and reads and writes
-  the `.aseprite` file format, including tilemaps, tilesets, slices, and
-  animation tags.
-- **Image mode** (formerly the sister project `amigo-fineliner`) edits
-  layered raster images with brushes, shapes, text, selections,
-  transforms, effects and adjustments; it opens PNG / JPEG / WebP / BMP /
-  GIF / TIFF, saves layered OpenRaster (`.ora`) and exports PNG / JPEG /
-  WebP.
-
-The mode follows the document: `.aseprite` opens in Pixel mode, images open
-in Image mode, and the New dialog offers both.
-
-> **Status:** Phase 1, pre-1.0. Open work is tracked as feature specs, indexed
-> in [`docs/specs/README.md`](docs/specs/README.md).
-
-- **What to build** lives in the spec: [`docs/specs/pincel.md`](docs/specs/pincel.md)
-- **How to build it** lives in the working agreement: [`AGENTS.md`](AGENTS.md)
-- **What is next**: feature specs in [`docs/specs/README.md`](docs/specs/README.md)
-
-[![Release Please](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml/badge.svg)](https://github.com/amigo-labs/amigo-pincel/actions/workflows/release-please.yml)
-
-## Why Pincel
-
-- **`.aseprite` is the source of truth.** No proprietary format, no
-  lock-in. Open files in Aseprite or any tool in that ecosystem
-  (Godot import, LDtk, Phaser, custom engines).
-- **Game-asset workflow first.** First-class tilemaps with tileset
-  editing, slices with 9-patch + pivots, animation tags. Engine
-  hot-reload via file watching (`amigo_assets`).
-- **A real image editor next to it.** Layers, blend modes, soft brushes
-  with pen pressure and tilt, selections, transforms and the full effects
-  and adjustments set for any PNG, JPEG, WebP or TIFF — no second app for
-  the screenshot, the photo or the mockup. Effects are shared by both
-  modes.
-- **Document state in pure Rust memory.** The canvas is render-target
-  only — never a data source. Avoids the architectural failure mode
-  that forced Piskel into a multi-year rewrite (browser
-  anti-fingerprinting silently corrupting canvas readbacks).
-- **PWA-first, mobile-aware.** Modern `PointerEvent` end-to-end, pen
-  pressure / tilt from day one, pinch-to-zoom standard. iPad with
-  Apple Pencil is a reference target.
-- **Embeddable.** `@amigo-labs/pincel` ships Pixel mode as an npm package
-  with a stable public API from Phase 1 — embed Pincel into level
-  editors, asset pipelines, or other tools.
+![Pixel mode with a sprite open](docs/site/screenshots/pixel-mode.png)
 
 ## Try it
 
-- **Web (PWA):** https://pincel.amigo-labs.dev/app
-- **Desktop installers:** the latest [GitHub release][releases] has
-  `pincel-windows-x64-setup.exe` (or `.msi`), `pincel-macos-universal.dmg`
-  and `pincel-linux-x64.AppImage` (or `.deb` / `.rpm`; run the AppImage
-  with `--install` to add it to your desktop). The installed app updates
-  itself (Help → Check for Updates…). Setup and releases are described
-  in [`docs/RELEASING.md`](docs/RELEASING.md).
+- **In the browser:** https://pincel.amigo-labs.dev/app
+- **Desktop:** installers for Windows, macOS and Linux are on the [latest release](https://github.com/amigo-labs/amigo-pincel/releases/latest). The installed app updates itself.
 
-[releases]: https://github.com/amigo-labs/amigo-pincel/releases/latest
+## Documentation
 
-## Use Pincel from an AI agent (MCP)
+For users, on [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/):
 
-`pincel-mcp` is a headless [Model Context Protocol](https://modelcontextprotocol.io)
-server: Claude Code, Claude Desktop or any MCP client can create, draw,
-preview and export Pixel documents (`.aseprite`, PNG, sprite sheets) and
-Image documents (PNG, JPEG, WebP, BMP, GIF, TIFF, OpenRaster `.ora`)
-through it. Documents live in memory; files are read and written only
-inside the workspace directory.
+- [About Pincel](https://amigo-labs.dev/pincel/about/) — what it is for and where it is going
+- [Use Pincel from an AI agent (MCP)](https://amigo-labs.dev/pincel/mcp/)
+- [Embed the editor](https://amigo-labs.dev/pincel/embed/) in your own tool
 
-Install it with Cargo (from a checkout of this repository):
+For contributors, in this repository:
 
-```bash
-cargo install --path crates/pincel-mcp
-```
+- [`docs/specs/pincel.md`](docs/specs/pincel.md) — the design: what to build and why
+- [`docs/specs/README.md`](docs/specs/README.md) — feature specs: what is next
+- [`AGENTS.md`](AGENTS.md) — how to build it: repository layout, conventions, all commands
+- [`docs/RELEASING.md`](docs/RELEASING.md) — releases
 
-or download `pincel-mcp-windows-x64.exe`, `pincel-mcp-macos-universal`
-or `pincel-mcp-linux-x64` from the latest [GitHub release][releases],
-rename it to `pincel-mcp` (`pincel-mcp.exe` on Windows), make it
-executable (`chmod +x`) and put it on your `PATH`.
+## Development
 
-Register it with Claude Code, with the current project as the workspace:
+You need Rust (stable) with the `wasm32-unknown-unknown` target, [`wasm-pack`](https://rustwasm.github.io/wasm-pack/), Node 22 and [`pnpm`](https://pnpm.io/) 10. The desktop shell also needs the [Tauri 2 prerequisites](https://v2.tauri.app/start/prerequisites/).
 
 ```bash
-claude mcp add pincel -- pincel-mcp --workspace .
-```
-
-Options: `--workspace <dir>` (default: the current directory) and
-`--read-only` (no `doc.save` / `export.*`). The tools are named
-`area.verb` (`doc.new`, `draw.pixels`, `doc.preview`, `export.png`, …);
-`tools/list` describes each one. Resources: `pincel://guide` (how to use
-the tools, for the model), `pincel://effects` (effect and adjustment
-parameters) and the built-in palettes at `pincel://palettes/{id}`.
-
-## Repository layout
-
-```
-crates/pincel-core/      Pixel mode core: document model, commands + undo,
-                         compose(), aseprite codec. No I/O, no platform deps.
-crates/pincel-image-core/   Image mode core: layered RGBA documents, brush
-                         engine, selections, transforms, image codecs.
-crates/pincel-effects/   Effects + adjustments shared by both cores.
-crates/aseprite-writer/  Standalone .aseprite encoder (MIT OR Apache-2.0),
-                         independent of Pincel types.
-crates/pincel-wasm/      wasm-bindgen bindings for pincel-core (cdylib).
-crates/pincel-image-wasm/   wasm-bindgen bindings for pincel-image-core (cdylib).
-crates/pincel-agent/     Agent tools (MCP tool layer) over both cores, no I/O.
-crates/pincel-mcp/       `pincel-mcp` binary: MCP over stdio, workspace sandbox.
-ui/                      Svelte 5 + Vite frontend (PWA + Tauri webview):
-                         src/App.svelte is the two-mode shell,
-                         src/modes/pixel/ and src/modes/image/ the editors.
-src-tauri/               Native desktop shell (Tauri 2).
-cloudflare/              Root files of the web deploy: redirects to amigo-labs.dev/pincel, headers, 404.
-docs/specs/              Design specifications.
-```
-
-## Prerequisites
-
-- Rust (stable) with the `wasm32-unknown-unknown` target:
-  `rustup target add wasm32-unknown-unknown`
-- [`wasm-pack`](https://rustwasm.github.io/wasm-pack/) (e.g. `cargo install wasm-pack`)
-- Node 22 + [`pnpm`](https://pnpm.io/) 10
-- For the native shell only: the [Tauri 2 system prerequisites](https://v2.tauri.app/start/prerequisites/)
-  (on Linux: WebKitGTK / GTK3 dev libraries)
-
-## Clone → running
-
-Build order matters: `ui/package.json` links `@amigo-labs/pincel-wasm` from
-`crates/pincel-wasm/pkg/` (a generated, gitignored directory), so the wasm
-package must exist **before** `pnpm install`.
-
-```bash
-git clone https://github.com/amigo-labs/amigo-pincel
-cd amigo-pincel
-
-# 1. Rust core — check the library crates build and pass tests
-cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm
-
-# 2. Build the wasm packages (creates crates/{pincel,pincel-image}-wasm/pkg/)
 cd ui
-pnpm wasm:build
-
-# 3. Install UI dependencies and start the dev server
+pnpm wasm:build     # first: the UI links the generated wasm packages
 pnpm install
-pnpm dev          # → http://localhost:5173/app/ (web base path; Tauri dev serves /)
+pnpm dev            # http://localhost:5173/app/
+pnpm tauri:dev      # the desktop app
 ```
 
-For the native app, after the steps above: `pnpm tauri:dev` (from `ui/`).
-
-## Common commands
-
-| Command | Where | What |
-|---------|-------|------|
-| `cargo check` | repo root | build all Rust crates (needs GTK/WebKit libs for `pincel-tauri`) |
-| `cargo test -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm` | repo root | test the library crates (what CI runs) |
-| `cargo clippy -p pincel-core -p pincel-effects -p aseprite-writer -p pincel-wasm -p pincel-image-core -p pincel-image-wasm --all-targets -- -D warnings` | repo root | lint (CI-enforced; `--workspace` additionally needs the GTK/WebKit system libraries) |
-| `cargo fmt` | repo root | format |
-| `pnpm wasm:build` | `ui/` | dev wasm builds into `crates/pincel-wasm/pkg/` and `crates/pincel-image-wasm/pkg/` |
-| `pnpm dev` | `ui/` | Vite dev server |
-| `pnpm lint` / `pnpm check` / `pnpm build` | `ui/` | ESLint / svelte-check / production bundle |
-| `pnpm tauri:dev` / `pnpm tauri:build` | `ui/` | native dev / release binary |
-
-CI (`.github/workflows/ci.yml`) runs the Rust gates, a Tauri check, and the
-UI lint/check/build on every push and pull request.
+Tests and lints: `cargo test`, `cargo clippy` and `pnpm lint && pnpm check && pnpm build && pnpm test:e2e`, with the exact crate lists in [`AGENTS.md`](AGENTS.md) §10.
 
 ## License
 
-Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at
-your option.
+Dual-licensed under [MIT](LICENSE-MIT) or [Apache-2.0](LICENSE-APACHE), at your option.
 
-"Aseprite" is a trademark of Igara Studio S.A. Pincel is not affiliated with
-or endorsed by Igara Studio; it independently implements the publicly
-documented `.aseprite` file format.
+"Aseprite" is a trademark of Igara Studio S.A. Pincel is not affiliated with or endorsed by Igara Studio; it independently implements the publicly documented `.aseprite` file format.

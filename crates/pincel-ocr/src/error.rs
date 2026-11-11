@@ -1,4 +1,5 @@
-//! Error kinds of `pincel-ocr` (docs/specs/ocr-recognizer.md AC-02, AC-07).
+//! Error kinds of `pincel-ocr` (docs/specs/ocr-recognizer.md AC-02, AC-07;
+//! docs/specs/ocr-page.md AC-07, AC-10).
 
 use thiserror::Error;
 
@@ -38,4 +39,21 @@ pub enum RecognizeError {
     /// product overflows `usize`.
     #[error("bad image: buffer length does not match width × height × 4")]
     BadImage,
+}
+
+/// Why a page image could not be read (docs/specs/ocr-page.md AC-07,
+/// AC-10).
+#[derive(Debug, Clone, PartialEq, Eq, Error)]
+pub enum PageError {
+    /// The pixel buffer's length is not `width × height × 4`, or that
+    /// product overflows `usize`.
+    #[error("bad image: buffer length does not match width × height × 4")]
+    BadImage,
+    /// The page is larger than Image mode opens: more than 16 384 px on a
+    /// side or more than 8192 × 8192 px of area.
+    #[error("image too large")]
+    TooLarge,
+    /// The caller answered a progress report with [`Control::Cancel`](crate::Control::Cancel).
+    #[error("cancelled")]
+    Cancelled,
 }

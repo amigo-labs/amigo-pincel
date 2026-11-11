@@ -53,7 +53,6 @@ paint.net tools and tool options. After C (shared options bar and Colors panel).
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| D4 | [image-palette-gradient](image-palette-gradient.md) | Image | L | color-picker | Load / save / reset Image palette; new crate pincel-palette |
 
 ### E — Text and fonts
 
@@ -159,6 +158,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [image-layer-groups-ora](image-layer-groups-ora.md)
 - [image-layer-groups](image-layer-groups.md)
 - [image-live-text](image-live-text.md)
+- [image-palette-gradient](image-palette-gradient.md)
 - [image-palette-gradient-spiral](image-palette-gradient-spiral.md)
 - [image-shapes-curves](image-shapes-curves.md)
 - [image-shapes-curves-shapes](image-shapes-curves-shapes.md)

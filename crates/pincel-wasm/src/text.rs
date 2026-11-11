@@ -3,9 +3,11 @@
 //!
 //! Fonts are uploaded as raw TrueType / OpenType bytes via
 //! [`register_font`] and referenced by id so a 400 KB face does not cross
-//! the boundary on every keystroke of the text dialog. The registry is a
-//! thread-local `Vec` — wasm is single-threaded and the ids live as long
-//! as the module.
+//! the boundary on every keystroke of the text dialog. The registry is
+//! thread-local — wasm is single-threaded and the ids live as long as the
+//! module. A registered font is one face: a file plus the index of the face
+//! inside it (a collection holds several, docs/specs/system-fonts.md AC-08);
+//! each file is kept once.
 
 use std::cell::RefCell;
 
@@ -18,29 +20,52 @@ use wasm_bindgen::prelude::*;
 use crate::events::Event;
 use crate::{ComposeFrame, Document};
 
+/// The registered faces.
+#[derive(Default)]
+struct Fonts {
+    /// Font files, each byte blob once.
+    files: Vec<Vec<u8>>,
+    /// Faces by the id `register_font` hands out: index into `files`, face
+    /// index.
+    faces: Vec<(usize, u32)>,
+}
+
 thread_local! {
-    /// Registered font blobs, indexed by the id `register_font` hands out.
-    static FONTS: RefCell<Vec<Vec<u8>>> = const { RefCell::new(Vec::new()) };
+    static FONTS: RefCell<Fonts> = RefCell::new(Fonts::default());
 }
 
 /// Register a TrueType / OpenType font and return its id for
-/// [`Document::draw_text`]. Re-registering byte-identical data returns the
-/// existing id.
+/// [`Document::draw_text`]. `face_index` names a face inside a font
+/// collection (`.ttc` / `.otc`) and defaults to 0. Re-registering
+/// byte-identical data with the same index returns the existing id.
 #[wasm_bindgen(js_name = registerFont)]
-pub fn register_font(data: &[u8]) -> u32 {
+pub fn register_font(data: &[u8], face_index: Option<u32>) -> u32 {
+    let index = face_index.unwrap_or(0);
     FONTS.with(|fonts| {
         let mut fonts = fonts.borrow_mut();
-        if let Some(id) = fonts.iter().position(|f| f == data) {
+        let file = match fonts.files.iter().position(|f| f == data) {
+            Some(file) => file,
+            None => {
+                fonts.files.push(data.to_vec());
+                fonts.files.len() - 1
+            }
+        };
+        if let Some(id) = fonts.faces.iter().position(|&f| f == (file, index)) {
             return id as u32;
         }
-        fonts.push(data.to_vec());
-        (fonts.len() - 1) as u32
+        fonts.faces.push((file, index));
+        (fonts.faces.len() - 1) as u32
     })
 }
 
-fn font_bytes(font_id: u32) -> Result<Vec<u8>, String> {
+/// The bytes and face index of the registered font `font_id`.
+fn font_face(font_id: u32) -> Result<(Vec<u8>, u32), String> {
     FONTS
-        .with(|fonts| fonts.borrow().get(font_id as usize).cloned())
+        .with(|fonts| {
+            let fonts = fonts.borrow();
+            let &(file, index) = fonts.faces.get(font_id as usize)?;
+            Some((fonts.files[file].clone(), index))
+        })
         .ok_or_else(|| format!("unknown font id {font_id}"))
 }
 
@@ -189,7 +214,7 @@ impl Document {
     /// a missing cel (`draw_text` on the document, `preview_text` on its
     /// clone).
     fn text_command(&self, args: &TextArgs<'_>) -> Result<(LayerId, FrameIndex, DrawText), String> {
-        let font = font_bytes(args.font_id)?;
+        let (font, face_index) = font_face(args.font_id)?;
         let layer = self.edit_target_layer()?;
         let frame = self.current_frame;
         if !matches!(
@@ -202,7 +227,8 @@ impl Document {
         Ok((
             layer,
             frame,
-            DrawText::new(layer, frame, (args.x, args.y), args.text, font, args.style),
+            DrawText::new(layer, frame, (args.x, args.y), args.text, font, args.style)
+                .with_face_index(face_index),
         ))
     }
 }
@@ -227,16 +253,49 @@ mod tests {
             .count()
     }
 
+    /// Pincel Test Serif (OFL, a renamed Liberation Serif subset): its Bold
+    /// face, and a collection of its Regular (0) and Bold (1) faces.
+    const SERIF_BOLD: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../pincel-core/tests/fixtures/PincelTestSerif-Bold.ttf"
+    ));
+    const SERIF_TTC: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../pincel-core/tests/fixtures/PincelTestSerif.ttc"
+    ));
+
+    #[test]
+    fn register_font_face_index_names_a_face_of_a_collection() {
+        let face0 = register_font(SERIF_TTC, None);
+        assert_eq!(register_font(SERIF_TTC, Some(0)), face0);
+        let face1 = register_font(SERIF_TTC, Some(1));
+        assert_ne!(face1, face0);
+        assert_eq!(register_font(SERIF_TTC, Some(1)), face1);
+        let bold = register_font(SERIF_BOLD, None);
+        let draw = |font: u32| {
+            let mut doc = Document::new(64, 32).expect("dims");
+            assert!(
+                doc.draw_text(
+                    font, "Hg", 2, 2, 20.0, 0xFFFFFFFF, false, false, false, "left"
+                )
+                .expect("draw")
+            );
+            doc.compose(0, 1).expect("compose").pixels()
+        };
+        assert_eq!(draw(face1), draw(bold));
+        assert_ne!(draw(face1), draw(face0));
+    }
+
     #[test]
     fn register_font_dedupes() {
-        let a = register_font(FONT);
-        let b = register_font(FONT);
+        let a = register_font(FONT, None);
+        let b = register_font(FONT, None);
         assert_eq!(a, b);
     }
 
     #[test]
     fn draw_text_paints_and_undoes_and_preview_leaves_state() {
-        let font = register_font(FONT);
+        let font = register_font(FONT, None);
         let mut doc = Document::new(64, 32).expect("dims");
         let preview = doc
             .preview_text(
@@ -258,7 +317,7 @@ mod tests {
 
     #[test]
     fn draw_and_preview_seed_a_missing_cel_on_a_fresh_layer() {
-        let font = register_font(FONT);
+        let font = register_font(FONT, None);
         let mut doc = Document::new(64, 32).expect("dims");
         let top = doc.add_layer("text").expect("add");
         doc.set_active_layer(top);
@@ -279,7 +338,7 @@ mod tests {
 
     #[test]
     fn draw_text_off_canvas_returns_false_and_leaves_no_undo_entry() {
-        let font = register_font(FONT);
+        let font = register_font(FONT, None);
         let mut doc = Document::new(8, 8).expect("dims");
         assert!(
             !doc.draw_text(
@@ -293,7 +352,7 @@ mod tests {
 
     #[test]
     fn draw_text_applies_colour_size_bold_italic_anti_alias_and_alignment() {
-        let font = register_font(FONT);
+        let font = register_font(FONT, None);
         let draw = |size: f32, bold: bool, italic: bool, aa: bool, align: &str| {
             let mut doc = Document::new(128, 48).expect("dims");
             assert!(
@@ -361,7 +420,7 @@ mod tests {
             doc.draw_text(9999, "x", 0, 0, 12.0, 0, false, false, false, "left")
                 .is_err()
         );
-        let font = register_font(FONT);
+        let font = register_font(FONT, None);
         assert!(
             doc.draw_text(font, "x", 0, 0, 12.0, 0, false, false, false, "justify")
                 .is_err()

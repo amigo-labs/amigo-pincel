@@ -4,7 +4,10 @@
 //!
 //! A [`Model`] is loaded from the bytes of a `tessdata_fast` `.traineddata`
 //! file; it turns an RGBA image of **one text line** into a
-//! [`RecognizedLine`]: the words with their boxes and confidences. The
+//! [`RecognizedLine`]: the words with their boxes and confidences.
+//! [`Model::read_page`] reads a whole page (`docs/specs/ocr-page.md`): it
+//! finds the text lines, blocks and columns, recognizes each line and
+//! returns a [`PageResult`] with the page text in reading order. The
 //! crate is pure — no I/O, no threads, no platform APIs — and a loaded model
 //! can be shared between threads.
 //!
@@ -26,6 +29,7 @@ mod functions;
 mod functions_table;
 mod image;
 mod network;
+mod page;
 mod reader;
 mod recoder;
 mod recognize;
@@ -33,7 +37,8 @@ mod tessdata;
 mod textord;
 mod unicharset;
 
-pub use error::{LoadError, RecognizeError};
+pub use error::{LoadError, PageError, RecognizeError};
+pub use page::{Control, PageBlock, PageBox, PageLine, PageResult, PageWord, Progress};
 
 use network::{Layer, LstmComponent};
 use recoder::Recoder;
@@ -162,5 +167,24 @@ impl Model {
         rgba: &[u8],
     ) -> Result<RecognizedLine, RecognizeError> {
         recognize::recognize_line(self, width, height, rgba)
+    }
+
+    /// Reads a whole page: an RGBA image of `width × height` pixels
+    /// (`width * height * 4` bytes, row-major) with any number of lines,
+    /// blocks and columns (docs/specs/ocr-page.md). Returns the text
+    /// blocks in reading order and the page text.
+    ///
+    /// `progress` is called during layout analysis at least once per
+    /// million pixels, then with "0 of n lines" and after each line;
+    /// answering [`Control::Cancel`] stops the reading with
+    /// [`PageError::Cancelled`].
+    pub fn read_page(
+        &self,
+        width: u32,
+        height: u32,
+        rgba: &[u8],
+        progress: &mut dyn FnMut(Progress) -> Control,
+    ) -> Result<PageResult, PageError> {
+        page::read_page(self, width, height, rgba, progress)
     }
 }

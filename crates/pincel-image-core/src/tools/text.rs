@@ -5,7 +5,8 @@
 //! the font as raw TrueType/OpenType bytes (Option B): `pincel-image-core` stays
 //! platform-free and never loads a font from disk or the system. Bold and
 //! italic are synthesized (faux-bold by horizontal smearing, faux-italic by a
-//! shear) since Phase 1 selects a single font face.
+//! shear) for a style the caller has no real face for; a face inside a font
+//! collection is named by its index (docs/specs/system-fonts.md AC-07, AC-08).
 
 use super::Blend;
 use crate::color::Color;
@@ -66,6 +67,42 @@ impl Default for TextStyle {
             strikethrough: false,
             blend: crate::tools::Blend::Normal,
         }
+    }
+}
+
+/// One font face: TrueType / OpenType bytes and, for a collection
+/// (`.ttc` / `.otc`), the index of the face inside it (0 for a single face).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct FontFace<'a> {
+    /// The font file's bytes.
+    pub bytes: &'a [u8],
+    /// The face inside a collection; 0 for a single-face file.
+    pub index: u32,
+}
+
+impl<'a> FontFace<'a> {
+    /// Face `index` of `bytes`.
+    pub fn new(bytes: &'a [u8], index: u32) -> Self {
+        Self { bytes, index }
+    }
+
+    /// The parsed face, or `None` when the bytes or the index are invalid.
+    fn parse(self) -> Option<FontVec> {
+        FontVec::try_from_vec_and_index(self.bytes.to_vec(), self.index).ok()
+    }
+}
+
+impl<'a> From<&'a [u8]> for FontFace<'a> {
+    /// The first (or only) face of `bytes`.
+    fn from(bytes: &'a [u8]) -> Self {
+        Self::new(bytes, 0)
+    }
+}
+
+impl<'a, const N: usize> From<&'a [u8; N]> for FontFace<'a> {
+    /// The first (or only) face of `bytes`.
+    fn from(bytes: &'a [u8; N]) -> Self {
+        Self::new(bytes, 0)
     }
 }
 
@@ -145,20 +182,20 @@ impl Text {
     }
 
     /// Rasterizes the text into a [`SetPixels`] command on `layer_index` using
-    /// `font_bytes` (a parsed TrueType/OpenType face).
+    /// the face `font`.
     ///
     /// Returns `None` if the layer index is invalid, the font fails to parse,
     /// the text is empty/whitespace, or the rendered glyphs miss the canvas.
     /// The active selection (if any) constrains where pixels are written; prior
     /// pixels are captured for undo.
-    pub fn render(
+    pub fn render<'f>(
         &self,
         layer_index: usize,
         doc: &Document,
-        font_bytes: &[u8],
+        font: impl Into<FontFace<'f>>,
     ) -> Option<SetPixels> {
         let layer = doc.layers.get(layer_index)?;
-        let font = FontVec::try_from_vec(font_bytes.to_vec()).ok()?;
+        let font = font.into().parse()?;
         let size = self.style.size.clamp(1.0, 2000.0);
         let scaled = font.as_scaled(PxScale::from(size));
         let shear = if self.style.italic { ITALIC_SHEAR } else { 0.0 };
@@ -212,10 +249,10 @@ impl Text {
         Some(SetPixels::new(layer_index, region, after).with_kind(HistoryKind::Text))
     }
 
-    /// The line boxes and caret positions of this text with `font_bytes`;
+    /// The line boxes and caret positions of this text with the face `font`;
     /// `None` when the font fails to parse.
-    pub fn layout_lines(&self, font_bytes: &[u8]) -> Option<TextLayout> {
-        let font = FontVec::try_from_vec(font_bytes.to_vec()).ok()?;
+    pub fn layout_lines<'f>(&self, font: impl Into<FontFace<'f>>) -> Option<TextLayout> {
+        let font = font.into().parse()?;
         let size = self.style.size.clamp(1.0, 2000.0);
         let scaled = font.as_scaled(PxScale::from(size));
         let lines = self.lines(&scaled);
