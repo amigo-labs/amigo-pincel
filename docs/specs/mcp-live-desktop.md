@@ -108,7 +108,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | ----- | ---- | ------ | ------ |
 | AC-01 | `src-tauri/src/mcp/tests.rs` `endpoint_listens_nowhere_until_enabled`; `ui/e2e/mcp-live-settings.spec.ts` "AC-01 a fresh install starts no endpoint" | built | |
 | AC-02 | `src-tauri/src/mcp/tests.rs` `enable_listens_on_loopback_with_a_new_256_bit_token_and_the_client_command`; `src-tauri/src/mcp/secret.rs` `new_token_is_256_bit_hex_and_never_repeats`; `ui/e2e/mcp-live-settings.spec.ts` "AC-02 AC-03 AC-04 the switch …" | built | |
-| AC-03 | `src-tauri/src/mcp/tests.rs` `endpoint_keeps_token_and_port_across_restarts`; `ui/e2e/mcp-live-settings.spec.ts` "AC-02 AC-03 AC-04 the switch …" | built | |
+| AC-03 | `src-tauri/src/mcp/tests.rs` `endpoint_keeps_token_and_port_across_restarts`, `a_chat_that_cannot_store_the_port_leaves_nothing_listening`; `ui/e2e/mcp-live-settings.spec.ts` "AC-02 AC-03 AC-04 the switch …" | built | |
 | AC-04 | `src-tauri/src/mcp/tests.rs` `disable_stops_the_endpoint_and_refuses_later_requests`; `ui/e2e/mcp-live-settings.spec.ts` "AC-02 AC-03 AC-04 the switch …" | built | |
 | AC-05 | `src-tauri/src/mcp/tests.rs` `requests_without_or_with_a_wrong_token_are_refused_and_run_nothing` | built | |
 | AC-06 | `src-tauri/src/mcp/tests.rs` `tools_list_matches_the_headless_server`, `a_chat_session_lists_and_runs_only_its_tools` | built | |
@@ -120,7 +120,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-12 | `src-tauri/src/mcp/tests.rs` `sessions_open_on_initialize_and_end_on_delete_disconnect_or_idle`; `ui/e2e/mcp-live-settings.spec.ts` "AC-12 the status bar shows AI connected …" | built | |
 | AC-13 | `ui/e2e/mcp-live-settings.spec.ts` "AC-13 the web app shows neither the setting nor the indicator" | built | |
 | AC-14 | `ui/e2e/mcp-live-settings.spec.ts` "AC-14 the dialog and the indicator are German in the German UI" | built | |
-| AC-15 | `ui/e2e/mcp-live.spec.ts` "AC-15 doc.new opens a new tab; doc.close of a dirty tab asks …" | built | |
+| AC-15 | `ui/e2e/mcp-live.spec.ts` "AC-15 doc.new opens a new tab; doc.close of a dirty tab asks …", "AC-15 doc.open opens the picked file in a new tab and keeps the others" | built | |
 | AC-16 | `ui/e2e/mcp-live.spec.ts` "AC-16 exports go through the save dialog …"; `crates/pincel-agent/src/tests/live.rs` `call_pixel_export_hands_the_file_to_the_host_instead_of_writing_it`, `call_pixel_reads_only_the_file_the_user_picked` | built | |
 | AC-17 | `ui/e2e/mcp-live.spec.ts` "AC-17 a call during a stroke waits for pointerup" | built | |
 | AC-18 | `ui/e2e/mcp-live.spec.ts` "AC-18 a call while a modal dialog is open fails at once …" | built | |
@@ -158,3 +158,4 @@ Hints from the legacy plan (2026-10-28); paths drift.
 - 2026-11-11 (spec-build): The e2e tests of AC-01 and AC-13 were green before the block was built: no endpoint and no setting is what the app did without this spec. Their proof that the new code keeps it so is the green run after the block; AC-01's Rust side (`endpoint_listens_nowhere_until_enabled`) went red first with the module missing.
 - 2026-11-11 (spec-build): The setting is the IndexedDB pref `aiAgents`; at app start the UI asks the endpoint to start with the stored token (`mcp_enable` with `fresh: false`), so token and port come from `mcp.json` in the app config dir. The indicator sits in the editor frame's status bar, so it shows in both modes, and not on the start screen, which has no status bar.
 - 2026-11-11 (spec-build): A Pixel tab in the background answers `doc.list` from its document in place instead of switching the editor to it. The e2e guard "doc.list reads background tabs without switching the shown document" was green against the previous code as well (the editor ended on a consistent tab in that run); it stays as a regression guard.
+- 2026-11-11 (spec-build, verification round 1): The `doc.open` test of AC-15 was green at once — the code existed, only its test was missing. A chat whose port cannot be stored does not start and leaves nothing listening (red first: `a_chat_that_cannot_store_the_port_leaves_nothing_listening`).

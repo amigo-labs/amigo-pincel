@@ -214,3 +214,27 @@ test('doc.list reads background tabs without switching the shown document', asyn
   await page.waitForTimeout(200);
   expect((await pixelCanvas(page).screenshot()).equals(shown)).toBe(true);
 });
+
+/** A valid 1×1 PNG. */
+const PNG_1X1 = Buffer.from(
+  'iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAYAAAAfFcSJAAAADUlEQVR42mP8z8DwHwAFBQIAX8jx0gAAAABJRU5ErkJggg==',
+  'base64',
+);
+
+test('AC-15 doc.open opens the picked file in a new tab and keeps the others', async ({ page }) => {
+  await start(page, 'pixel');
+  await putFile(page, '/art/dot.png', PNG_1X1);
+  await setMock(page, { openPick: '/art/dot.png' });
+  const opened = await call(page, 'doc.open', { path: 'art/dot.png' });
+  expect(opened.ok, opened.error).toBe(true);
+  expect(opened.json).toMatchObject({ mode: 'image', width: 1, height: 1, path: '/art/dot.png' });
+  const lastOpen = await page.evaluate(() => (window as unknown as MockWindow).__mock.openDialogs.at(-1));
+  expect(lastOpen?.defaultPath).toBe('art/dot.png');
+  await expect(tabs(page)).toHaveCount(2);
+  await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
+  await setMock(page, { openPick: null });
+  const cancelled = await call(page, 'doc.open', { path: 'art/other.png' });
+  expect(cancelled.ok).toBe(false);
+  expect(cancelled.error).toContain('user cancelled');
+  await expect(tabs(page)).toHaveCount(2);
+});
