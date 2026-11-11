@@ -122,6 +122,8 @@ const EXPECTED_TOOLS: &[&str] = &[
     "draw.clone",
     // image-edit-extras
     "select.fill",
+    // system-fonts-mcp
+    "font.list",
 ];
 
 /// One valid example call per tool.
@@ -212,8 +214,9 @@ fn example(name: &str) -> Value {
             json!({ "shape": "polygon", "cx": 8, "cy": 8, "radius": 5, "sides": 6, "rotation": 15, "stroke": "#000000", "fill": "#ffffff", "stroke_width": 2, "dash": "dotted", "anti_alias": false })
         }
         "draw.text" => {
-            json!({ "text": "Hello", "x": 4, "y": 4, "size": 24, "color": "#202020", "align": "center", "bold": true, "italic": false })
+            json!({ "text": "Hello", "x": 4, "y": 4, "size": 24, "color": "#202020", "align": "center", "bold": true, "italic": false, "font": "Liberation Sans" })
         }
+        "font.list" => json!({ "query": "sans" }),
         "draw.gradient" => {
             json!({ "x0": 0, "y0": 0, "x1": 10, "y1": 0, "from": "#000000", "to": "#ffffff", "kind": "radial", "channel": "color", "opacity": 50 })
         }

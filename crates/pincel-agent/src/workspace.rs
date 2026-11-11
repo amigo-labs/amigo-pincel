@@ -9,6 +9,7 @@ use serde_json::{Value, json};
 
 use crate::AgentError;
 use crate::args::Args;
+use crate::fonts::{FontProvider, Fonts};
 use crate::image::ImageDoc;
 
 /// One open Pixel document.
@@ -332,12 +333,28 @@ pub struct Workspace {
     docs: Vec<(String, Entry)>,
     active: Option<String>,
     next_id: u32,
+    fonts: Fonts,
 }
 
 impl Workspace {
-    /// An empty session.
+    /// An empty session whose `draw.text` knows the bundled Liberation Sans
+    /// only.
     pub fn new() -> Self {
         Self::default()
+    }
+
+    /// An empty session whose `draw.text` and `font.list` also offer the
+    /// faces of `fonts` (docs/specs/system-fonts-mcp.md).
+    pub fn with_fonts(fonts: impl FontProvider + 'static) -> Self {
+        Self {
+            fonts: Fonts::new(Box::new(fonts)),
+            ..Self::default()
+        }
+    }
+
+    /// The session's fonts.
+    pub(crate) fn fonts_mut(&mut self) -> &mut Fonts {
+        &mut self.fonts
     }
 
     /// Number of open documents.

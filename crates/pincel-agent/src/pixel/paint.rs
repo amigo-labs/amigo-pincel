@@ -427,11 +427,14 @@ pub(crate) fn text(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
     };
     let align = TextAlign::from_name(args.str("align").unwrap_or("left"))
         .ok_or_else(|| AgentError::tool("argument `align`: unknown alignment"))?;
+    let face = crate::fonts::text_face(ctx, args)?;
     let style = TextStyle {
         size,
         color,
-        bold: args.bool("bold").unwrap_or(false),
-        italic: args.bool("italic").unwrap_or(false),
+        // The face carries the real Bold / Italic; only what it lacks is
+        // synthesized (system-fonts AC-07).
+        bold: face.synth_bold,
+        italic: face.synth_italic,
         anti_alias: args.bool("anti_alias").unwrap_or(false),
         align,
     };
@@ -442,9 +445,10 @@ pub(crate) fn text(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentEr
             cel.frame,
             (x, y),
             text.clone(),
-            crate::image::FONT.to_vec(),
+            face.bytes().to_vec(),
             style,
-        );
+        )
+        .with_face_index(face.index);
         run_core(&doc.sprite, cel, cmd)
     })
 }

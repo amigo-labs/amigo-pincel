@@ -14,7 +14,7 @@ use std::fmt;
 
 use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
 use pincel_image_core::command::{Command, CommandBus, DEFAULT_UNDO_CAPACITY, HistoryKind};
-use pincel_image_core::{Document, DocumentError};
+use pincel_image_core::{Document, DocumentError, FontFace};
 use serde_json::{Value, json};
 
 use crate::args::{Args, parse_hex};
@@ -278,9 +278,15 @@ impl ImageDoc {
     /// Run one editor command as one undo step. Returns whether a step was
     /// recorded (an edit that misses the canvas records none).
     pub fn run(&mut self, spec: CommandSpec) -> Result<bool, AgentError> {
+        self.run_font(spec, FONT.into())
+    }
+
+    /// [`ImageDoc::run`] with `font` as the face of font id 0 (`draw.text`
+    /// with a `font`, docs/specs/system-fonts-mcp.md).
+    fn run_font(&mut self, spec: CommandSpec, font: FontFace<'_>) -> Result<bool, AgentError> {
         self.check_spec(&spec)?;
         let before = self.bus.history.undo_depth();
-        run_command(&mut self.bus, spec, &mut self.scratch, &[FONT.into()]).map_err(core_err)?;
+        run_command(&mut self.bus, spec, &mut self.scratch, &[font]).map_err(core_err)?;
         Ok(self.recorded(before))
     }
 
@@ -313,15 +319,19 @@ impl ImageDoc {
     /// nothing records no undo step (mcp-parity-selection-transform
     /// AC-36). Returns whether a step was recorded.
     pub fn run_if_changed(&mut self, build: impl Fn() -> CommandSpec) -> Result<bool, AgentError> {
+        self.run_if_changed_font(build, FONT.into())
+    }
+
+    /// [`ImageDoc::run_if_changed`] with `font` as the face of font id 0.
+    pub fn run_if_changed_font(
+        &mut self,
+        build: impl Fn() -> CommandSpec,
+        font: FontFace<'_>,
+    ) -> Result<bool, AgentError> {
         self.check_spec(&build())?;
         let mut copy = CommandBus::new(self.bus.document.clone());
-        run_command(
-            &mut copy,
-            build(),
-            &mut StrokeScratch::default(),
-            &[FONT.into()],
-        )
-        .map_err(core_err)?;
+        run_command(&mut copy, build(), &mut StrokeScratch::default(), &[font])
+            .map_err(core_err)?;
         let mut before = self.bus.document.clone();
         let mut after = copy.document;
         before
@@ -333,7 +343,7 @@ impl ImageDoc {
         if before == after {
             return Ok(false);
         }
-        self.run(build())
+        self.run_font(build(), font)
     }
 
     /// Apply core commands as one undo step.

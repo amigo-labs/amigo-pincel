@@ -11,6 +11,7 @@
 
 mod args;
 mod clipboard;
+mod fonts;
 mod image;
 mod pixel;
 mod preview;
@@ -25,6 +26,7 @@ mod workspace;
 
 use serde_json::Value;
 
+pub use fonts::{FontFaceInfo, FontProvider};
 pub use resources::{ResourceDef, list_resources, read_resource};
 pub use workspace::Workspace;
 
@@ -124,6 +126,7 @@ fn all_tools() -> impl Iterator<Item = &'static Tool> {
         .chain(pixel::ASSET_TOOLS)
         .chain(std::iter::once(&svg::EXPORT_SVG))
         .chain(image::TOOLS)
+        .chain(std::iter::once(&fonts::LIST))
 }
 
 /// Every tool, in a stable order.
