@@ -1,0 +1,77 @@
+File Edit View Image Layer Select Filter Help
+
+PROJECT
+
+O Overview
+
+@ Layers
+
+A Brushes
+
+Colors
+
+History
+
+Export
+
+Settings
+
+RECENT FILES
+
+sunset_sprites.png
+title_screen.png
+tiles_forest.png
+hero_walk_cycle.png
+ui_buttons_v2.png
+
+Project settings
+These settings apply to every image in this project. Changes are saved
+automatically and can be undone from the History panel at any time.
+
+Name
+
+Author
+
+Size
+
+Format
+
+Sunset sprite sheet
+
+Maria Lopez
+
+1920 x 1080 px
+
+PNG with alpha
+
+Save changes
+
+Cancel
+
+Export options
+Export the current image as PNG, JPEG or WebP. The quality setting only
+affects JPEG and WebP files; PNG files are always lossless.
+Large images may take a few seconds to export.
+
+About this project
+Created on 12 March 2026 by Maria Lopez. Last opened yesterday at 18:40.
+The project folder contains 46 files with a total size of 128 MB.
+
+Ready
+
+Properties
+
+Width: 1920 px
+Height: 1080 px
+Resolution: 72 dpi
+Layers: 12
+Opacity: 85%
+Blend mode: Normal
+
+Notes
+
+Check the colors ona
+second monitor before
+the final export.
+
+Zoom 100%
