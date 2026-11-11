@@ -83,6 +83,8 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-11 needs the live desktop host of the agent tools (`mcp-live-desktop`, PR #162), which is not on `main`: no wasm module runs `pincel-agent` there, so nothing can hand the webview's font list and registered faces to the tools, and the mocked-Tauri e2e test has no live endpoint to call. Built so far: the `FontProvider` trait such a host implements (`crates/pincel-agent/src/fonts.rs`) and the shared face-choice table the webview's choice is checked against. Next, once #162 is merged: the webview's agent host implements `FontProvider` over the editor's font list (`fontSource.system`) and, before forwarding a `draw.text` with `font`, resolves the face with `familyFaces` / `faceFor`, reads it with `readFace` and registers it; then an e2e spec against the mocked Tauri bridge proves AC-11.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
