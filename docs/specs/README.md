@@ -93,7 +93,7 @@ No shared files with the groups above; pick by priority.
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| H1 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment |
+| H1 | [copy-cut-paste](copy-cut-paste.md) | both | L | — | Basic editor equipment; revised 2026-11-11: start-screen "Open from clipboard" (AC-34 – AC-38) |
 | H2 | [pixel-grid](pixel-grid.md) | Pixel | M | — | Grid stored in the Aseprite header |
 | H3 | [shortcut-overview](shortcut-overview.md) | both | M | — | No open questions |
 | H4 | [symmetry-tiled-mode](symmetry-tiled-mode.md) | Pixel | L | pixel-pencil | Seamless tiles |
