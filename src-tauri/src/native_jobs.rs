@@ -2,9 +2,9 @@
 // the heavy one-shot Image-mode jobs of the Web Worker backend
 // (`ui/src/modes/image/jobs/protocol.ts`) — encoding, and effect previews and
 // regions on a document copy — run here in native Rust, on all cores. Both
-// backends call the same `pincel_image_core::jobs` functions; for
-// byte-identical results (AC-01) they also need the same float math, which
-// the spec's open question settles. The command is a thin wrapper
+// backends call the same `pincel_image_core::jobs` functions, and the cores
+// compute their float math with `libm` on both targets, so the results are
+// byte-identical (AC-01). The command is a thin wrapper
 // (AGENTS.md §5.5): the job comes as JSON in a request header, the document
 // snapshot as the raw request body, the result goes back as raw bytes.
 
@@ -214,6 +214,28 @@ mod tests {
         doc
     }
 
+    /// FNV-1a, 64 bit, as lowercase hex (the e2e spec computes the same).
+    fn fnv1a64(bytes: &[u8]) -> String {
+        let mut hash: u64 = 0xcbf2_9ce4_8422_2325;
+        for &b in bytes {
+            hash ^= u64::from(b);
+            hash = hash.wrapping_mul(0x0000_0100_0000_01b3);
+        }
+        format!("{hash:016x}")
+    }
+
+    #[derive(Deserialize)]
+    struct Case {
+        job: serde_json::Value,
+        len: usize,
+        fnv1a64: String,
+    }
+
+    #[derive(Deserialize)]
+    struct Cases {
+        cases: Vec<Case>,
+    }
+
     #[test]
     fn fixture_snapshot_matches_its_recipe() {
         let bytes = to_snapshot_bytes(&fixture_document());
@@ -323,5 +345,37 @@ mod tests {
         };
         assert_eq!(jobs.run(drop, &[]), Ok(Vec::new()));
         assert!(jobs.run(preview(), &[]).is_err(), "the copy is gone");
+    }
+
+    #[test]
+    fn run_matches_the_web_worker_backend_for_every_job_kind() {
+        let snapshot = std::fs::read(fixtures().join("doc.snapshot")).expect("doc.snapshot");
+        let cases: Cases = serde_json::from_slice(
+            &std::fs::read(fixtures().join("cases.json")).expect("cases.json"),
+        )
+        .expect("cases");
+        assert!(!cases.cases.is_empty());
+        let jobs = NativeJobs::default();
+        let mut mismatches = Vec::new();
+        for case in &cases.cases {
+            let job: NativeJob = serde_json::from_value(case.job.clone()).expect("job");
+            let body: &[u8] = match job {
+                NativeJob::Encode { .. } | NativeJob::Load { .. } => &snapshot,
+                _ => &[],
+            };
+            match jobs.run(job, body) {
+                Ok(out) if out.len() == case.len && fnv1a64(&out) == case.fnv1a64 => {}
+                Ok(out) => mismatches.push(format!(
+                    "{}: {} bytes {} (worker: {} bytes {})",
+                    case.job,
+                    out.len(),
+                    fnv1a64(&out),
+                    case.len,
+                    case.fnv1a64
+                )),
+                Err(e) => mismatches.push(format!("{}: {e}", case.job)),
+            }
+        }
+        assert!(mismatches.is_empty(), "{}", mismatches.join("\n"));
     }
 }
