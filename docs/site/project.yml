@@ -56,6 +56,16 @@ launch:
   label: { en: Open the editor, de: Editor öffnen }
   url: https://pincel.amigo-labs.dev/app/
 
+screenshots:
+  - src: screenshots/pixel-mode.png
+    alt:
+      en: Pixel mode with the sample sprite open — tools on the left, palette, layers and the animation timeline with four frames
+      de: Pixel-Modus mit dem Beispiel-Sprite – Werkzeuge links, Palette, Ebenen und die Animations-Zeitleiste mit vier Frames
+  - src: screenshots/image-mode.png
+    alt:
+      en: Image mode with the sample postcard open — brush options on top, three layers with opacity and blend mode on the right
+      de: Bild-Modus mit der Beispiel-Postkarte – Pinsel-Optionen oben, drei Ebenen mit Deckkraft und Mischmodus rechts
+
 features:
   - title: { en: The canvas, de: Die Arbeitsfläche }
     text:
