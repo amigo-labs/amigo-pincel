@@ -16,13 +16,14 @@ const code = (text: string): string =>
     .filter((line) => !line.trim().startsWith('#'))
     .join('\n');
 
-test('the release workflow runs the binaryen release the Cloudflare build pins, never apt binaryen', () => {
+test('the release workflow runs one pinned binaryen release in every job, never apt binaryen', () => {
   const release = code(read('.github/workflows/release.yml'));
   expect(release).not.toMatch(/apt-get install[^\n]*binaryen/);
-  const pinned = /BINARYEN_VERSION=(\d+)/.exec(read('scripts/cf-build.sh'))?.[1];
-  expect(pinned).toBeTruthy();
   const versions = [...release.matchAll(/BINARYEN_VERSION: '(\d+)'/g)].map((m) => m[1]);
-  // The web, desktop and npm jobs each fetch it before their wasm-opt run.
+  // The web, desktop and npm jobs each fetch it before their wasm-opt run,
+  // all the same version (the web deploy ships the web job's build).
+  const pinned = versions[0];
+  expect(pinned).toBeTruthy();
   expect(versions).toEqual([pinned, pinned, pinned]);
   const steps = release.split(/\n\s+- name: /);
   const install = steps.findIndex((s) => s.startsWith('install binaryen'));

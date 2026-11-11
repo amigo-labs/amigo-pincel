@@ -2,8 +2,8 @@
 // model per language, served from Pincel's website at a path that names
 // the `tessdata_fast` version, and checked against its pinned SHA-256
 // (Decision Log 2026-11-08). Adding a language is an entry here. The files
-// are the ones committed in `crates/pincel-ocr/models/`; scripts/cf-build.sh
-// publishes them. Rune-free, so a Node-side Playwright spec can import it.
+// are the ones committed in `crates/pincel-ocr/models/`; scripts/web-site.sh
+// adds them to the released site. Rune-free, so a Node-side Playwright spec can import it.
 
 /** A recognition language, named like its model file. */
 export type OcrLang = 'deu' | 'eng';
