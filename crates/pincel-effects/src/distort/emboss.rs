@@ -39,7 +39,11 @@ impl Effect for Emboss {
         // Light direction (unit vector).
         let az = self.angle.to_radians();
         let el = self.elevation.to_radians();
-        let (lx, ly, lz) = (az.cos() * el.cos(), az.sin() * el.cos(), el.sin());
+        let (lx, ly, lz) = (
+            libm::cosf(az) * libm::cosf(el),
+            libm::sinf(az) * libm::cosf(el),
+            libm::sinf(el),
+        );
         let mut out = vec![0u8; data.len()];
         for y in 0..h {
             for x in 0..w {

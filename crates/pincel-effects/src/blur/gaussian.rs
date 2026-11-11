@@ -26,7 +26,7 @@ pub(crate) fn gaussian_kernel(sigma: f32) -> Vec<f32> {
     let radius = (sigma * 3.0).ceil().max(1.0) as i32;
     let two_sigma_sq = 2.0 * sigma * sigma;
     let mut kernel: Vec<f32> = (-radius..=radius)
-        .map(|i| (-(i * i) as f32 / two_sigma_sq).exp())
+        .map(|i| libm::expf(-(i * i) as f32 / two_sigma_sq))
         .collect();
     let sum: f32 = kernel.iter().sum();
     for w in &mut kernel {

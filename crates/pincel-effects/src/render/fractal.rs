@@ -72,7 +72,8 @@ fn render(
     point: impl Fn(f64, f64) -> [f32; 3],
 ) -> EffectImage {
     let unit = 2.0 * view.half_height / f64::from(h.max(1));
-    let (sin, cos) = f64::from(view.angle_deg).to_radians().sin_cos();
+    let angle = f64::from(view.angle_deg).to_radians();
+    let (sin, cos) = (libm::sin(angle), libm::cos(angle));
     let (hw, hh) = (f64::from(w) / 2.0, f64::from(h) / 2.0);
     let q = quality.max(1);
     let samples = (q * q) as f32;

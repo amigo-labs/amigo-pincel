@@ -40,7 +40,7 @@ impl Effect for Fragment {
         let shifts: Vec<(f32, f32)> = (0..n)
             .map(|k| {
                 let deg = self.rotation + k as f32 * 360.0 / n as f32;
-                let (s, c) = deg.to_radians().sin_cos();
+                let (s, c) = crate::math::sin_cos(deg.to_radians());
                 (c * self.distance, s * self.distance)
             })
             .collect();

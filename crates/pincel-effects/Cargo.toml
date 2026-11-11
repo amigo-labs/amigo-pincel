@@ -9,6 +9,10 @@ rust-version.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+# Transcendental float math with the same results on every target: wasm32
+# already runs this code for `std`'s float functions, native builds would
+# use the OS math library (docs/specs/pincel.md §15, 2026-11-11).
+libm = "0.2"
 # Data-parallel kernels for the desktop app's native job backend only:
 # `pincel-tauri` enables `parallel`, the wasm builds never link rayon
 # (docs/specs/pincel.md §15, 2026-10-29; docs/specs/performance-desktop-jobs.md).

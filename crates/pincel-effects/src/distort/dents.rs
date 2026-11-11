@@ -69,7 +69,7 @@ fn gradient_noise(stream: u32, x: f32, y: f32) -> f32 {
     let (ix, iy) = (fx as usize, fy as usize);
     let (tx, ty) = (x - fx, y - fy);
     let dot = |gx: usize, gy: usize, dx: f32, dy: f32| {
-        let (s, c) = (unit(hash(stream, gx, gy)) * TAU).sin_cos();
+        let (s, c) = crate::math::sin_cos(unit(hash(stream, gx, gy)) * TAU);
         c * dx + s * dy
     };
     let fade = |t: f32| t * t * t * (t * (t * 6.0 - 15.0) + 10.0);

@@ -153,7 +153,7 @@ impl Effect for TileReflection {
     fn apply(&self, src: &EffectImage) -> EffectImage {
         let (cx, cy) = (centre(0.5, src.width()), centre(0.5, src.height()));
         let scale = PI / self.tile_size as f32;
-        let (sin, cos) = self.angle.to_radians().sin_cos();
+        let (sin, cos) = crate::math::sin_cos(self.angle.to_radians());
         let curvature = self.curvature;
         remap(src, self.edge, |x, y| {
             let (u, v) = (x - cx, y - cy);
@@ -161,8 +161,8 @@ impl Effect for TileReflection {
             // TileReflectionEffect).
             let s = cos * u + sin * v;
             let t = -sin * u + cos * v;
-            let s = s + curvature * (s * scale).tan();
-            let t = t + curvature * (t * scale).tan();
+            let s = s + curvature * libm::tanf(s * scale);
+            let t = t + curvature * libm::tanf(t * scale);
             Source::At(cx + cos * s - sin * t, cy + sin * s + cos * t)
         })
     }
@@ -223,7 +223,7 @@ impl Effect for Twist {
                 return Source::Keep;
             }
             let t = 1.0 - r / radius;
-            let (sin, cos) = (turn * t * t).sin_cos();
+            let (sin, cos) = crate::math::sin_cos(turn * t * t);
             Source::At(cx + cos * u - sin * v, cy + sin * u + cos * v)
         })
     }

@@ -43,7 +43,7 @@ impl Straighten {
     /// (pixel-centre coordinates): the inverse rotation, then the inverse
     /// zoom.
     fn source(&self, w: f32, h: f32) -> impl Fn(f32, f32) -> (f32, f32) {
-        let (sin, cos) = self.angle.to_radians().sin_cos();
+        let (sin, cos) = crate::math::sin_cos(self.angle.to_radians());
         let scale = match self.fill {
             // The rotated w x h rectangle, scaled by s, covers the layer
             // when s >= cos|a| + max(w / h, h / w) · sin|a|.

@@ -131,7 +131,10 @@ fn sin_cos_degrees(degrees: f64) -> (f64, f64) {
         90.0 => (1.0, 0.0),
         180.0 => (0.0, -1.0),
         270.0 => (-1.0, 0.0),
-        _ => r.to_radians().sin_cos(),
+        _ => {
+            let a = r.to_radians();
+            (libm::sin(a), libm::cos(a))
+        }
     }
 }
 
