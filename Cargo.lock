@@ -3268,6 +3268,8 @@ dependencies = [
  "pincel-agent",
  "pincel-core",
  "pincel-mcp",
+ "reqwest",
+ "rustls",
  "serde",
  "serde_json",
  "tauri",
