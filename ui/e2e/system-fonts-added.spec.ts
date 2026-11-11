@@ -8,6 +8,7 @@ import {
   fontList,
   imageReference,
   installLocalFonts,
+  lfaLog,
   openFontList,
   openPixelText,
   pickFamily,
@@ -157,6 +158,33 @@ test('AC-20: every face of a collection is added; added families stay once acces
   await imageText(page);
   await openFontList(page);
   expect(await entryNames(page)).toEqual(['Alpha', 'Liberation Sans', 'Pincel Test Serif']);
+  // The added family is drawn from its added bytes, not from the system
+  // face of the same name (AC-05).
+  await expect
+    .poll(() =>
+      fontEntries(page)
+        .filter({ hasText: /^Pincel Test Serif$/ })
+        .evaluate((el) => getComputedStyle(el).fontFamily),
+    )
+    .toMatch(/^"?pincel-font-/);
+  expect((await lfaLog(page)).reads).toEqual({});
+});
+
+test('AC-20: a font added from the Pixel Text dialog becomes the Pixel family', async ({
+  page,
+}) => {
+  await withoutLocalFonts(page);
+  await createDocument(page, 'pixel', { width: 32, height: 32 });
+  await openPixelText(page);
+  await expect(fontControl(page)).toHaveAttribute('aria-label', 'Font: Liberation Sans');
+  await addFiles(page, [await fixturePick('PincelTestSerif-Regular.ttf')]);
+  await expect(statusBar(page)).toContainText('Added font: Pincel Test Serif');
+  await expect(fontControl(page)).toHaveAttribute('aria-label', 'Font: Pincel Test Serif');
+  // Image mode lists it but keeps its own family.
+  await imageText(page);
+  await expect(fontControl(page)).toHaveAttribute('aria-label', 'Font: Liberation Sans');
+  await openFontList(page);
+  expect(await entryNames(page)).toEqual(['Liberation Sans', 'Pincel Test Serif']);
 });
 
 test('AC-21: refused files are named with their reasons; the others are added', async ({

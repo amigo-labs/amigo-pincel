@@ -308,6 +308,22 @@ test('AC-09 (image): the live text shows the chosen face and follows a family ch
   );
 });
 
+test('AC-09 (image): the live text keeps the previous face while a new one is read', async ({
+  page,
+}) => {
+  await installLocalFonts(page, { permission: 'granted', fonts: SERIF });
+  await imageDoc(page);
+  await imageType(page, 'Hg');
+  const sans = await canvasShot(page);
+  await holdReads(page);
+  await pickFamily(page, 'Pincel Test Serif');
+  await expect.poll(async () => (await lfaLog(page)).reads['PincelTestSerif-Regular']).toBe(1);
+  expect((await canvasShot(page)).equals(sans)).toBe(true);
+  await releaseReads(page);
+  await expect.poll(async () => (await canvasShot(page)).equals(sans)).toBe(false);
+  await expect(textBox(page)).toBeVisible();
+});
+
 test('AC-18 (pixel): Place waits for a face still being read, with a loading notice', async ({
   page,
 }) => {
