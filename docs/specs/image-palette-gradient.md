@@ -117,8 +117,6 @@ The Gradient tool's spiral kinds, the second paint.net parity item of this topic
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- `.agents/gates.json` does not list `pincel-palette` yet: its `rust-clippy` (fast and full) and `rust-test` (full) commands need `-p pincel-palette` after `-p pincel-ocr`, as `.github/workflows/ci.yml`, `release.yml` and AGENTS.md §10 now have it. Without it the gates neither lint the crate's tests nor run them (no other listed package runs a dependency's tests), so the full gates prove AC-21 only through the unchanged `pincel-core` / `pincel-wasm` / `pincel-agent` palette tests. The gate configuration changes only with the owner's approval (AGENTS.md "Quality gates"; Technical notes of this spec).
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
