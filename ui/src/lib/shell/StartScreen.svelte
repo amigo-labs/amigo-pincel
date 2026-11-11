@@ -36,6 +36,7 @@
     onOpen,
     onOpenRecent,
     onOpenSample = () => {},
+    onOpenClipboard = () => {},
     dropHover = false,
   }: {
     recents: RecentFile[];
@@ -49,6 +50,9 @@
     /** "Open a sample" picked the sprite or the image sample
      *  (docs/specs/first-run-tutorial.md AC-13, AC-14). */
     onOpenSample?: (sample: 'sprite' | 'image') => void;
+    /** "Open from clipboard" › "As pixel sprite" / "As image"
+     *  (docs/specs/copy-cut-paste.md AC-34 – AC-36). */
+    onOpenClipboard?: (mode: EditorMode) => void;
     /** A file drag is over the screen: show the drop state. */
     dropHover?: boolean;
   } = $props();
@@ -207,6 +211,31 @@
         </form>
       {/if}
     {/each}
+  </div>
+  <!-- Open from clipboard, right under the New cards (copy-cut-paste
+       AC-34): enabled whenever the cards are, whatever the clipboard
+       holds — only a read can tell, and in the browser a read asks. -->
+  <div
+    class="start-surface mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-pc-border bg-pc-panel py-2 pr-2 pl-4"
+    role="group"
+    aria-labelledby="start-clip-title"
+  >
+    <span id="start-clip-title" class="text-[13px] leading-5 font-semibold text-pc-muted">
+      {t('start.fromClipboard')}
+    </span>
+    <span class="flex flex-wrap gap-2">
+      {#each CARDS as card (card.mode)}
+        <button
+          type="button"
+          class="panel-btn start-ctl gap-2 px-3 text-sm leading-5"
+          disabled={blocked}
+          onclick={() => onOpenClipboard(card.mode)}
+          ><Icon name={card.icon} size={16} class="shrink-0 text-pc-muted" />{t(
+            card.mode === 'pixel' ? 'start.clipPixel' : 'start.clipImage',
+          )}</button
+        >
+      {/each}
+    </span>
   </div>
 {/snippet}
 
