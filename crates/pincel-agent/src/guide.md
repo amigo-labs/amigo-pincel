@@ -52,7 +52,8 @@ and so does an argument only the other mode's editor offers.
   3).
 - `draw.text`: `text` at `x`, `y` (the top of the first line), `color`
   default `#000000`, `bold` and `italic` (default false), `align` `left`
-  (default), `center` or `right`.
+  (default), `center` or `right`, `font` a family from `font.list`
+  (default the bundled Liberation Sans; see Fonts).
   Pixel `size` 1–2000 (default 12), integer `x` / `y`, `anti_alias` default
   false; Image `size` 1–999 (default 48), `anti_alias` default true,
   `underline` and `strikethrough` (default false).
@@ -242,6 +243,25 @@ The loop is plan → draw → preview → export, in both modes.
   (x, y), which matters for thin strokes and lines.
 - `draw.text` places (x, y) at the top of the first line; `align` decides
   whether x is its left edge, center or right edge.
+
+## Fonts
+
+- `font.list` lists the font families `draw.text` can use: the bundled
+  Liberation Sans plus the fonts installed on the machine the server runs
+  on, each family once with the style names of its faces. Pass `query` to
+  list only the families whose name contains it, ignoring case; the list
+  can be long.
+- `draw.text` takes the family as `font`, in both modes. Without `font` it
+  writes with the bundled Liberation Sans, as before.
+- Matching: the exact family name wins. Otherwise a name that matches
+  exactly one family ignoring case picks that family; one that matches
+  several ignoring case (e.g. "Arial" and "ARIAL") fails as ambiguous and
+  lists them, so pass the exact name. A name that matches no family, or an
+  empty `font`, fails and points to `font.list`.
+- `bold` and `italic` pick the family's real Bold, Italic or Bold Italic
+  face where it has one, as the editor does, and synthesize what the family
+  lacks. A face that cannot be read or parsed fails the call, naming the
+  family and the reason. Every failed call leaves the document unchanged.
 
 ## Colors
 

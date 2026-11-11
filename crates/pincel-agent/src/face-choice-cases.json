@@ -1,0 +1,159 @@
+{
+  "$comment": "The face a Text tool uses for one family and Bold / Italic, and what is left to synthesize (docs/specs/system-fonts.md Terms, AC-07, AC-23). Checked against the editor's ui/src/lib/fonts/faces.ts (ui/e2e/system-fonts-mcp.spec.ts) and against pincel-agent's copy of the rules (crates/pincel-agent/src/tests/fonts.rs), so both choose the same face (docs/specs/system-fonts-mcp.md). Style \"bundled\" is the bundled Liberation Sans Regular.",
+  "cases": [
+    {
+      "name": "regular of a full family",
+      "family": "Serif",
+      "faces": [
+        { "style": "Bold", "weight": 700, "italic": false },
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Italic", "weight": 400, "italic": true },
+        { "style": "Bold Italic", "weight": 700, "italic": true }
+      ],
+      "bold": false,
+      "italic": false,
+      "want": { "style": "Regular", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "bold italic of a full family",
+      "family": "Serif",
+      "faces": [
+        { "style": "Bold", "weight": 700, "italic": false },
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Italic", "weight": 400, "italic": true },
+        { "style": "Bold Italic", "weight": 700, "italic": true }
+      ],
+      "bold": true,
+      "italic": true,
+      "want": { "style": "Bold Italic", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "bold italic falls back to bold plus synthesized italic",
+      "family": "Serif",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Bold", "weight": 700, "italic": false }
+      ],
+      "bold": true,
+      "italic": true,
+      "want": { "style": "Bold", "synth_bold": false, "synth_italic": true }
+    },
+    {
+      "name": "bold italic falls back to italic plus synthesized bold",
+      "family": "Serif",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Italic", "weight": 400, "italic": true }
+      ],
+      "bold": true,
+      "italic": true,
+      "want": { "style": "Italic", "synth_bold": true, "synth_italic": false }
+    },
+    {
+      "name": "a regular-only family synthesizes both",
+      "family": "Serif",
+      "faces": [{ "style": "Regular", "weight": 400, "italic": false }],
+      "bold": true,
+      "italic": true,
+      "want": { "style": "Regular", "synth_bold": true, "synth_italic": true }
+    },
+    {
+      "name": "regular is the upright face closest to 400",
+      "family": "Sans",
+      "faces": [
+        { "style": "Light", "weight": 300, "italic": false },
+        { "style": "Medium", "weight": 500, "italic": false },
+        { "style": "Black", "weight": 900, "italic": false }
+      ],
+      "bold": false,
+      "italic": false,
+      "want": { "style": "Light", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "bold is the face of at least 600 closest to 700",
+      "family": "Sans",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "SemiBold", "weight": 600, "italic": false },
+        { "style": "Black", "weight": 900, "italic": false }
+      ],
+      "bold": true,
+      "italic": false,
+      "want": { "style": "SemiBold", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "no face of at least 600 synthesizes bold",
+      "family": "Sans",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Medium", "weight": 500, "italic": false }
+      ],
+      "bold": true,
+      "italic": false,
+      "want": { "style": "Regular", "synth_bold": true, "synth_italic": false }
+    },
+    {
+      "name": "normal width wins a weight tie",
+      "family": "Sans",
+      "faces": [
+        { "style": "Condensed", "weight": 400, "italic": false, "stretch": 3 },
+        { "style": "Regular", "weight": 400, "italic": false, "stretch": 5 }
+      ],
+      "bold": false,
+      "italic": false,
+      "want": { "style": "Regular", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "name order breaks a full tie",
+      "family": "Sans",
+      "faces": [
+        { "style": "Roman", "weight": 400, "italic": false },
+        { "style": "Book", "weight": 400, "italic": false }
+      ],
+      "bold": false,
+      "italic": false,
+      "want": { "style": "Book", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "a slanted-only family uses its slanted faces as upright",
+      "family": "Script",
+      "faces": [
+        { "style": "Italic", "weight": 400, "italic": true },
+        { "style": "Bold Italic", "weight": 700, "italic": true }
+      ],
+      "bold": true,
+      "italic": false,
+      "want": { "style": "Bold Italic", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "Liberation Sans regular is always the bundled face",
+      "family": "Liberation Sans",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Bold", "weight": 700, "italic": false }
+      ],
+      "bold": false,
+      "italic": false,
+      "want": { "style": "bundled", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "Liberation Sans bold uses an installed Bold face",
+      "family": "Liberation Sans",
+      "faces": [
+        { "style": "Regular", "weight": 400, "italic": false },
+        { "style": "Bold", "weight": 700, "italic": false }
+      ],
+      "bold": true,
+      "italic": false,
+      "want": { "style": "Bold", "synth_bold": false, "synth_italic": false }
+    },
+    {
+      "name": "Liberation Sans without installed faces synthesizes",
+      "family": "Liberation Sans",
+      "faces": [],
+      "bold": true,
+      "italic": true,
+      "want": { "style": "bundled", "synth_bold": true, "synth_italic": true }
+    }
+  ]
+}

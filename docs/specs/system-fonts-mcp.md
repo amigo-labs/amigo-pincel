@@ -83,23 +83,25 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-11 needs the live desktop host of the agent tools (`mcp-live-desktop`, PR #162), which is not on `main`: no wasm module runs `pincel-agent` there, so nothing can hand the webview's font list and registered faces to the tools, and the mocked-Tauri e2e test has no live endpoint to call. Built so far: the `FontProvider` trait such a host implements (`crates/pincel-agent/src/fonts.rs`) and the shared face-choice table the webview's choice is checked against. Next, once #162 is merged: the webview's agent host implements `FontProvider` over the editor's font list (`fontSource.system`) and, before forwarding a `draw.text` with `font`, resolves the face with `familyFaces` / `faceFor`, reads it with `readFace` and registers it; then an e2e spec against the mocked Tauri bridge proves AC-11.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-01 | `list_tools_has_font_list_and_the_font_argument` (`crates/pincel-agent/src/tests/fonts.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built | |
+| AC-02 | `font_list_lists_each_family_once_sorted_with_its_styles`, `font_list_without_host_fonts_lists_liberation_sans` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-03 | `font_list_query_filters_by_name_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-04 | `draw_text_without_font_or_with_regular_liberation_sans_uses_the_bundled_face` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-05 | `draw_text_with_a_family_matches_the_editor_on_image_documents`, `draw_text_with_a_family_matches_the_editor_on_pixel_documents`, `face_choice_cases_match_the_shared_table` (`crates/pincel-agent/src/tests/fonts.rs`); `the editor chooses the faces of the shared face-choice table` (`ui/e2e/system-fonts-mcp.spec.ts`) | built | |
+| AC-06 | `draw_text_font_matches_one_family_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-07 | `draw_text_unknown_or_empty_font_fails_and_points_to_font_list` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-08 | `draw_text_unreadable_face_fails_naming_family_and_reason` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-09 | `font_list_reports_the_bundled_and_the_system_families` (`crates/pincel-mcp/tests/stdio.rs`); `faces_lists_each_face_with_family_style_and_attributes`, `read_returns_the_file_and_face_index_of_a_listed_face`, `read_of_a_removed_file_fails_with_the_reason` (`crates/pincel-mcp/src/fonts.rs`) | built | |
+| AC-10 | `font_list_reads_no_face_and_draw_text_reads_each_face_once` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
 | AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-12 | `guide_describes_font_list_and_the_font_matching_rules` (`crates/pincel-agent/src/resources.rs`) | built | |
+| AC-13 | `draw_text_ambiguous_font_fails_listing_every_match` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
 
 ## Decisions
 
@@ -107,3 +109,11 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 - 2026-11-05 (owner's choice): The headless server offers the system's fonts by family name, enumerated with `fontdb` like the desktop app; workspace font files come later — because agents run on the user's machine and should reach the fonts the editor reaches, and a file source can be added later without breaking family names.
 - 2026-11-05 (clarification pass): `font` matches the exact family name first, then case-insensitively — because family names are unique by exact name (`system-fonts` Terms), so a name copied from `font.list` always identifies one family, while case-insensitive matching only helps with hand-typed names and must therefore fail loudly when it is ambiguous (AC-13).
 - 2026-11-05 (clarification pass): In live mode the webview reads and registers the face before forwarding `draw.text` — because the tools run in the webview's wasm, which cannot read files synchronously, and reusing the editor's face choice and read path keeps live results equal to the editor's (AC-11).
+- 2026-11-11 (spec-build): The provider is the public trait `pincel_agent::FontProvider` (`faces()` → `FontFaceInfo` with id, family, style, weight, italic, stretch; `read(id)` → file bytes and face index), installed with `Workspace::with_fonts`; `Workspace::new` keeps the bundled face alone. The workspace caches each read face, failed reads included, so a host run reads a face at most once (AC-10) whatever the host does — because the workspace lives exactly as long as the host's session.
+- 2026-11-11 (spec-build): The face choice of `system-fonts` exists twice, in the editor's `ui/src/lib/fonts/faces.ts` and in `crates/pincel-agent/src/fonts.rs`, and one case table, `crates/pincel-agent/src/face-choice-cases.json`, is checked against both (`face_choice_cases_match_the_shared_table`, `ui/e2e/system-fonts-mcp.spec.ts`) — because the headless server has no webview to run the TypeScript rules, and moving the editor's synchronous face choice into a wasm module would make the shared font list depend on one mode's core; the table keeps the two from choosing differently.
+- 2026-11-11 (spec-build): A read face counts as usable only when the Text tool's own parser accepts it (`Text::layout_lines` of `pincel-image-core`), else AC-08 — because the Image core silently draws nothing with an unparseable face, which would turn a broken font into an unchanged document without an error.
+- 2026-11-11 (spec-build): `font.list` takes the optional `doc` every tool takes and ignores it, as `doc.list` does — because `mcp-headless-pixel` makes `doc` part of every tool's schema (`tool_schemas_are_valid`).
+- 2026-11-11 (spec-build): Without `font`, Bold / Italic stay synthesized on the bundled face even where Liberation Sans Bold is installed; with `font: "Liberation Sans"` the installed faces serve Bold / Italic — because AC-04 keeps calls without `font` exactly as before this spec, while the edge-case table asks for the editor's choice once the family is named.
+- 2026-11-11 (spec-build): `pincel-mcp` depends on `fontdb` 0.23, the version `src-tauri` uses (Decision Log 2026-11-05 names both hosts), enumerates on the first `font.list` or `draw.text` with `font` and keeps the catalog for the run; it repeats the desktop list's 30-line `style_name` instead of sharing it — because `pincel-mcp` and `pincel-tauri` share no crate that could hold it without a new dependency edge, and both must build style names the same way.
+- 2026-11-11 (spec-build): `ui/e2e/system-fonts-mcp.spec.ts` was green on its first run: it checks the editor's existing face choice (built by `system-fonts`) against the new table; its red counterpart is the Rust table test, which failed until `pincel-agent` had the rules.
+- 2026-11-11 (spec-build): The tests use the `Pincel Test Serif` fixtures of `system-fonts` (`crates/pincel-core/tests/fixtures`: Regular, Italic, Bold Italic files and a collection whose Bold is face 1) in place of Liberation Serif — because they are already in the repository, cover a collection face, and are told apart from the bundled Liberation Sans.

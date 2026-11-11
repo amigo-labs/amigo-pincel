@@ -4,7 +4,8 @@
 //! in the editor (docs/specs/mcp-live-desktop.md, Decision Log 2026-10-29).
 
 use pincel_agent::{
-    AgentError, FileHost, ToolDef, ToolOutput, Workspace, list_resources, list_tools, read_resource,
+    AgentError, FileHost, FontProvider, ToolDef, ToolOutput, Workspace, list_resources, list_tools,
+    read_resource,
 };
 use serde_json::{Value, json};
 
@@ -241,6 +242,15 @@ impl<H: FileHost> Server<H> {
     pub fn new(host: H) -> Self {
         Self {
             ws: Workspace::new(),
+            host,
+        }
+    }
+
+    /// A server whose `draw.text` and `font.list` also offer the faces of
+    /// `fonts` (docs/specs/system-fonts-mcp.md).
+    pub fn with_fonts(host: H, fonts: impl FontProvider + 'static) -> Self {
+        Self {
+            ws: Workspace::with_fonts(fonts),
             host,
         }
     }

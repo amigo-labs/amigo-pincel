@@ -573,6 +573,42 @@ mod tests {
     }
 
     #[test]
+    fn guide_describes_font_list_and_the_font_matching_rules() {
+        // system-fonts-mcp AC-12: font.list, draw.text's `font` and the
+        // matching rules of AC-06, AC-13 and AC-07.
+        let section = "## Fonts";
+        let guide = read_resource("pincel://guide").expect("guide");
+        let start = guide.find(section).expect(section) + section.len();
+        let body = &guide[start..];
+        let body = body[..body
+            .find(
+                "
+## ",
+            )
+            .unwrap_or(body.len())]
+            .split_whitespace()
+            .collect::<Vec<_>>()
+            .join(" ");
+        for fact in [
+            "`font.list`",
+            "`query`",
+            "`draw.text`",
+            "`font`",
+            "Liberation Sans",
+            "exact family name",
+            "ignoring case",
+            "ambiguous",
+            "matches no family",
+            "empty",
+            "Bold",
+            "Italic",
+            "synthesize",
+        ] {
+            assert!(body.contains(fact), "## Fonts misses {fact}: {body}");
+        }
+    }
+
+    #[test]
     fn read_resource_returns_the_preset_colors() {
         let text = read_resource("pincel://palettes/gameboy").expect("read");
         let v: Value = serde_json::from_str(&text).expect("json");

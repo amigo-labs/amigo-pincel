@@ -5,11 +5,12 @@
 use pincel_effects::{EffectImage, EffectSpec};
 use pincel_image_core::command::spec::CommandSpec;
 use pincel_image_core::command::{HistoryKind, SetPixels};
-use pincel_image_core::{DEFAULT_BRUSH_ANGLE, ImageBuffer, masked_region};
+use pincel_image_core::{DEFAULT_BRUSH_ANGLE, FontFace, ImageBuffer, masked_region};
 use serde_json::{Map, Value, json};
 
-use super::{color_arg, core_err};
+use super::{FONT, color_arg, core_err};
 use crate::args::Args;
+use crate::fonts::{TextFace, text_face};
 use crate::pixel::effects::{ADJUSTMENTS, catalog_summary, is_adjustment, wire_params};
 use crate::pixel::{layer_prop, tool_schema};
 use crate::{AgentError, Ctx, Tool, ToolOutput};
@@ -147,13 +148,25 @@ pub(super) fn edit_checked(
     args: &Args,
     build: impl Fn(usize, u64) -> Result<CommandSpec, AgentError>,
 ) -> Result<ToolOutput, AgentError> {
+    edit_checked_font(ctx, args, None, build)
+}
+
+/// [`edit_checked`] drawing text with `font` (default: the bundled face).
+fn edit_checked_font(
+    ctx: &mut Ctx<'_>,
+    args: &Args,
+    font: Option<&TextFace>,
+    build: impl Fn(usize, u64) -> Result<CommandSpec, AgentError>,
+) -> Result<ToolOutput, AgentError> {
     let (id, doc) = ctx.ws.image_mut(args)?;
     let layer = doc.target(args)?;
     build(layer, 0)?;
     let stroke = doc.next_stroke();
-    let changed = doc.run_if_changed(|| {
-        build(layer, stroke).expect("the arguments were checked by the first build")
-    })?;
+    let face = font.map_or(FontFace::from(FONT), TextFace::font_face);
+    let changed = doc.run_if_changed_font(
+        || build(layer, stroke).expect("the arguments were checked by the first build"),
+        face,
+    )?;
     Ok(ToolOutput::json(json!({
         "doc": id,
         "layer": doc.layer_id(layer),
@@ -637,11 +650,12 @@ fn control_points(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const TEXT: Tool = Tool {
     name: "draw.text",
-    description: "Write `text` (newlines start new lines) with the editor's Text tool and its bundled font (Liberation Sans). (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
+    description: "Write `text` (newlines start new lines) with the editor's Text tool. `font` is a family name from font.list (exact name, or the one family matching it ignoring case); without it the bundled Liberation Sans. `bold` and `italic` use the family's real Bold / Italic faces where it has them, as the editor does, and synthesize the rest. (x, y) is the top of the first line: its left edge, center or right edge by `align` left (default) / center / right. `color` default #000000, `bold` and `italic` (default false). `layer` and `frame` (Pixel only) default to the paint target. Image documents: `underline` and `strikethrough` (default false); `size` 1–999 px (default 48), `anti_alias` (default true), `blend` normal (default) / overwrite. Pixel documents: integer x, y, `size` 1–2000 (default 12), `anti_alias` (default false); the text is clipped to the selection.",
     schema: || {
         edit_schema(
             json!({
                 "text": { "type": "string", "description": "The text" },
+                "font": { "type": "string", "description": "Font family from font.list; default the bundled Liberation Sans" },
                 "x": number("Anchor x (see align)"),
                 "y": number("Top of the first line"),
                 "size": { "type": "number", "description": "Font size in px; Image 1–999 (default 48), Pixel 1–2000 (default 12)" },
@@ -665,7 +679,8 @@ pub(crate) const TEXT: Tool = Tool {
         }
         let blend = blend_arg(args)?;
         let size = image_ranged(args, "size", 1.0, Some(999.0), TEXT_SIZE)?;
-        edit_checked(ctx, args, |layer, _| {
+        let face = text_face(ctx, args)?;
+        edit_checked_font(ctx, args, Some(&face), |layer, _| {
             let color = match args.get("color") {
                 Some(_) => color_arg(args, "color")?,
                 None => [0, 0, 0, 255],
@@ -678,8 +693,10 @@ pub(crate) const TEXT: Tool = Tool {
                 y: num(args, "y")?,
                 size,
                 color,
-                bold: args.bool("bold").unwrap_or(false),
-                italic: args.bool("italic").unwrap_or(false),
+                // The face carries the real Bold / Italic; only what it
+                // lacks is synthesized (system-fonts AC-07).
+                bold: face.synth_bold,
+                italic: face.synth_italic,
                 anti_alias: args.bool("anti_alias").unwrap_or(true),
                 align: str_or(args, "align", "left").to_owned(),
                 underline: args.bool("underline").unwrap_or(false),

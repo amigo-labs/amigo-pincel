@@ -4,6 +4,7 @@
 use std::io::{BufRead, Write};
 use std::process::ExitCode;
 
+use pincel_mcp::fonts::SystemFonts;
 use pincel_mcp::sandbox::Sandbox;
 use pincel_mcp::server::Server;
 use pincel_mcp::{Cli, USAGE, parse_args};
@@ -44,7 +45,9 @@ fn main() -> ExitCode {
             return ExitCode::from(3);
         }
     };
-    let mut server = Server::new(sandbox);
+    // The system's fonts, enumerated on the first font.list / draw.text
+    // with `font` (docs/specs/system-fonts-mcp.md AC-09).
+    let mut server = Server::with_fonts(sandbox, SystemFonts::new());
     let stdin = std::io::stdin();
     let mut stdout = std::io::stdout().lock();
     for line in stdin.lock().lines() {
