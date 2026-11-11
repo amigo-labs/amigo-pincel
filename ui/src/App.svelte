@@ -93,7 +93,13 @@
   import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { t } from './lib/i18n/index.svelte';
-  import { clipboardImage, newImageBytes, pasteEventImage, pastedImageFile } from './lib/clipboard';
+  import {
+    clipboardImage,
+    imageSize,
+    newImageBytes,
+    pasteEventImage,
+    pastedImageFile,
+  } from './lib/clipboard';
   import { actionFor, hint, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
   import { initLocale } from './lib/i18n/locale';
   import { initMotion } from './lib/motion.svelte';
@@ -392,7 +398,14 @@
   // image as a new document (copy-cut-paste AC-22, AC-26). An empty paste
   // stays silent: it is often a stray key with text on the clipboard.
   function startScreenIdle(target: EventTarget | null): boolean {
-    if (!showStart || editors.pending > 0 || offer.opening || newDialog !== null || helpDialogOpen()) {
+    if (
+      !showStart ||
+      editors.pending > 0 ||
+      offer.opening ||
+      clipOpening ||
+      newDialog !== null ||
+      helpDialogOpen()
+    ) {
       return false;
     }
     if (isTypingTarget(target)) return false;
@@ -435,10 +448,40 @@
     else dismissOffer();
   });
 
+  // "Open from clipboard" › "As pixel sprite" / "As image" (copy-cut-paste
+  // AC-34 – AC-38): the image Paste as New Image would read opens in
+  // `mode`; no image — none, refused, unsupported or undecodable, and no
+  // in-app copy — is a notice. While one runs (the read may wait on the
+  // browser's prompt, then the document is created) the buttons, Ctrl/⌘+V
+  // and the card's Open open nothing more.
+  let clipOpening = $state(false);
+
+  async function openClipboardAs(mode: EditorMode): Promise<void> {
+    if (clipOpening || offer.opening) return;
+    clipOpening = true;
+    try {
+      let system = await clipboardImage();
+      if (system) {
+        const size = await imageSize(system);
+        if (!size || size.width === 0 || size.height === 0) system = null;
+      }
+      const bytes = await newImageBytes(system);
+      if (!bytes) {
+        shellError = t('paste.noImage');
+        return;
+      }
+      await serial(async () => {
+        await routeFile(pastedImageFile(bytes, system?.type ?? 'image/png'), { mode });
+      });
+    } finally {
+      clipOpening = false;
+    }
+  }
+
   // Open takes the card's image, not a new read (AC-29), and opens it as
   // Ctrl/⌘+V on the start screen does (AC-22).
   async function openOffer(): Promise<void> {
-    if (offer.opening) return;
+    if (offer.opening || clipOpening) return;
     const image = takeOffer();
     if (!image) return;
     offer.opening = true;
@@ -762,6 +805,7 @@
     onOpen={() => void openFromPicker()}
     onOpenRecent={(r) => openRecent(r)}
     onOpenSample={(s) => void openSample(s)}
+    onOpenClipboard={(m) => void openClipboardAs(m)}
     {dropHover}
   />
   {#if offer.image && !modalOpen && wasmSimd}

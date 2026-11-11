@@ -66,6 +66,9 @@ export const de: Record<MessageKey, string> = {
   'start.newImage': 'Neues Bild',
   'start.newImageHint':
     'Ebenen, weiche Pinsel, Auswahlen, Effekte. Speichert als .ora; exportiert PNG / JPEG / WebP.',
+  'start.fromClipboard': 'Aus der Zwischenablage öffnen',
+  'start.clipPixel': 'Als Pixel-Sprite',
+  'start.clipImage': 'Als Bild',
   'start.open': 'Öffnen…',
   'start.unsupportedBrowser':
     'Dieser Browser ist zu alt für Pincel (benötigt Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',

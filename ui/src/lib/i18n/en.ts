@@ -64,6 +64,9 @@ export const en = {
   'start.newImage': 'New image',
   'start.newImageHint':
     'Layers, soft brushes, selections, effects. Saves as .ora; exports PNG / JPEG / WebP.',
+  'start.fromClipboard': 'Open from clipboard',
+  'start.clipPixel': 'As pixel sprite',
+  'start.clipImage': 'As image',
   'start.open': 'Open…',
   'start.unsupportedBrowser':
     'This browser is too old for Pincel (needs Chrome/Edge 91+, Firefox 89+, Safari 16.4+)',
