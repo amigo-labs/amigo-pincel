@@ -151,7 +151,8 @@ const DB32: [u32; 32] = [
 ];
 
 /// Maximum palette size: indexed color addresses entries with one byte.
-pub const MAX_PALETTE_ENTRIES: usize = 256;
+/// The palette file codecs (`pincel-palette`) enforce the same limit.
+pub const MAX_PALETTE_ENTRIES: usize = pincel_palette::MAX_ENTRIES;
 
 #[cfg(test)]
 mod tests {

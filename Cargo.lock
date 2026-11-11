@@ -3135,6 +3135,7 @@ dependencies = [
  "flate2",
  "gif",
  "pincel-effects",
+ "pincel-palette",
  "png",
  "thiserror 2.0.21",
 ]
