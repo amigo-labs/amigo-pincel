@@ -6,11 +6,13 @@
 // releases the editor (AC-09, AC-16).
 import { AutosaveSession } from '../../../lib/idb/autosave-session.svelte';
 import type { SaveTarget } from '../../../lib/fs';
-import type { EditorDocument } from '../../../lib/shell/types';
+import type { AgentFile, EditorDocument } from '../../../lib/shell/types';
 import { t } from '../../../lib/i18n/index.svelte';
 import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
+import { syncInfo } from './controller';
 import { saveDocument } from './save-flow';
+import { core } from './wasm';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 import { encodeInBackground } from '../jobs';
 import { gestureControl } from '../tools/gesture-control';
@@ -95,6 +97,8 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
     // `activateTab` drops the gesture in flight of the tab being left.
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
+    saveAs: () => saveTab(tab, true),
+    agentCall: (docId, name, argsJson, file) => agentCall(tab, docId, name, argsJson, file),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();
@@ -107,6 +111,26 @@ export function focusTab(tab: ImageTab): void {
   const ex = extras.get(tab.id);
   if (ex) hooks.activateDocument(ex.doc);
   else activateTab(tab);
+}
+
+/** A live agent call on `tab` (docs/specs/mcp-live-desktop.md AC-07): a
+ *  document command like any other, so it commits a live object first and
+ *  refreshes the editor after. */
+function agentCall(
+  tab: ImageTab,
+  docId: string,
+  name: string,
+  argsJson: string,
+  file: AgentFile | null,
+): string {
+  if (tab.doc.handle === null) {
+    return JSON.stringify({ ok: false, error: 'no document is open' });
+  }
+  const active = tab === tabs.active;
+  if (active) gestureControl.commitLive();
+  const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file);
+  if (active) syncInfo();
+  return reply;
 }
 
 /** Saves `tab` (Save, or Save As with `forceAs`); resolves `true` once it

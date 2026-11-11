@@ -41,6 +41,18 @@ export interface TauriMock {
   holdClipboard: boolean;
   clipboardHeld: (() => void)[];
   images: Record<number, ClipImage>;
+  /** Replies the UI sent for forwarded MCP calls, by call id. */
+  mcpReplies: Record<number, unknown>;
+  /** `mcp_call_waiting` calls in order: `[id, waiting]`. */
+  mcpWaiting: [number, boolean][];
+  /** Options of the native save / open dialogs the UI showed, in order. */
+  saveDialogs: Record<string, unknown>[];
+  openDialogs: Record<string, unknown>[];
+  /** The mocked MCP endpoint (src-tauri/src/mcp): its commands in call
+   *  order (`mcp_enable:true` for a fresh enable), its state, and the port
+   *  the next start reports as changed. */
+  mcpCommands: string[];
+  mcp: { enabled: boolean; token: string | null; port: number; portChanged: boolean; sessions: number };
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -69,6 +81,29 @@ export async function installTauriMock(page: Page): Promise<void> {
       holdClipboard: false,
       clipboardHeld: [],
       images: {},
+      mcpReplies: {},
+      mcpWaiting: [],
+      saveDialogs: [],
+      openDialogs: [],
+      mcpCommands: [],
+      mcp: { enabled: false, token: null, port: 39217, portChanged: false, sessions: 0 },
+    };
+    let tokens = 0;
+    const mcpStatus = () => {
+      const m = mock.mcp;
+      const url = `http://127.0.0.1:${m.port}/mcp`;
+      const on = m.enabled && m.token !== null;
+      return {
+        enabled: m.enabled,
+        port: m.enabled ? m.port : null,
+        token: on ? m.token : null,
+        url: on ? url : null,
+        command: on
+          ? `claude mcp add --transport http pincel ${url} --header "Authorization: Bearer ${m.token}"`
+          : null,
+        portChanged: m.portChanged,
+        externalSessions: m.sessions,
+      };
     };
     let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
@@ -83,9 +118,39 @@ export async function installTauriMock(page: Page): Promise<void> {
           mock.destroyed += 1;
           return null;
         case 'plugin:dialog|save':
+          mock.saveDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.saveQueue.length > 0 ? mock.saveQueue.shift() : mock.savePick;
         case 'plugin:dialog|open':
+          mock.openDialogs.push((args.options ?? {}) as Record<string, unknown>);
           return mock.openPick;
+        case 'mcp_call_result':
+          mock.mcpReplies[Number(args.id)] = args.reply;
+          return null;
+        case 'mcp_status':
+          mock.mcpCommands.push(cmd);
+          return mcpStatus();
+        case 'mcp_enable':
+          mock.mcpCommands.push(`${cmd}:${String(args.fresh)}`);
+          if (args.fresh === true || mock.mcp.token === null) mock.mcp.token = `token-${++tokens}`;
+          mock.mcp.enabled = true;
+          return mcpStatus();
+        case 'mcp_disable':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.enabled = false;
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_regenerate_token':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.token = `token-${++tokens}`;
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_disconnect':
+          mock.mcpCommands.push(cmd);
+          mock.mcp.sessions = 0;
+          return mcpStatus();
+        case 'mcp_call_waiting':
+          mock.mcpWaiting.push([Number(args.id), Boolean(args.waiting)]);
+          return null;
         case 'read_file_bytes': {
           const bytes = mock.disk[String(args.path)];
           if (!bytes) throw new Error('No such file or directory');

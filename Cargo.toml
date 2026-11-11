@@ -31,6 +31,7 @@ pincel-agent = { version = "1.10.1", path = "crates/pincel-agent" } # x-release-
 pincel-core = { version = "1.10.1", path = "crates/pincel-core" } # x-release-please-version
 pincel-effects = { version = "1.10.1", path = "crates/pincel-effects" } # x-release-please-version
 pincel-image-core = { version = "1.10.1", path = "crates/pincel-image-core" } # x-release-please-version
+pincel-mcp = { version = "1.10.1", path = "crates/pincel-mcp" } # x-release-please-version
 pincel-ocr = { version = "1.10.1", path = "crates/pincel-ocr" } # x-release-please-version
 # Palette file codecs shared by both modes (docs/specs/pincel.md §15, 2026-11-05).
 pincel-palette = { version = "1.10.1", path = "crates/pincel-palette" } # x-release-please-version

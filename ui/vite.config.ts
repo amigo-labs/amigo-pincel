@@ -81,12 +81,13 @@ export default defineConfig({
         // Workbox refuses to precache files over 2 MiB by default. The
         // unoptimized dev-profile wasm files (CI builds them via `pnpm
         // wasm:build --dev`; wasm-opt is disabled there) are well above
-        // that — ~3.9 MB (pincel-wasm) and ~8.5 MB (pincel-image-wasm,
-        // since OpenRaster brought in zip / deflate) on the stable
-        // toolchain — and excluding them would break offline entirely;
-        // give them headroom instead (the limit is per file). The release
-        // wasm that ships stays far below this.
-        maximumFileSizeToCacheInBytes: 16 * 1024 * 1024,
+        // that — ~19 MB (pincel-wasm) and ~21 MB (pincel-image-wasm) on
+        // the stable toolchain since both carry the agent tools for live
+        // MCP calls (docs/specs/mcp-live-desktop.md) — and excluding them
+        // would break offline entirely; give them headroom instead (the
+        // limit is per file). The release wasm that ships stays far below
+        // this (~5 and ~6 MB before wasm-opt).
+        maximumFileSizeToCacheInBytes: 32 * 1024 * 1024,
       },
     }),
   ],

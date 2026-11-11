@@ -19,6 +19,7 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 mod fonts;
 #[cfg(target_os = "linux")]
 mod linux_install;
+mod mcp;
 mod open_files;
 mod updater;
 mod webview_data;
@@ -523,7 +524,18 @@ fn main() {
             fonts::system_font_file,
             updater::updater_state,
             updater::updater_check,
-            updater::updater_set_auto
+            updater::updater_set_auto,
+            mcp::mcp_status,
+            mcp::mcp_enable,
+            mcp::mcp_disable,
+            mcp::mcp_regenerate_token,
+            mcp::mcp_disconnect,
+            mcp::mcp_call_result,
+            mcp::mcp_call_waiting,
+            mcp::mcp_chat_start,
+            mcp::mcp_chat_end,
+            mcp::mcp_chat_answering,
+            mcp::mcp_chat_image_access
         ])
         .on_page_load(|webview, payload| match payload.event() {
             PageLoadEvent::Started => open_files::reset(webview.app_handle()),
@@ -533,6 +545,9 @@ fn main() {
         })
         .setup(|app| {
             let handle = app.handle();
+            // Stopped until the user allows AI agents or a chat starts it
+            // (mcp-live-desktop AC-01).
+            app.manage(mcp::create(handle));
             if NATIVE_MENU {
                 let menu = build_menu(handle)?;
                 app.set_menu(menu)?;
@@ -574,6 +589,9 @@ fn main() {
 // on macOS. On exit, an update held for it (Windows) is installed.
 fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
     if let tauri::RunEvent::Exit = event {
+        if let Some(endpoint) = app.try_state::<mcp::Endpoint>() {
+            endpoint.shutdown();
+        }
         updater::install_on_exit(app);
     }
     #[cfg(target_os = "macos")]
