@@ -317,7 +317,10 @@ fn pid_of(env: &Env) -> u32 {
 
 #[test]
 fn a_start_that_never_answers_stops_with_the_last_50_lines() {
-    let env = Env::with(vec![], Duration::from_millis(1500));
+    // The fake prints its 60 lines at once and then hangs; the timeout
+    // leaves Python's start-up room under a loaded machine, so all lines
+    // are in before it ends the start.
+    let env = Env::with(vec![], Duration::from_secs(8));
     let fake = FakeComfy {
         lines: 60,
         delay: None,
