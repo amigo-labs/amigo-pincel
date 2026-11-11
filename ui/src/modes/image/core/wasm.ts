@@ -573,6 +573,8 @@ export interface EditLiveCommand {
   control?: Array<[number, number]>;
   start_cap?: LineCap;
   end_cap?: LineCap;
+  /** A live text's new font, a `registerFont` id (docs/specs/system-fonts.md). */
+  font_id?: number;
 }
 
 /** Begins a live text whose box has its top-left at `(x, y)`

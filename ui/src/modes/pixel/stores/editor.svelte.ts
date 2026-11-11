@@ -11,6 +11,7 @@
 // (CLAUDE.md §9); the fields here mirror what the UI renders from it.
 
 import type { Document } from '../../../lib/core';
+import type { UsedFace } from '../../../lib/fonts/text-font.svelte';
 import { tabStore } from '../../../lib/shell/tab-store';
 import type { SaveTarget } from '../../../lib/fs';
 import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../../lib/history/names';
@@ -313,7 +314,8 @@ function liveInit() {
     axisDrag: null as 'x' | 'y' | null,
     /** Last locked-layer status line. */
     lockNotice: null as string | null,
-    textFontId: null as number | null,
+    /** The face the Text dialog previews with (docs/specs/system-fonts.md AC-09). */
+    textFace: null as UsedFace | null,
   };
 }
 

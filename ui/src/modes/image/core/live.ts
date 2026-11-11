@@ -15,6 +15,7 @@ import {
 } from './controller';
 import { editor, live, tool, type ToolKind } from '../stores/editor.svelte';
 import { gestureControl } from '../tools/gesture-control';
+import type { UsedFace } from '../../../lib/fonts/text-font.svelte';
 
 /** Sends a live command; `false` when the core refused it (no object live
  *  any more, AC-19): the editor then shows the core's state, silently. */
@@ -82,19 +83,21 @@ export function beginGradient(a: [number, number], b: [number, number]): void {
 /** Begins a live text `text` whose box has its top-left at `at`, with the
  *  Text tool's options and the foreground color (docs/specs/image-live-text.md
  *  AC-01). `true` when a live text began. */
-export function beginText(at: [number, number], text: string, fontId: number): boolean {
+export function beginText(at: [number, number], text: string, face: UsedFace): boolean {
   const before = editor.undoDepth;
   const ok = send({
     type: 'begin_live_text',
     layer: editor.activeLayer,
-    font_id: fontId,
+    font_id: face.id,
     text,
     x: at[0],
     y: at[1],
     size: tool.fontSize,
     color: colorWithOpacity(tool.foreground, tool.foregroundAlpha),
-    bold: tool.textBold,
-    italic: tool.textItalic,
+    // The face carries the real Bold / Italic; only what it lacks is
+    // synthesized (docs/specs/system-fonts.md AC-07).
+    bold: face.synthBold,
+    italic: face.synthItalic,
     anti_alias: tool.antiAlias,
     align: tool.textAlign,
     underline: tool.textUnderline,
