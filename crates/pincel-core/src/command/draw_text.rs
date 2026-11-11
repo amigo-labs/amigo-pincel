@@ -4,7 +4,9 @@
 //! The caller supplies the font as raw TrueType / OpenType bytes; core
 //! never loads a font from disk. Text is pixels on commit (no vector
 //! layer). Bold and italic are synthesised — faux-bold by a horizontal
-//! smear, faux-italic by a ≈12° shear — since one face ships. With
+//! smear, faux-italic by a ≈12° shear — for a style the caller has no real
+//! face for (docs/specs/system-fonts.md AC-07); a collection face is picked
+//! with [`DrawText::with_face_index`]. With
 //! anti-aliasing off, glyph coverage is thresholded at 0.5 for crisp
 //! pixel-art edges. An active selection (rect or shaped) clips the
 //! written pixels. Prior pixels are captured for `revert`.
@@ -92,6 +94,8 @@ pub struct DrawText {
     y: i32,
     text: String,
     font: Vec<u8>,
+    /// Face inside `font` when it is a collection (`.ttc` / `.otc`); 0 otherwise.
+    face_index: u32,
     style: TextStyle,
     /// Written pixels (cel-local) with their prior values, after `apply`.
     previous: Option<Vec<(u32, u32, Rgba)>>,
@@ -115,10 +119,18 @@ impl DrawText {
             y: position.1,
             text: text.into(),
             font,
+            face_index: 0,
             style,
             previous: None,
             bounds: None,
         }
+    }
+
+    /// Uses face `index` of a font collection instead of its first face
+    /// (docs/specs/system-fonts.md AC-08). A single-face file takes 0.
+    pub fn with_face_index(mut self, index: u32) -> Self {
+        self.face_index = index;
+        self
     }
 
     /// Sprite-space bounding rect of the pixels the last `apply` touched
@@ -254,8 +266,8 @@ fn rasterize_coverage(
 
 impl Command for DrawText {
     fn apply(&mut self, doc: &mut Sprite, cels: &mut CelMap) -> Result<(), CommandError> {
-        let font =
-            FontRef::try_from_slice(&self.font).map_err(|e| CommandError::Font(e.to_string()))?;
+        let font = FontRef::try_from_slice_and_index(&self.font, self.face_index)
+            .map_err(|e| CommandError::Font(e.to_string()))?;
         let size = self.style.size.clamp(1.0, 2000.0);
         let scaled = font.as_scaled(PxScale::from(size));
         let shear = if self.style.italic { ITALIC_SHEAR } else { 0.0 };
@@ -380,6 +392,19 @@ mod tests {
         env!("CARGO_MANIFEST_DIR"),
         "/tests/fixtures/LiberationSans-Regular.ttf"
     ));
+    /// Pincel Test Serif: Regular and Bold faces and a collection of both.
+    const SERIF_REGULAR: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/PincelTestSerif-Regular.ttf"
+    ));
+    const SERIF_BOLD: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/PincelTestSerif-Bold.ttf"
+    ));
+    const SERIF_TTC: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/tests/fixtures/PincelTestSerif.ttc"
+    ));
 
     const L: LayerId = LayerId::new(0);
     const F: FrameIndex = FrameIndex::new(0);
@@ -413,6 +438,35 @@ mod tests {
             color: Rgba::WHITE,
             ..TextStyle::default()
         }
+    }
+
+    /// The cel's pixels after drawing "Hg" with `font` / `index`.
+    fn drawn(font: &[u8], index: u32) -> Vec<u8> {
+        let (mut s, mut c) = doc(64, 32);
+        DrawText::new(L, F, (2, 2), "Hg", font.to_vec(), style(20.0))
+            .with_face_index(index)
+            .apply(&mut s, &mut c)
+            .unwrap();
+        let CelData::Image(b) = &c.get(L, F).unwrap().data else {
+            unreachable!()
+        };
+        b.data.clone()
+    }
+
+    #[test]
+    fn with_face_index_collection_face_draws_that_face_not_the_first() {
+        assert_eq!(drawn(SERIF_TTC, 0), drawn(SERIF_REGULAR, 0));
+        assert_eq!(drawn(SERIF_TTC, 1), drawn(SERIF_BOLD, 0));
+        assert_ne!(drawn(SERIF_TTC, 1), drawn(SERIF_TTC, 0));
+    }
+
+    #[test]
+    fn with_face_index_out_of_range_is_a_font_error() {
+        let (mut s, mut c) = doc(16, 16);
+        let err = DrawText::new(L, F, (0, 0), "a", SERIF_TTC.to_vec(), style(12.0))
+            .with_face_index(7)
+            .apply(&mut s, &mut c);
+        assert!(matches!(err, Err(CommandError::Font(_))));
     }
 
     #[test]
