@@ -1,8 +1,11 @@
 //! Transport-agnostic MCP dispatch: one JSON-RPC 2.0 message in, at most
 //! one message out. The stdio loop in `main.rs` feeds it lines; the live
-//! desktop host can feed it HTTP bodies (Decision Log 2026-10-29).
+//! desktop host routes HTTP bodies through [`route`] and runs the tool calls
+//! in the editor (docs/specs/mcp-live-desktop.md, Decision Log 2026-10-29).
 
-use pincel_agent::{AgentError, FileHost, Workspace, list_resources, list_tools, read_resource};
+use pincel_agent::{
+    AgentError, FileHost, ToolDef, ToolOutput, Workspace, list_resources, list_tools, read_resource,
+};
 use serde_json::{Value, json};
 
 use crate::base64;
@@ -17,6 +20,215 @@ const INVALID_PARAMS: i64 = -32602;
 const RESOURCE_NOT_FOUND: i64 = -32002;
 
 const INSTRUCTIONS: &str = "Pincel edits documents in memory, in two modes that follow the file: Pixel documents (pixel art: .aseprite, frames, palette) and Image documents (photos, screenshots, mockups: PNG / JPEG / WebP / BMP / GIF / TIFF / .ora, brushes, shapes, text, selections). Read pincel://guide first. Loop: doc.new or doc.open, then layer and draw tools, check the result with doc.preview (an image) or doc.read_pixels (exact colors), and write files with doc.save / export.*. Paths are relative to the workspace. Every mutating call is one doc.undo step.";
+
+/// How a server introduces itself in `initialize`.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct ServerInfo {
+    /// `serverInfo.name`.
+    pub name: &'static str,
+    /// The `instructions` for the model.
+    pub instructions: &'static str,
+}
+
+/// The headless `pincel-mcp` server.
+pub const HEADLESS: ServerInfo = ServerInfo {
+    name: "pincel-mcp",
+    instructions: INSTRUCTIONS,
+};
+
+/// What one message asks of the host.
+#[derive(Debug, Clone, PartialEq)]
+pub enum Routed {
+    /// Send this response; `None` for a notification or a stray response.
+    Reply(Option<Value>),
+    /// Run the tool `name` with `args` and answer request `id` with
+    /// [`tool_response`], [`live_response`] or [`tool_error`].
+    ToolCall {
+        /// The request id.
+        id: Value,
+        /// The tool name.
+        name: String,
+        /// The arguments (`null` when the call had none).
+        args: Value,
+    },
+}
+
+/// Route one raw message: answer everything but `tools/call`, which goes
+/// to the host. `tools` lists the tools `tools/list` reports.
+pub fn route_text(info: &ServerInfo, text: &str, tools: impl FnOnce() -> Vec<ToolDef>) -> Routed {
+    match serde_json::from_str::<Value>(text) {
+        Ok(msg) => route(info, msg, tools),
+        Err(e) => Routed::Reply(Some(error(
+            Value::Null,
+            PARSE_ERROR,
+            &format!("Parse error: {e}"),
+        ))),
+    }
+}
+
+/// Route one parsed message, as [`route_text`].
+pub fn route(info: &ServerInfo, msg: Value, tools: impl FnOnce() -> Vec<ToolDef>) -> Routed {
+    let Some(obj) = msg.as_object() else {
+        return Routed::Reply(Some(error(
+            Value::Null,
+            INVALID_REQUEST,
+            "Invalid Request: expected one JSON-RPC object (batches are not supported)",
+        )));
+    };
+    let id = obj.get("id").cloned();
+    let method = obj.get("method").and_then(Value::as_str);
+    if obj.get("jsonrpc").and_then(Value::as_str) != Some("2.0") || method.is_none() {
+        // A response or garbage: answer requests, ignore the rest.
+        return Routed::Reply(id.map(|id| {
+            error(
+                id,
+                INVALID_REQUEST,
+                "Invalid Request: needs \"jsonrpc\": \"2.0\" and a \"method\"",
+            )
+        }));
+    }
+    let method = method.unwrap_or_default();
+    let params = obj.get("params").cloned().unwrap_or(Value::Null);
+    // Notifications (no id) get no response.
+    let Some(id) = id else {
+        return Routed::Reply(None);
+    };
+    if method == "tools/call" {
+        let Some(name) = params.get("name").and_then(Value::as_str) else {
+            return Routed::Reply(Some(error(
+                id,
+                INVALID_PARAMS,
+                "tools/call needs a string `name`",
+            )));
+        };
+        return Routed::ToolCall {
+            id,
+            name: name.to_owned(),
+            args: params.get("arguments").cloned().unwrap_or(Value::Null),
+        };
+    }
+    Routed::Reply(Some(match dispatch(info, method, &params, tools) {
+        Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
+        Err((code, message)) => error(id, code, &message),
+    }))
+}
+
+fn dispatch(
+    info: &ServerInfo,
+    method: &str,
+    params: &Value,
+    tools: impl FnOnce() -> Vec<ToolDef>,
+) -> Result<Value, (i64, String)> {
+    match method {
+        "initialize" => Ok(json!({
+            "protocolVersion": PROTOCOL_VERSION,
+            "capabilities": {
+                "tools": { "listChanged": false },
+                "resources": { "listChanged": false, "subscribe": false },
+            },
+            "serverInfo": { "name": info.name, "version": env!("CARGO_PKG_VERSION") },
+            "instructions": info.instructions,
+        })),
+        "ping" => Ok(json!({})),
+        "tools/list" => {
+            let tools: Vec<Value> = tools()
+                .into_iter()
+                .map(|t| {
+                    json!({
+                        "name": t.name,
+                        "description": t.description,
+                        "inputSchema": t.input_schema,
+                    })
+                })
+                .collect();
+            Ok(json!({ "tools": tools }))
+        }
+        "resources/list" => {
+            let resources: Vec<Value> = list_resources()
+                .into_iter()
+                .map(|r| {
+                    json!({
+                        "uri": r.uri,
+                        "name": r.name,
+                        "description": r.description,
+                        "mimeType": r.mime_type,
+                    })
+                })
+                .collect();
+            Ok(json!({ "resources": resources }))
+        }
+        "resources/templates/list" => Ok(json!({ "resourceTemplates": [] })),
+        "resources/read" => {
+            let uri = params.get("uri").and_then(Value::as_str).ok_or((
+                INVALID_PARAMS,
+                "resources/read needs a string `uri`".to_owned(),
+            ))?;
+            let text = read_resource(uri)
+                .map_err(|e| (RESOURCE_NOT_FOUND, format!("Resource not found: {e}")))?;
+            let mime = list_resources()
+                .into_iter()
+                .find(|r| r.uri == uri)
+                .map_or("application/json", |r| r.mime_type);
+            Ok(json!({
+                "contents": [{ "uri": uri, "mimeType": mime, "text": text }],
+            }))
+        }
+        other => Err((METHOD_NOT_FOUND, format!("Method not found: `{other}`"))),
+    }
+}
+
+/// The successful tool result for `json` and an optional base64 PNG.
+fn tool_success(json: &Value, png_base64: Option<String>) -> Value {
+    let mut content = vec![json!({ "type": "text", "text": json.to_string() })];
+    if let Some(data) = png_base64 {
+        content.push(json!({ "type": "image", "data": data, "mimeType": "image/png" }));
+    }
+    json!({ "content": content, "structuredContent": json, "isError": false })
+}
+
+/// The response to request `id` for a tool call that ran here.
+pub fn tool_response(id: Value, result: Result<ToolOutput, AgentError>) -> Value {
+    match result {
+        Ok(out) => {
+            let png = out.image_png.as_deref().map(base64::encode);
+            json!({ "jsonrpc": "2.0", "id": id, "result": tool_success(&out.json, png) })
+        }
+        Err(AgentError::UnknownTool(t)) => error(
+            id,
+            INVALID_PARAMS,
+            &format!("Unknown tool: `{t}`; tools/list shows the tools"),
+        ),
+        Err(e) => tool_error(id, &e.to_string()),
+    }
+}
+
+/// The response to request `id` for a tool call the desktop editor ran,
+/// from its reply `wire` (`pincel_agent::live::LiveReply::to_json`; a
+/// reply the app makes itself, such as "user cancelled", has the same
+/// shape).
+pub fn live_response(id: Value, wire: &Value) -> Value {
+    if wire["ok"] == Value::Bool(true) {
+        let png = wire["png"].as_str().map(str::to_owned);
+        return json!({ "jsonrpc": "2.0", "id": id, "result": tool_success(&wire["json"], png) });
+    }
+    let message = wire["error"]
+        .as_str()
+        .unwrap_or("the editor failed to run the tool");
+    if wire["unknown"] == Value::Bool(true) {
+        return error(id, INVALID_PARAMS, message);
+    }
+    tool_error(id, message)
+}
+
+/// The response to request `id` for a tool call that failed with
+/// `message`: a tool result with `isError: true` the model can act on.
+pub fn tool_error(id: Value, message: &str) -> Value {
+    json!({
+        "jsonrpc": "2.0",
+        "id": id,
+        "result": { "content": [{ "type": "text", "text": message }], "isError": true },
+    })
+}
 
 /// An MCP server over one session of documents.
 pub struct Server<H: FileHost> {
@@ -36,134 +248,23 @@ impl<H: FileHost> Server<H> {
     /// Handle one raw message (a line of the stdio transport). Returns the
     /// response text, or `None` for a notification.
     pub fn handle_text(&mut self, text: &str) -> Option<String> {
-        let response = match serde_json::from_str::<Value>(text) {
-            Ok(msg) => self.handle(msg),
-            Err(e) => Some(error(
-                Value::Null,
-                PARSE_ERROR,
-                &format!("Parse error: {e}"),
-            )),
-        };
-        response.map(|v| v.to_string())
+        let routed = route_text(&HEADLESS, text, list_tools);
+        self.run(routed).map(|v| v.to_string())
     }
 
     /// Handle one parsed JSON-RPC message.
     pub fn handle(&mut self, msg: Value) -> Option<Value> {
-        let Some(obj) = msg.as_object() else {
-            return Some(error(
-                Value::Null,
-                INVALID_REQUEST,
-                "Invalid Request: expected one JSON-RPC object (batches are not supported)",
-            ));
-        };
-        let id = obj.get("id").cloned();
-        let method = obj.get("method").and_then(Value::as_str);
-        if obj.get("jsonrpc").and_then(Value::as_str) != Some("2.0") || method.is_none() {
-            // A response or garbage: answer requests, ignore the rest.
-            return id.map(|id| {
-                error(
-                    id,
-                    INVALID_REQUEST,
-                    "Invalid Request: needs \"jsonrpc\": \"2.0\" and a \"method\"",
-                )
-            });
-        }
-        let method = method.unwrap_or_default();
-        let params = obj.get("params").cloned().unwrap_or(Value::Null);
-        // Notifications (no id) get no response.
-        let id = id?;
-        Some(match self.dispatch(method, &params) {
-            Ok(result) => json!({ "jsonrpc": "2.0", "id": id, "result": result }),
-            Err((code, message)) => error(id, code, &message),
-        })
+        let routed = route(&HEADLESS, msg, list_tools);
+        self.run(routed)
     }
 
-    fn dispatch(&mut self, method: &str, params: &Value) -> Result<Value, (i64, String)> {
-        match method {
-            "initialize" => Ok(json!({
-                "protocolVersion": PROTOCOL_VERSION,
-                "capabilities": {
-                    "tools": { "listChanged": false },
-                    "resources": { "listChanged": false, "subscribe": false },
-                },
-                "serverInfo": { "name": "pincel-mcp", "version": env!("CARGO_PKG_VERSION") },
-                "instructions": INSTRUCTIONS,
-            })),
-            "ping" => Ok(json!({})),
-            "tools/list" => {
-                let tools: Vec<Value> = list_tools()
-                    .into_iter()
-                    .map(|t| {
-                        json!({
-                            "name": t.name,
-                            "description": t.description,
-                            "inputSchema": t.input_schema,
-                        })
-                    })
-                    .collect();
-                Ok(json!({ "tools": tools }))
-            }
-            "tools/call" => self.call_tool(params),
-            "resources/list" => {
-                let resources: Vec<Value> = list_resources()
-                    .into_iter()
-                    .map(|r| {
-                        json!({
-                            "uri": r.uri,
-                            "name": r.name,
-                            "description": r.description,
-                            "mimeType": r.mime_type,
-                        })
-                    })
-                    .collect();
-                Ok(json!({ "resources": resources }))
-            }
-            "resources/templates/list" => Ok(json!({ "resourceTemplates": [] })),
-            "resources/read" => {
-                let uri = params.get("uri").and_then(Value::as_str).ok_or((
-                    INVALID_PARAMS,
-                    "resources/read needs a string `uri`".to_owned(),
-                ))?;
-                let text = read_resource(uri)
-                    .map_err(|e| (RESOURCE_NOT_FOUND, format!("Resource not found: {e}")))?;
-                let mime = list_resources()
-                    .into_iter()
-                    .find(|r| r.uri == uri)
-                    .map_or("application/json", |r| r.mime_type);
-                Ok(json!({
-                    "contents": [{ "uri": uri, "mimeType": mime, "text": text }],
-                }))
-            }
-            other => Err((METHOD_NOT_FOUND, format!("Method not found: `{other}`"))),
-        }
-    }
-
-    fn call_tool(&mut self, params: &Value) -> Result<Value, (i64, String)> {
-        let name = params.get("name").and_then(Value::as_str).ok_or((
-            INVALID_PARAMS,
-            "tools/call needs a string `name`".to_owned(),
-        ))?;
-        let args = params.get("arguments").cloned().unwrap_or(Value::Null);
-        match pincel_agent::call(&mut self.ws, &mut self.host, name, args) {
-            Ok(out) => {
-                let mut content = vec![json!({ "type": "text", "text": out.json.to_string() })];
-                if let Some(png) = &out.image_png {
-                    content.push(json!({
-                        "type": "image",
-                        "data": base64::encode(png),
-                        "mimeType": "image/png",
-                    }));
-                }
-                Ok(json!({ "content": content, "structuredContent": out.json, "isError": false }))
-            }
-            Err(AgentError::UnknownTool(t)) => Err((
-                INVALID_PARAMS,
-                format!("Unknown tool: `{t}`; tools/list shows the tools"),
+    fn run(&mut self, routed: Routed) -> Option<Value> {
+        match routed {
+            Routed::Reply(reply) => reply,
+            Routed::ToolCall { id, name, args } => Some(tool_response(
+                id,
+                pincel_agent::call(&mut self.ws, &mut self.host, &name, args),
             )),
-            Err(e) => Ok(json!({
-                "content": [{ "type": "text", "text": e.to_string() }],
-                "isError": true,
-            })),
         }
     }
 }
@@ -421,5 +522,91 @@ mod tests {
         assert_eq!(img["mimeType"], "image/png");
         let data = base64::decode(img["data"].as_str().expect("data")).expect("base64");
         assert_eq!(&data[..8], b"\x89PNG\r\n\x1a\n");
+    }
+}
+
+#[cfg(test)]
+mod route_tests {
+    use super::*;
+
+    fn msg(id: i64, method: &str, params: Value) -> Value {
+        json!({ "jsonrpc": "2.0", "id": id, "method": method, "params": params })
+    }
+
+    #[test]
+    fn route_answers_protocol_methods_and_hands_tool_calls_to_the_host() {
+        let info = ServerInfo {
+            name: "pincel-live",
+            instructions: "live",
+        };
+        let Routed::Reply(Some(r)) = route(&info, msg(1, "initialize", json!({})), list_tools)
+        else {
+            panic!("initialize is answered");
+        };
+        assert_eq!(r["result"]["serverInfo"]["name"], "pincel-live");
+        assert_eq!(r["result"]["instructions"], "live");
+        let Routed::Reply(Some(r)) = route(&info, msg(2, "tools/list", json!({})), || {
+            list_tools()
+                .into_iter()
+                .filter(|t| t.name.starts_with("draw."))
+                .collect()
+        }) else {
+            panic!("tools/list is answered");
+        };
+        let tools = r["result"]["tools"].as_array().expect("tools");
+        assert!(!tools.is_empty());
+        assert!(
+            tools
+                .iter()
+                .all(|t| t["name"].as_str().is_some_and(|n| n.starts_with("draw.")))
+        );
+        match route(
+            &info,
+            msg(
+                3,
+                "tools/call",
+                json!({ "name": "draw.rect", "arguments": { "x0": 1 } }),
+            ),
+            list_tools,
+        ) {
+            Routed::ToolCall { id, name, args } => {
+                assert_eq!(id, json!(3));
+                assert_eq!(name, "draw.rect");
+                assert_eq!(args, json!({ "x0": 1 }));
+            }
+            Routed::Reply(r) => panic!("tools/call goes to the host: {r:?}"),
+        }
+        assert!(matches!(
+            route(
+                &info,
+                json!({ "jsonrpc": "2.0", "method": "notifications/initialized" }),
+                list_tools
+            ),
+            Routed::Reply(None)
+        ));
+    }
+
+    #[test]
+    fn live_response_maps_the_wire_reply_to_a_tool_result() {
+        let png = [0x89u8, b'P', b'N', b'G'];
+        let wire = json!({ "ok": true, "json": { "doc": "tab-1" }, "png": base64::encode(&png), "files": [] });
+        let r = live_response(json!(4), &wire);
+        assert_eq!(r["id"], 4);
+        assert_eq!(r["result"]["isError"], false);
+        assert_eq!(r["result"]["structuredContent"]["doc"], "tab-1");
+        assert_eq!(r["result"]["content"][1]["type"], "image");
+        let r = live_response(
+            json!(5),
+            &json!({ "ok": false, "error": "no document is open" }),
+        );
+        assert_eq!(r["result"]["isError"], true);
+        assert_eq!(r["result"]["content"][0]["text"], "no document is open");
+        let r = live_response(
+            json!(6),
+            &json!({ "ok": false, "unknown": true, "error": "unknown tool `x`" }),
+        );
+        assert_eq!(r["error"]["code"], INVALID_PARAMS);
+        let r = tool_error(json!(7), "editor busy: a dialog is open");
+        assert_eq!(r["result"]["isError"], true);
     }
 }
