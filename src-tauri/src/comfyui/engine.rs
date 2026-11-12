@@ -75,12 +75,13 @@ impl Layout {
         self.uv_dir().join(name)
     }
 
-    /// The venv's interpreter.
+    /// The venv's interpreter — the one `install::detect` finds first, so
+    /// the managed installation starts with the interpreter it set up.
     pub fn python(&self) -> PathBuf {
         if cfg!(windows) {
             self.venv().join("Scripts").join("python.exe")
         } else {
-            self.venv().join("bin").join("python")
+            self.venv().join("bin").join("python3")
         }
     }
 
