@@ -637,6 +637,11 @@ impl Command for LiveStep {
         rect_damage(self.before.as_ref().and_then(|d| d.rect), self.after.rect)
     }
 
+    /// A live object only draws into its layer.
+    fn changes_selection(&self) -> bool {
+        false
+    }
+
     /// The pre-object layer is held once per live object, by its begin step
     /// (the edits share it), so the byte cap of
     /// docs/specs/performance-image-undo-memory.md sees it.

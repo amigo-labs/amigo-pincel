@@ -56,6 +56,10 @@ impl Command for Batch {
         damage
     }
 
+    fn changes_selection(&self) -> bool {
+        self.cmds.iter().any(|c| c.changes_selection())
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }
