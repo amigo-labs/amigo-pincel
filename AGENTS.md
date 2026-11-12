@@ -654,6 +654,7 @@ Pitfalls and non-obvious knowledge that code and git history don't show. Short e
 - **Worktrees share one stash list.** `git stash` in a worktree writes to the repository's single stash stack, so `stash@{0}` may be another worktree's work. Pop or drop only an entry whose message names your branch.
 - **Run the Tauri CLI from the repo root.** `tauri build` looks for `tauri.conf.json` below the current folder, so started from `ui/` (`pnpm tauri build`) it panics with "Couldn't recognize the current folder as a Tauri project"; run `ui/node_modules/.bin/tauri build` from the root. Its `beforeBuildCommand` bundles whatever wasm package is built, so run `pnpm wasm:build:release` first for a release measurement.
 - **The OCR wasm32 test builds its own target.** `read_page_8192_square_page_reads_in_wasm32` (`crates/pincel-ocr/tests/page.rs`) builds an example for `wasm32-unknown-unknown` under `target/tmp/` and runs it in Node: it needs that target and Node, and its first build adds about a minute to `cargo test -p pincel-ocr`.
+- **Test binaries moved in Rust 1.100.** Cargo's build-dir layout puts a test binary under `target/<profile>/build/<package>/<hash>/out/` (before: `target/<profile>/deps/`), while examples stay in `target/<profile>/examples/`. A test that finds a helper example by a fixed number of `parent()` steps from `current_exe()` breaks in CI first (CI installs the newest stable); search `current_exe().ancestors()` for `examples/<name>` instead (`fake_cli` in `src-tauri/src/assistant/tests.rs`).
 
 ---
 
