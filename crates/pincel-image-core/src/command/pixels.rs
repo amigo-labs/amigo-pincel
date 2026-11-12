@@ -226,6 +226,11 @@ impl Command for SetPixels {
         saved + pending
     }
 
+    /// Pixel edits leave the selection alone.
+    fn changes_selection(&self) -> bool {
+        false
+    }
+
     fn as_any(&self) -> &dyn Any {
         self
     }

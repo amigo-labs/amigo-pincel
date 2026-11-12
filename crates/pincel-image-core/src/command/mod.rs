@@ -95,6 +95,14 @@ pub trait Command: Send + Sync {
         0
     }
 
+    /// Whether [`apply`](Command::apply) or [`revert`](Command::revert) may
+    /// change the document's selection, for
+    /// [`CommandBus::selection_generation`]. The default, `true`, is always
+    /// correct; commands that only edit pixels override it.
+    fn changes_selection(&self) -> bool {
+        true
+    }
+
     /// Downcast support, required for type-aware merging.
     fn as_any(&self) -> &dyn Any;
 }
@@ -303,6 +311,18 @@ impl UndoStack {
         self.redo.last().map(|cmd| cmd.damage())
     }
 
+    /// Whether the next [`undo`](UndoStack::undo) may change the selection,
+    /// if there is one.
+    fn next_undo_changes_selection(&self) -> Option<bool> {
+        self.undo.last().map(|cmd| cmd.changes_selection())
+    }
+
+    /// Whether the next [`redo`](UndoStack::redo) may change the selection,
+    /// if there is one.
+    fn next_redo_changes_selection(&self) -> Option<bool> {
+        self.redo.last().map(|cmd| cmd.changes_selection())
+    }
+
     /// One step of a jump: undo (`back`) or redo, but a step that fails
     /// goes back to the stack it came from instead of being dropped
     /// (docs/specs/history-panel.md AC-12).
@@ -364,6 +384,9 @@ pub struct CommandBus {
     /// What the next live-object edit may merge with
     /// (docs/specs/image-live-objects.md AC-03).
     live_merge: Option<live::MergeKey>,
+    /// Bumped by every apply, undo or redo that may have changed the
+    /// selection; see [`selection_generation`](CommandBus::selection_generation).
+    selection_generation: u32,
 }
 
 impl CommandBus {
@@ -374,7 +397,17 @@ impl CommandBus {
             history: UndoStack::new(),
             damage: Damage::Full,
             live_merge: None,
+            selection_generation: 0,
         }
+    }
+
+    /// A counter that changes whenever an applied, undone or redone command
+    /// may have changed `document.selection` (a failed one counts too), so
+    /// a view can keep what it derived from the selection until it moves.
+    /// It wraps around; compare it for equality only. Code that writes
+    /// `document.selection` directly, outside a command, is not tracked.
+    pub fn selection_generation(&self) -> u32 {
+        self.selection_generation
     }
 
     /// Applies `cmd` to the document and records it in history. A live
@@ -387,6 +420,7 @@ impl CommandBus {
             Ok(()) => cmd.damage(),
             Err(_) => Damage::Full,
         });
+        self.record_selection(Some(cmd.changes_selection()), applied.is_ok());
         applied?;
         self.history.push(cmd);
         Ok(())
@@ -396,8 +430,10 @@ impl CommandBus {
     pub fn undo(&mut self) -> Result<bool, DocumentError> {
         self.live_merge = None;
         let damage = self.history.next_undo_damage();
+        let selection = self.history.next_undo_changes_selection();
         let undone = self.history.undo(&mut self.document);
         self.record(damage, undone.is_ok());
+        self.record_selection(selection, undone.is_ok());
         undone
     }
 
@@ -405,8 +441,10 @@ impl CommandBus {
     pub fn redo(&mut self) -> Result<bool, DocumentError> {
         self.live_merge = None;
         let damage = self.history.next_redo_damage();
+        let selection = self.history.next_redo_changes_selection();
         let redone = self.history.redo(&mut self.document);
         self.record(damage, redone.is_ok());
+        self.record_selection(selection, redone.is_ok());
         redone
     }
 
@@ -423,13 +461,20 @@ impl CommandBus {
         let steps = delta.unsigned_abs();
         let mut moved = 0usize;
         while (moved as u64) < steps {
-            let damage = if back {
-                self.history.next_undo_damage()
+            let (damage, selection) = if back {
+                (
+                    self.history.next_undo_damage(),
+                    self.history.next_undo_changes_selection(),
+                )
             } else {
-                self.history.next_redo_damage()
+                (
+                    self.history.next_redo_damage(),
+                    self.history.next_redo_changes_selection(),
+                )
             };
             let step = self.history.step_keeping(&mut self.document, back);
             self.record(damage, step.is_ok());
+            self.record_selection(selection, step.is_ok());
             match step {
                 Ok(true) => moved += 1,
                 Ok(false) => break,
@@ -453,6 +498,17 @@ impl CommandBus {
             (Some(d), true) => self.damage.add(d),
             (Some(_), false) => self.damage.add(Damage::Full),
             (None, _) => {}
+        }
+    }
+
+    /// Moves the selection generation after a command ran: when it may
+    /// change the selection, or failed (and may have changed anything).
+    /// `None` means there was no command to run.
+    fn record_selection(&mut self, changes_selection: Option<bool>, ok: bool) {
+        if let Some(changes) = changes_selection
+            && (changes || !ok)
+        {
+            self.selection_generation = self.selection_generation.wrapping_add(1);
         }
     }
 }
@@ -535,6 +591,52 @@ mod tests {
         bus.take_damage();
         bus.apply(Box::new(ResizeCanvas::new(4, 4))).unwrap();
         assert_eq!(bus.take_damage(), Damage::Full);
+    }
+
+    #[test]
+    fn selection_generation_changes_on_select_deselect_undo_and_redo() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        let mut seen = vec![bus.selection_generation()];
+        let mut step = |bus: &mut CommandBus, what: &str| {
+            let g = bus.selection_generation();
+            assert!(!seen.contains(&g), "{what} moves the generation");
+            seen.push(g);
+        };
+        let mask = crate::selection::SelectionMask::rectangle(8, 8, Rect::new(1, 1, 3, 3));
+        bus.apply(Box::new(SetSelection::replace(mask))).unwrap();
+        step(&mut bus, "select");
+        bus.apply(Box::new(SetSelection::clear())).unwrap();
+        step(&mut bus, "deselect");
+        assert!(bus.undo().unwrap());
+        step(&mut bus, "undo of deselect");
+        assert!(bus.redo().unwrap());
+        step(&mut bus, "redo of deselect");
+        assert_eq!(bus.jump(-2), Ok(2));
+        step(&mut bus, "jump back over both");
+    }
+
+    #[test]
+    fn selection_generation_stays_on_pixel_edits_and_their_undo() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        let mask = crate::selection::SelectionMask::rectangle(8, 8, Rect::new(1, 1, 3, 3));
+        bus.apply(Box::new(SetSelection::replace(mask))).unwrap();
+        let g = bus.selection_generation();
+        // A brush stroke: several pixel edits merged into one undo step.
+        for x in 1..4 {
+            let mut dab = crate::ImageBuffer::new_transparent(1, 1);
+            dab.set_pixel(0, 0, Color::WHITE);
+            let cmd = SetPixels::new(0, Rect::new(x, 1, 1, 1), dab).with_stroke(7);
+            bus.apply(Box::new(cmd)).unwrap();
+        }
+        assert_eq!(bus.history.undo_depth(), 2, "one step for the stroke");
+        assert_eq!(bus.selection_generation(), g, "stroke keeps it");
+        assert!(bus.undo().unwrap());
+        assert!(bus.redo().unwrap());
+        assert_eq!(
+            bus.selection_generation(),
+            g,
+            "undo / redo of a stroke keep it"
+        );
     }
 
     #[test]

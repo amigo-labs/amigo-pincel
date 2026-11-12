@@ -160,6 +160,7 @@ export function syncInfo(): void {
   if (!sameHistory(history, editor.history)) editor.history = history;
   editor.layers = info.layers;
   editor.hasSelection = info.has_selection;
+  editor.selectionGeneration = info.selection_generation;
   live.object = core.liveObject(editor.handle);
   editor.revision += 1;
 }
