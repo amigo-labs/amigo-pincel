@@ -6,7 +6,7 @@
 
 use pincel_effects::EffectSpec;
 use pincel_image_core::codec::psd::{PsdLimits, PsdNotice, from_psd_bytes};
-use pincel_image_core::codec::{to_ico_bytes, to_png_bytes, to_tga_bytes};
+use pincel_image_core::codec::to_png_bytes;
 use pincel_image_core::command::live_spec::{
     TextLayoutRequest, live_object_spec, text_layout as layout_text,
 };
@@ -681,7 +681,7 @@ pub fn export_bmp(handle: u32) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_tga(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_tga_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Tga, 0, 0).map_err(job_js)
     })
 }
 
@@ -690,7 +690,7 @@ pub fn export_tga(handle: u32) -> Result<Vec<u8>, JsError> {
 #[wasm_bindgen]
 pub fn export_ico(handle: u32) -> Result<Vec<u8>, JsError> {
     with_bus(handle, |bus| {
-        to_ico_bytes(&compose(bus.document.layers())).map_err(|e| JsError::new(&e.to_string()))
+        jobs::encode(&bus.document, EncodeFormat::Ico, 0, 0).map_err(job_js)
     })
 }
 

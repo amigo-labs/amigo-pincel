@@ -8,6 +8,8 @@
 //! [`sample_bilinear`]. Median works on straight colours of opaque pixels.
 //! Every blur reads neighbours outside the layer as the nearest edge pixel.
 
+use crate::kernel::accumulate_taps;
+
 mod bokeh;
 mod box_blur;
 mod fragment;
@@ -56,6 +58,12 @@ pub(crate) fn angle(v: f32) -> f32 {
 /// Convolves a flat premultiplied RGBA f32 buffer with a 1-D `kernel` along one
 /// axis, clamping at the edges. `kernel` is centred on `kernel.len() / 2` and is
 /// expected to sum to 1.0 for a blur.
+///
+/// Every output channel starts at 0.0 and adds `sample * weight` for the taps
+/// in kernel order, so the result is bit-identical however the loops are
+/// arranged: [`axis_row`] clamps a source coordinate only for the pixels whose
+/// taps leave the image and adds contiguous runs of floats tap by tap
+/// ([`accumulate_taps`]) everywhere else, which the compiler vectorises.
 pub(crate) fn convolve_axis(
     src: &[f32],
     w: usize,
@@ -64,28 +72,72 @@ pub(crate) fn convolve_axis(
     horizontal: bool,
 ) -> Vec<f32> {
     let mut out = vec![0.0f32; src.len()];
-    let center = (kernel.len() / 2) as isize;
-    for y in 0..h {
-        for x in 0..w {
-            let mut acc = [0.0f32; 4];
-            for (k, &weight) in kernel.iter().enumerate() {
-                let offset = k as isize - center;
-                let (sx, sy) = if horizontal {
-                    ((x as isize + offset).clamp(0, w as isize - 1) as usize, y)
-                } else {
-                    (x, (y as isize + offset).clamp(0, h as isize - 1) as usize)
-                };
-                let o = (sy * w + sx) * 4;
-                acc[0] += src[o] * weight;
-                acc[1] += src[o + 1] * weight;
-                acc[2] += src[o + 2] * weight;
-                acc[3] += src[o + 3] * weight;
-            }
-            let o = (y * w + x) * 4;
-            out[o..o + 4].copy_from_slice(&acc);
-        }
+    if w == 0 {
+        return out;
+    }
+    for (y, row) in out.chunks_exact_mut(w * 4).enumerate() {
+        axis_row(src, w, h, kernel, horizontal, y, row);
     }
     out
+}
+
+/// Computes output row `y` of [`convolve_axis`] into `row`
+/// (`out[y * w * 4..(y + 1) * w * 4]`, all zeros on entry).
+fn axis_row(
+    src: &[f32],
+    w: usize,
+    h: usize,
+    kernel: &[f32],
+    horizontal: bool,
+    y: usize,
+    row: &mut [f32],
+) {
+    if kernel.is_empty() {
+        return;
+    }
+    let stride = w * 4;
+    let center = kernel.len() / 2;
+    if !horizontal {
+        let taps: Vec<(&[f32], f32)> = kernel
+            .iter()
+            .enumerate()
+            .map(|(k, &weight)| {
+                // Row `y + k - center`, clamped to the image.
+                let sy = (y + k).saturating_sub(center).min(h - 1);
+                (&src[sy * stride..(sy + 1) * stride], weight)
+            })
+            .collect();
+        accumulate_taps(row, &taps);
+        return;
+    }
+    let src_row = &src[y * stride..(y + 1) * stride];
+    let right = kernel.len() - 1 - center;
+    // Interior pixels `lo..hi` have every tap inside the row:
+    // x - center >= 0 and x + right <= w - 1. A non-empty interior starts at
+    // `lo == center`, so tap `k` of pixel `lo + i` is pixel `i + k`.
+    let lo = center.min(w);
+    let hi = w.saturating_sub(right).max(lo);
+    let (pixels, _) = src_row.as_chunks::<4>();
+    let (out_pixels, _) = row.as_chunks_mut::<4>();
+    for x in (0..lo).chain(hi..w) {
+        let mut acc = [0.0f32; 4];
+        for (k, &weight) in kernel.iter().enumerate() {
+            let sx = (x + k).saturating_sub(center).min(w - 1);
+            for (a, &s) in acc.iter_mut().zip(&pixels[sx]) {
+                *a += s * weight;
+            }
+        }
+        out_pixels[x] = acc;
+    }
+    let span = (hi - lo) * 4;
+    if span > 0 {
+        let taps: Vec<(&[f32], f32)> = kernel
+            .iter()
+            .enumerate()
+            .map(|(k, &weight)| (&src_row[k * 4..k * 4 + span], weight))
+            .collect();
+        accumulate_taps(&mut row[lo * 4..hi * 4], &taps);
+    }
 }
 
 /// Bilinearly samples a flat premultiplied RGBA f32 buffer at fractional
@@ -110,4 +162,104 @@ pub(crate) fn sample_bilinear(src: &[f32], w: usize, h: usize, x: f32, y: f32) -
         out[c] = top + (bot - top) * wy;
     }
     out
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::random::{hash, unit};
+
+    /// The original per-tap clamping `convolve_axis`, frozen verbatim as the
+    /// bit-exact reference for the optimised one.
+    fn convolve_axis_reference(
+        src: &[f32],
+        w: usize,
+        h: usize,
+        kernel: &[f32],
+        horizontal: bool,
+    ) -> Vec<f32> {
+        let mut out = vec![0.0f32; src.len()];
+        let center = (kernel.len() / 2) as isize;
+        for y in 0..h {
+            for x in 0..w {
+                let mut acc = [0.0f32; 4];
+                for (k, &weight) in kernel.iter().enumerate() {
+                    let offset = k as isize - center;
+                    let (sx, sy) = if horizontal {
+                        ((x as isize + offset).clamp(0, w as isize - 1) as usize, y)
+                    } else {
+                        (x, (y as isize + offset).clamp(0, h as isize - 1) as usize)
+                    };
+                    let o = (sy * w + sx) * 4;
+                    acc[0] += src[o] * weight;
+                    acc[1] += src[o + 1] * weight;
+                    acc[2] += src[o + 2] * weight;
+                    acc[3] += src[o + 3] * weight;
+                }
+                let o = (y * w + x) * 4;
+                out[o..o + 4].copy_from_slice(&acc);
+            }
+        }
+        out
+    }
+
+    /// `n` seeded values in `[0, 1]`, with exact 0.0 and 1.0 mixed in.
+    fn values(seed: u32, n: usize) -> Vec<f32> {
+        (0..n)
+            .map(|i| match hash(seed, i, 0) % 8 {
+                0 => 0.0,
+                1 => 1.0,
+                _ => unit(hash(seed, i, 1)),
+            })
+            .collect()
+    }
+
+    /// `len` seeded weights in `[-1, 1]`.
+    fn weights(seed: u32, len: usize) -> Vec<f32> {
+        (0..len)
+            .map(|k| unit(hash(seed, k, 2)) * 2.0 - 1.0)
+            .collect()
+    }
+
+    fn assert_bits_eq(got: &[f32], want: &[f32], context: &str) {
+        assert_eq!(got.len(), want.len(), "{context}: length");
+        for (i, (g, r)) in got.iter().zip(want).enumerate() {
+            assert_eq!(g.to_bits(), r.to_bits(), "{context}: element {i}");
+        }
+    }
+
+    #[test]
+    fn convolve_axis_matches_reference_bit_for_bit() {
+        for case in 0..400u32 {
+            let seed = case.wrapping_mul(2_654_435_761);
+            let w = 1 + (hash(seed, 0, 10) % 40) as usize;
+            let h = 1 + (hash(seed, 0, 11) % 40) as usize;
+            let len = 1 + 2 * (hash(seed, 0, 12) % 21) as usize;
+            let src = values(seed, w * h * 4);
+            let kernel = weights(seed, len);
+            for horizontal in [true, false] {
+                let context = format!("case {case}: {w}x{h}, len {len}, horizontal {horizontal}");
+                assert_bits_eq(
+                    &convolve_axis(&src, w, h, &kernel, horizontal),
+                    &convolve_axis_reference(&src, w, h, &kernel, horizontal),
+                    &context,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn convolve_axis_single_pixel_and_wide_kernel_matches_reference() {
+        let src = values(7, 4);
+        for len in [1, 3, 41] {
+            let kernel = weights(len as u32, len);
+            for horizontal in [true, false] {
+                assert_bits_eq(
+                    &convolve_axis(&src, 1, 1, &kernel, horizontal),
+                    &convolve_axis_reference(&src, 1, 1, &kernel, horizontal),
+                    &format!("1x1, len {len}, horizontal {horizontal}"),
+                );
+            }
+        }
+    }
 }
