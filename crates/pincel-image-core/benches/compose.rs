@@ -40,6 +40,9 @@
 //!   a one-layer compose plus the linear-light over-background blend.
 //! * `image_export/jpeg_4k` — JPEG export of the same 3840×2160 buffer, which
 //!   flattens it onto white before encoding.
+//! * `selection/feather_r20_4k`, `selection/expand_r20_4k` — Feather and
+//!   Expand by 20 px of an anti-aliased elliptical selection on a
+//!   3840×2160 canvas (spec §8.4).
 //!
 //! The 4K scenarios take hundreds of milliseconds to seconds per
 //! iteration natively, so their groups run the minimum 10 samples.
@@ -48,15 +51,15 @@ use std::hint::black_box;
 use std::time::Duration;
 
 use criterion::{
-    BenchmarkGroup, Criterion, criterion_group, criterion_main, measurement::WallTime,
+    BatchSize, BenchmarkGroup, Criterion, criterion_group, criterion_main, measurement::WallTime,
 };
 use pincel_effects::{Effect, EffectImage, blur::GaussianBlur};
 use pincel_image_core::command::Damage;
 use pincel_image_core::{
     BoxShape, Brush, Color, Command, CommandBus, Curve, CurveLine, DashPattern, Document, Gradient,
     ImageBuffer, Interpolation, Layer, LineCap, LiveEdit, LiveGradient, LiveParams, LiveShape,
-    LiveShapeKind, Pencil, Point, Rect, RenderCache, ShapeMode, ShapeStyle, codec, compose,
-    compose_over, compose_region, scale,
+    LiveShapeKind, Pencil, Point, Rect, RenderCache, SelectionMask, ShapeMode, ShapeStyle, codec,
+    compose, compose_over, compose_region, scale,
 };
 
 /// 4K as the budget table defines it (docs/specs/pincel.md §4.5).
@@ -380,6 +383,33 @@ fn bench_export(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_selection(c: &mut Criterion) {
+    let mut group = c.benchmark_group("selection");
+    heavy(&mut group);
+    let mask = SelectionMask::ellipse_aa(UHD.0, UHD.1, Rect::new(400, 300, 3000, 1500));
+    group.bench_function("feather_r20_4k", |b| {
+        b.iter_batched(
+            || mask.clone(),
+            |mut m| {
+                m.feather(20);
+                m
+            },
+            BatchSize::LargeInput,
+        );
+    });
+    group.bench_function("expand_r20_4k", |b| {
+        b.iter_batched(
+            || mask.clone(),
+            |mut m| {
+                m.expand(20);
+                m
+            },
+            BatchSize::LargeInput,
+        );
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_full_compose,
@@ -389,6 +419,7 @@ criterion_group!(
     bench_gaussian_blur,
     bench_live,
     bench_curve,
-    bench_export
+    bench_export,
+    bench_selection
 );
 criterion_main!(benches);
