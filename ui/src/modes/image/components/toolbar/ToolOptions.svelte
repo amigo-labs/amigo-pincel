@@ -89,7 +89,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-28" />
-      <span class="w-10 tabular-nums text-pc-text">{percent(tool.opacity)}</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <label class="flex items-center gap-2">
@@ -105,7 +105,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.hardness')}</span>
         <input type="range" min="0" max="100" bind:value={tool.hardness} class="w-28" />
-        <span class="w-10 tabular-nums text-pc-text">{percent(tool.hardness)}</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.hardness)}</span>
       </label>
     {/if}
 
@@ -154,7 +154,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.strength')}</span>
         <input type="range" min="1" max="100" bind:value={tool.smudgeStrength} class="w-24" />
-        <span class="w-10 tabular-nums text-pc-text">{percent(tool.smudgeStrength)}</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.smudgeStrength)}</span>
       </label>
     {:else if tool.kind === 'clone'}
       <CloneOptions />
@@ -169,7 +169,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-28" />
-      <span class="w-10 tabular-nums text-pc-text">{percent(tool.opacity)}</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <label class="flex items-center gap-2">
@@ -273,7 +273,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
-      <span class="w-10 tabular-nums text-pc-text">{percent(tool.opacity)}</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
     <span class="text-pc-faint">{t('opt.gradientHint')}</span>
   {:else if isShapeTool(tool.kind)}
@@ -335,7 +335,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.innerRadius')}</span>
         <input type="range" min="10" max="90" bind:value={tool.starInner} class="w-24" />
-        <span class="w-10 tabular-nums text-pc-text">{percent(tool.starInner)}</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.starInner)}</span>
       </label>
     {/if}
 
@@ -350,7 +350,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
-      <span class="w-10 tabular-nums text-pc-text">{percent(tool.opacity)}</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>

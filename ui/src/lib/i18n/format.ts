@@ -115,6 +115,8 @@ export function formatPercent(percent: number, locale: string, maxFraction = 0):
   return new Intl.NumberFormat(locale, {
     style: 'percent',
     maximumFractionDigits: maxFraction,
+    // A zoom readout reaches 6400 %; it reads as one number, never "6,400%".
+    useGrouping: false,
   }).format(percent / 100);
 }
 

@@ -73,6 +73,9 @@ test('numbers, percentages and dates follow the locale (AC-09)', () => {
   expect(formatPercent(100, 'fr')).toMatch(/^100[\u00a0\u202f]%$/);
   expect(formatPercent(50, 'de')).toMatch(/^50[\u00a0\u202f]%$/);
   expect(formatPercent(50, 'en')).toBe('50%');
+  // A zoom readout is one number: no group separator.
+  expect(formatPercent(6400, 'en')).toBe('6400%');
+  expect(formatPercent(2270, 'de')).toMatch(/^2270[\u00a0\u202f]%$/);
   expect(formatNumber(1.5, 'de')).toBe('1,5');
   expect(formatNumber(1.5, 'pt-BR')).toBe('1,5');
   expect(formatNumber(1.5, 'en')).toBe('1.5');
