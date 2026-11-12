@@ -214,9 +214,9 @@ impl Assistant {
     }
 }
 
-/// A private folder: created owner-only (0o700 on Unix), and refused when
-/// it is a link or not a folder, so nothing is written through a link
-/// someone else planted.
+/// A private folder: owner-only (0o700 on Unix) whether it is created now
+/// or already existed with wider rights, and refused when it is a link or
+/// not a folder, so nothing is written through a link someone else planted.
 fn private_dir(dir: &Path) -> std::io::Result<()> {
     let mut builder = std::fs::DirBuilder::new();
     builder.recursive(true);
@@ -229,6 +229,12 @@ fn private_dir(dir: &Path) -> std::io::Result<()> {
     let meta = std::fs::symlink_metadata(dir)?;
     if meta.file_type().is_symlink() || !meta.is_dir() {
         return Err(std::io::Error::other("it is a link, not a folder"));
+    }
+    // The mode above applies only to a folder created now.
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::PermissionsExt;
+        std::fs::set_permissions(dir, std::fs::Permissions::from_mode(0o700))?;
     }
     Ok(())
 }

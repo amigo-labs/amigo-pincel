@@ -532,6 +532,8 @@ fn the_chat_token_file_goes_when_the_answer_ends_and_comes_back_with_the_next() 
 fn the_chat_folder_and_its_token_file_are_private() {
     use std::os::unix::fs::PermissionsExt;
     let (_root, events, assistant) = setup();
+    // The root already exists with the usual 0o755 (here: from `script`):
+    // it is made private too, not only a folder created now.
     script(&assistant, "c10", &["sleep 30000"]);
     assistant.start(answer("c10", fake_cli())).expect("start");
     let mode = |p: &Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
