@@ -91,7 +91,8 @@
   import { isIdbAvailable } from './lib/idb/db';
   import { RecoveryOffer } from './lib/idb/autosave-session.svelte';
   import { getPref, setPref } from './lib/idb/prefs';
-  import { listRecents, type RecentFile } from './lib/idb/recent-files';
+  import { listRecents, onRecentsChanged, type RecentFile } from './lib/idb/recent-files';
+  import { forgetRecent, listPresentRecents, recentIsGone } from './lib/fs/recents';
   import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
   import { isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
@@ -394,7 +395,12 @@
           shellError = t('shell.noHandle', { name: r.name });
         }
       } catch (err) {
-        shellError = t('shell.recentFailed', { name: r.name, error: errText(err) });
+        if (await recentIsGone(r, err)) {
+          await forgetRecent(r);
+          shellError = t('shell.recentMissing', { name: r.name });
+        } else {
+          shellError = t('shell.recentFailed', { name: r.name, error: errText(err) });
+        }
       }
     });
   }
@@ -624,7 +630,7 @@
   async function refreshRecents() {
     if (!recentsAvailable) return;
     try {
-      recents = await listRecents();
+      recents = await listPresentRecents();
     } catch (err) {
       console.error('listRecents failed', err);
     }
@@ -682,6 +688,11 @@
     void loadDropChoice();
     void loadTouchGestures();
     const stopDrops = watchFileDrops({ hover: onDropHover, drop: onDropFiles });
+    // An editor recorded or removed a recent: the start screen's list and
+    // the native menu follow (file-access AC-30).
+    const stopRecents = onRecentsChanged(() => {
+      if (showStart) void refreshRecents();
+    });
     let cancelled = false;
     let unlistenOpenFile: UnlistenFn | null = null;
     // Files the OS hands over: each as an `open-file` event once the
@@ -793,6 +804,7 @@
     }
     return () => {
       cancelled = true;
+      stopRecents();
       stopLiveHost?.();
       stopAgentAccess();
       recovery.stop();
@@ -824,15 +836,18 @@
     onOpenSample={(s) => void openSample(s)}
     onOpenClipboard={(m) => void openClipboardAs(m)}
     {dropHover}
-  />
-  {#if offer.image && !modalOpen && wasmSimd}
-    <ClipboardOffer
-      image={offer.image}
-      busy={picking || editors.pending > 0}
-      onOpen={() => void openOffer()}
-      onIgnore={dismissOffer}
-    />
-  {/if}
+  >
+    {#snippet clipboardCard()}
+      {#if offer.image && !modalOpen && wasmSimd}
+        <ClipboardOffer
+          image={offer.image}
+          busy={picking || editors.pending > 0}
+          onOpen={() => void openOffer()}
+          onIgnore={dismissOffer}
+        />
+      {/if}
+    {/snippet}
+  </StartScreen>
 {/if}
 
 <!-- The editors: at most one per mode; only the active tab's is shown and

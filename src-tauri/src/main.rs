@@ -3,7 +3,7 @@
 
 use std::collections::HashMap;
 use std::fs;
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
@@ -35,9 +35,21 @@ fn write_path(path: &str, bytes: &[u8]) -> Result<(), String> {
     fs::write(PathBuf::from(path), bytes).map_err(|e| format!("write {path}: {e}"))
 }
 
+/// For each path, whether it names an existing file — the recent files
+/// drop entries whose file is gone (docs/specs/file-access.md AC-30,
+/// AC-31). A path on a drive that is not connected counts as gone.
+fn files_present(paths: &[String]) -> Vec<bool> {
+    paths.iter().map(|p| Path::new(p).is_file()).collect()
+}
+
 #[tauri::command]
 async fn read_file_bytes(path: String) -> Result<Vec<u8>, String> {
     read_path(&path)
+}
+
+#[tauri::command]
+async fn files_exist(paths: Vec<String>) -> Vec<bool> {
+    files_present(&paths)
 }
 
 #[tauri::command]
@@ -516,6 +528,7 @@ fn main() {
         .manage(fonts::SystemFonts::default())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
+            files_exist,
             write_file_bytes,
             set_recent_menu,
             set_menu_language,
@@ -638,6 +651,20 @@ mod tests {
         let path = dir.path().join("does-not-exist.bin");
         let err = read_path(&path.to_string_lossy()).unwrap_err();
         assert!(err.starts_with("read "));
+    }
+
+    #[test]
+    fn files_present_tells_existing_files_from_missing_paths_and_folders() {
+        let dir = tempfile::tempdir().unwrap();
+        let file = dir.path().join("there.png");
+        write_path(&file.to_string_lossy(), &[1, 2, 3]).unwrap();
+        let paths = vec![
+            file.to_string_lossy().into_owned(),
+            dir.path().join("gone.png").to_string_lossy().into_owned(),
+            dir.path().to_string_lossy().into_owned(),
+            String::new(),
+        ];
+        assert_eq!(files_present(&paths), vec![true, false, false, false]);
     }
 
     #[test]

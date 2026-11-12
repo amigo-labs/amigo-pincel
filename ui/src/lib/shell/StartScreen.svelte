@@ -11,6 +11,7 @@
   // on the left, pick up where you left off (Open…, Recent, samples) on the
   // right. The open New card's size form is joined to its card. One New
   // card open at a time, no dialog on top.
+  import type { Snippet } from 'svelte';
   import type { Attachment } from 'svelte/attachments';
   import type { RecentFile } from '../idb/recent-files';
   import type { EditorMode, NewDocParams } from './types';
@@ -37,6 +38,7 @@
     onOpenRecent,
     onOpenSample = () => {},
     onOpenClipboard = () => {},
+    clipboardCard,
     dropHover = false,
   }: {
     recents: RecentFile[];
@@ -53,6 +55,9 @@
     /** "Open from clipboard" › "As pixel sprite" / "As image"
      *  (docs/specs/copy-cut-paste.md AC-34 – AC-36). */
     onOpenClipboard?: (mode: EditorMode) => void;
+    /** The desktop app's clipboard card, shown between the New cards and
+     *  the "Open from clipboard" row (copy-cut-paste AC-27). */
+    clipboardCard?: Snippet;
     /** A file drag is over the screen: show the drop state. */
     dropHover?: boolean;
   } = $props();
@@ -212,6 +217,7 @@
       {/if}
     {/each}
   </div>
+  {@render clipboardCard?.()}
   <!-- Open from clipboard, right under the New cards (copy-cut-paste
        AC-34): enabled whenever the cards are, whatever the clipboard
        holds — only a read can tell, and in the browser a read asks. -->

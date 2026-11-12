@@ -64,22 +64,28 @@
   };
 </script>
 
+<!-- In the start screen's page, between the New cards and the "Open from
+     clipboard" row (AC-27): preview on the left, title, size and buttons on
+     the right; stacked on narrow screens. -->
 <section
-  class="fixed bottom-3 right-3 z-20 flex w-64 flex-col gap-2 rounded border border-pc-border bg-pc-panel p-3 text-pc-text shadow-xl"
+  class="start-surface mt-3 flex flex-wrap items-stretch gap-3 rounded-lg border border-pc-border bg-pc-panel p-3 text-pc-text"
   aria-labelledby="clip-offer-title"
 >
-  <h2 id="clip-offer-title" class="text-sm font-semibold">{t('offer.title')}</h2>
   <div
-    class="flex h-[120px] items-center justify-center rounded border border-pc-border bg-pc-bg"
+    class="flex h-[120px] w-[160px] shrink-0 items-center justify-center rounded border border-pc-border bg-pc-bg"
     role="img"
     aria-label={t('offer.preview')}
   >
     <canvas width={size.width} height={size.height} {@attach draw}></canvas>
   </div>
-  <p class="text-xs text-pc-muted">{t('offer.size', { w: image.width, h: image.height })}</p>
-  <div class="flex justify-end gap-2">
-    <Button onclick={onIgnore}>{t('offer.ignore')}</Button>
-    <Button variant="primary" onclick={onOpen} {busy}>{t('offer.open')}</Button>
+  <div class="flex min-w-[10rem] flex-1 flex-col gap-1">
+    <h2 id="clip-offer-title" class="text-[13px] leading-5 font-semibold">{t('offer.title')}</h2>
+    <p class="text-xs leading-4 text-pc-muted">
+      {t('offer.size', { w: image.width, h: image.height })}
+    </p>
+    <div class="mt-auto flex flex-wrap justify-end gap-2 pt-2">
+      <Button onclick={onIgnore}>{t('offer.ignore')}</Button>
+      <Button variant="primary" onclick={onOpen} {busy}>{t('offer.open')}</Button>
+    </div>
   </div>
 </section>
-

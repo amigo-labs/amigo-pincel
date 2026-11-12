@@ -248,7 +248,9 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
   await putFile(page, '/docs/sprite.aseprite', null);
   await openRecentEntry(page, 'sprite.aseprite');
-  await expect(page.getByText(/sprite\.aseprite.*No such file/)).toBeVisible();
+  // The file is gone: the notice says so and the entry leaves the list
+  // (file-access AC-30).
+  await expect(page.getByText('sprite.aseprite was not found and was removed')).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
 });
