@@ -20,12 +20,41 @@ import { bindChatTab, unbindChatTab } from './chat-tabs';
 import { withContext, type EditorContext } from './context';
 import { defaultPrompt } from './prompts';
 
-/** A supported CLI as `assistant_clis` reports it (AC-03). */
+/** A supported CLI as `assistant_clis` reports it (AC-03; ai-chat-clis
+ *  AC-04: its version against the oldest Pincel works with). */
 export interface CliStatus {
   id: string;
   name: string;
   installUrl: string;
   installed: boolean;
+  /** The installed version; `null` when unknown. */
+  version: string | null;
+  minVersion: string;
+  /** Installed with a known version of at least `minVersion`. */
+  supported: boolean;
+}
+
+/** A model of the model field's list (ai-chat-clis AC-05). */
+export interface ModelOption {
+  id: string;
+  /** Served by Ollama or LM Studio (ai-chat-clis AC-06). */
+  local: boolean;
+}
+
+/** How long the model list may take before the field takes free text
+ *  (ai-chat-clis AC-05). */
+const MODELS_BUDGET_MS = 5_000;
+
+/** Model providers that run on the user's machine (ai-chat-clis AC-06);
+ *  mirrors `is_local` in src-tauri/src/assistant/adapter.rs. */
+const LOCAL_PROVIDERS: readonly string[] = ['ollama', 'lmstudio'];
+
+/** `true` when `model` of `cli` runs on the user's machine: an opencode
+ *  model of the Ollama or LM Studio provider (ai-chat-clis AC-06). */
+export function isLocalModel(cli: string | null, model: string): boolean {
+  if (cli !== 'opencode') return false;
+  const slash = model.trim().indexOf('/');
+  return slash > 0 && LOCAL_PROVIDERS.includes(model.trim().slice(0, slash));
 }
 
 /** One tab's chat. */
@@ -66,6 +95,9 @@ class AssistantState {
   models = $state<Record<string, string>>({});
   /** The user's system prompt; `null` is the default (AC-18, AC-19). */
   prompt = $state<string | null>(null);
+  /** The model list per CLI (ai-chat-clis AC-05); missing or empty: the
+   *  field takes free text. */
+  modelLists = $state<Record<string, ModelOption[]>>({});
 }
 
 export const assistant = new AssistantState();
@@ -121,12 +153,50 @@ export function installedClis(): CliStatus[] {
   return (assistant.clis ?? []).filter((c) => c.installed);
 }
 
+/** The installed CLIs whose version Pincel works with (ai-chat-clis
+ *  AC-04). */
+export function usableClis(): CliStatus[] {
+  return installedClis().filter((c) => c.supported);
+}
+
 /** The CLI a send in `chat` uses: the chat's own once it has messages,
- *  else the last chosen one if installed, else the first installed. */
+ *  else the last chosen one if usable, else the first usable one; the
+ *  stored choice is kept for when it returns. */
 export function chatCli(chat: Chat): string | null {
   if (chat.cli !== null) return chat.cli;
-  const installed = installedClis();
-  return installed.find((c) => c.id === assistant.cli)?.id ?? installed[0]?.id ?? null;
+  const usable = usableClis();
+  return usable.find((c) => c.id === assistant.cli)?.id ?? usable[0]?.id ?? null;
+}
+
+/** The send of `chat` would go to an installed CLI Pincel works with. */
+export function chatCanSend(chat: Chat): boolean {
+  const cli = chatCli(chat);
+  return cli !== null && usableClis().some((c) => c.id === cli);
+}
+
+/** `chat` runs a local model: the image switch is hidden and the agent
+ *  sees the image (ai-chat-clis AC-06). */
+export function chatIsLocal(chat: Chat): boolean {
+  return isLocalModel(chatCli(chat), chatModel(chat));
+}
+
+/** Looks up the models of `cli` for the model field (ai-chat-clis AC-05);
+ *  a list that cannot be read within 5 s leaves the field as free text. */
+export async function refreshModels(cli: string): Promise<void> {
+  const timeout = new Promise<null>((resolve) => setTimeout(() => resolve(null), MODELS_BUDGET_MS));
+  try {
+    const list = await Promise.race([
+      invoke<ModelOption[] | null>('assistant_models', { cli }),
+      timeout,
+    ]);
+    const models = Array.isArray(list)
+      ? list.filter((m) => typeof m?.id === 'string' && m.id !== '')
+      : [];
+    assistant.modelLists = { ...assistant.modelLists, [cli]: models };
+  } catch (err) {
+    console.error('assistant_models failed', err);
+    assistant.modelLists = { ...assistant.modelLists, [cli]: [] };
+  }
 }
 
 /** The model a send in `chat` uses; empty is the CLI's default. */
@@ -209,7 +279,10 @@ export async function send(tab: ShellTab, text: string): Promise<void> {
   const chat = chatOf(tab.key);
   const cli = chatCli(chat);
   if (text.trim() === '' || chat.answering || cli === null || assistantBusy()) return;
+  if (!chatCanSend(chat)) return;
   const model = chatModel(chat);
+  // A local model sees the image; the switch is hidden (ai-chat-clis AC-06).
+  const imageAccess = chat.imageAccess || isLocalModel(cli, model);
   const prompt = withContext(editorContext(tab), text);
   chat.cli = cli;
   chat.model = model;
@@ -225,7 +298,7 @@ export async function send(tab: ShellTab, text: string): Promise<void> {
         prompt,
         systemPrompt: systemPrompt(),
         session: chat.session,
-        imageAccess: chat.imageAccess,
+        imageAccess,
       },
     });
   } catch (err) {

@@ -3,8 +3,10 @@
 // mirror `ChatEvent` in src-tauri/src/assistant/mod.rs. Plain TypeScript,
 // so a Node-side spec can test it.
 
-/** The recognised cause of a failed answer (AC-20, AC-27). */
-export type Hint = 'signIn' | 'offline' | 'unknownModel' | 'permission' | 'unexpected';
+/** The recognised cause of a failed answer (AC-20, AC-27); ai-chat-clis
+ *  adds `localServer` (AC-08) and `noTools` (Edge cases). */
+export type Hint =
+  'signIn' | 'offline' | 'unknownModel' | 'permission' | 'unexpected' | 'localServer' | 'noTools';
 
 /** How an answer ended. */
 export type Outcome = 'finished' | 'stopped' | 'failed';

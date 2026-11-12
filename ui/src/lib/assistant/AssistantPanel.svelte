@@ -3,7 +3,10 @@
   // (docs/specs/ai-chat-panel.md): the active tab's chat, its input with
   // Send / Stop, the CLI picker, the model field, the image switch, New
   // chat and the system-prompt editor. Agent text is rendered as text
-  // nodes only, never as HTML (AC-21).
+  // nodes only, never as HTML (AC-21). The CLI picker and the model field
+  // follow docs/specs/ai-chat-clis.md: CLIs too old are listed disabled,
+  // opencode's models come as a list with local ones marked, and a local
+  // model hides the image switch.
   import IconButton from '../components/layout/IconButton.svelte';
   import Panel from '../components/layout/Panel.svelte';
   import Icon from '../components/icons/Icon.svelte';
@@ -13,17 +16,21 @@
   import type { ChatItem, Failure, ToolState } from './chat-events';
   import {
     assistant,
+    chatCanSend,
     chatCli,
+    chatIsLocal,
     chatModel,
     chatOf,
     choose,
     installedClis,
     newChat,
     refreshClis,
+    refreshModels,
     send,
     setImageAccess,
     stopAnswer,
     type Chat,
+    type CliStatus,
   } from './chat.svelte';
   import { segments } from './context';
   import AssistantPromptDialog from './AssistantPromptDialog.svelte';
@@ -39,6 +46,12 @@
   const chat = $derived<Chat | null>(tab ? (assistant.chats[tab.key] ?? null) : null);
   const clis = $derived(installedClis());
   const answering = $derived(chat?.answering ?? false);
+  const cli = $derived(chat ? chatCli(chat) : null);
+  const canSend = $derived(chat ? chatCanSend(chat) : false);
+  const local = $derived(chat ? chatIsLocal(chat) : false);
+  /** The model list of the chat's CLI; empty: free text (ai-chat-clis
+   *  AC-05). */
+  const modelList = $derived(cli ? (assistant.modelLists[cli] ?? []) : []);
 
   let draft = $state('');
   let promptOpen = $state(false);
@@ -53,6 +66,11 @@
   });
   $effect(() => {
     if (active && !(slot?.collapsed ?? false)) void refreshClis();
+  });
+  // The model list of a CLI that has one (opencode), looked up whenever
+  // it becomes the chat's CLI while the panel is open.
+  $effect(() => {
+    if (active && !(slot?.collapsed ?? false) && cli === 'opencode') void refreshModels(cli);
   });
   // Follow the newest message while it streams.
   $effect(() => {
@@ -90,7 +108,7 @@
 
   function onModelChange(e: Event): void {
     if (!chat) return;
-    const el = e.currentTarget as HTMLInputElement;
+    const el = e.currentTarget as HTMLInputElement | HTMLSelectElement;
     const before = chatModel(chat);
     if (el.value.trim() === before) return;
     change(chatCli(chat) ?? '', el.value, () => (el.value = before));
@@ -122,7 +140,22 @@
         return t('assistant.hint.permission', { cli: name });
       case 'unexpected':
         return t('assistant.hint.unexpected', { cli: name });
+      case 'localServer':
+        return t('assistant.hint.localServer');
+      case 'noTools':
+        return t('assistant.hint.noTools');
     }
+  }
+
+  /** A picker entry: a CLI Pincel cannot use names why (ai-chat-clis
+   *  AC-04). */
+  function cliLabel(c: CliStatus): string {
+    if (c.supported) return c.name;
+    const reason =
+      c.version === null
+        ? t('assistant.versionUnknown')
+        : t('assistant.versionTooOld', { version: c.version, min: c.minVersion });
+    return t('assistant.cliUnavailable', { name: c.name, reason });
   }
 
   function argsText(args: unknown): string {
@@ -239,36 +272,60 @@
       <select
         class="opt-field"
         aria-label={t('assistant.cli')}
-        value={chatCli(chat) ?? ''}
+        value={cli ?? ''}
         disabled={answering}
         onfocus={() => void refreshClis()}
         onchange={onCliChange}
       >
         {#each clis as c (c.id)}
-          <option value={c.id}>{c.name}</option>
+          <option value={c.id} disabled={!c.supported}>{cliLabel(c)}</option>
         {/each}
       </select>
-      <input
-        class="opt-field min-w-0 flex-1"
-        aria-label={t('assistant.model')}
-        placeholder={t('assistant.modelDefault')}
-        value={chatModel(chat)}
-        disabled={answering}
-        spellcheck="false"
-        onchange={onModelChange}
-      />
+      {#if modelList.length > 0}
+        <select
+          class="opt-field min-w-0 flex-1"
+          aria-label={t('assistant.model')}
+          value={chatModel(chat)}
+          disabled={answering}
+          onfocus={() => cli && void refreshModels(cli)}
+          onchange={onModelChange}
+        >
+          <option value="">{t('assistant.modelDefault')}</option>
+          {#if chatModel(chat) !== '' && !modelList.some((m) => m.id === chatModel(chat))}
+            <option value={chatModel(chat)}>{chatModel(chat)}</option>
+          {/if}
+          {#each modelList as m (m.id)}
+            <option value={m.id}>
+              {m.local ? t('assistant.modelLocal', { model: m.id }) : m.id}
+            </option>
+          {/each}
+        </select>
+      {:else}
+        <input
+          class="opt-field min-w-0 flex-1"
+          aria-label={t('assistant.model')}
+          placeholder={t('assistant.modelDefault')}
+          value={chatModel(chat)}
+          disabled={answering}
+          spellcheck="false"
+          onfocus={() => cli === 'opencode' && void refreshModels(cli)}
+          onchange={onModelChange}
+        />
+      {/if}
     </div>
-    <label class="flex items-center gap-2 text-xs text-pc-muted">
-      <input
-        type="checkbox"
-        checked={chat.imageAccess}
-        disabled={answering}
-        onchange={(e) => setImageAccess(chat, e.currentTarget.checked)}
-      />
-      {t('assistant.imageAccess')}
-    </label>
-    {#if chat.imageAccess}
-      <p class="text-xs text-pc-faint" role="note">{t('assistant.imageNotice')}</p>
+    {#if !local}
+      <label class="flex items-center gap-2 text-xs text-pc-muted">
+        <input
+          type="checkbox"
+          checked={chat.imageAccess}
+          disabled={answering}
+          onchange={(e) => setImageAccess(chat, e.currentTarget.checked)}
+        />
+        {t('assistant.imageAccess')}
+      </label>
+      {#if chat.imageAccess}
+        <p class="text-xs text-pc-faint" role="note">{t('assistant.imageNotice')}</p>
+      {/if}
     {/if}
   {/if}
   <div
@@ -297,7 +354,7 @@
       aria-label={t('assistant.message')}
       placeholder={t('assistant.placeholder')}
       bind:value={draft}
-      disabled={!chat || clis.length === 0}
+      disabled={!chat || !canSend}
       onkeydown={onKeydown}></textarea>
     {#if answering}
       <button
@@ -312,7 +369,7 @@
       <button
         type="submit"
         class="panel-btn panel-btn-primary flex items-center gap-1"
-        disabled={!chat || clis.length === 0 || draft.trim() === ''}
+        disabled={!chat || !canSend || draft.trim() === ''}
       >
         <Icon name="send" size={14} />
         {t('assistant.send')}
