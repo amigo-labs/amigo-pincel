@@ -43,6 +43,9 @@ export function docInit() {
     layers: [] as LayerInfo[],
     /** Whether a selection is currently active (mirrored from the core). */
     hasSelection: false,
+    /** The core's selection generation: moves whenever the selection may
+     *  have changed, so the outline is rebuilt only then. */
+    selectionGeneration: 0,
     /** The document's file name, as Save writes it (mirrored from
      *  `core/document-file.ts` for the editor title). */
     fileName: 'image.ora',

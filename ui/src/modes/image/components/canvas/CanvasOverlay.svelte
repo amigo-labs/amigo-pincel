@@ -17,7 +17,7 @@
   import { devicePath, selectionOutline, type Outline } from './selection-outline';
 
   let canvas: HTMLCanvasElement;
-  // Boundary of the committed selection, rebuilt only when the document
+  // Boundary of the committed selection, rebuilt only when the selection
   // changes ($state so the animation effect reacts to it).
   let selectionLoops = $state.raw<Outline[] | null>(null);
   // The committed outline in device space for the current view.
@@ -229,9 +229,10 @@
     if (!running) draw();
   });
 
-  // Rebuild the committed selection boundary whenever the document mutates.
+  // Rebuild the committed selection boundary when the selection (or the
+  // document, on a tab switch) changes; pixel edits keep the generation.
   $effect(() => {
-    void editor.revision;
+    void editor.selectionGeneration;
     selectionLoops = editor.handle !== null ? buildSelectionLoops() : null;
   });
 </script>

@@ -58,7 +58,7 @@ import initWasm, {
   type Vectorizer,
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
-import { publishDocumentCount } from '../../../lib/diagnostics';
+import { countCall, publishDocumentCount } from '../../../lib/diagnostics';
 import type { AgentFile } from '../../../lib/shell/types';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
 import type { TextLayout } from './generated/TextLayout';
@@ -118,6 +118,9 @@ export interface DocumentInfo {
   undo_depth: number;
   /** Whether a selection is currently active. */
   has_selection: boolean;
+  /** Changes whenever the selection may have changed; compare for
+   *  equality only. */
+  selection_generation: number;
   /** Layers ordered bottom (index 0) to top, matching core storage order. */
   layers: LayerInfo[];
 }
@@ -803,7 +806,10 @@ export const core = {
   /** Selects the active layer (UI state, not undoable). */
   setActiveLayer: (handle: number, index: number): void => set_active_layer(handle, index),
   /** Selection coverage bytes (canvas-sized, row-major), or empty if none. */
-  selectionMask: (handle: number): Uint8ClampedArray => get_selection_mask(handle),
+  selectionMask: (handle: number): Uint8ClampedArray => {
+    countCall('image.selectionMask');
+    return get_selection_mask(handle);
+  },
   /** Returns a 32×32 RGBA8 thumbnail of the layer with the given id. */
   layerThumbnail: (handle: number, layerId: string): Uint8ClampedArray<ArrayBuffer> =>
     get_layer_thumbnail(handle, layerId) as Uint8ClampedArray<ArrayBuffer>,
