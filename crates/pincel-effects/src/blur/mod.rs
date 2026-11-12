@@ -8,6 +8,8 @@
 //! [`sample_bilinear`]. Median works on straight colours of opaque pixels.
 //! Every blur reads neighbours outside the layer as the nearest edge pixel.
 
+use crate::kernel::accumulate_taps;
+
 mod bokeh;
 mod box_blur;
 mod fragment;
@@ -120,36 +122,6 @@ pub(crate) fn convolve_axis(
         }
     }
     out
-}
-
-/// Floats per accumulator tile of [`accumulate_taps`]: small enough to stay in
-/// registers or L1 while every tap adds to it.
-const TILE: usize = 32;
-
-/// Sets `out[i]` to the sum of `source[i] * weight` over `taps` in order,
-/// starting from 0.0. Every source is at least `out.len()` floats long.
-fn accumulate_taps(out: &mut [f32], taps: &[(&[f32], f32)]) {
-    let (full, rest) = out.as_chunks_mut::<TILE>();
-    for (t, out_tile) in full.iter_mut().enumerate() {
-        let start = t * TILE;
-        let mut acc = [0.0f32; TILE];
-        for &(source, weight) in taps {
-            for (a, &s) in acc.iter_mut().zip(&source[start..start + TILE]) {
-                *a += s * weight;
-            }
-        }
-        *out_tile = acc;
-    }
-    let start = full.len() * TILE;
-    let mut acc = [0.0f32; TILE];
-    let acc = &mut acc[..rest.len()];
-    let end = start + rest.len();
-    for &(source, weight) in taps {
-        for (a, &s) in acc.iter_mut().zip(&source[start..end]) {
-            *a += s * weight;
-        }
-    }
-    rest.copy_from_slice(acc);
 }
 
 /// Bilinearly samples a flat premultiplied RGBA f32 buffer at fractional
