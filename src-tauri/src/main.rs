@@ -9,9 +9,7 @@ use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::menu::{
-    AboutMetadata, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder,
-};
+use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
@@ -126,12 +124,6 @@ struct Labels {
     tour: &'static str,
     about: &'static str,
     check_updates: &'static str,
-    /// Dialog text after a manual check.
-    update_none: &'static str,
-    /// `{version}` is replaced.
-    update_ready: &'static str,
-    /// `{error}` is replaced.
-    update_failed: &'static str,
 }
 
 const LABELS_EN: Labels = Labels {
@@ -165,9 +157,6 @@ const LABELS_EN: Labels = Labels {
     tour: "Tour",
     about: "About Pincel",
     check_updates: "Check for Updates\u{2026}",
-    update_none: "Pincel is up to date.",
-    update_ready: "Pincel {version} has been downloaded and is used from the next start.",
-    update_failed: "Checking for updates failed: {error}",
 };
 
 const LABELS_DE: Labels = Labels {
@@ -201,9 +190,6 @@ const LABELS_DE: Labels = Labels {
     tour: "Rundgang",
     about: "\u{dc}ber Pincel",
     check_updates: "Nach Updates suchen\u{2026}",
-    update_none: "Pincel ist auf dem neuesten Stand.",
-    update_ready: "Pincel {version} wurde geladen und wird ab dem n\u{e4}chsten Start verwendet.",
-    update_failed: "Die Suche nach Updates ist fehlgeschlagen: {error}",
 };
 
 /// True while the native menu shows German labels.
@@ -461,14 +447,9 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&shortcuts)
         .item(&tour)
         .separator()
-        .item(&PredefinedMenuItem::about(
-            app,
-            Some(l.about),
-            Some(AboutMetadata {
-                name: Some("Pincel".to_string()),
-                ..Default::default()
-            }),
-        )?)
+        // The in-app About dialog, which also checks for updates (AC-17,
+        // AC-31), rather than the native panel.
+        .item(&MenuItemBuilder::with_id(updater::MENU_ABOUT, l.about).build(app)?)
         .build()?;
     if updater::supported() {
         let check = MenuItemBuilder::with_id(updater::MENU_CHECK, l.check_updates).build(app)?;
@@ -539,6 +520,10 @@ fn main() {
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_mode,
+            updater::updater_check_on_open,
+            updater::updater_mark_announced,
+            updater::updater_arm_restart,
+            updater::updater_release,
             comfyui::comfyui_settings,
             comfyui::comfyui_set_server,
             comfyui::comfyui_choose_folder,
@@ -573,7 +558,6 @@ fn main() {
                 let menu = build_menu(handle)?;
                 app.set_menu(menu)?;
             }
-            updater::spawn_background_check(handle);
             comfyui::setup(handle);
             let deadline = handle.clone();
             std::thread::spawn(move || {
@@ -591,14 +575,8 @@ fn main() {
         })
         .on_menu_event(|app, event| {
             // The id field carries our `menu:<action>` / `recent:<docId>`
-            // string. The renderer parses the prefix to dispatch; the
-            // `updater:` entries stay native.
-            match event.id().0.as_str() {
-                updater::MENU_CHECK => updater::check_now(app),
-                id => {
-                    let _ = app.emit("menu", id.to_string());
-                }
-            }
+            // string. The renderer parses the prefix to dispatch.
+            let _ = app.emit("menu", event.id().0.clone());
         })
         .build(tauri::generate_context!())
         .expect("error while building Pincel")
