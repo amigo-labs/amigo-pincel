@@ -15,8 +15,8 @@ import { diskFile, installTauriMock, launchDesktop, putFile, setMock } from './t
 // native-first runner and its fallback (AC-06) are tested in
 // `native-jobs.spec.ts`.
 
-/** A 4 Mpx document, past any crossover the measurement considered. */
-const LARGE = { width: 2048, height: 2048 };
+/** A 1 Mpx document: the size the 2026-11-11 measurement took as the effect crossover. */
+const LARGE = { width: 1024, height: 1024 };
 const PNG_SIGNATURE = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
 
 /** Console errors and the workers the page starts, from now on. */
