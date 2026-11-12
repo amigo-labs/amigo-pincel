@@ -163,18 +163,6 @@ impl Base {
         r.intersect(Rect::new(0, 0, canvas.0, canvas.1))
     }
 
-    /// `src` (patch-local) resampled into `target` under `s`.
-    fn resampled(&self, src: &EffectImage, s: &TransformSettings, target: Rect) -> Option<Vec<u8>> {
-        let inv = self.forward(s).inverse()?;
-        let (rx, ry) = (f64::from(target.x), f64::from(target.y));
-        let shifted = Affine {
-            c: inv.a * rx + inv.b * ry + inv.c,
-            f: inv.d * rx + inv.e * ry + inv.f,
-            ..inv
-        };
-        Some(resample(src, target.w, target.h, &shifted, s.quality).into_raw())
-    }
-
     /// Puts the layer and the selection in the state `s` shows (`None`: the
     /// state before the transform), first restoring `clear` from the hole.
     /// Returns the rect the content now covers.
@@ -207,73 +195,218 @@ impl Base {
         }
         let s = s.expect("non-identity settings");
         let target = self.target(s, canvas);
-        if let (Some(hole), Some(patch)) = (&self.hole, &self.patch) {
-            let len = doc.layers.len();
-            let layer =
-                doc.layers
-                    .get_mut(self.layer)
-                    .ok_or(DocumentError::LayerIndexOutOfBounds {
-                        index: self.layer,
-                        len,
-                    })?;
+        let inverse = self.forward(s).inverse();
+        let cw = canvas.0 as usize;
+        let mut mask = vec![0u8; cw * canvas.1 as usize];
+        let len = doc.layers.len();
+        let layer = doc
+            .layers
+            .get_mut(self.layer)
+            .ok_or(DocumentError::LayerIndexOutOfBounds {
+                index: self.layer,
+                len,
+            })?;
+        if let Some(hole) = &self.hole {
             for r in [clear, Some(self.bounds)].into_iter().flatten() {
                 if let Some(r) = r.intersect(Rect::new(0, 0, canvas.0, canvas.1)) {
                     layer.pixels.paste_region(r, &hole.copy_region(r)?)?;
                 }
             }
-            if let Some(t) = target
-                && let Some(src) = self.resampled(patch, s, t)
-            {
-                let mut dst = layer.pixels.copy_region(t)?.data().to_vec();
-                source_over(&mut dst, &src);
-                layer
-                    .pixels
-                    .paste_region(t, &ImageBuffer::from_raw(t.w, t.h, dst)?)?;
+        }
+        if let (Some(t), Some(inv)) = (target, inverse) {
+            let pixels = self.patch.is_some().then(|| layer.pixels.data_mut());
+            match s.quality {
+                Quality::Bicubic => self.sample_generic(&inv, t, pixels, cw, &mut mask),
+                q => self.sample_fast(&inv, t, q == Quality::Nearest, pixels, cw, &mut mask),
             }
         }
-        let mut mask = SelectionMask::new_empty(canvas.0, canvas.1);
-        if let Some(t) = target
-            && let Some(cov) = self.resampled(&self.mask_patch, s, t)
-        {
-            for y in 0..t.h {
-                for x in 0..t.w {
-                    let a = cov[((y * t.w + x) * 4 + 3) as usize];
-                    if a > 0 {
-                        mask.set(t.x as u32 + x, t.y as u32 + y, a);
+        doc.selection = SelectionMask::from_raw(canvas.0, canvas.1, mask);
+        Ok(target)
+    }
+
+    /// Nearest and Bilinear, the live-update path (AC-20): one pass over the
+    /// target computes the content and its coverage from the lifted bytes
+    /// and writes them straight into the layer (`pixels`, composited over
+    /// the hole) and the canvas-sized `mask`. A sample within 1e-9 px of a
+    /// source pixel centre copies that pixel exactly, so whole-pixel moves
+    /// lose nothing.
+    fn sample_fast(
+        &self,
+        inv: &Affine,
+        t: Rect,
+        nearest: bool,
+        mut pixels: Option<&mut [u8]>,
+        cw: usize,
+        mask: &mut [u8],
+    ) {
+        let (pw, ph) = (self.bounds.w as i64, self.bounds.h as i64);
+        let src = self.patch.as_ref().map(EffectImage::data);
+        let cov = self.mask_patch.data();
+        // The straight RGBA and the coverage of source pixel `(x, y)`;
+        // transparent and uncovered outside.
+        let read = |x: i64, y: i64| -> ([u8; 4], u8) {
+            if x < 0 || y < 0 || x >= pw || y >= ph {
+                return ([0; 4], 0);
+            }
+            let i = (y * pw + x) as usize;
+            let c = cov[i * 4 + 3];
+            match src {
+                Some(d) => ([d[i * 4], d[i * 4 + 1], d[i * 4 + 2], d[i * 4 + 3]], c),
+                None => ([0; 4], c),
+            }
+        };
+        for ty in 0..t.h {
+            let cy = t.y + ty as i32;
+            let fy = f64::from(cy) + 0.5;
+            let fx0 = f64::from(t.x) + 0.5;
+            // The source point of the row's first pixel; each step adds (a, d).
+            let mut sx = inv.a * fx0 + inv.b * fy + inv.c;
+            let mut sy = inv.d * fx0 + inv.e * fy + inv.f;
+            for tx in 0..t.w {
+                let cx = t.x + tx as i32;
+                if tx > 0 {
+                    sx += inv.a;
+                    sy += inv.d;
+                }
+                // Integer casts instead of `floor` / `round`, which compile to
+                // library calls on baseline x86-64: every value here is at
+                // least -1, so `(x + 1) as i64 - 1` is its floor.
+                let (rgba, coverage) = if nearest {
+                    if sx < 0.0 || sy < 0.0 {
+                        continue;
+                    }
+                    read(sx as i64, sy as i64)
+                } else {
+                    let (u, v) = (sx - 0.5, sy - 0.5);
+                    if u <= -1.0 || v <= -1.0 || u >= pw as f64 || v >= ph as f64 {
+                        continue;
+                    }
+                    let (x0, y0) = ((u + 1.0) as i64 - 1, (v + 1.0) as i64 - 1);
+                    let (tu, tv) = (u - x0 as f64, v - y0 as f64);
+                    let near = |t: f64| t < 1e-9 || t > 1.0 - 1e-9;
+                    if near(tu) && near(tv) {
+                        let snap = |i: i64, t: f64| if t < 0.5 { i } else { i + 1 };
+                        read(snap(x0, tu), snap(y0, tv))
+                    } else {
+                        bilinear(&read, x0, y0, tu as f32, tv as f32)
+                    }
+                };
+                if coverage == 0 && rgba[3] == 0 {
+                    continue;
+                }
+                let at = cy as usize * cw + cx as usize;
+                mask[at] = coverage;
+                if let Some(px) = pixels.as_deref_mut()
+                    && rgba[3] > 0
+                {
+                    let (px, _) = px[at * 4..at * 4 + 4].as_chunks_mut::<4>();
+                    if let Some(d) = px.first_mut() {
+                        source_over_px(d, rgba);
                     }
                 }
             }
         }
-        doc.selection = Some(mask);
-        Ok(target)
+    }
+
+    /// Bicubic through the shared resampler (`pincel_effects::transform`).
+    fn sample_generic(
+        &self,
+        inv: &Affine,
+        t: Rect,
+        mut pixels: Option<&mut [u8]>,
+        cw: usize,
+        mask: &mut [u8],
+    ) {
+        let (rx, ry) = (f64::from(t.x), f64::from(t.y));
+        let shifted = Affine {
+            c: inv.a * rx + inv.b * ry + inv.c,
+            f: inv.d * rx + inv.e * ry + inv.f,
+            ..*inv
+        };
+        let content = self
+            .patch
+            .as_ref()
+            .map(|p| resample(p, t.w, t.h, &shifted, Quality::Bicubic).into_raw());
+        let cov = resample(&self.mask_patch, t.w, t.h, &shifted, Quality::Bicubic).into_raw();
+        for ty in 0..t.h as usize {
+            for tx in 0..t.w as usize {
+                let i = ty * t.w as usize + tx;
+                let at = (t.y as usize + ty) * cw + t.x as usize + tx;
+                mask[at] = cov[i * 4 + 3];
+                if let (Some(px), Some(c)) = (pixels.as_deref_mut(), &content) {
+                    let s = [c[i * 4], c[i * 4 + 1], c[i * 4 + 2], c[i * 4 + 3]];
+                    if s[3] > 0 {
+                        let (px, _) = px[at * 4..at * 4 + 4].as_chunks_mut::<4>();
+                        if let Some(d) = px.first_mut() {
+                            source_over_px(d, s);
+                        }
+                    }
+                }
+            }
+        }
     }
 }
 
-/// Straight-alpha source-over of `src` onto `dst` (same size, RGBA8).
-fn source_over(dst: &mut [u8], src: &[u8]) {
-    let (dst, _) = dst.as_chunks_mut::<4>();
-    let (src, _) = src.as_chunks::<4>();
-    for (d, s) in dst.iter_mut().zip(src) {
-        let sa = f32::from(s[3]) / 255.0;
-        if sa <= 0.0 {
-            continue;
+/// The bilinear sample between source pixels `(x0, y0)` and
+/// `(x0 + 1, y0 + 1)` at offsets `(tu, tv)`: premultiplied colour and
+/// coverage, back to straight RGBA8.
+fn bilinear(
+    read: &impl Fn(i64, i64) -> ([u8; 4], u8),
+    x0: i64,
+    y0: i64,
+    tu: f32,
+    tv: f32,
+) -> ([u8; 4], u8) {
+    const INV: f32 = 1.0 / 255.0;
+    let mut acc = [0.0f32; 4];
+    let mut cov = 0.0f32;
+    for (dy, wy) in [(0, 1.0 - tv), (1, tv)] {
+        for (dx, wx) in [(0, 1.0 - tu), (1, tu)] {
+            let k = wx * wy;
+            if k == 0.0 {
+                continue;
+            }
+            let (c, m) = read(x0 + dx, y0 + dy);
+            let a = f32::from(c[3]) * INV;
+            let ka = k * a * INV;
+            acc[0] += ka * f32::from(c[0]);
+            acc[1] += ka * f32::from(c[1]);
+            acc[2] += ka * f32::from(c[2]);
+            acc[3] += k * a;
+            cov += k * f32::from(m);
         }
-        if s[3] == 255 {
-            d.copy_from_slice(s);
-            continue;
-        }
-        let da = f32::from(d[3]) / 255.0;
-        let oa = sa + da * (1.0 - sa);
-        if oa <= 0.0 {
-            d.copy_from_slice(&[0, 0, 0, 0]);
-            continue;
-        }
-        for i in 0..3 {
-            let c = (f32::from(s[i]) * sa + f32::from(d[i]) * da * (1.0 - sa)) / oa;
-            d[i] = c.round().clamp(0.0, 255.0) as u8;
-        }
-        d[3] = (oa * 255.0).round().clamp(0.0, 255.0) as u8;
     }
+    // `as u8` saturates; `+ 0.5` rounds the non-negative values.
+    let byte = |x: f32| (x * 255.0 + 0.5) as u8;
+    let a = acc[3].clamp(0.0, 1.0);
+    let rgba = if a == 0.0 {
+        [0; 4]
+    } else {
+        let inv_a = 1.0 / a;
+        let c = |x: f32| byte(x.clamp(0.0, a) * inv_a);
+        [c(acc[0]), c(acc[1]), c(acc[2]), byte(a)]
+    };
+    (rgba, (cov + 0.5) as u8)
+}
+
+/// Straight-alpha source-over of the pixel `s` onto `d`.
+fn source_over_px(d: &mut [u8; 4], s: [u8; 4]) {
+    if s[3] == 255 {
+        *d = s;
+        return;
+    }
+    let sa = f32::from(s[3]) / 255.0;
+    let da = f32::from(d[3]) / 255.0;
+    let oa = sa + da * (1.0 - sa);
+    if oa <= 0.0 {
+        *d = [0; 4];
+        return;
+    }
+    for i in 0..3 {
+        let c = (f32::from(s[i]) * sa + f32::from(d[i]) * da * (1.0 - sa)) / oa;
+        d[i] = (c + 0.5) as u8;
+    }
+    d[3] = (oa * 255.0 + 0.5) as u8;
 }
 
 /// `(sin, cos)` of `degrees`, exact at multiples of 90°.
