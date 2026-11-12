@@ -5,7 +5,6 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
@@ -19,6 +18,7 @@ mod job_server;
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod mcp;
+mod menu_labels;
 mod native_jobs;
 mod open_files;
 mod updater;
@@ -92,129 +92,10 @@ async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(
 
 const RECENT_MENU_ID: &str = "open-recent";
 
-/// Native menu labels in one UI language (spec §9.5). The renderer owns
-/// the language choice and pushes it through `set_menu_language`.
-struct Labels {
-    file: &'static str,
-    new: &'static str,
-    open: &'static str,
-    open_recent: &'static str,
-    no_recent: &'static str,
-    save: &'static str,
-    save_as: &'static str,
-    close: &'static str,
-    export_png: &'static str,
-    export_sheet: &'static str,
-    export_animation: &'static str,
-    export_svg: &'static str,
-    print: &'static str,
-    quit: &'static str,
-    edit: &'static str,
-    undo: &'static str,
-    redo: &'static str,
-    cut: &'static str,
-    copy: &'static str,
-    paste: &'static str,
-    /// Edit ▸ Settings… (docs/specs/settings-dialog.md).
-    settings: &'static str,
-    view: &'static str,
-    zoom_in: &'static str,
-    zoom_out: &'static str,
-    reset_zoom: &'static str,
-    help: &'static str,
-    shortcuts: &'static str,
-    tour: &'static str,
-    about: &'static str,
-    check_updates: &'static str,
-}
-
-const LABELS_EN: Labels = Labels {
-    file: "File",
-    new: "New",
-    open: "Open\u{2026}",
-    open_recent: "Open Recent",
-    no_recent: "(no recent files)",
-    save: "Save",
-    save_as: "Save As\u{2026}",
-    close: "Close",
-    export_png: "Export as PNG\u{2026}",
-    export_sheet: "Export Sprite Sheet\u{2026}",
-    export_animation: "Export Animation\u{2026}",
-    export_svg: "Export as SVG\u{2026}",
-    print: "Print\u{2026}",
-    quit: "Quit",
-    edit: "Edit",
-    undo: "Undo",
-    redo: "Redo",
-    cut: "Cut",
-    copy: "Copy",
-    paste: "Paste",
-    settings: "Settings\u{2026}",
-    view: "View",
-    zoom_in: "Zoom In",
-    zoom_out: "Zoom Out",
-    reset_zoom: "Reset Zoom",
-    help: "Help",
-    shortcuts: "Keyboard Shortcuts",
-    tour: "Tour",
-    about: "About Pincel",
-    check_updates: "Check for Updates\u{2026}",
-};
-
-const LABELS_DE: Labels = Labels {
-    file: "Datei",
-    new: "Neu",
-    open: "\u{d6}ffnen\u{2026}",
-    open_recent: "Zuletzt ge\u{f6}ffnet",
-    no_recent: "(keine zuletzt ge\u{f6}ffneten Dateien)",
-    save: "Speichern",
-    save_as: "Speichern unter\u{2026}",
-    close: "Schlie\u{df}en",
-    export_png: "Als PNG exportieren\u{2026}",
-    export_sheet: "Sprite-Sheet exportieren\u{2026}",
-    export_animation: "Animation exportieren\u{2026}",
-    export_svg: "Als SVG exportieren\u{2026}",
-    print: "Drucken\u{2026}",
-    quit: "Beenden",
-    edit: "Bearbeiten",
-    undo: "R\u{fc}ckg\u{e4}ngig",
-    redo: "Wiederholen",
-    cut: "Ausschneiden",
-    copy: "Kopieren",
-    paste: "Einf\u{fc}gen",
-    settings: "Einstellungen\u{2026}",
-    view: "Ansicht",
-    zoom_in: "Vergr\u{f6}\u{df}ern",
-    zoom_out: "Verkleinern",
-    reset_zoom: "Zoom zur\u{fc}cksetzen",
-    help: "Hilfe",
-    shortcuts: "Tastenk\u{fc}rzel",
-    tour: "Rundgang",
-    about: "\u{dc}ber Pincel",
-    check_updates: "Nach Updates suchen\u{2026}",
-};
-
-/// True while the native menu shows German labels.
-static GERMAN: AtomicBool = AtomicBool::new(false);
-
-/// True when the native menu shows German labels for a renderer language
-/// code; anything but `de` is English.
-fn is_german(lang: &str) -> bool {
-    lang == "de"
-}
-
-fn current_labels() -> &'static Labels {
-    if GERMAN.load(Ordering::Relaxed) {
-        &LABELS_DE
-    } else {
-        &LABELS_EN
-    }
-}
-
 // Rebuild the whole native menu in `lang`.
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
-    GERMAN.store(is_german(&lang), Ordering::Relaxed);
+    menu_labels::set_language(&lang);
     if !NATIVE_MENU {
         // Nothing to relabel: the in-app menu bar follows the locale itself.
         return Ok(());
@@ -335,9 +216,10 @@ fn rebuild_recent_submenu(
         }
     }
     if items.is_empty() {
-        let placeholder = MenuItemBuilder::with_id("recent:_empty", current_labels().no_recent)
-            .enabled(false)
-            .build(app)?;
+        let placeholder =
+            MenuItemBuilder::with_id("recent:_empty", menu_labels::current().no_recent)
+                .enabled(false)
+                .build(app)?;
         submenu.append(&placeholder)?;
         return Ok(());
     }
@@ -350,7 +232,7 @@ fn rebuild_recent_submenu(
 }
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let l = current_labels();
+    let l = menu_labels::current();
     // File items
     let new_item = MenuItemBuilder::with_id("menu:new", l.new)
         .accelerator("CmdOrCtrl+N")
@@ -679,15 +561,6 @@ mod tests {
     fn first_file_arg_none_when_only_binary() {
         let argv = vec!["/usr/bin/pincel".to_string()];
         assert_eq!(first_file_arg(&argv), None);
-    }
-
-    #[test]
-    fn is_german_only_for_de_with_english_fallback() {
-        assert!(is_german("de"));
-        assert!(!is_german("en"));
-        assert!(!is_german("fr"));
-        assert_eq!(LABELS_DE.file, "Datei");
-        assert_eq!(LABELS_EN.file, "File");
     }
 
     /// IHDR colour type of a PNG, `None` if `bytes` is no PNG.
