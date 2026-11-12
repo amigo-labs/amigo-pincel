@@ -64,7 +64,7 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - ~~AC-07 (event): When the user saves a document opened from an AVIF file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09), and AVIF is not among its formats.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
 - [ ] AC-08 (error): If a JPEG XL file is truncated, corrupt, or uses a feature the decoder does not support, then opening fails as for any undecodable image (`image-files` AC-13), no document is created, and an already open document stays as it was.
 - [ ] AC-09 (event): When an MCP client calls `doc.open` with a workspace-relative `.jxl` file, then an Image document opens with the same size and pixels the editor's Open produces, and the `doc.open` description names JPEG XL; an undecodable file fails with `isError: true` and adds no document.
-- [ ] AC-10 (always): The Open picker's "All supported files" and "Images" filters include `.jxl`, the desktop app registers it as a file association that opens in Image mode, and a JPEG XL file dropped onto an open Image document is offered as "Add as layer"; a dropped file that fails per AC-08 or AC-12, or is not recognised per AC-04 (e.g. an AVIF file, or a PNG named `.jxl`), is handled as an undecodable drop (`file-access` AC-26).
+- [ ] AC-10 (always): The Open picker's "All supported files" and "Images" filters include `.jxl`, the desktop app registers it as a file association that opens in Image mode, and a JPEG XL file dropped onto an open Image document is offered as "Add as layer"; a dropped file that fails per AC-08 or AC-12, or is not recognised per AC-04 (e.g. an AVIF file), is handled as an undecodable drop (`file-access` AC-26).
 - [ ] AC-11 (always): The release Image-mode wasm module (after `wasm-opt`) is at most 2.0 MB larger than the same build at the commit before this spec's first commit (which already contains `image-formats-more`'s codecs); both sizes are recorded under `## Decisions`.
 - [ ] AC-12 (error): If a JPEG XL file declares a width or height of 0 or above 32767 px, then opening fails with the size message of `image-files` AC-14 — not the undecodable-image message, also when its pixel data is missing or cut off — and no document is created.
 - [ ] AC-13 (event): When the user chooses Save As…, then JPEG XL (`.jxl`) is offered next to the existing formats, and the suggested file name is the document's name with `.jxl`.
@@ -107,19 +107,19 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 | ----- | ---- | ------ | ------ |
 | AC-01 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
 | AC-02 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-03 | `jxl_lossless_8_bit_opens_exactly`, `jxl_lossy_and_deep_open_within_the_bound`, `jxl_animation_opens_its_first_frame` (crates/pincel-image-core/tests/formats_modern.rs); e2e `a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
+| AC-04 | `jxl_is_recognised_by_content_and_avif_fails` (formats_modern.rs); e2e `JPEG XL is told by content: a PNG named .jxl opens as PNG, an AVIF fails (AC-04)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
+| AC-05 | `jxl_written_files_decode_back_exactly` (formats_modern.rs, 2×2, 3×7, 64×33 with transparent pixels); the 1 × 1 case is an open question | open |        |
+| AC-06 | e2e `a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)` (ui/e2e/image-formats-modern.spec.ts); `jobs::tests::encode_jxl_decodes_back_to_the_composite` (pincel-image-core), `export_tests::export_jxl_and_image_to_png_round_trip` (pincel-image-wasm); the `jxl` line of both job `cases.json`, checked by `ui/e2e/job-digests.spec.ts`, `ui/e2e/desktop-jobs.spec.ts` and `native_jobs::tests::run_matches_the_web_worker_backend_for_every_job_kind` (pincel-tauri) | built |        |
 | AC-07 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-08 | `jxl_truncated_fails` (formats_modern.rs); e2e `a truncated JPEG XL fails as undecodable, a huge one with the size message (AC-08, AC-12)` (ui/e2e/image-formats-modern.spec.ts), which also keeps an open document unchanged | built |        |
+| AC-09 | `tests::image_draw::doc_open_reads_jpeg_xl_like_the_editors_open` (crates/pincel-agent/src/tests/image_draw.rs), `image::doc::tests::flat_format_reads_signatures` | built |        |
+| AC-10 | e2e `a dropped JPEG XL that fails to open, or an AVIF, is an undecodable drop (AC-10)` (ui/e2e/image-formats-modern.spec.ts); `the open dialog offers TGA, DDS, ICO and JPEG XL under all supported files and images …` (ui/e2e/desktop.spec.ts); ui/e2e/file-associations.spec.ts; ui/e2e/file-access.spec.ts; `tests::nsis_hooks_cover_every_file_association` (pincel-tauri) | built |        |
+| AC-11 | measured before `wasm-opt` only (Decisions, 2026-11-12); the after-`wasm-opt` sizes are open | open |        |
+| AC-12 | `jxl_oversized_header_fails_with_the_size_error` (formats_modern.rs); e2e `a truncated JPEG XL fails as undecodable, a huge one with the size message (AC-08, AC-12)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
+| AC-13 | e2e `Save As offers JPEG XL with the name <name>.jxl (AC-13)` (ui/e2e/image-formats-modern.spec.ts); `Save As offers every writable format …` (ui/e2e/save-original.spec.ts) | built |        |
+| AC-14 | e2e `a JPEG XL that cannot be written leaves the document unsaved with a notice (AC-14)` (ui/e2e/image-formats-modern.spec.ts) — a 1-px-wide document the encoder refuses, through Save As | built |        |
+| AC-15 | e2e `a dropped JPEG XL lands as one layer in one undo step with the pixels of Open (AC-10, AC-15)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
 
 ## Decisions
 
@@ -131,3 +131,6 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - 2026-11-05: JPEG XL through `jxl-oxide` (decode) and `zune-jpegxl` (lossless encode) (owner's choice), because both are pure Rust, MIT / Apache licensed and small, and lossless save keeps Save in place working.
 - 2026-11-05: The new codecs live in the existing Image-mode wasm module, capped at +2.0 MB after `wasm-opt` (AC-11) (owner's choice), because a separate lazily loaded module would add a crate and a cross-crate boundary for a growth the cap already bounds.
 - 2026-11-12 (spec-build): The AVIF spike failed, so AVIF decoding is dropped as "AVIF spike gate" prescribes: `rav1d` 1.1 with default features off (no `asm`) does not build for `wasm32-unknown-unknown` with the workspace toolchain (`libc::ptrdiff_t`, `intptr_t` and `uintptr_t` are unresolved — `libc` defines no C types for that target), and its only public API is `unsafe extern "C" fn dav1d_*`, so the glue would also need new `unsafe` blocks (AGENTS.md §3.3). AC-01, AC-02 and AC-07 are dropped; AC-04, AC-08 – AC-10, AC-12 and AC-15 are reworded to JPEG XL only, as the gate says. Neither `rav1d` nor `avif-parse` joins the workspace. The fixture script keeps no AVIF part.
+- 2026-11-12 (spec-build): AC-10's example "a PNG named `.jxl`" (written in the revision above) contradicted AC-04, under which such a file opens as PNG; the example is removed — a PNG dropped under a `.jxl` name lands as a PNG layer.
+- 2026-11-12 (spec-build): `.jxl` maps to the format `jxl` by name as well (like ICO and DDS), so a damaged `.jxl` fails as undecodable rather than "not a supported file"; content still wins. The Save As label is the plain string "JPEG XL" like "TGA"; the only new translation is "/ JPEG XL" in `shell.unsupported`. The desktop association is role Editor, "JPEG XL Image", `image/jxl`.
+- 2026-11-12 (spec-build): AC-11 sizes of the release Image-mode wasm (`wasm-pack build --release`, before `wasm-opt`, which the crate turns off and only `release.yml` runs): 6 101 625 bytes at 6210c2ce (the commit before this spec's implementation) and 7 774 689 bytes with JPEG XL, +1 673 064 bytes (1.60 MiB). The sizes after `wasm-opt -O3 --enable-simd` (binaryen 133, as `release.yml`) still have to be taken; binaryen is not installed here and was not fetched in this session.
