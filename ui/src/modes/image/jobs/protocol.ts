@@ -4,7 +4,6 @@
 
 import { core } from '../core/wasm';
 import { encodeSnapshot, type EncodeJob } from './encode';
-import type { JobEndpoint } from './native-fetch';
 
 /** One effect run on a layer (the shared `lib/effects/catalog.ts` format). */
 export interface EffectJob {
@@ -24,11 +23,7 @@ export type ImageJob =
   /** The composite with the effect previewed (canvas-sized RGBA8). */
   | { readonly kind: 'preview'; readonly key: string; readonly effect: EffectJob }
   /** The effect's region for `core.applyEffectRegion`. */
-  | { readonly kind: 'region'; readonly key: string; readonly effect: EffectJob }
-  /** Send `job` to the desktop app's native job endpoint and answer its
-   *  bytes (docs/specs/performance-desktop-jobs.md); the worker does that,
-   *  so the bytes never pass the page's main thread. */
-  | { readonly kind: 'native'; readonly endpoint: JobEndpoint; readonly job: ImageJob };
+  | { readonly kind: 'region'; readonly key: string; readonly effect: EffectJob };
 
 /** The composite of document `handle` with `effect` previewed. */
 export function previewBytes(handle: number, effect: EffectJob): Uint8Array {
@@ -68,8 +63,5 @@ export function runImageJob(job: ImageJob, docs: Map<string, number>): Uint8Arra
       return previewBytes(docOf(job.key), job.effect);
     case 'region':
       return regionBytes(docOf(job.key), job.effect);
-    case 'native':
-      // Asynchronous: the worker sends it (`fetchNative`).
-      throw new Error('a native job is sent by the job worker, not run here');
   }
 }

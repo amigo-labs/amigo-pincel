@@ -7,12 +7,12 @@
 // (docs/specs/performance-desktop-jobs.md).
 
 import { latestOnly } from '../../../lib/jobs/latest';
-import { jobBackend, nativeFirst } from '../../../lib/jobs/native';
+import { jobBackend, NATIVE_JOB_MIN_PIXELS, nativeFirst } from '../../../lib/jobs/native';
 import { jobRunner, type JobRunner, type JobSetup } from '../../../lib/jobs/runner';
 import { isTauri } from '../../../lib/platform';
 import { compiledCore, core } from '../core/wasm';
 import { encodeSnapshot, type EncodeFormat, type EncodeJob } from './encode';
-import { nativeVia } from './native';
+import { runNative } from './native';
 import { previewBytes, regionBytes, type EffectJob, type ImageJob } from './protocol';
 
 export type { EncodeFormat, EffectJob };
@@ -25,13 +25,14 @@ const jobs = jobRunner<ImageJob, Uint8Array, WebAssembly.Module | null>(
 );
 
 // Native first, the worker as its fallback (AC-06); the desktop app only.
-const nativeJobs = nativeFirst(nativeVia(jobs), jobs, 'image jobs');
+const nativeJobs = nativeFirst(runNative, jobs, 'image jobs');
 
-/** The runner for jobs on document `handle`: native in the desktop app
- *  from the crossover size up, the worker otherwise (AC-03). */
-function runnerFor(handle: number): JobRunner<ImageJob, Uint8Array> {
+/** The runner for `kind` jobs on document `handle`: native in the desktop
+ *  app from that kind's crossover size up, the worker otherwise (AC-03). */
+function runnerFor(handle: number, kind: 'effect' | 'encode'): JobRunner<ImageJob, Uint8Array> {
   const { width, height } = core.documentInfo(handle);
-  return jobBackend(isTauri(), width, height) === 'native' ? nativeJobs : jobs;
+  const min = NATIVE_JOB_MIN_PIXELS[kind];
+  return jobBackend(isTauri(), width, height, min) === 'native' ? nativeJobs : jobs;
 }
 
 /** Encodes document `handle` as it is now, in the job worker. */
@@ -46,7 +47,7 @@ export function encodeInBackground(
     level: options.level ?? 6,
     quality: options.quality ?? 90,
   };
-  return runnerFor(handle).run({ kind: 'encode', ...job }, () => encodeSnapshot(job));
+  return runnerFor(handle, 'encode').run({ kind: 'encode', ...job }, () => encodeSnapshot(job));
 }
 
 /** Effect jobs of one effect session on one document. */
@@ -69,7 +70,7 @@ let sessions = 0;
 export function effectJobs(handle: number): EffectJobs {
   sessions += 1;
   const key = `fx-${sessions}`;
-  const runner = runnerFor(handle);
+  const runner = runnerFor(handle, 'effect');
   const setup: JobSetup<ImageJob> = {
     key,
     req: () => ({ kind: 'load', key, snapshot: core.snapshotDocument(handle) }),
