@@ -117,9 +117,13 @@ export function runUpdateCheck(): void {
   help.result = null;
   help.about = true;
   updaterCheck()
-    .then((version) => {
-      help.result = version === null ? { kind: 'upToDate' } : { kind: 'ready', version };
-      if (version !== null && help.updater !== null) help.updater.ready = version;
+    .then((outcome) => {
+      if (outcome.state === 'upToDate') {
+        help.result = { kind: 'upToDate' };
+        return;
+      }
+      help.result = { kind: 'ready', version: outcome.version };
+      if (help.updater !== null) help.updater.ready = outcome.version;
     })
     .catch((err: unknown) => {
       help.result = { kind: 'failed', error: String(err) };

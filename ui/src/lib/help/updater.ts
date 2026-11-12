@@ -1,9 +1,8 @@
 // Renderer side of the desktop updater (src-tauri/src/updater.rs).
 //
-// The native macOS menu drives the updater from Rust and reports through
-// a native dialog; everywhere else the Help menu drives it through these
-// commands and reports in the About dialog. Both write the same
-// `updater.json`.
+// Every entry point reports in the in-app About dialog — the Help menu,
+// the start screen and, on macOS, the native menu, whose About and Check
+// for Updates… arrive as `menu` events (docs/specs/desktop-app.md AC-17).
 
 import { invoke } from '@tauri-apps/api/core';
 
@@ -20,11 +19,21 @@ export interface UpdaterInfo {
   /** False until a choice is stored or made in this run: the first-start
    *  question asks (docs/specs/desktop-app.md AC-22). */
   chosen: boolean;
-  /** Version already downloaded in this session, used from the next start. */
+  /** Version already downloaded in this session. */
   ready: string | null;
+  /** A version a background check found under "notify", for the notice. */
+  announce: string | null;
+  /** A check talks to the server right now. */
+  checking: boolean;
   /** Why this copy cannot update itself, where the About dialog names it. */
   unsupported: 'package' | 'appimage' | null;
 }
+
+/** What a check found (`Outcome` in src-tauri/src/updater.rs). */
+export type CheckOutcome =
+  | { state: 'upToDate' }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string };
 
 /** Answer of `updater_set_mode`: the choice that applies, and whether it
  *  was stored (false: it applies for this run only). */
@@ -33,16 +42,41 @@ export interface ModeSaved {
   saved: boolean;
 }
 
+/** Event the desktop shell sends when the updater's state changed. */
+export const UPDATER_CHANGED = 'updater-changed';
+
 export function updaterState(): Promise<UpdaterInfo> {
   return invoke<UpdaterInfo>('updater_state');
 }
 
-/** Check now. `null` means up to date; a version means it was downloaded. */
-export function updaterCheck(): Promise<string | null> {
-  return invoke<string | null>('updater_check');
+/** Check now and download a newer version, whatever the update choice
+ *  (Check for Updates…, Install). */
+export function updaterCheck(): Promise<CheckOutcome> {
+  return invoke<CheckOutcome>('updater_check');
+}
+
+/** The About dialog's check on opening; `null` under "never check". */
+export function updaterCheckOnOpen(): Promise<CheckOutcome | null> {
+  return invoke<CheckOutcome | null>('updater_check_on_open');
 }
 
 /** Make `mode` the update choice for this run, and store it if possible. */
 export function updaterSetMode(mode: UpdateMode): Promise<ModeSaved> {
   return invoke<ModeSaved>('updater_set_mode', { mode });
+}
+
+/** Later: `version` is not announced again. */
+export function updaterMarkAnnounced(version: string): Promise<void> {
+  return invoke<void>('updater_mark_announced', { version });
+}
+
+/** Restart Now: start Pincel again after it closes. Fails when nothing
+ *  is downloaded. */
+export function updaterArmRestart(): Promise<void> {
+  return invoke<void>('updater_arm_restart');
+}
+
+/** Let the background check run (the first-start question is closed). */
+export function updaterRelease(): Promise<void> {
+  return invoke<void>('updater_release');
 }
