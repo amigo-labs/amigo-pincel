@@ -21,6 +21,7 @@ export const de: Record<MessageKey, string> = {
   'shell.permissionDenied': '{name}: Zugriff verweigert',
   'shell.noHandle': '{name}: kein Datei-Handle / Pfad',
   'shell.recentFailed': '{name} konnte nicht geöffnet werden: {error}',
+  'shell.recentMissing': '„{name}“ wurde nicht gefunden und aus „Zuletzt geöffnet“ entfernt',
   'shell.dropFailed': 'Ablegen fehlgeschlagen: {error}',
   'shell.loadingEditor': '{mode}-Editor wird geladen…',
   'shell.couldNotOpen': '{name} konnte nicht geöffnet werden: {error}',

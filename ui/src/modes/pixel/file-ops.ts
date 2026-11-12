@@ -22,6 +22,7 @@ import {
 import { t } from '../../lib/i18n/index.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
 import type { RecentFile } from '../../lib/idb/recent-files';
+import { forgetRecent, recentIsGone } from '../../lib/fs/recents';
 import { hasNativeMenu, isTauri } from '../../lib/platform';
 import type { EditorMode, NewDocParams } from '../../lib/shell/types';
 import type {
@@ -224,6 +225,11 @@ async function readRecent(r: RecentFile): Promise<ReadRecent | null> {
     }
     return { name, bytes, target: nextTarget };
   } catch (err) {
+    if (await recentIsGone(r, err)) {
+      await forgetRecent(r);
+      shell.notice(t('shell.recentMissing', { name: r.name }));
+      return null;
+    }
     const msg = err instanceof Error ? err.message : String(err);
     shell.notice(t('shell.recentFailed', { name: r.name, error: msg }));
     return null;

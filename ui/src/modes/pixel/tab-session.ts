@@ -8,7 +8,8 @@ import { writeTarget } from '../../lib/fs';
 import { t } from '../../lib/i18n/index.svelte';
 import { AutosaveSession } from '../../lib/idb/autosave-session.svelte';
 import { isIdbAvailable } from '../../lib/idb/db';
-import { listRecents, upsertRecent } from '../../lib/idb/recent-files';
+import { upsertRecent } from '../../lib/idb/recent-files';
+import { listPresentRecents } from '../../lib/fs/recents';
 import { hasFsAccess } from '../../lib/fs';
 import { isTauri } from '../../lib/platform';
 import type { EditorDocument } from '../../lib/shell/types';
@@ -169,7 +170,7 @@ export async function recordRecent(tab: PixelTab | null = tabs.active): Promise<
       path: target.path,
       mode: 'pixel',
     });
-    file.recents = await listRecents();
+    file.recents = await listPresentRecents();
   } catch (err) {
     // Persistence is best-effort; surface to the status line but don't
     // block the save / open the user already completed.

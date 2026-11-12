@@ -21,6 +21,24 @@ import type { EditorMode } from '../shell/types';
 /** Per-entry cap. 8 is plenty for a recents menu. */
 export const MAX_RECENTS = 8;
 
+// The shell and both editors each keep a list of recents; a change made
+// through any of them (record, remove, clear) tells all of them, so a
+// removed entry leaves every list at once (docs/specs/file-access.md AC-30).
+const listeners = new Set<() => void>();
+
+/** Calls `listener` after every change to the registry; returns the
+ *  unsubscribe function. */
+export function onRecentsChanged(listener: () => void): () => void {
+  listeners.add(listener);
+  return () => {
+    listeners.delete(listener);
+  };
+}
+
+function notifyChanged(): void {
+  for (const listener of listeners) listener();
+}
+
 export interface RecentFile {
   /** Per-document UUID assigned by App.svelte. Stable across saves of
    *  the same document; new on every `New` / `Open`. */
@@ -90,6 +108,7 @@ export async function upsertRecent(
     }
   };
   await transactionDone(tx);
+  notifyChanged();
   return entry;
 }
 
@@ -111,10 +130,19 @@ export async function listRecents(): Promise<RecentFile[]> {
 
 /** Drop a single entry by id. No-op if the id is unknown. */
 export async function removeRecent(id: string): Promise<void> {
+  await removeRecents([id]);
+}
+
+/** Drop the entries with these ids in one transaction; unknown ids are
+ *  ignored. */
+export async function removeRecents(ids: readonly string[]): Promise<void> {
+  if (ids.length === 0) return;
   const db = await openDb();
   const tx = db.transaction(STORE_RECENT_FILES, 'readwrite');
-  tx.objectStore(STORE_RECENT_FILES).delete(id);
+  const store = tx.objectStore(STORE_RECENT_FILES);
+  for (const id of ids) store.delete(id);
   await transactionDone(tx);
+  notifyChanged();
 }
 
 /** Drop all recents. */
@@ -123,6 +151,7 @@ export async function clearRecents(): Promise<void> {
   const tx = db.transaction(STORE_RECENT_FILES, 'readwrite');
   tx.objectStore(STORE_RECENT_FILES).clear();
   await transactionDone(tx);
+  notifyChanged();
 }
 
 async function readEntry(

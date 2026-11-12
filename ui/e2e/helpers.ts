@@ -445,8 +445,10 @@ export interface FakeFsControl {
   denyRead: string[];
   /** Files whose handle is refused write permission only. */
   denyWrite: string[];
-  /** Files whose `getFile()` rejects. */
+  /** Files whose `getFile()` rejects with a read error (the file is there). */
   failRead: string[];
+  /** Files that were deleted: `getFile()` rejects with `NotFoundError`. */
+  missing: string[];
 }
 
 /**
@@ -468,6 +470,7 @@ export async function fakeFileHandles(page: Page, files: Record<string, Buffer>)
       denyRead: [] as string[],
       denyWrite: [] as string[],
       failRead: [] as string[],
+      missing: [] as string[],
       pickers: [] as unknown[],
       writes: [] as string[],
       files: all,
@@ -480,7 +483,12 @@ export async function fakeFileHandles(page: Page, files: Record<string, Buffer>)
       name,
       fakeHandle: name,
       getFile: async () => {
-        if (fs.failRead.includes(name)) throw new DOMException(`${name} is gone`, 'NotFoundError');
+        if (fs.missing.includes(name)) {
+          throw new DOMException(`${name} was deleted`, 'NotFoundError');
+        }
+        if (fs.failRead.includes(name)) {
+          throw new DOMException(`${name} is gone`, 'NotReadableError');
+        }
         return new File([new Uint8Array(fs.files[name] ?? [])], name);
       },
       queryPermission: async ({ mode }: { mode: string }) =>

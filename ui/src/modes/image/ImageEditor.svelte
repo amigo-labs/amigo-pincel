@@ -158,7 +158,8 @@
     type OpenedFile,
   } from '../../lib/fs';
   import { isIdbAvailable } from '../../lib/idb/db';
-  import { listRecents, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
+  import { onRecentsChanged, upsertRecent, type RecentFile } from '../../lib/idb/recent-files';
+  import { listPresentRecents } from '../../lib/fs/recents';
   import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
   import type { NewDocParams } from '../../lib/shell/types';
   import type { SaveTarget } from '../../lib/fs';
@@ -737,7 +738,7 @@
   async function refreshRecents(): Promise<void> {
     if (!recentsAvailable) return;
     try {
-      recents = await listRecents();
+      recents = await listPresentRecents();
     } catch (err) {
       console.error('listRecents failed', err);
     }
@@ -859,6 +860,7 @@
       report: (message) => (loadError = message),
     });
     void refreshRecents();
+    const stopRecents = onRecentsChanged(() => void refreshRecents());
     // The documents the shell routes here open as tabs (document-tabs
     // AC-02, AC-15); the core loads with the first of them.
     const unregisterSession = registerSession({
@@ -881,6 +883,7 @@
       'menu:shortcuts': openOverview,
     });
     return () => {
+      stopRecents();
       unregisterSession();
       detachAllTabs();
       // A drop waiting on the larger-image dialog ends with the editor.

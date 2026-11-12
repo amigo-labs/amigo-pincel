@@ -169,6 +169,8 @@ export async function installTauriMock(page: Page): Promise<void> {
           if (!bytes) throw new Error('No such file or directory');
           return bytes;
         }
+        case 'files_exist':
+          return (args.paths as string[]).map((p) => p in mock.disk);
         case 'write_file_bytes': {
           const queued = mock.writeQueue.shift();
           if ((queued ?? mock.writeMode) === 'hold') {

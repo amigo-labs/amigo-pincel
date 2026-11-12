@@ -486,6 +486,77 @@ test.describe('recent files', () => {
     await dismiss(page, denied);
   });
 
+  test('AC-30: a recent whose file was deleted leaves every recent list, with a notice', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    await fakeFileHandles(page, {
+      'hero.aseprite': await sprite(),
+      'villain.aseprite': await sprite(),
+      'photo.png': await rasterFile(page, 'png'),
+      'kept.png': await rasterFile(page, 'png'),
+    });
+    await openRecorded(page, 'hero.aseprite', 'pixel');
+    await openRecorded(page, 'villain.aseprite', 'pixel');
+    await openRecorded(page, 'kept.png', 'image');
+    await openRecorded(page, 'photo.png', 'image');
+    const gone = (name: string) => `${name} was not found and was removed from the recent files`;
+    const names = async () => (await recentRows(page)).map((r) => r.name);
+
+    // A read that fails for another reason keeps the entry (AC-16).
+    await gotoStart(page);
+    await fakeFs(page, { failRead: ['kept.png'] });
+    await recentList(page)
+      .getByRole('button', { name: /^kept\.png/ })
+      .click();
+    const failed = 'Opening kept.png failed: kept.png is gone';
+    await expect(notice(page, failed)).toBeVisible();
+    await dismiss(page, failed);
+    expect(await names()).toContain('kept.png');
+
+    // The start screen's Recent list.
+    await fakeFs(page, { missing: ['hero.aseprite'] });
+    await recentList(page)
+      .getByRole('button', { name: /^hero\.aseprite/ })
+      .click();
+    await expect(notice(page, gone('hero.aseprite'))).toBeVisible();
+    await expect(
+      recentList(page).getByRole('button', { name: /^hero\.aseprite/ }),
+    ).toHaveCount(0);
+    await expect.poll(names).not.toContain('hero.aseprite');
+    await dismiss(page, gone('hero.aseprite'));
+
+    // Image mode's File ▸ Open Recent: gone from the menu as well.
+    await recentList(page)
+      .getByRole('button', { name: /^photo\.png/ })
+      .click();
+    await waitForEditor(page, 'image');
+    await fakeFs(page, { missing: ['villain.aseprite'] });
+    await menu(page, 'File', 'Open Recent', 'villain.aseprite');
+    await expect(notice(page, gone('villain.aseprite'))).toBeVisible();
+    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await expect.poll(names).not.toContain('villain.aseprite');
+    await dismiss(page, gone('villain.aseprite'));
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
+    await page
+      .getByRole('menu', { name: 'File', exact: true })
+      .getByRole('menuitem', { name: 'Open Recent' })
+      .hover();
+    // photo.png twice: re-opened from the list, it got an entry of its own.
+    await expect(page.getByRole('menuitem', { name: 'photo.png' }).first()).toBeVisible();
+    await expect(page.getByRole('menuitem', { name: 'villain.aseprite' })).toHaveCount(0);
+    await page.keyboard.press('Escape');
+    await page.keyboard.press('Escape');
+
+    // Pixel mode's File ▸ Open Recent.
+    await fakeFs(page, { missing: ['kept.png'], failRead: [] });
+    await pickInEditor(page, 'hero.aseprite');
+    await waitForEditor(page, 'pixel');
+    await menu(page, 'File', 'Open Recent', 'kept.png');
+    await expect(notice(page, gone('kept.png'))).toBeVisible();
+    await expect.poll(names).not.toContain('kept.png');
+  });
+
   test('AC-12: no IndexedDB: Open Recent is absent in both modes', async ({ page }) => {
     await page.addInitScript(() => {
       Object.defineProperty(window, 'indexedDB', { value: undefined, configurable: true });
@@ -868,6 +939,8 @@ async function stubTauri(page: Page, files: Record<string, Buffer>): Promise<voi
             case 'write_file_bytes':
               tauri.files[path] = args.bytes as number[];
               return null;
+            case 'files_exist':
+              return (args.paths as string[]).map((p) => p in tauri.files);
             default:
               return null;
           }
@@ -896,6 +969,17 @@ async function tauriCalls(page: Page, cmd: string): Promise<TauriCall[]> {
       ),
     cmd,
   );
+}
+
+/** Deletes `path` from the stubbed desktop disk, now and after every reload. */
+async function deleteOnDisk(page: Page, path: string): Promise<void> {
+  const remove = (p: string) => {
+    const disk = (window as unknown as { fakeTauri: { files: Record<string, number[]> } })
+      .fakeTauri.files;
+    delete disk[p];
+  };
+  await page.addInitScript(remove, path);
+  await page.evaluate(remove, path);
 }
 
 /** The start screen of the stubbed desktop app, past its first-launch advisory. */
@@ -944,6 +1028,58 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
       expect(await tauriCalls(page, 'write_file_bytes')).toHaveLength(1);
     });
   }
+
+  /** Opens `hero` (Pixel) and `photo` (Image) by path, so both are recent. */
+  async function recordBoth(page: Page, hero: string, photo: string): Promise<void> {
+    await gotoDesktopStart(page);
+    for (const [path, mode] of [
+      [hero, 'pixel'],
+      [photo, 'image'],
+    ] as const) {
+      await tauriDialogs(page, { pick: path });
+      await page.getByRole('button', { name: 'Open…' }).click();
+      await waitForEditor(page, mode);
+      await gotoDesktopStart(page);
+    }
+    await expect(recentList(page).getByRole('listitem')).toHaveCount(2);
+  }
+
+  test('AC-30: a recent whose file was deleted is removed when clicked, with a notice', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    const [hero, photo] = ['/home/me/hero.aseprite', '/home/me/photo.png'];
+    await stubTauri(page, { [hero]: await sprite(), [photo]: await rasterFile(page, 'png') });
+    await recordBoth(page, hero, photo);
+    // Deleted while the list shows: the click finds out.
+    await deleteOnDisk(page, hero);
+    await recentList(page)
+      .getByRole('button', { name: /^hero\.aseprite/ })
+      .click();
+    const gone = 'hero.aseprite was not found and was removed from the recent files';
+    await expect(notice(page, gone)).toBeVisible();
+    await expect(recentList(page).getByRole('listitem')).toHaveText([/^photo\.png/]);
+    await expect
+      .poll(async () => (await recentRows(page)).map((r) => r.name))
+      .toEqual(['photo.png']);
+  });
+
+  test('AC-31: entries whose path holds no file are dropped before the list shows', async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    const [hero, photo] = ['/home/me/hero.aseprite', '/home/me/photo.png'];
+    await stubTauri(page, { [hero]: await sprite(), [photo]: await rasterFile(page, 'png') });
+    await recordBoth(page, hero, photo);
+    await deleteOnDisk(page, photo);
+    await gotoDesktopStart(page);
+    await expect(recentList(page).getByRole('listitem')).toHaveText([/^hero\.aseprite/]);
+    await expect
+      .poll(async () => (await recentRows(page)).map((r) => r.name))
+      .toEqual(['hero.aseprite']);
+    // Nothing was clicked, so no notice.
+    await expect(page.getByText(/was not found/)).toHaveCount(0);
+  });
 
   test('AC-10: files opened and saved by path are recorded with path and mode', async ({
     page,

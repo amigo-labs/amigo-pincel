@@ -78,7 +78,8 @@
   import type { EditorProps } from '../../lib/shell/types';
   import { getPref, setPref } from '../../lib/idb/prefs';
   import { syncRecentMenu } from '../../lib/menu';
-  import { listRecents } from '../../lib/idb/recent-files';
+  import { onRecentsChanged } from '../../lib/idb/recent-files';
+  import { listPresentRecents } from '../../lib/fs/recents';
   import { hexToRgb, packColor, readColor, toHex, unpackColor } from '../../lib/color';
   import { colorDraft, loadRecent, recentColors } from '../../lib/colors/recent.svelte';
   import { t } from '../../lib/i18n/index.svelte';
@@ -845,15 +846,20 @@
     void loadExportScale();
     // Best-effort recents load — failures are silent (the dropdown
     // just stays empty / hidden).
-    if (recentsAvailable) {
-      listRecents()
+    // Best-effort, and again whenever the registry changes (a removed
+    // recent leaves this menu too, file-access AC-30).
+    const loadRecents = () => {
+      if (!recentsAvailable) return;
+      listPresentRecents()
         .then((rows) => {
           if (!cancelled) file.recents = rows;
         })
         .catch((err: unknown) => {
           console.error('listRecents failed', err);
         });
-    }
+    };
+    loadRecents();
+    const stopRecents = onRecentsChanged(loadRecents);
     // Files dropped onto the editor (docs/specs/file-access.md AC-20 –
     // AC-28): the shell asks and opens documents; Pixel mode adds PNGs.
     registerDropTarget({
@@ -880,6 +886,7 @@
     });
     return () => {
       cancelled = true;
+      stopRecents();
       if (live.rafHandle !== null) cancelAnimationFrame(live.rafHandle);
       stopPlayback();
       unregisterSession();

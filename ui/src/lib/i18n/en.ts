@@ -20,6 +20,7 @@ export const en = {
   'shell.permissionDenied': '{name}: permission denied',
   'shell.noHandle': '{name}: no handle / path',
   'shell.recentFailed': 'Opening {name} failed: {error}',
+  'shell.recentMissing': '{name} was not found and was removed from the recent files',
   'shell.dropFailed': 'Drop failed: {error}',
   'shell.loadingEditor': 'Loading the {mode} editor…',
   'shell.couldNotOpen': '{name} could not be opened: {error}',

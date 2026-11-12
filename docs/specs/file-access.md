@@ -146,8 +146,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-27 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
 | AC-28 | `ui/e2e/editor-drop.spec.ts › AC-28: a remembered Add as Layer asks when the drop cannot be added` | built | |
 | AC-29 | | open | |
-| AC-30 | | open | |
-| AC-31 | | open | |
+| AC-30 | `ui/e2e/file-access.spec.ts › recent files › AC-30: a recent whose file was deleted leaves every recent list, with a notice` (start screen, Image and Pixel File ▸ Open Recent; a failed read keeps its entry); `› desktop app (Tauri bridge stubbed) › AC-30: a recent whose file was deleted is removed when clicked, with a notice`; `ui/e2e/unsaved-close.spec.ts` (a missing recent from an editor); `src-tauri` `tests::files_present_tells_existing_files_from_missing_paths_and_folders`. All three new e2e tests were red before the change (no notice) | built | |
+| AC-31 | `ui/e2e/file-access.spec.ts › desktop app (Tauri bridge stubbed) › AC-31: entries whose path holds no file are dropped before the list shows` (red before: both entries listed) | built | |
 
 Still `open`: AC-09 and AC-29 are manual checks on the desktop app. AC-29's code path is built — `watchFileDrops` in `ui/src/lib/fs/drop.ts` listens to Tauri's `onDragDropEvent` and reads the dropped paths with `read_file_bytes`, feeding the same shell flow as a browser drop — and waits for a sign-off on the desktop app (`manual: {who} checked {what}, {date}`).
 
