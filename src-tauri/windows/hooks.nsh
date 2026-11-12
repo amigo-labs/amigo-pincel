@@ -42,6 +42,7 @@
   !insertmacro ${OP} "tga" "TGA Image"
   !insertmacro ${OP} "dds" "DirectDraw Surface"
   !insertmacro ${OP} "ico" "Windows Icon"
+  !insertmacro ${OP} "jxl" "JPEG XL Image"
   !insertmacro ${OP} "psd" "Photoshop Image"
 !macroend
 

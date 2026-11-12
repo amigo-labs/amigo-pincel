@@ -149,6 +149,15 @@
       },
       {
         "ext": [
+          "jxl"
+        ],
+        "name": "JPEG XL Image",
+        "description": "JPEG XL image",
+        "role": "Editor",
+        "mimeType": "image/jxl"
+      },
+      {
+        "ext": [
           "psd"
         ],
         "name": "Photoshop Image",
