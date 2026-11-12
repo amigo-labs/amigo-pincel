@@ -83,6 +83,7 @@ pub use move_selection_content::MoveSelectionContent;
 pub use palette_ops::{
     AddPaletteEntry, MovePaletteEntry, RemovePaletteEntry, ReplacePalette, SetPaletteColor,
 };
+pub(crate) use paste_layer::placement_above;
 pub use paste_layer::{PasteLayer, PastedImage};
 pub use patch_cel::{AddEmptyCel, PatchCel};
 pub use pencil_stroke::{

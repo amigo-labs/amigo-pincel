@@ -80,22 +80,24 @@ impl PasteLayer {
         self.expand = expand;
         self
     }
+}
 
-    /// Z-index and parent for the new layer.
-    fn placement(&self, doc: &Sprite) -> (usize, Option<LayerId>) {
-        let Some(anchor) = self.above.and_then(|id| doc.layer(id)) else {
-            return (doc.layers.len(), None);
-        };
-        let top = doc
-            .layers
-            .iter()
-            .enumerate()
-            .filter(|(_, l)| descends_from(doc, l.id, anchor.id))
-            .map(|(i, _)| i)
-            .max()
-            .unwrap_or(doc.layers.len().saturating_sub(1));
-        (top + 1, anchor.parent)
-    }
+/// Z-index and parent for a new layer directly above `above` (above its
+/// whole subtree for a group, as its sibling); on top of the stack for
+/// `None` or an unknown id.
+pub(crate) fn placement_above(doc: &Sprite, above: Option<LayerId>) -> (usize, Option<LayerId>) {
+    let Some(anchor) = above.and_then(|id| doc.layer(id)) else {
+        return (doc.layers.len(), None);
+    };
+    let top = doc
+        .layers
+        .iter()
+        .enumerate()
+        .filter(|(_, l)| descends_from(doc, l.id, anchor.id))
+        .map(|(i, _)| i)
+        .max()
+        .unwrap_or(doc.layers.len().saturating_sub(1));
+    (top + 1, anchor.parent)
 }
 
 /// `true` when `id` is `root` or nested (at any depth) in it.
@@ -127,7 +129,7 @@ impl Command for PasteLayer {
         if doc.layers.iter().any(|l| l.id == self.layer.id) {
             return Err(CommandError::DuplicateLayerId(self.layer.id.0));
         }
-        let (index, parent) = self.placement(doc);
+        let (index, parent) = placement_above(doc, self.above);
 
         let mut reframe = None;
         if self.expand {
