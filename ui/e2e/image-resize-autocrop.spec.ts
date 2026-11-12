@@ -8,6 +8,7 @@ import {
   menu,
   pixelOf,
   setColor,
+  switchLanguage,
 } from './helpers';
 
 // image-resize-autocrop: the shared size input of Scale Image / Resize
@@ -200,9 +201,7 @@ test('an invalid used field blocks Apply and Enter (AC-07)', async ({ page }) =>
 
 test('German shows a decimal comma and accepts a point (AC-22, AC-21)', async ({ page }) => {
   await createDocument(page, 'image', { width: 96, height: 48 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await menu(page, 'Bild', 'Bild skalieren…');
   const dialog = page.getByRole('dialog', { name: 'Bild skalieren' });
   await dialog.getByRole('radio', { name: 'Absolute Größe' }).check();

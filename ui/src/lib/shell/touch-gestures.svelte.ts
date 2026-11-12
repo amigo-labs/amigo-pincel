@@ -1,11 +1,9 @@
-// View ▸ Touch Gestures (docs/specs/tablet-gestures.md AC-11 – AC-13): the
+// Settings ▸ Touch gestures (docs/specs/tablet-gestures.md AC-11 – AC-13): the
 // two- and three-finger taps for Undo / Redo, on by default, stored as one
 // IndexedDB pref like `droppedImages`; best effort — without IndexedDB the
 // setting holds for the session. Pinch / pan and the pen's eraser end do not
 // depend on it.
 
-import type { MenuAction } from '../components/layout/menu';
-import { t } from '../i18n/index.svelte';
 import { isIdbAvailable } from '../idb/db';
 import { getPref, setPref } from '../idb/prefs';
 
@@ -34,11 +32,3 @@ export function setTouchGestures(enabled: boolean): void {
   });
 }
 
-/** View ▸ Touch Gestures, checked while the taps are on (both modes). */
-export function touchGesturesItem(): MenuAction {
-  return {
-    label: t('menu.touchGestures'),
-    checked: touchGestures.enabled,
-    run: () => setTouchGestures(!touchGestures.enabled),
-  };
-}

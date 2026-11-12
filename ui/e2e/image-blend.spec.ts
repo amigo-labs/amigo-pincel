@@ -6,8 +6,9 @@ import {
   imageCanvas,
   menu,
   setColor,
-  waitForEditor,
+  switchLanguage,
   type ClipImage,
+  waitForEditor,
 } from './helpers';
 
 // The shared Blending tool option in Image mode
@@ -107,9 +108,7 @@ test('one Blending control, shared by the painting tools and all tabs, Normal at
   await createDocument(page, 'image', { width: SIZE, height: SIZE });
   await useTool(page, 'b', 'Brush');
   await expect(blending(page)).toHaveValue('normal');
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const de = page.getByRole('combobox', { name: 'Mischmodus' });
   await expect(de.getByRole('option', { name: 'Überschreiben' })).toHaveCount(1);
 });

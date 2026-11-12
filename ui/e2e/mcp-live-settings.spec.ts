@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, storedPref, waitForEditor } from './helpers';
+import { createDocument, storedPref, switchLanguage, waitForEditor } from './helpers';
 import { emit, installTauriMock, type MockWindow } from './tauri-mock';
 
 // View ▸ AI agents… and the "AI connected" indicator
@@ -122,9 +122,7 @@ test.describe('desktop app', () => {
 
   test('AC-14 the dialog and the indicator are German in the German UI', async ({ page }) => {
     await start(page);
-    await viewMenu(page);
-    await page.getByRole('menuitem', { name: 'Language' }).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+    await switchLanguage(page, 'Deutsch');
     await viewMenu(page, 'Ansicht');
     await page.getByRole('menuitem', { name: 'KI-Agenten…' }).click();
     const d = dialog(page, 'KI-Agenten');
@@ -142,7 +140,7 @@ test.describe('desktop app', () => {
 test('AC-13 the web app shows neither the setting nor the indicator', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await viewMenu(page);
-  await expect(page.getByRole('menuitem', { name: 'Language' })).toBeVisible();
+  await expect(page.getByRole('menuitem', { name: 'Zoom In' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'AI Agents…' })).toHaveCount(0);
   await expect(page.getByText('AI connected')).toHaveCount(0);
 });

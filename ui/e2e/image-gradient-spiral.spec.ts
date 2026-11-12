@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, setColor } from './helpers';
+import { createDocument, drag, imageCanvas, setColor, switchLanguage } from './helpers';
 
 // Image-mode spiral gradient kinds (docs/specs/image-palette-gradient-spiral.md).
 
@@ -98,9 +98,7 @@ test('a spiral drag paints the spec example and is one undo step (AC-03, AC-08)'
 test.describe('German', () => {
   test('the spiral kinds read in German (AC-14)', async ({ page }) => {
     await createDocument(page, 'image', { width: 64, height: 64 });
-    await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Language' }).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+    await switchLanguage(page, 'Deutsch');
     await page.keyboard.press('n');
     const kinds = await options(page, 'Verlaufsart');
     expect(kinds.slice(5)).toEqual([

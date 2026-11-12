@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, pixelCanvas, storedPref } from './helpers';
+import { createDocument, imageCanvas, pixelCanvas, storedPref, switchLanguage } from './helpers';
 
 // The own color picker (color-picker spec): a popover from the foreground
 // and background swatches with an S/V area, hue and alpha sliders, a hex
@@ -531,9 +531,7 @@ test.describe('phone', () => {
 
 test('the picker is German in the German UI (AC-21)', async ({ page }) => {
   await createDocument(page, 'image', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await page.getByRole('button', { name: 'Vordergrundfarbe', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Farbwähler Vordergrundfarbe' });
   await expect(picker.getByRole('slider', { name: 'Farbton' })).toBeVisible();

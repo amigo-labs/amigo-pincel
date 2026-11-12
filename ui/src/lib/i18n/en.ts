@@ -227,7 +227,6 @@ export const en = {
   'color.palette': 'Color palette',
 
   // Language menu
-  'menu.language': 'Language',
 
   // Layers
   'layers.add': 'Add layer',
@@ -312,6 +311,12 @@ export const en = {
   'menu.help': 'Help',
   'menu.shortcuts': 'Keyboard Shortcuts',
   'menu.about': 'About Pincel',
+  'menu.settings': 'Settings…',
+  'settings.title': 'Settings',
+  'settings.language': 'Language',
+  'settings.reduceMotion': 'Reduce motion',
+  'settings.reduceMotionSystem': 'On in system settings',
+  'settings.touchGestures': 'Touch gestures',
   'menu.checkUpdates': 'Check for Updates…',
   'menu.autoUpdate': 'Install Updates Automatically',
   'menu.new': 'New…',
@@ -447,7 +452,6 @@ export const en = {
   'menu.zoomActual': 'Actual Size',
   'menu.showPixelGrid': 'Show Pixel Grid',
   'menu.showGrid': 'Show Grid',
-  'menu.touchGestures': 'Touch Gestures',
   'menu.imageGeneration': 'Image Generation…',
   'menu.aiAgents': 'AI Agents…',
   'agents.title': 'AI Agents',
@@ -493,8 +497,6 @@ export const en = {
   'grid.invalid': 'Cell size must be a whole number from 1–65535 and offset from −32768–32767.',
   'menu.probe': 'Frame-Time Probe',
   'menu.toggleUi': 'Toggle UI',
-  'menu.reduceMotion': 'Reduce Motion',
-  'menu.reduceMotionSystem': 'Reduce Motion (on in system settings)',
 
   // Effects
   'effect.gaussian_blur': 'Gaussian Blur',

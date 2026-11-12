@@ -14,7 +14,7 @@ The UI ships in English and German today. The user wants four more: **Spanish (`
 
 The i18n system was built to make this cheap (Decision Log 2026-10-12 "Own DE/EN dictionary"): typed dictionaries per locale, `en.ts` defines the keys, a missing key fails `pnpm check`, no i18n dependency. That entry says "Revisit if a third locale with complex plural rules arrives" — this feature is that third locale. Today there are no plural rules: count messages use fallbacks such as `'{count} snapshot(s)'`.
 
-The language follows the browser by default; the user's choice (start screen, View ▸ Language) is stored in the IndexedDB pref `language` (spec §9.5). On macOS the native menu takes its labels from a Rust table switched by `set_menu_language` (§11.3, Decision Log 2026-10-27); the same table also labels the desktop updater's dialogs on every platform.
+The language follows the browser by default; the user's choice (start screen, Settings ▸ Language) is stored in the IndexedDB pref `language` (spec §9.5). On macOS the native menu takes its labels from a Rust table switched by `set_menu_language` (§11.3, Decision Log 2026-10-27); the same table also labels the desktop updater's dialogs on every platform.
 
 Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git history) (2026-10-28).
 
@@ -22,7 +22,7 @@ Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git h
 
 ### In scope
 
-- Four new UI locales: `es`, `ja`, `fr`, `pt-BR`, selectable on the start screen and under View ▸ Language, and picked automatically from the browser / OS language
+- Four new UI locales: `es`, `ja`, `fr`, `pt-BR`, selectable on the start screen and under Settings ▸ Language, and picked automatically from the browser / OS language
 - Locale detection by full tag first, then base language, with every Portuguese tag falling back to `pt-BR`
 - Plural-aware count messages for all six locales; the existing count messages are converted
 - Locale-aware formatting for percentages, decimals and dates shown as text anywhere in the UI (options bar, Layers panel opacity, zoom label, Recovery dialog)
@@ -40,7 +40,7 @@ Migrated from the legacy plan `19-more-languages` (removed 2026-10-29, see git h
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): The language picker on the start screen and the View ▸ Language submenu list exactly six languages, each labelled in its own language: English, Deutsch, Español, 日本語, Français, Português (Brasil).
+- [ ] AC-01 (always): The language picker on the start screen and the Language list of the Settings dialog list exactly six languages, each labelled in its own language: English, Deutsch, Español, 日本語, Français, Português (Brasil).
 - [ ] AC-02 (event): When the user picks one of the six languages, then every user-visible UI string switches to that language without a reload, and after a reload the same language is still active.
 - [ ] AC-03 (event): When no language pref is stored, then the UI starts in the first entry of the browser's language list that matches a supported locale — matching the full tag first (`pt-BR`), then the base language (`es-MX` → `es`, `ja-JP` → `ja`, `fr-CA` → `fr`), with any `pt` tag (`pt`, `pt-PT`, `pt-BR`) → `pt-BR` — and in English when no entry matches.
 - [ ] AC-04 (always): The document's `<html lang>` attribute equals the active locale's tag (`en`, `de`, `es`, `ja`, `fr`, `pt-BR`).
@@ -66,7 +66,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 - **Layout check** from the plan: a dev-only pseudo-locale (`en-XA`, strings padded ~40 % and bracketed) helps find truncation; never shipped. Fix overflow with wrapping or `min-width: 0` truncation plus `title`, never by shortening translations. Places to check: menu bar (already scrolls on tablets), options bar, New dialog, paste dialog (`Modal.svelte` with three buttons), start screen.
 - **Native labels** `src-tauri/src/main.rs`: `struct Labels`, `LABELS_EN` / `LABELS_DE`, `labels_for(lang)` (anything but `de` is English), a `static GERMAN: AtomicBool` read by `current_labels()` — used by the menu builder and by `src-tauri/src/updater.rs` (update dialogs). The bool has to become a locale. Test `labels_for_german_and_fallback`.
 - **UI font**: `ui/src/app.css` uses the `system-ui` stack, which renders Japanese on every target OS — nothing to ship.
-- **e2e**: `ui/e2e/i18n.spec.ts` covers the German browser default, persistence across reload and View ▸ Language. The plan suggests parameterizing it over all locales (localized "New image" button on the start screen, `<html lang>`), plus a per-language smoke (browser locale picks it; the File menu shows its localized label). AC-06 can be checked by a Playwright-run test that imports the dictionaries.
+- **e2e**: `ui/e2e/i18n.spec.ts` covers the German browser default, persistence across reload and Settings ▸ Language. The plan suggests parameterizing it over all locales (localized "New image" button on the start screen, `<html lang>`), plus a per-language smoke (browser locale picks it; the File menu shows its localized label). AC-06 can be checked by a Playwright-run test that imports the dictionaries.
 
 ## Edge cases
 
@@ -122,3 +122,4 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 - 2026-10-29: A Decision Log entry records the six locales (en, de, es, ja, fr, pt-BR), plural messages through an in-house `tn(key, count)` on `Intl.PluralRules` with `_one` / `_other` keys (ja: `_other` only), numbers through `Intl.NumberFormat`, and every `pt*` tag → `pt-BR`, revisiting 2026-10-12 with still no i18n dependency; `pincel.md` §9.5 is updated in the same commit — the 2026-10-12 entry explicitly asked to revisit at a third locale (owner accepted the recommendation).
 - 2026-10-29: Every user-visible percentage, decimal and date anywhere in the UI goes through one `formatNumber` / `formatPercent` / `formatDate` helper; technical sizes stay unformatted (AC-09) — mixed separators on one screen look broken, and one helper costs less than deciding per call site (owner accepted the recommendation).
 - 2026-10-29: Ships machine-assisted; one review issue per locale. All four new locales ship marked "machine-assisted, review pending" (header note plus glossary), with one tracking issue per locale for a native review, and the owner names any reviewer they have — the plan says not to block on reviewers, and AC-13 is a manual check anyway (owner accepted the recommendation).
+- 2026-11-12: The entry moved from the View menu into the Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,; `settings-dialog`) — the owner wanted View to hold only what the canvas shows. Its behavior is unchanged.

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, pixelCanvas } from './helpers';
+import { createDocument, drag, imageCanvas, menu, pixelCanvas, switchLanguage } from './helpers';
 
 // docs/specs/adjustments-paintnet.md: paint.net's remaining adjustments in
 // both modes' Adjustments menu (AC-01), their dialogs (AC-02), one undo step
@@ -133,9 +133,7 @@ test('pixel mode: every new adjustment applies (AC-10)', async ({ page }) => {
 
 test('German names and parameter labels (AC-12)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   expectMenu(await adjustments(page, 'Korrekturen'), NEW_DE, 'de');
   const labels: Record<string, readonly string[]> = {
     'Belichtung…': ['Belichtung'],

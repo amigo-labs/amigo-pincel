@@ -87,6 +87,7 @@
     closeShortcuts,
     helpDialogOpen,
     openPalette,
+    openSettings,
     openShortcuts,
   } from '../../lib/help/state.svelte';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
@@ -338,6 +339,7 @@
     'paletteNext',
     'palettePrev',
     'commandPalette',
+    'settings',
   ];
 
   /** Help ▸ Keyboard Shortcuts, listing what this mode binds. */
@@ -583,6 +585,9 @@
         return true;
       case 'commandPalette':
         openCommandPalette();
+        return true;
+      case 'settings':
+        openSettings();
         return true;
     }
     if (!ed.doc) return false;

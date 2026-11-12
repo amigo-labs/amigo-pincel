@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas, storedPref } from './helpers';
+import { createDocument, drag, menu, pixelCanvas, storedPref, switchLanguage } from './helpers';
 import {
   expectCurrent,
   expectRows,
@@ -467,9 +467,7 @@ test('in German, title, start entry, buttons and step names are German (AC-16)',
   page,
 }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await openHistory(page, 'Verlauf');
   const panel = historyPanel(page, 'Verlauf');
   for (const name of ['Zum Anfang', 'Rückgängig', 'Wiederholen', 'Zum Ende']) {

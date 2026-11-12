@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas } from './helpers';
+import { createDocument, drag, pixelCanvas, switchLanguage } from './helpers';
 
 // docs/specs/animation-preview.md: the Pixel-mode Preview panel.
 
@@ -338,9 +338,7 @@ test('deleting the shown frame or the loop tag keeps the preview going (AC-15)',
 
 test('German labels (AC-16)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const panel = page.getByRole('region', { name: 'Vorschau' });
   await panel.getByRole('button', { name: 'Vorschau', exact: true }).click();
   await expect(panel.getByRole('button', { name: 'Vorschau abspielen' })).toBeVisible();

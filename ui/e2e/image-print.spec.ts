@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, gotoStart, imageCanvas, menu, setColor, waitForEditor } from './helpers';
+import {
+  createDocument,
+  gotoStart,
+  imageCanvas,
+  menu,
+  setColor,
+  switchLanguage,
+  waitForEditor,
+} from './helpers';
 import { emit, installTauriMock, launchDesktop } from './tauri-mock';
 
 // Image-mode File ▸ Print… (docs/specs/image-formats-more-print.md). The
@@ -149,9 +157,7 @@ test('an image that fails to load opens no platform dialog and says so (AC-11)',
 
 test('the Print dialog and menu entry are German in the German UI (AC-13)', async ({ page }) => {
   await redImage(page);
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await menu(page, 'Datei', 'Drucken…');
   const dialog = page.getByRole('dialog', { name: 'Drucken' });
   await expect(dialog.getByRole('radio', { name: 'An Seite anpassen' })).toBeVisible();

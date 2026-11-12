@@ -82,6 +82,7 @@ export type ShortcutAction =
   | 'paletteNext'
   | 'palettePrev'
   | 'commandPalette'
+  | 'settings'
   | 'nextTab'
   | 'prevTab'
   | 'closeTab';
@@ -264,6 +265,9 @@ export const SHORTCUTS: Record<ShortcutAction, Chord[]> = {
   palettePrev: [{ key: '[', code: 'BracketLeft', alt: true }],
   // docs/specs/power-user-shortcuts-palette.md.
   commandPalette: [{ key: 'k', mod: true }],
+  // Edit ▸ Settings… (docs/specs/settings-dialog.md); `,` alone is the
+  // previous frame.
+  settings: [{ key: ',', mod: true }],
   ...tabChords(),
 };
 
@@ -308,6 +312,7 @@ export const NATIVE_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<Shortcut
   'undo',
   'redo',
   'shortcuts',
+  'settings',
 ]);
 
 /** The native menu item (src-tauri/src/main.rs) of each `NATIVE_MENU_ACTIONS` entry. */
@@ -321,6 +326,7 @@ const NATIVE_MENU_IDS: Partial<Record<ShortcutAction, string>> = {
   undo: 'menu:undo',
   redo: 'menu:redo',
   shortcuts: 'menu:shortcuts',
+  settings: 'menu:settings',
 };
 
 function keyLabel(key: string): string {

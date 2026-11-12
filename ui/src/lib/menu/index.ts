@@ -50,6 +50,8 @@ export interface ShellMenuHandlers {
   /** Help ▸ Tour: the tour for the start screen or the mounted editor
    *  (first-run-tutorial AC-12). */
   'menu:tour': MenuHandler;
+  /** Edit ▸ Settings… (⌘,): the shell's Settings dialog (settings-dialog AC-08). */
+  'menu:settings': MenuHandler;
   recent: RecentHandler;
   /** Current editor handlers (`null` while the start screen shows). */
   editor: () => EditorMenuHandlers | null;
@@ -68,7 +70,8 @@ export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<Unlis
       payload === 'menu:new' ||
       payload === 'menu:open' ||
       payload === 'menu:quit' ||
-      payload === 'menu:tour'
+      payload === 'menu:tour' ||
+      payload === 'menu:settings'
     ) {
       void handlers[payload]();
       return;

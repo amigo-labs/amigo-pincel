@@ -1,18 +1,16 @@
 // "Reduce motion" (docs/specs/reduced-motion.md, spec §9.4, Decision Log
 // 2026-10-29): one flag for both editors and the shell. Motion is reduced
 // while the system asks for it (`prefers-reduced-motion: reduce`, followed
-// live) or View ▸ Reduce Motion is checked (an IndexedDB pref); the option
+// live) or Settings ▸ Reduce motion is checked (an IndexedDB pref); the option
 // can only add the request, never force motion on. Reduced motion stills
 // the marching selection outlines and finishes UI transitions instantly
 // (`app.css`, through `data-reduce-motion` on <html>); frame playback and
 // the animation preview are content and keep running.
 
-import type { MenuAction } from './components/layout/menu';
-import { t } from './i18n/index.svelte';
 import { isIdbAvailable } from './idb/db';
 import { getPref, setPref } from './idb/prefs';
 
-/** IndexedDB pref holding View ▸ Reduce Motion (`true` = always reduce). */
+/** IndexedDB pref holding Settings ▸ Reduce motion (`true` = always reduce). */
 export const REDUCE_MOTION_PREF = 'reduceMotion';
 
 const QUERY = '(prefers-reduced-motion: reduce)';
@@ -75,12 +73,3 @@ export function setReduceMotion(on: boolean): void {
   }
 }
 
-/** View ▸ Reduce Motion, shared by both editors: the check mark shows the
- *  user's own option; the label says when the system asks for it too. */
-export function reduceMotionMenuItem(): MenuAction {
-  return {
-    label: motion.system ? t('menu.reduceMotionSystem') : t('menu.reduceMotion'),
-    checked: motion.option,
-    run: () => setReduceMotion(!motion.option),
-  };
-}

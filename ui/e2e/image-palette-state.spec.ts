@@ -1,5 +1,13 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, setColor, storedPref, waitForEditor } from './helpers';
+import {
+  createDocument,
+  gotoStart,
+  menu,
+  setColor,
+  storedPref,
+  switchLanguage,
+  waitForEditor,
+} from './helpers';
 import {
   colorsPanel,
   loadPalette,
@@ -364,9 +372,7 @@ test('the palette menu, Add color and the palette messages are German in the Ger
   await createDocument(page, 'image', { width: 16, height: 16 });
   // Set while the swatches still have their English names.
   await setColor(page, 'fg', '#ffffffff');
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const panel = page.getByRole('region', { name: 'Farben' });
   const status = page.getByRole('contentinfo');
   const add = panel.getByRole('button', { name: 'Farbe hinzufügen', exact: true });

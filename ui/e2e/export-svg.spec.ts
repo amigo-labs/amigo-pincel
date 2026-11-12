@@ -9,6 +9,7 @@ import {
   menu,
   pixelCanvas,
   setColor,
+  switchLanguage,
   waitForEditor,
 } from './helpers';
 
@@ -291,9 +292,7 @@ test('image: cancelling the save picker saves nothing and shows no error', async
 
 test('menu entry, dialog and summary follow the German language', async ({ page }) => {
   await createDocument(page, 'image', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await menu(page, 'Datei', 'Exportieren', 'SVG…');
   const d = page.getByRole('dialog', { name: 'Als SVG exportieren' });
   await expect(d).toBeVisible();

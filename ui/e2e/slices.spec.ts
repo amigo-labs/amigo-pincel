@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu, pixelCanvas } from './helpers';
+import { createDocument, menu, pixelCanvas, switchLanguage } from './helpers';
 
 // Pixel-mode slices (docs/specs/slices.md): the Slice tool, the Slices panel
 // and the active slice's overlay. Slice state is read from the panel's rows;
@@ -433,9 +433,7 @@ test('the slice rows follow the UI language', async ({ page }) => {
   const at = await setup(page);
   await sliceTool(page).click();
   await dragPixels(page, at, [1, 1], [4, 4]);
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
 
   const r = slicesPanel(page).getByRole('listitem');
   await expect(r.getByText('ID 0 · 1 Key · Frame 0', { exact: true })).toBeVisible();

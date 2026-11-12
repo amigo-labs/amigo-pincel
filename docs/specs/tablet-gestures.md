@@ -16,7 +16,7 @@ In both modes:
 - a **two-finger tap** undoes one step, a **three-finger tap** redoes one step;
 - the pen's **eraser end** (or eraser barrel button) erases for as long as it touches; afterwards the previously selected tool is still active.
 
-Both gestures are on by default; View ▸ Touch Gestures turns the taps off for users who rest fingers on the screen.
+Both gestures are on by default; Settings ▸ Touch gestures turns the taps off for users who rest fingers on the screen.
 
 ## Scope
 
@@ -24,7 +24,7 @@ Both gestures are on by default; View ▸ Touch Gestures turns the taps off for 
 
 - Two-finger tap → Undo, three-finger tap → Redo, in Pixel and Image mode, with fixed recognition thresholds
 - Pen eraser end / eraser button erases for that stroke without changing the selected tool, in both modes
-- View ▸ Touch Gestures checkbox (on by default), persisted in IndexedDB prefs
+- Settings ▸ Touch gestures checkbox (on by default), persisted in IndexedDB prefs
 - en + de strings; §9.4 touch sentence updated
 
 ### Out of scope
@@ -48,10 +48,10 @@ Both gestures are on by default; View ▸ Touch Gestures turns the taps off for 
 - [ ] AC-08 (event): When the eraser-end stroke ends or is cancelled, then the previously selected tool is still the active tool, and the tool rail showed that tool during the stroke.
 - [ ] AC-09 (state): While erasing with the eraser end in Image mode, pen pressure affects the stroke as it does for the Eraser tool.
 - [ ] AC-10 (event): When the user undoes after an eraser-end stroke, then the whole stroke is removed in one step.
-- [ ] AC-11 (always): A new profile has View ▸ Touch Gestures checked.
-- [ ] AC-12 (option): Where View ▸ Touch Gestures is unchecked, two- and three-finger taps neither undo nor redo, while two-finger pan / zoom and the pen eraser end keep working.
-- [ ] AC-13 (event): When the user changes View ▸ Touch Gestures and reloads the app, then the setting is kept.
-- [ ] AC-14 (option): Where the UI language is German, the View ▸ Touch Gestures entry is German.
+- [ ] AC-11 (always): A new profile has Settings ▸ Touch gestures checked.
+- [ ] AC-12 (option): Where Settings ▸ Touch gestures is unchecked, two- and three-finger taps neither undo nor redo, while two-finger pan / zoom and the pen eraser end keep working.
+- [ ] AC-13 (event): When the user changes Settings ▸ Touch gestures and reloads the app, then the setting is kept.
+- [ ] AC-14 (option): Where the UI language is German, the Settings ▸ Touch gestures entry is German.
 - [ ] AC-15 (event, manual: real tablet hardware): When a user on an iPad two-finger-taps after a stroke, and on a Windows tablet with a Surface or Wacom pen erases with the eraser end, then the results match AC-01 and AC-07 on the real devices.
 
 ## Technical notes
@@ -109,10 +109,10 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 | AC-08 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)"; "an eraser reported only by bit 32 of `buttons` erases; a cancelled one keeps the tool (AC-07, AC-08)" | built | |
 | AC-09 | `ui/e2e/gestures.spec.ts` "image: the eraser end follows pen pressure like the Eraser tool (AC-09)" | built | |
 | AC-10 | `ui/e2e/gestures.spec.ts` "{pixel,image}: the pen's eraser end erases one step and keeps the tool (AC-07, AC-08, AC-10)" | built | |
-| AC-11 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
-| AC-12 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)"; "with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12)" | built | |
-| AC-13 | `ui/e2e/gestures.spec.ts` "View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
-| AC-14 | `ui/e2e/gestures.spec.ts` "the Touch Gestures entry is German in the German UI (AC-14)" | built | |
+| AC-11 | `ui/e2e/gestures.spec.ts` "Settings ▸ Touch gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-12 | `ui/e2e/gestures.spec.ts` "Settings ▸ Touch gestures turns the taps off and is kept after a reload (AC-11 – AC-13)"; "with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12)" | built | |
+| AC-13 | `ui/e2e/gestures.spec.ts` "Settings ▸ Touch gestures turns the taps off and is kept after a reload (AC-11 – AC-13)" | built | |
+| AC-14 | `ui/e2e/gestures.spec.ts` "the Touch gestures setting is German in the German UI (AC-14)" | built | |
 | AC-15 | manual check pending: two-finger tap on an iPad after a stroke; eraser end of a Surface / Wacom pen on a Windows tablet (record as `manual: {who} checked {what}, {date}`) | open |  |
 
 ## Decisions
@@ -127,4 +127,4 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-08 (spec-build) — The tap recogniser (`TapTracker` in `ui/src/lib/view/taps.ts`) and `isEraserEnd` are shared, rune-free helpers next to the `PinchTracker`; the setting lives in `ui/src/lib/shell/touch-gestures.svelte.ts` as the IndexedDB pref `touchGestures`, loaded at start like `droppedImages`.
 - 2026-11-08 (spec-build) — Pixel mode uses a per-press `live.toolOverride` read through `activeTool()` in the pointer module; Image mode latches the effective tool in the press handler (`kind`), as `gestureKind` already latched it for the drag.
 - 2026-11-08 (spec-build) — The e2e eraser-end strokes are dispatched as `PointerEvent`s (button 5, buttons 32): CDP's `Input.dispatchMouseEvent` has no eraser button and drops bit 32 of `buttons`.
-
+- 2026-11-12: The entry moved from the View menu into the Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,; `settings-dialog`) — the owner wanted View to hold only what the canvas shows. Its behavior is unchanged.

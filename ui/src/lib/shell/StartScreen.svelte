@@ -16,7 +16,7 @@
   import type { RecentFile } from '../idb/recent-files';
   import type { EditorMode, NewDocParams } from './types';
   import Icon from '../components/icons/Icon.svelte';
-  import { openAbout } from '../help/state.svelte';
+  import { openAbout, openSettings } from '../help/state.svelte';
   import { LOCALES, isLocale, locale, t } from '../i18n/index.svelte';
   import { setLocale } from '../i18n/locale';
   import { hasNativeMenu } from '../platform';
@@ -341,6 +341,11 @@
               type="button"
               class="panel-btn leading-4 pointer-coarse:min-h-11"
               onclick={() => startTour('start')}>{t('menu.tour')}</button
+            >
+            <button
+              type="button"
+              class="panel-btn leading-4 pointer-coarse:min-h-11"
+              onclick={openSettings}>{t('settings.title')}</button
             >
             <button
               type="button"

@@ -23,6 +23,8 @@ export type UpdateResult =
 
 export const help = $state<{
   about: boolean;
+  /** Edit ▸ Settings… (docs/specs/settings-dialog.md). */
+  settings: boolean;
   /** What Help ▸ Keyboard Shortcuts lists; `null` while it is closed. */
   shortcuts: ShortcutSource | null;
   /** What the command palette (Ctrl+K) searches; `null` while it is closed. */
@@ -33,6 +35,7 @@ export const help = $state<{
   result: UpdateResult | null;
 }>({
   about: false,
+  settings: false,
   shortcuts: null,
   palette: null,
   updater: null,
@@ -47,6 +50,16 @@ export function openAbout(): void {
 
 export function closeAbout(): void {
   help.about = false;
+}
+
+/** Open the Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,, or the start
+ *  screen's button; docs/specs/settings-dialog.md). */
+export function openSettings(): void {
+  help.settings = true;
+}
+
+export function closeSettings(): void {
+  help.settings = false;
 }
 
 /**
@@ -75,10 +88,16 @@ export function closePalette(): void {
   help.palette = null;
 }
 
-/** True while a shell dialog (About, Keyboard Shortcuts, command palette,
- *  Image generation) owns the keyboard. */
+/** True while a shell dialog (About, Settings, Keyboard Shortcuts, command
+ *  palette, Image generation) owns the keyboard. */
 export function helpDialogOpen(): boolean {
-  return help.about || help.shortcuts !== null || help.palette !== null || comfyDialogOpen();
+  return (
+    help.about ||
+    help.settings ||
+    help.shortcuts !== null ||
+    help.palette !== null ||
+    comfyDialogOpen()
+  );
 }
 
 /** Load what the Help menu draws its update entries from. No-op in a browser. */

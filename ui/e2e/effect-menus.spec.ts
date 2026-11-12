@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EFFECT_SUBMENUS, EFFECTS, SUBMENU_LABELS, type EffectDef } from '../src/lib/effects/catalog';
 import { en } from '../src/lib/i18n/en';
-import { createDocument, gotoStart, waitForEditor } from './helpers';
+import { createDocument, gotoStart, switchLanguage, waitForEditor } from './helpers';
 
 // effect-catalog-v2 AC-01 – AC-06: the Effects menu follows paint.net's
 // submenus, each mode shows only its entries, entries sort by their name in
@@ -131,9 +131,7 @@ test('switching the UI language re-sorts and renames the entries', async ({ page
   await createDocument(page, 'image', { width: 32, height: 32 });
   const before = await adjustments(page);
   expect(before.indexOf('Brightness / Contrast…')).toBeLessThan(before.indexOf('Color Balance…'));
-  await openTop(page, 'View');
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
 
   const adjust = await adjustments(page, 'Korrekturen');
   expectSorted(adjust, 'de');

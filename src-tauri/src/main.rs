@@ -116,6 +116,8 @@ struct Labels {
     cut: &'static str,
     copy: &'static str,
     paste: &'static str,
+    /// Edit ▸ Settings… (docs/specs/settings-dialog.md).
+    settings: &'static str,
     view: &'static str,
     zoom_in: &'static str,
     zoom_out: &'static str,
@@ -155,6 +157,7 @@ const LABELS_EN: Labels = Labels {
     cut: "Cut",
     copy: "Copy",
     paste: "Paste",
+    settings: "Settings\u{2026}",
     view: "View",
     zoom_in: "Zoom In",
     zoom_out: "Zoom Out",
@@ -191,6 +194,7 @@ const LABELS_DE: Labels = Labels {
     cut: "Ausschneiden",
     copy: "Kopieren",
     paste: "Einf\u{fc}gen",
+    settings: "Einstellungen\u{2026}",
     view: "Ansicht",
     zoom_in: "Vergr\u{f6}\u{df}ern",
     zoom_out: "Verkleinern",
@@ -422,6 +426,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
     // Edit items
     let undo_item = bound_item(app, "menu:undo", l.undo, "CmdOrCtrl+Z")?;
     let redo_item = bound_item(app, "menu:redo", l.redo, "CmdOrCtrl+Shift+Z")?;
+    // Edit ▸ Settings…: the shell's Settings dialog (settings-dialog AC-08).
+    let settings_item = bound_item(app, "menu:settings", l.settings, "CmdOrCtrl+,")?;
     let edit = SubmenuBuilder::new(app, l.edit)
         .item(&undo_item)
         .item(&redo_item)
@@ -429,6 +435,8 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&PredefinedMenuItem::cut(app, Some(l.cut))?)
         .item(&PredefinedMenuItem::copy(app, Some(l.copy))?)
         .item(&PredefinedMenuItem::paste(app, Some(l.paste))?)
+        .separator()
+        .item(&settings_item)
         .build()?;
 
     // View items

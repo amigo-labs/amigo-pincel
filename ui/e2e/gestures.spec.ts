@@ -1,5 +1,13 @@
 import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, pixelCanvas, setColor, storedPref } from './helpers';
+import {
+  createDocument,
+  drag,
+  imageCanvas,
+  pixelCanvas,
+  setColor,
+  storedPref,
+  switchLanguage,
+} from './helpers';
 
 // Tablet gestures (docs/specs/tablet-gestures.md): two- / three-finger taps
 // undo / redo, and a pen's eraser end erases without changing the tool.
@@ -210,33 +218,41 @@ test('image: the eraser end follows pen pressure like the Eraser tool (AC-09)', 
   await expect.poll(beside).not.toBe('#ff0000');
 });
 
-test('View ▸ Touch Gestures turns the taps off and is kept after a reload (AC-11 – AC-13)', async ({
+/** Settings ▸ Touch gestures (docs/specs/settings-dialog.md); set it to `on`
+ *  unless `on` is undefined, and return the checkbox's state before. */
+async function touchGestures(page: Page, on?: boolean): Promise<boolean> {
+  await page.keyboard.press('Control+,');
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+  const box = dialog.getByRole('checkbox', { name: 'Touch gestures' });
+  const before = await box.isChecked();
+  if (on !== undefined) await box.setChecked(on);
+  await dialog.getByRole('button', { name: 'Close' }).click();
+  await expect(dialog).toBeHidden();
+  return before;
+}
+
+test('Settings ▸ Touch gestures turns the taps off and is kept after a reload (AC-11 – AC-13)', async ({
   page,
 }) => {
   await twoStrokes(page, 'image');
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  const item = page.getByRole('menuitemcheckbox', { name: 'Touch Gestures' });
-  await expect(item).toHaveAttribute('aria-checked', 'true');
-  await item.click();
+  expect(await touchGestures(page, false)).toBe(true);
   await tap(page, imageCanvas(page), 2);
   await expect(redoButton(page)).toBeDisabled();
   await expect.poll(() => storedPref(page, 'touchGestures')).toBe(false);
 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await expect(page.getByRole('menuitemcheckbox', { name: 'Touch Gestures' })).toHaveAttribute(
-    'aria-checked',
-    'false',
-  );
+  expect(await touchGestures(page)).toBe(false);
 });
 
-test('the Touch Gestures entry is German in the German UI (AC-14)', async ({ page }) => {
+test('the Touch gestures setting is German in the German UI (AC-14)', async ({ page }) => {
   await createDocument(page, 'image', { width: 16, height: 16 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'Ansicht', exact: true }).click();
-  await expect(page.getByRole('menuitemcheckbox', { name: 'Touch-Gesten' })).toBeVisible();
+  await switchLanguage(page, 'Deutsch');
+  await page.keyboard.press('Control+,');
+  await expect(
+    page
+      .getByRole('dialog', { name: 'Einstellungen', exact: true })
+      .getByRole('checkbox', { name: 'Touch-Gesten' }),
+  ).toBeVisible();
 });
 
 /** Two fingers that land together, wait `holdMs`, then lift. */
@@ -282,8 +298,7 @@ test('an eraser reported only by bit 32 of `buttons` erases; a cancelled one kee
 
 test('with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Touch Gestures' }).click();
+  await touchGestures(page, false);
   const target = imageCanvas(page);
   const zoom = page.getByRole('button', { name: 'Fit to window' });
   const before = await zoom.textContent();

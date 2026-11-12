@@ -3,15 +3,12 @@
 // actions in, so the editor keeps no menu markup.
 
 import { effectMenus } from '../../lib/effects/menu';
-import { helpMenus } from '../../lib/help/menu';
+import { helpMenus, settingsMenuItems } from '../../lib/help/menu';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
 import { hint } from '../../lib/shell/shortcuts';
-import { languageMenu } from '../../lib/i18n/locale';
-import { reduceMotionMenuItem } from '../../lib/motion.svelte';
-import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
 import { agentsMenuItems } from '../../lib/agent/access.svelte';
 import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
 import { t } from '../../lib/i18n/index.svelte';
@@ -190,6 +187,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: c.swapColors },
         { label: t('menu.defaultColors'), shortcut: hint('resetColors'), run: c.resetColors },
+        ...settingsMenuItems(),
       ],
     },
     {
@@ -316,12 +314,8 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
         { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
-        reduceMotionMenuItem(),
-        touchGesturesItem(),
         ...agentsMenuItems(),
         ...imageGenerationItems(),
-        { kind: 'separator' },
-        languageMenu(),
       ],
     },
     ...helpMenus(c.openShortcuts, 'pixel'),

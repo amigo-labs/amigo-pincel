@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, switchLanguage } from './helpers';
 import {
   boxOf,
   brightness,
@@ -362,9 +362,7 @@ test('resizing across 640 px keeps the effect, its values and the panel inside (
 
 test('close button, title bar and splitter are German (AC-15)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await menu(page, 'Korrekturen', 'Farben umkehren');
   const panel = effectPanel(page, 'Farben umkehren');
   await expect(panel).toBeVisible();

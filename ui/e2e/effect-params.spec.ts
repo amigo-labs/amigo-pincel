@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, penStroke } from './helpers';
+import { createDocument, drag, imageCanvas, menu, penStroke, switchLanguage } from './helpers';
 
 // effect-catalog-v2 AC-09 – AC-15: the angle, point, random-seed and
 // linked-pair parameter kinds of the effect dialog (Image mode, which has
@@ -399,9 +399,7 @@ test('the new controls work from the keyboard (AC-15)', async ({ page }) => {
 test.describe('German UI', () => {
   test('the new controls are named in German (AC-15)', async ({ page }) => {
     await createDocument(page, 'image', { width: 32, height: 32 });
-    await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Language' }).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+    await switchLanguage(page, 'Deutsch');
     await menu(page, 'Effekte', 'Weichzeichnen', 'Radialer Weichzeichner…');
     let dialog = page.getByRole('dialog');
     await expect(dialog.getByLabel('Mitte X in Prozent')).toHaveValue('50');

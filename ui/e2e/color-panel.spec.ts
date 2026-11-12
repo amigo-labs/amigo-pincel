@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, setColor } from './helpers';
+import { createDocument, imageCanvas, setColor, switchLanguage } from './helpers';
 
 // Image mode's Colors panel (color-picker AC-25 – AC-29): below the
 // swatches, the recent colors and the 48-color default palette, always
@@ -187,9 +187,7 @@ test.describe('touch', () => {
 
 test('the panel rows are German in the German UI (AC-28)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const panel = page.getByRole('region', { name: 'Farben' });
   await expect(panel.getByRole('group', { name: 'Zuletzt verwendete Farben' })).toBeVisible();
   const pal = panel.getByRole('group', { name: 'Farbpalette' });
