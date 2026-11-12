@@ -120,6 +120,9 @@ pub struct UndoStack {
     /// Set once the capacity or the byte cap has dropped a step from the
     /// bottom of the history (docs/specs/history-panel.md AC-03).
     dropped: bool,
+    /// While a group is open: the undo depth at which it starts (see
+    /// [`UndoStack::begin_group`]).
+    group: Option<usize>,
 }
 
 impl UndoStack {
@@ -137,6 +140,7 @@ impl UndoStack {
             bytes: 0,
             byte_cap: DEFAULT_UNDO_BYTE_CAP,
             dropped: false,
+            group: None,
         }
     }
 
@@ -217,7 +221,9 @@ impl UndoStack {
         for dropped in self.redo.drain(..) {
             self.bytes -= dropped.undo_bytes();
         }
-        if let Some(top) = self.undo.last_mut() {
+        // A group's first step never merges into an older one.
+        let group_start = self.group == Some(self.undo.len());
+        if let Some(top) = self.undo.last_mut().filter(|_| !group_start) {
             let before = top.undo_bytes();
             if top.merge_with(cmd.as_ref()) {
                 self.bytes = self.bytes - before + top.undo_bytes();
@@ -237,6 +243,9 @@ impl UndoStack {
     /// the live object: then its oldest edit folds into the begin step
     /// (docs/specs/image-live-objects.md AC-14).
     fn drop_oldest(&mut self) {
+        if let Some(start) = &mut self.group {
+            *start = start.saturating_sub(1);
+        }
         let folded = match self.undo.as_slice() {
             [first, second, ..] => live::LiveStep::fold(first.as_ref(), second.as_ref())
                 .or_else(|| live_transform::TransformStep::fold(first.as_ref(), second.as_ref())),
@@ -271,7 +280,44 @@ impl UndoStack {
     pub(crate) fn pop_undo(&mut self) -> Option<Box<dyn Command>> {
         let step = self.undo.pop()?;
         self.bytes -= step.undo_bytes();
+        self.clamp_group();
         Some(step)
+    }
+
+    /// Keeps an open group's start within the undo stack.
+    fn clamp_group(&mut self) {
+        if let Some(start) = &mut self.group {
+            *start = (*start).min(self.undo.len());
+        }
+    }
+
+    /// Opens a group: the steps added until [`UndoStack::end_group`]
+    /// become one step (the Assistant chat's answer,
+    /// docs/specs/ai-chat-panel.md AC-08). The group's first step never
+    /// merges into an older one. A group already open keeps its start.
+    pub fn begin_group(&mut self) {
+        if self.group.is_none() {
+            self.group = Some(self.undo.len());
+        }
+    }
+
+    /// Closes the group: the steps added since [`UndoStack::begin_group`]
+    /// that are still on the undo stack become one step of kind `kind`,
+    /// applied in order and reverted in reverse. Returns `true` when the
+    /// group left a step, `false` when it changed nothing or no group was
+    /// open (AC-09).
+    pub fn end_group(&mut self, kind: HistoryKind) -> bool {
+        let Some(start) = self.group.take() else {
+            return false;
+        };
+        let start = start.min(self.undo.len());
+        if start == self.undo.len() {
+            return false;
+        }
+        // The byte count stays: the batch holds exactly what its steps held.
+        let steps: Vec<Box<dyn Command>> = self.undo.drain(start..).collect();
+        self.undo.push(Box::new(Batch::new(steps, kind)));
+        true
     }
 
     /// Drops every undo step above the oldest `keep` and the redo branch,
@@ -280,6 +326,7 @@ impl UndoStack {
         for gone in self.undo.drain(keep.min(self.undo.len())..) {
             self.bytes -= gone.undo_bytes();
         }
+        self.clamp_group();
         for gone in self.redo.drain(..) {
             self.bytes -= gone.undo_bytes();
         }
@@ -289,7 +336,9 @@ impl UndoStack {
     ///
     /// Returns `Ok(false)` if there was nothing to undo.
     pub fn undo(&mut self, doc: &mut Document) -> Result<bool, DocumentError> {
-        match self.undo.pop() {
+        let popped = self.undo.pop();
+        self.clamp_group();
+        match popped {
             Some(mut cmd) => {
                 let before = cmd.undo_bytes();
                 let reverted = cmd.revert(doc);
@@ -334,6 +383,7 @@ impl UndoStack {
         let Some(mut cmd) = from.pop() else {
             return Ok(false);
         };
+        self.clamp_group();
         let before = cmd.undo_bytes();
         let done = if back {
             cmd.revert(doc)
@@ -539,6 +589,57 @@ mod tests {
 
         assert!(bus.undo().unwrap());
         assert_eq!(pixel(&bus.document, 0, 1, 1), Color::TRANSPARENT);
+    }
+
+    #[test]
+    fn end_group_folds_the_group_into_one_assistant_step() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.apply(Box::new(RenameLayer::new(0, "Sky"))).unwrap();
+        bus.history.begin_group();
+        bus.apply(Box::new(AddLayer::above(0))).unwrap();
+        bus.apply(Box::new(RenameLayer::new(1, "Cloud"))).unwrap();
+        bus.apply(Box::new(SetLayerOpacity::new(1, 0.5))).unwrap();
+        assert!(bus.history.end_group(HistoryKind::Assistant));
+        let kinds: Vec<String> = bus
+            .history
+            .undo_kinds()
+            .map(|k| k.id().into_owned())
+            .collect();
+        assert_eq!(kinds, ["rename_layer", "assistant"]);
+        assert!(bus.undo().unwrap());
+        assert_eq!(bus.document.layers.len(), 1);
+        assert_eq!(bus.document.layers[0].name, "Sky");
+        assert!(bus.redo().unwrap());
+        assert_eq!(bus.document.layers.len(), 2);
+        assert_eq!(bus.document.layers[1].name, "Cloud");
+        assert_eq!(bus.history.recount_bytes(), bus.history.stored_bytes());
+    }
+
+    #[test]
+    fn end_group_without_a_change_adds_no_step() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.apply(Box::new(AddLayer::above(0))).unwrap();
+        bus.history.begin_group();
+        assert!(!bus.history.end_group(HistoryKind::Assistant));
+        assert_eq!(bus.history.undo_depth(), 1);
+        assert!(
+            !bus.history.end_group(HistoryKind::Assistant),
+            "no group open"
+        );
+    }
+
+    #[test]
+    fn end_group_of_one_step_names_it_assistant() {
+        let mut bus = CommandBus::new(Document::new(8, 8).unwrap());
+        bus.history.begin_group();
+        bus.apply(Box::new(AddLayer::above(0))).unwrap();
+        assert!(bus.history.end_group(HistoryKind::Assistant));
+        let kinds: Vec<String> = bus
+            .history
+            .undo_kinds()
+            .map(|k| k.id().into_owned())
+            .collect();
+        assert_eq!(kinds, ["assistant"]);
     }
 
     #[test]
