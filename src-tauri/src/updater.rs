@@ -805,6 +805,26 @@ mod tests {
         assert_eq!(json["saved"], serde_json::json!(false));
     }
 
+    // AC-29: what the Windows installer writes on a silent install reads
+    // as a stored "install automatically", so no question shows.
+    #[test]
+    fn silent_install_settings_read_as_install_automatically() {
+        let hooks = include_str!("../windows/hooks.nsh");
+        let line = hooks
+            .lines()
+            .find(|l| l.trim_start().starts_with("FileWrite"))
+            .expect("hooks.nsh writes the updater settings");
+        let json = line
+            .split('\'')
+            .nth(1)
+            .expect("the settings are a single-quoted string");
+        let settings = parse_settings(json.as_bytes());
+        assert_eq!(settings.stored_mode(), Some(Mode::Auto));
+        assert!(settings.chosen());
+        assert!(hooks.contains("${BUNDLEID}\\updater.json"));
+        assert_eq!(SETTINGS_FILE, "updater.json");
+    }
+
     // AC-12: nothing chosen reads as "install automatically".
     #[test]
     fn parse_settings_missing_fields_use_defaults() {

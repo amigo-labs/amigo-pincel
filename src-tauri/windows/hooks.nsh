@@ -61,6 +61,21 @@
     ExecShell "open" "ms-settings:defaultapps?registeredAppUser=${PRODUCTNAME}"
     WriteRegStr SHCTX "${MANUPRODUCTKEY}" "DefaultAppsOffered" "1"
   ${EndIf}
+
+  ; A silent install (/S, winget) has nobody to ask the first-start update
+  ; question: where no updater settings exist yet, store "install
+  ; automatically" (docs/specs/desktop-app.md AC-29). `$APPDATA\${BUNDLEID}`
+  ; is the app config directory updater.rs reads; interactive and passive
+  ; (/P, the updater) installs store nothing. A test in src/updater.rs keeps
+  ; the written settings readable.
+  ${If} ${Silent}
+  ${AndIf} $PassiveMode <> 1
+  ${AndIfNot} ${FileExists} "$APPDATA\${BUNDLEID}\updater.json"
+    CreateDirectory "$APPDATA\${BUNDLEID}"
+    FileOpen $1 "$APPDATA\${BUNDLEID}\updater.json" w
+    FileWrite $1 '{"mode":"auto"}'
+    FileClose $1
+  ${EndIf}
 !macroend
 
 !macro NSIS_HOOK_POSTUNINSTALL
