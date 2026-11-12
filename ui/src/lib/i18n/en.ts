@@ -1357,6 +1357,8 @@ export const en = {
   'gen.variant': 'Variant {n}',
   'gen.apply': 'Apply',
   'gen.discard': 'Discard',
+  'gen.larger': "Larger than the model's output",
+  'gen.noVisibleColor': 'The palette has no visible color',
   'gen.errNotUsable': 'No usable ComfyUI server: {message}',
   'gen.errBadParameters': 'ComfyUI refused the request: {message}',
   'gen.errMissingModel': '{name} is not installed on the server',

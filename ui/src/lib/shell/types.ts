@@ -67,10 +67,9 @@ export interface EditorDocument {
   undoKinds(): string[];
   /** `gen.image` on this document: generates one variant and applies it
    *  as a new layer; `signal` cancels it (docs/specs/comfyui-generate.md
-   *  AC-16, AC-20). Absent where the editor cannot generate yet (Pixel
-   *  mode, comfyui-generate-pixel). Rejects with a `GenError` or an
-   *  `Error`. */
-  generateImage?(args: GenImageArgs, models: Models, signal: AbortSignal): Promise<GeneratedLayer>;
+   *  AC-16, AC-20; comfyui-generate-pixel AC-08). Rejects with a
+   *  `GenError` or an `Error`. */
+  generateImage(args: GenImageArgs, models: Models, signal: AbortSignal): Promise<GeneratedLayer>;
 }
 
 /** What `gen.image` reports (comfyui-generate AC-16). */

@@ -1366,6 +1366,8 @@ export const ptBr: Record<MessageKey, string> = {
   'gen.variant': 'Variante {n}',
   'gen.apply': 'Aplicar',
   'gen.discard': 'Descartar',
+  'gen.larger': 'Maior que a saída do modelo',
+  'gen.noVisibleColor': 'A paleta não tem nenhuma cor visível',
   'gen.errNotUsable': 'Nenhum servidor do ComfyUI utilizável: {message}',
   'gen.errBadParameters': 'O ComfyUI recusou a solicitação: {message}',
   'gen.errMissingModel': '{name} não está instalado no servidor',

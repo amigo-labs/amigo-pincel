@@ -1366,6 +1366,8 @@ export const ja: Record<MessageKey, string> = {
   'gen.variant': 'バリエーション {n}',
   'gen.apply': '適用',
   'gen.discard': '破棄',
+  'gen.larger': 'モデルの出力より大きいサイズです',
+  'gen.noVisibleColor': 'パレットに表示できる色がありません',
   'gen.errNotUsable': '使用できる ComfyUI サーバーがありません: {message}',
   'gen.errBadParameters': 'ComfyUI がリクエストを拒否しました: {message}',
   'gen.errMissingModel': 'サーバーに {name} がインストールされていません',

@@ -103,7 +103,9 @@
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import { loadImagePalette } from './stores/palette.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
-  import GeneratePanel from './components/panels/GeneratePanel.svelte';
+  import GeneratePanel from '../../lib/comfyui/GeneratePanel.svelte';
+  import { targetBox } from '../../lib/comfyui/generate-params';
+  import { imageTarget } from './generate/target';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import Modal from './components/dialogs/Modal.svelte';
@@ -182,6 +184,11 @@
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
+
+  // The active tab's side of a generation and the target box Generate
+  // would use now (comfyui-generate AC-04).
+  const genTarget = $derived(tabs.active && tabs.active.doc.handle !== null ? imageTarget(tabs.active) : null);
+  const genBox = $derived(targetBox(editor.hasSelection ? live.selectionBox : null, editor.width, editor.height));
 
   // Shell contract (src/App.svelte mounts at most one editor per mode):
   // whether the active tab is this editor's, the shared tab bar, and the
@@ -1686,7 +1693,7 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
-{#snippet generateBody()}<GeneratePanel />{/snippet}
+{#snippet generateBody()}<GeneratePanel target={genTarget} box={genBox} />{/snippet}
 {#snippet assistantBody()}
   <AssistantPanel {active} />
 {/snippet}

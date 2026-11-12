@@ -54,7 +54,6 @@ export async function genTool(tool: string, args: Record<string, unknown>, signa
   if (typeof checked === 'string') return fail(checked);
   const tab = targetTab(args);
   if (typeof tab === 'string') return fail(tab);
-  if (!tab.doc.generateImage) return fail('gen.image works on Image documents only; this is a Pixel document');
   // The user sees the change land (mcp-live-desktop, Decisions).
   if (session.active !== tab) activateTab(tab);
   try {

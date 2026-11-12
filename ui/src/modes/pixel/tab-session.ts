@@ -13,7 +13,9 @@ import { listPresentRecents } from '../../lib/fs/recents';
 import { hasFsAccess } from '../../lib/fs';
 import { isTauri } from '../../lib/platform';
 import type { EditorDocument } from '../../lib/shell/types';
+import { generateForAgent } from '../../lib/comfyui/generation.svelte';
 import { runAgentCall, runAssistantEnd } from './doc-ops';
+import { pixelTarget } from './generate-target';
 import { ed, file, tabs, type PixelTab } from './stores/editor.svelte';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 
@@ -105,6 +107,7 @@ export function attachTab(tab: PixelTab, opts: { docId?: string; recovered?: boo
       return tab.doc.doc?.assistantEnd() ?? false;
     },
     undoKinds: () => tab.doc.doc?.undoKinds() ?? [],
+    generateImage: (args, models, signal) => generateForAgent(pixelTarget(tab), args, models, signal),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

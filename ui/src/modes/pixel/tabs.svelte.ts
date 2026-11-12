@@ -6,7 +6,9 @@
 // neighbour, or the left one when the closed tab was the last (AC-07).
 import type { Document } from '../../lib/core';
 import type { SaveTarget } from '../../lib/fs';
+import { dropTabGeneration } from '../../lib/comfyui/generation.svelte';
 import { applyOnion, stopPlayback } from './doc-ops';
+import { pixelGenKey } from './generate-target';
 import { cancelPolygon, onWindowBlur } from './pointer';
 import { stopPreview } from './preview';
 import { syncMeta, syncSelection } from './render';
@@ -94,6 +96,8 @@ function free(tab: PixelTab): void {
   const at = allocated.indexOf(tab);
   if (at < 0) return;
   allocated.splice(at, 1);
+  // A running generation has no document to land in (comfyui-generate AC-21).
+  dropTabGeneration(pixelGenKey(tab));
   tab.doc.doc?.free();
   tab.doc.doc = null;
 }

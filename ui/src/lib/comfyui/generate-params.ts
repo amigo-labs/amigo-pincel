@@ -69,6 +69,50 @@ export function targetBox(
   return x1 > x0 && y1 > y0 ? { x: x0, y: y0, w: x1 - x0, h: y1 - y0 } : null;
 }
 
+/** Whether a variant generated at `width × height` is enlarged to cover
+ *  `box` — Pixel mode notes it (comfyui-generate-pixel AC-02). */
+export function enlarges(box: Box, width: number, height: number): boolean {
+  return box.w > width || box.h > height;
+}
+
+/** Why a tab cannot generate: an indexed sprite whose palette has no
+ *  entry besides the transparent one (comfyui-generate-pixel AC-10). */
+export type GenBlock = 'noVisibleColor';
+
+/** The English message of a block, for `gen.image` (AC-10). */
+export const BLOCK_ENGLISH: Readonly<Record<GenBlock, string>> = {
+  noVisibleColor: 'The palette has no visible color',
+};
+
+/** What the shared generation store needs from one editor tab. Image and
+ *  Pixel mode each make one per tab (docs/specs/comfyui-generate.md,
+ *  comfyui-generate-pixel.md). */
+export interface GenTarget {
+  /** `<mode>:<tab id>`, unique across both editors. */
+  readonly key: string;
+  /** Whether the document the target was made for is still open. */
+  alive(): boolean;
+  /** The target box now (AC-04), `null` when it is empty. */
+  box(): Box | null;
+  /** `[width, height]` of the generation size for `box`. */
+  size(native: number, box: Box): [number, number];
+  /** The selection's coverage in `box`, one byte per pixel; empty
+   *  without a selection. */
+  mask(box: Box): Uint8Array;
+  /** The input fitted to the generation size, as PNG; empty when the
+   *  layer has nothing to refine there. */
+  input(box: Box, width: number, height: number): Uint8Array;
+  /** `mask` fitted to the generation size, as a grey PNG. */
+  maskPng(mask: Uint8Array, box: Box, width: number, height: number): Uint8Array;
+  /** Why nothing can be generated in this document, or `null`. */
+  blocked(): GenBlock | null;
+  /** The strip's image of a finished variant, as PNG. */
+  thumbnail(variant: Uint8Array, box: Box, mask: Uint8Array): Uint8Array;
+  /** Adds the variant over `box`, limited to `mask`, as a new layer named
+   *  `name` above the active layer — one undo step. */
+  apply(variant: Uint8Array, box: Box, mask: Uint8Array, name: string): void;
+}
+
 /** "Generated: " plus the first 30 characters of the prompt (AC-12). A
  *  layer name is document content and stays English. */
 export function layerName(prompt: string): string {

@@ -1376,6 +1376,8 @@ export const fr: Record<MessageKey, string> = {
   'gen.variant': 'Variante {n}',
   'gen.apply': 'Appliquer',
   'gen.discard': 'Abandonner',
+  'gen.larger': 'Plus grand que la sortie du modèle',
+  'gen.noVisibleColor': 'La palette n’a aucune couleur visible',
   'gen.errNotUsable': 'Aucun serveur ComfyUI utilisable : {message}',
   'gen.errBadParameters': 'ComfyUI a refusé la requête : {message}',
   'gen.errMissingModel': '{name} n’est pas installé sur le serveur',

@@ -11,6 +11,8 @@ import init, {
   Document,
   blendModeNames,
   effectNames,
+  generationMaskPng,
+  generationSize,
   openDocumentCount,
   registerFont,
   type ComposeFrame,
@@ -27,7 +29,7 @@ import wasmUrl from '@amigo-labs/pincel-wasm/pincel_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../diagnostics';
 
 export type { ComposeFrame, PincelEvent, VectorizeResult, Vectorizer };
-export { Document, blendModeNames, effectNames, registerFont };
+export { Document, blendModeNames, effectNames, generationMaskPng, generationSize, registerFont };
 
 let initPromise: Promise<void> | null = null;
 

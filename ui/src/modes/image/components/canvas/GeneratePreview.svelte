@@ -5,11 +5,12 @@
   // box and its alpha multiplied by the mask, so outside the mask the
   // layer below shows through (AC-07).
   import { tabs } from '../../stores/editor.svelte';
-  import { fittedVariant, genTabs } from '../../generate/generation.svelte';
+  import { genTabs } from '../../../../lib/comfyui/generation.svelte';
+  import { fittedVariant, genKey } from '../../generate/target';
 
   let canvas: HTMLCanvasElement | undefined = $state();
 
-  const gen = $derived(tabs.active ? genTabs[tabs.active.id] : undefined);
+  const gen = $derived(tabs.active ? genTabs[genKey(tabs.active)] : undefined);
   const shown = $derived(gen !== undefined && gen.phase === 'done' && gen.variants.length > 0 ? gen : null);
 
   $effect(() => {

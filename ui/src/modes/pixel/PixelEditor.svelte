@@ -198,6 +198,10 @@
     view,
   } from './stores/editor.svelte';
   import { dropWandLink, relinkWand } from './wand-link';
+  import GeneratePanel from '../../lib/comfyui/GeneratePanel.svelte';
+  import { genTabs } from '../../lib/comfyui/generation.svelte';
+  import { targetBox } from '../../lib/comfyui/generate-params';
+  import { pixelGenKey, pixelTarget } from './generate-target';
 
   // Shell contract (src/App.svelte mounts at most one editor per mode):
   // whether the active tab is this editor's, the shared tab bar, and the
@@ -997,6 +1001,27 @@
       console.error('syncRecentMenu failed', err);
     });
   });
+
+  // Generate (comfyui-generate-pixel): the active tab's side of a
+  // generation, the target box Generate would use now, whether the palette
+  // can show a generated pixel (AC-10), and the selected finished variant
+  // the canvas previews over its target box (AC-02).
+  const genTarget = $derived(tabs.active && ed.doc ? pixelTarget(tabs.active) : null);
+  const genBox = $derived(
+    targetBox(
+      ed.selection ? [ed.selection.x, ed.selection.y, ed.selection.w, ed.selection.h] : null,
+      ed.canvasW,
+      ed.canvasH,
+    ),
+  );
+  const genBlocked = $derived.by(() => {
+    void ed.docRev;
+    return genTarget?.blocked() ?? null;
+  });
+  const genShown = $derived.by(() => {
+    const gen = tabs.active ? genTabs[pixelGenKey(tabs.active)] : undefined;
+    return gen && gen.phase === 'done' && gen.thumbs.length > 0 ? gen : null;
+  });
 </script>
 
 {#snippet colorsBody()}
@@ -1181,6 +1206,9 @@
 {#snippet assistantBody()}
   <AssistantPanel {active} />
 {/snippet}
+{#snippet generateBody()}
+  <GeneratePanel target={genTarget} box={genBox} blocked={genBlocked} pixel />
+{/snippet}
 
 {#snippet historyBody()}
   <HistoryPanel
@@ -1287,10 +1315,19 @@
       body: timelineBody,
       placement: 'bottom',
     },
-    // The Assistant needs the desktop app: a browser cannot start a CLI
+    // Desktop only: Generate (comfyui-generate-pixel AC-01) starts
+    // collapsed, so no ComfyUI starts before it is needed (comfyui-connect
+    // AC-03); the Assistant needs a CLI a browser cannot start
     // (ai-chat-panel AC-01, AC-02).
     ...(tauriHost
       ? [
+          {
+            id: 'generate',
+            title: t('panel.generate'),
+            icon: 'sparkles' as const,
+            body: generateBody,
+            defaultCollapsed: true,
+          },
           {
             id: 'assistant',
             title: t('panel.assistant'),
@@ -1533,6 +1570,23 @@
           height={ed.canvasH}
           aria-hidden="true"
         ></canvas>
+        <!-- The selected generated variant over its target box, as Apply
+             would write it (comfyui-generate-pixel AC-02): view only,
+             never document state. -->
+        {#if genShown}
+          <img
+            src={genShown.thumbs[genShown.selected]}
+            alt=""
+            class="canvas-pixelated pointer-events-none absolute max-w-none"
+            style:left="{(genShown.box.x / ed.canvasW) * 100}%"
+            style:top="{(genShown.box.y / ed.canvasH) * 100}%"
+            style:width="{(genShown.box.w / ed.canvasW) * 100}%"
+            style:height="{(genShown.box.h / ed.canvasH) * 100}%"
+            data-testid="generate-preview"
+            data-variant={genShown.selected}
+            aria-hidden="true"
+          />
+        {/if}
         <!-- Tiled mode (symmetry-tiled-mode AC-13, AC-14): the composed
              frame repeated around the canvas, dimmed so the editable
              canvas stands out. Presses fall through to the stage. -->

@@ -1,22 +1,26 @@
 <script lang="ts">
-  // The Generate panel (docs/specs/comfyui-generate.md): prompt, model,
-  // LoRA, strength, variants and seed; Generate / Cancel with the queue
-  // position, progress and live preview; the variant strip with Apply /
-  // Discard. Desktop only — the editor mounts it only there (AC-01).
-  // Opening the panel needs a server (comfyui-connect AC-03).
-  import Panel from '../../../../lib/components/layout/Panel.svelte';
-  import { percent, t } from '../../../../lib/i18n/index.svelte';
-  import { openImageGeneration } from '../../../../lib/comfyui/state.svelte';
+  // The Generate panel of both editors (docs/specs/comfyui-generate.md,
+  // comfyui-generate-pixel.md): prompt, model, LoRA, strength, variants and
+  // seed; Generate / Cancel with the queue position, progress and live
+  // preview; the variant strip with Apply / Discard. Desktop only — the
+  // editors mount it only there (AC-01). Opening the panel needs a server
+  // (comfyui-connect AC-03). `target` is the active tab's side of the
+  // generation; `box` the target box Generate would use now (AC-04).
+  import Panel from '../components/layout/Panel.svelte';
+  import { percent, t } from '../i18n/index.svelte';
+  import { openImageGeneration } from './state.svelte';
   import {
     FAMILIES,
     FAMILY_NAMES,
+    enlarges,
     errorMessage,
     parseSeed,
     statusIssue,
-    targetBox,
+    type Box,
     type Family,
-  } from '../../../../lib/comfyui/generate-params';
-  import { editor, live, tabs } from '../../stores/editor.svelte';
+    type GenBlock,
+    type GenTarget,
+  } from './generate-params';
   import {
     apply,
     cancel,
@@ -31,17 +35,28 @@
     refreshServer,
     saveGenSettings,
     selectVariant,
-  } from '../../generate/generation.svelte';
+  } from './generation.svelte';
 
-  const tab = $derived(tabs.active);
-  const gen = $derived(tab ? genTabs[tab.id] : undefined);
+  interface Props {
+    /** The active tab's generation target; `null` without a document. */
+    target: GenTarget | null;
+    /** The target box now; `null` when it is empty (AC-04). */
+    box: Box | null;
+    /** Why this document cannot generate (comfyui-generate-pixel AC-10). */
+    blocked?: GenBlock | null;
+    /** Pixel mode: hard-edged thumbnails at the target box's size, and a
+     *  note when they were enlarged (comfyui-generate-pixel AC-02). */
+    pixel?: boolean;
+  }
+
+  let { target, box, blocked = null, pixel = false }: Props = $props();
+
+  const key = $derived(target?.key ?? null);
+  const gen = $derived(key !== null ? genTabs[key] : undefined);
   const issue = $derived(statusIssue(genServer.status));
   const models = $derived(genServer.models);
   const family = $derived(currentFamily());
   const busy = $derived(gen !== undefined && gen.phase !== 'idle' && gen.phase !== 'done');
-  const box = $derived(
-    targetBox(editor.hasSelection ? live.selectionBox : null, editor.width, editor.height),
-  );
   const seedOk = $derived(parseSeed(genInput.seed) !== undefined);
   const canGenerate = $derived(
     issue === null &&
@@ -49,9 +64,13 @@
       genSettings.model !== null &&
       genInput.prompt.trim() !== '' &&
       box !== null &&
+      blocked === null &&
       seedOk &&
       !busy &&
-      tab !== null,
+      target !== null,
+  );
+  const larger = $derived(
+    pixel && gen !== undefined && gen.phase === 'done' && enlarges(gen.box, gen.width, gen.height),
   );
 
   /** The panel body appears only while the panel is expanded. */
@@ -237,15 +256,18 @@
         {#if gen.live}
           <img src={gen.live} alt={t('gen.livePreview')} class="max-h-40 self-start rounded border border-pc-border" />
         {/if}
-        <button type="button" class="panel-btn min-h-8" onclick={() => tab && cancel(tab.id)}>{t('gen.cancel')}</button>
+        <button type="button" class="panel-btn min-h-8" onclick={() => key !== null && cancel(key)}>{t('gen.cancel')}</button>
       </div>
     {:else}
       <button
         type="button"
         class="panel-btn panel-btn-primary min-h-8"
         disabled={!canGenerate}
-        onclick={() => tab && void generate(tab)}>{t('gen.generate')}</button
+        onclick={() => target && void generate(target)}>{t('gen.generate')}</button
       >
+      {#if blocked === 'noVisibleColor'}
+        <p role="note" class="text-pc-danger-text">{t('gen.noVisibleColor')}</p>
+      {/if}
     {/if}
 
     {#if gen?.error}
@@ -254,6 +276,9 @@
     {/if}
 
     {#if gen && gen.phase === 'done' && gen.variants.length > 0}
+      {#if larger}
+        <p role="note" class="text-pc-accent-text">{t('gen.larger')}</p>
+      {/if}
       <div class="flex flex-wrap gap-1" role="listbox" aria-label={t('gen.strip')}>
         {#each gen.thumbs as src, i (src)}
           <button
@@ -264,17 +289,24 @@
             class="h-12 w-12 overflow-hidden rounded border-2"
             class:border-pc-accent={gen.selected === i}
             class:border-pc-border={gen.selected !== i}
-            onclick={() => tab && selectVariant(tab.id, i)}
+            onclick={() => key !== null && selectVariant(key, i)}
           >
-            <img {src} alt="" class="h-full w-full object-cover" />
+            <img
+              {src}
+              alt=""
+              class="h-full w-full"
+              class:object-cover={!pixel}
+              class:object-contain={pixel}
+              style:image-rendering={pixel ? 'pixelated' : undefined}
+            />
           </button>
         {/each}
       </div>
       <div class="flex gap-2">
-        <button type="button" class="panel-btn panel-btn-primary min-h-8 flex-1" onclick={() => tab && apply(tab)}
+        <button type="button" class="panel-btn panel-btn-primary min-h-8 flex-1" onclick={() => target && apply(target)}
           >{t('gen.apply')}</button
         >
-        <button type="button" class="panel-btn min-h-8 flex-1" onclick={() => tab && discard(tab.id)}
+        <button type="button" class="panel-btn min-h-8 flex-1" onclick={() => key !== null && discard(key)}
           >{t('gen.discard')}</button
         >
       </div>
