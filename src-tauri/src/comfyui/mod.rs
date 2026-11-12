@@ -153,6 +153,11 @@ async fn installing<R: Runtime, T: Send + 'static>(
         .map_err(|e| e.to_string())
 }
 
+/// A job command whose `spawn_blocking` failed.
+fn failed(message: String) -> InstallError {
+    InstallError::Failed { message }
+}
+
 /// Hardware, catalog, sizes, accepted licenses, the managed installation
 /// and a running job (comfyui-install AC-01 – AC-05).
 #[tauri::command]
@@ -182,14 +187,16 @@ pub async fn comfyui_install(
     app: AppHandle,
     location: String,
     packages: Vec<String>,
-) -> Result<Result<(), InstallError>, String> {
-    installing(&app, move |s| s.install(&location, &packages)).await
+) -> Result<(), InstallError> {
+    installing(&app, move |s| s.install(&location, &packages))
+        .await
+        .map_err(failed)?
 }
 
 /// Continues the recorded install (Retry, Resume; AC-09).
 #[tauri::command]
-pub async fn comfyui_install_resume(app: AppHandle) -> Result<Result<(), InstallError>, String> {
-    installing(&app, |s| s.resume()).await
+pub async fn comfyui_install_resume(app: AppHandle) -> Result<(), InstallError> {
+    installing(&app, |s| s.resume()).await.map_err(failed)?
 }
 
 /// Cancels the running job.
@@ -209,8 +216,10 @@ pub async fn comfyui_managed(app: AppHandle) -> Result<ManagedState, String> {
 pub async fn comfyui_use_installation(
     app: AppHandle,
     location: String,
-) -> Result<Result<Status, InstallError>, String> {
-    installing(&app, move |s| s.adopt(&location)).await
+) -> Result<Status, InstallError> {
+    installing(&app, move |s| s.adopt(&location))
+        .await
+        .map_err(failed)?
 }
 
 /// Adds and removes model packages (AC-11).
@@ -219,20 +228,22 @@ pub async fn comfyui_change_packages(
     app: AppHandle,
     add: Vec<String>,
     remove: Vec<String>,
-) -> Result<Result<(), InstallError>, String> {
-    installing(&app, move |s| s.change_packages(&add, &remove)).await
+) -> Result<(), InstallError> {
+    installing(&app, move |s| s.change_packages(&add, &remove))
+        .await
+        .map_err(failed)?
 }
 
 /// Updates ComfyUI to the current pins (AC-12).
 #[tauri::command]
-pub async fn comfyui_update(app: AppHandle) -> Result<Result<(), InstallError>, String> {
-    installing(&app, |s| s.update()).await
+pub async fn comfyui_update(app: AppHandle) -> Result<(), InstallError> {
+    installing(&app, |s| s.update()).await.map_err(failed)?
 }
 
 /// Deletes the managed installation (AC-13) or an incomplete one.
 #[tauri::command]
-pub async fn comfyui_uninstall(app: AppHandle) -> Result<Result<(), InstallError>, String> {
-    installing(&app, |s| s.uninstall()).await
+pub async fn comfyui_uninstall(app: AppHandle) -> Result<(), InstallError> {
+    installing(&app, |s| s.uninstall()).await.map_err(failed)?
 }
 
 /// Marks a generation as running or ended, so the installation is not
