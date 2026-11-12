@@ -27,6 +27,7 @@ use wasm_bindgen::prelude::*;
 
 mod agent;
 mod fonts;
+mod generate;
 mod history;
 mod ocr;
 mod palette;
