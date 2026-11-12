@@ -235,11 +235,12 @@ export function runAgentCall(
   name: string,
   argsJson: string,
   file: { path: string; bytes: Uint8Array } | null,
+  fontsJson: string | null = null,
 ): string {
   const doc = ed.doc;
   if (!doc) return JSON.stringify({ ok: false, error: 'no document is open' });
   const target = doc.paintTargetLayer();
-  const reply = doc.agentCall(docId, name, argsJson, file?.path, file?.bytes);
+  const reply = doc.agentCall(docId, name, argsJson, file?.path, file?.bytes, fontsJson);
   const next = doc.paintTargetLayer();
   if (next !== target && next !== 0xffffffff) ed.activeLayerId = next;
   live.needsRecompose = true;

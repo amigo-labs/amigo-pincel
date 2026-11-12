@@ -9,6 +9,7 @@ import { imageTarget } from '../generate/target';
 import { AutosaveSession } from '../../../lib/idb/autosave-session.svelte';
 import type { SaveTarget } from '../../../lib/fs';
 import type { AgentFile, EditorDocument } from '../../../lib/shell/types';
+import { agentFontsJson, type AgentFonts } from '../../../lib/agent/fonts';
 import { t } from '../../../lib/i18n/index.svelte';
 import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
@@ -100,7 +101,8 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
     saveAs: () => saveTab(tab, true),
-    agentCall: (docId, name, argsJson, file) => agentCall(tab, docId, name, argsJson, file),
+    agentCall: (docId, name, argsJson, file, fonts) =>
+      agentCall(tab, docId, name, argsJson, file, fonts ?? null),
     assistantBegin: () => {
       if (tab.doc.handle !== null) core.assistantBegin(tab.doc.handle);
     },
@@ -135,6 +137,7 @@ function agentCall(
   name: string,
   argsJson: string,
   file: AgentFile | null,
+  fonts: AgentFonts | null,
 ): string {
   if (tab.doc.handle === null) {
     return JSON.stringify({ ok: false, error: 'no document is open' });
@@ -144,7 +147,8 @@ function agentCall(
     gestureControl.commitLive();
     gestureControl.commitTransform();
   }
-  const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file);
+  const fontsJson = fonts ? agentFontsJson(fonts, (b, i) => core.registerFont(b, i)) : null;
+  const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file, fontsJson);
   if (active) syncInfo();
   return reply;
 }

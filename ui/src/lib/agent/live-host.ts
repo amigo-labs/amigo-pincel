@@ -14,6 +14,7 @@ import { chatTabKey } from '../assistant/chat-tabs';
 import type { AgentFile } from '../shell/types';
 import { docIdOf, runOn, targetTab } from './tab-calls';
 import { genTool, isGenTool } from './gen-tools';
+import { callFonts, fontList } from './fonts';
 import {
   USER_CANCELLED,
   baseName,
@@ -41,6 +42,9 @@ const READS = new Set(['layer.import', 'palette.import']);
 /** A document tool on the targeted tab, which becomes active so the user
  *  sees the change (AC-07). */
 async function documentTool(call: LiveCall, args: Record<string, unknown>): Promise<Wire> {
+  // The app's font list needs no document, like doc.list
+  // (docs/specs/system-fonts-mcp.md AC-11).
+  if (call.tool === 'font.list') return fontList(args);
   const tab = targetTab(args);
   if (typeof tab === 'string') return fail(tab);
   if (session.active !== tab) activateTab(tab);
@@ -50,7 +54,8 @@ async function documentTool(call: LiveCall, args: Record<string, unknown>): Prom
     if (picked === null) return fail(USER_CANCELLED);
     file = { path: args.path, bytes: await readPath(picked) };
   }
-  const wire = runOn(tab, call.tool, args, file);
+  const fonts = await callFonts(call.tool, args);
+  const wire = runOn(tab, call.tool, args, file, fonts);
   if (!wire.ok || !wire.files || wire.files.length === 0) return wire;
   // Writing tools: every file goes where the user confirms, or none does.
   const files = wire.files;

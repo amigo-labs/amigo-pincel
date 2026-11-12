@@ -889,14 +889,16 @@ export const core = {
   undo: (handle: number): boolean => undo(handle),
   /** Runs a `pincel-agent` tool on the document as one undo step and
    *  returns its JSON reply (docs/specs/mcp-live-desktop.md); `file` is
-   *  the file the user picked for a reading tool. */
+   *  the file the user picked for a reading tool, `fontsJson` the
+   *  editor's fonts for the call (docs/specs/system-fonts-mcp.md AC-11). */
   agentCall: (
     handle: number,
     docId: string,
     name: string,
     argsJson: string,
     file: AgentFile | null,
-  ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes),
+    fontsJson: string | null = null,
+  ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes, fontsJson),
   redo: (handle: number): boolean => redo(handle),
   /** An Assistant answer starts on `handle`: the steps until
    *  `assistantEnd` become one undo step (docs/specs/ai-chat-panel.md AC-08). */
