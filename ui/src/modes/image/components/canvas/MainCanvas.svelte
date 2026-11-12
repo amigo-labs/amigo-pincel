@@ -12,6 +12,7 @@
     MAX_ZOOM,
   } from '../../stores/editor.svelte';
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
+  import { assistantBusy } from '../../../../lib/assistant/chat.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
   import { readCompositeRegion, redo, undo } from '../../core/controller';
@@ -230,8 +231,9 @@
     }
     // While an effect (or another editor dialog) is open the canvas only
     // zooms and pans: the press never reaches the tool dispatcher; the
-    // middle-button pan below still gets it (effect-panel AC-03).
-    if (ui.modalOpen && e.button !== 1 && !onInteractiveTarget(e)) {
+    // middle-button pan below still gets it (effect-panel AC-03). The same
+    // holds while an Assistant answer runs (ai-chat-panel AC-10).
+    if ((ui.modalOpen || assistantBusy()) && e.button !== 1 && !onInteractiveTarget(e)) {
       e.stopPropagation();
       e.preventDefault();
       return;

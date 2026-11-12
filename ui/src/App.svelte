@@ -103,9 +103,15 @@
   import { getPref, setPref } from './lib/idb/prefs';
   import { listRecents, onRecentsChanged, type RecentFile } from './lib/idb/recent-files';
   import { forgetRecent, listPresentRecents, recentIsGone } from './lib/fs/recents';
-  import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
+  import {
+    syncMenuAccelerators,
+    syncRecentMenu,
+    wireNativeMenu,
+    type EditorMenuHandlers,
+  } from './lib/menu';
   import { hasNativeMenu, isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
+  import { assistantBusy, startAssistant } from './lib/assistant/chat.svelte';
   import AgentsDialog from './lib/agent/AgentsDialog.svelte';
   import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
   import { t } from './lib/i18n/index.svelte';
@@ -562,6 +568,9 @@
   // own mode, in drop order (document-tabs AC-19, file-access AC-24).
   // Raster images dropped on an editor ask first (file-access AC-20).
   function onDropFiles(files: DroppedFile[]): void {
+    // No document opens or changes while an Assistant answer runs
+    // (ai-chat-panel AC-10).
+    if (assistantBusy()) return;
     const target = activeMode === null ? null : dropTargets[activeMode];
     // `routeFile` names each file the open prompt keeps from opening.
     if (target === null || promptBusy()) {
@@ -707,6 +716,18 @@
     });
   });
 
+  /** The native menu's zoom and view items of `handlers`. */
+  function viewItems(handlers: EditorMenuHandlers | null): EditorMenuHandlers | null {
+    if (handlers === null) return null;
+    const ids = ['menu:zoomIn', 'menu:zoomOut', 'menu:resetZoom', 'menu:shortcuts'] as const;
+    const out: EditorMenuHandlers = {};
+    for (const id of ids) {
+      const handler = handlers[id];
+      if (handler) out[id] = handler;
+    }
+    return out;
+  }
+
   onMount(() => {
     void initLocale();
     void initMotion();
@@ -765,6 +786,8 @@
             }),
         })
       : null;
+    // The Assistant chats (ai-chat-panel).
+    const stopAssistant = tauriHost ? startAssistant() : null;
     if (tauriHost) {
       // `getCurrentWindow()` throws at once without the window's metadata
       // (a Tauri 1 or partial bridge); starting it inside a promise turns
@@ -801,8 +824,12 @@
           console.error('close guard failed', err);
         });
       wireNativeMenu({
-        'menu:new': () => requestNew(activeMode ?? 'pixel'),
-        'menu:open': () => void openFromPicker(),
+        'menu:new': () => {
+          if (!assistantBusy()) requestNew(activeMode ?? 'pixel');
+        },
+        'menu:open': () => {
+          if (!assistantBusy()) void openFromPicker();
+        },
         'menu:quit': () => requestClose(),
         'menu:about': () => {
           if (!helpDialogOpen()) openAbout();
@@ -822,7 +849,13 @@
         // Only the active tab's editor serves the native menu (AC-21); while
         // the unsaved-changes prompt or the Recovery dialog is open its
         // accelerators (macOS Cmd+Z, Cmd+S, …) reach no editor.
-        editor: () => (promptBusy() || recoveryOpen ? null : menuHandlers(activeMode)),
+        // While an Assistant answer runs only its zoom and view items
+        // (ai-chat-panel AC-10).
+        editor: () => {
+          if (promptBusy() || recoveryOpen) return null;
+          const handlers = menuHandlers(activeMode);
+          return assistantBusy() ? viewItems(handlers) : handlers;
+        },
       })
         .then((fn) => {
           if (cancelled) fn();
@@ -850,6 +883,7 @@
       cancelled = true;
       stopRecents();
       stopLiveHost?.();
+      stopAssistant?.();
       stopAgentAccess();
       recovery.stop();
       stopDrops();

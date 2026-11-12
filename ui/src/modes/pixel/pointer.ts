@@ -3,6 +3,7 @@
 import { packColor, unpackColor } from '../../lib/color';
 import { t } from '../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
+import { assistantBusy } from '../../lib/assistant/chat.svelte';
 import { constrainedEndpoint, syncMeta, syncSelection } from './render';
 import {
   type SelectionMode,
@@ -409,9 +410,10 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
     live.panStartOffset = { x: view.panX, y: view.panY };
     return;
   }
-  // While an effect is open the canvas only zooms and pans; no tool sees
-  // the press (effect-panel AC-03).
-  if (dialogs.effect && !view.spaceDown) return;
+  // While an effect is open or an Assistant answer runs the canvas only
+  // zooms and pans; no tool sees the press (effect-panel AC-03,
+  // ai-chat-panel AC-10).
+  if ((dialogs.effect || assistantBusy()) && !view.spaceDown) return;
   // A pen's eraser end erases for this press, whatever tool is selected
   // (docs/specs/tablet-gestures.md AC-07, AC-08).
   const eraserEnd = isEraserEnd(e);

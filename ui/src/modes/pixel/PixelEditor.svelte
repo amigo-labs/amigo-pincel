@@ -27,6 +27,8 @@
   import ColorPair from '../../lib/components/ColorPair.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
+  import AssistantPanel from '../../lib/assistant/AssistantPanel.svelte';
+  import { assistantBusy, keyBlockedByAssistant } from '../../lib/assistant/chat.svelte';
   import Panel from '../../lib/components/layout/Panel.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
@@ -472,6 +474,9 @@
       view.spaceDown = true;
       return;
     }
+    // While an Assistant answer runs only zoom and view keys work
+    // (ai-chat-panel AC-10).
+    if (keyBlockedByAssistant(e)) return;
     // Dialogs own the keyboard while open — the shell's About dialog too,
     // which is mounted by App.svelte rather than by this editor.
     if (
@@ -716,7 +721,8 @@
       dialogs.grid ||
       dialogs.svg ||
       dialogs.selectionRadius ||
-      dialogs.paste,
+      dialogs.paste ||
+      assistantBusy(),
     );
     onPaste(e, blocked || helpDialogOpen() || toolState.textAnchor !== null);
   }
@@ -1172,6 +1178,10 @@
     }}
   />
 {/snippet}
+{#snippet assistantBody()}
+  <AssistantPanel {active} />
+{/snippet}
+
 {#snippet historyBody()}
   <HistoryPanel
     history={ed.history}
@@ -1277,6 +1287,19 @@
       body: timelineBody,
       placement: 'bottom',
     },
+    // The Assistant needs the desktop app: a browser cannot start a CLI
+    // (ai-chat-panel AC-01, AC-02).
+    ...(tauriHost
+      ? [
+          {
+            id: 'assistant',
+            title: t('panel.assistant'),
+            icon: 'chat' as const,
+            body: assistantBody,
+            grow: true,
+          },
+        ]
+      : []),
   ]}
 >
   {#snippet headerHint()}<TourHint mode="pixel" {active} />{/snippet}

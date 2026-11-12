@@ -125,6 +125,8 @@
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
+  import AssistantPanel from '../../lib/assistant/AssistantPanel.svelte';
+  import { assistantBusy, keyBlockedByAssistant } from '../../lib/assistant/chat.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
@@ -442,7 +444,14 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen())
+    if (
+      handle === null ||
+      !active ||
+      e.defaultPrevented ||
+      ui.modalOpen ||
+      helpDialogOpen() ||
+      assistantBusy()
+    )
       return;
     if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
@@ -990,6 +999,9 @@
     ) {
       return;
     }
+    // While an Assistant answer runs only zoom and view keys work
+    // (ai-chat-panel AC-10).
+    if (keyBlockedByAssistant(e)) return;
     // Enter commits a live object (image-live-objects-ui AC-09); Image
     // mode has no Play for the key to mean otherwise.
     if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.object !== null) {
@@ -1673,6 +1685,10 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
+{#snippet assistantBody()}
+  <AssistantPanel {active} />
+{/snippet}
+
 {#snippet historyBody()}
   <HistoryPanel
     history={editor.history}
@@ -1699,6 +1715,19 @@
       body: historyBody,
       defaultCollapsed: true,
     },
+    // The Assistant needs the desktop app: a browser cannot start a CLI
+    // (ai-chat-panel AC-01, AC-02).
+    ...(isTauri()
+      ? [
+          {
+            id: 'assistant',
+            title: t('panel.assistant'),
+            icon: 'chat' as const,
+            body: assistantBody,
+            grow: true,
+          },
+        ]
+      : []),
   ]}
 >
   {#snippet headerHint()}<TourHint mode="image" {active} />{/snippet}

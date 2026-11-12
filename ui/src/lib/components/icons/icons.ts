@@ -283,6 +283,18 @@ export const ICONS = {
     { d: 'M4.5 5.5L11 12l-6.5 6.5z', fill: true },
     { d: 'M13 5.5l6.5 6.5-6.5 6.5z', fill: true },
   ],
+  // Assistant chat (docs/specs/ai-chat-panel.md)
+  chat: [
+    { d: 'M4 5.5h16v10.5H10l-4.5 3.5V16H4z', tone: true },
+    { d: 'M4 5.5h16v10.5H10l-4.5 3.5V16H4z' },
+    { d: 'M8 9.5h8M8 12.5h5' },
+  ],
+  send: [
+    { d: 'M3.5 11.5L20.5 4l-6 16.5-3-7z', tone: true },
+    { d: 'M3.5 11.5L20.5 4l-6 16.5-3-7z' },
+    { d: 'M11.5 13.5L20.5 4' },
+  ],
+  stop: [{ d: 'M6 6h12v12H6z', fill: true }],
   // Document modes (tab bar marker)
   // A pixel staircase (a checker sat too close to colors).
   'mode-pixel': [
