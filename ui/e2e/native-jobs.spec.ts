@@ -55,11 +55,12 @@ test('jobs from the crossover size up run natively in the desktop app only (AC-0
   expect(jobBackend(false, 16, 16, min)).toBe('worker');
 });
 
-test('without a crossover size every job runs in the worker (AC-03)', () => {
-  // No size pays off over Tauri's IPC yet (the spec's Decisions).
-  expect(NATIVE_JOB_MIN_PIXELS).toBeNull();
-  expect(jobBackend(true, 3840, 2160)).toBe('worker');
+test('without a crossover size every job of that kind runs in the worker (AC-03)', () => {
+  expect(jobBackend(true, 3840, 2160, null)).toBe('worker');
   expect(jobBackend(true, 8192, 8192, null)).toBe('worker');
+  // Measured on the reference machine (the spec's Decisions, 2026-11-12):
+  // no size of either kind pays off natively against the SIMD worker.
+  expect(NATIVE_JOB_MIN_PIXELS).toEqual({ effect: null, encode: null });
 });
 
 test('a native job that succeeds never reaches the worker (AC-03)', async () => {
