@@ -48,21 +48,23 @@ impl Events {
     }
 }
 
-/// The fake CLI `cargo test` built beside this test binary.
+/// The fake CLI `cargo test` built for this profile. The test binary sits in
+/// `<profile>/deps/` or, with cargo's newer build-dir layout, deeper under
+/// `<profile>/build/<package>/<hash>/`; examples land in `<profile>/examples/`
+/// either way, so the nearest ancestor holding the example wins.
 fn fake_cli() -> PathBuf {
     let exe = std::env::current_exe().expect("test exe");
-    let dir = exe
-        .parent()
-        .and_then(Path::parent)
-        .expect("target dir")
-        .join("examples");
-    let path = dir.join(format!("fake_claude{}", std::env::consts::EXE_SUFFIX));
-    assert!(
-        path.is_file(),
-        "{} missing: run `cargo test -p pincel-tauri`, which builds the examples",
-        path.display()
-    );
-    path
+    let name = format!("fake_claude{}", std::env::consts::EXE_SUFFIX);
+    exe.ancestors()
+        .skip(1)
+        .map(|dir| dir.join("examples").join(&name))
+        .find(|path| path.is_file())
+        .unwrap_or_else(|| {
+            panic!(
+                "examples/{name} not found above {}: run `cargo test -p pincel-tauri`, which builds the examples",
+                exe.display()
+            )
+        })
 }
 
 fn answer(chat: &str, program: PathBuf) -> Answer {
