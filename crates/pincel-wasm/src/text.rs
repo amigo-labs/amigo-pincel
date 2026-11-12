@@ -59,7 +59,7 @@ pub fn register_font(data: &[u8], face_index: Option<u32>) -> u32 {
 }
 
 /// The bytes and face index of the registered font `font_id`.
-fn font_face(font_id: u32) -> Result<(Vec<u8>, u32), String> {
+pub(crate) fn font_face(font_id: u32) -> Result<(Vec<u8>, u32), String> {
     FONTS
         .with(|fonts| {
             let fonts = fonts.borrow();
