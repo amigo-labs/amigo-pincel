@@ -111,3 +111,103 @@ pub(crate) fn sample_bilinear(src: &[f32], w: usize, h: usize, x: f32, y: f32) -
     }
     out
 }
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::random::{hash, unit};
+
+    /// The original per-tap clamping `convolve_axis`, frozen verbatim as the
+    /// bit-exact reference for the optimised one.
+    fn convolve_axis_reference(
+        src: &[f32],
+        w: usize,
+        h: usize,
+        kernel: &[f32],
+        horizontal: bool,
+    ) -> Vec<f32> {
+        let mut out = vec![0.0f32; src.len()];
+        let center = (kernel.len() / 2) as isize;
+        for y in 0..h {
+            for x in 0..w {
+                let mut acc = [0.0f32; 4];
+                for (k, &weight) in kernel.iter().enumerate() {
+                    let offset = k as isize - center;
+                    let (sx, sy) = if horizontal {
+                        ((x as isize + offset).clamp(0, w as isize - 1) as usize, y)
+                    } else {
+                        (x, (y as isize + offset).clamp(0, h as isize - 1) as usize)
+                    };
+                    let o = (sy * w + sx) * 4;
+                    acc[0] += src[o] * weight;
+                    acc[1] += src[o + 1] * weight;
+                    acc[2] += src[o + 2] * weight;
+                    acc[3] += src[o + 3] * weight;
+                }
+                let o = (y * w + x) * 4;
+                out[o..o + 4].copy_from_slice(&acc);
+            }
+        }
+        out
+    }
+
+    /// `n` seeded values in `[0, 1]`, with exact 0.0 and 1.0 mixed in.
+    fn values(seed: u32, n: usize) -> Vec<f32> {
+        (0..n)
+            .map(|i| match hash(seed, i, 0) % 8 {
+                0 => 0.0,
+                1 => 1.0,
+                _ => unit(hash(seed, i, 1)),
+            })
+            .collect()
+    }
+
+    /// `len` seeded weights in `[-1, 1]`.
+    fn weights(seed: u32, len: usize) -> Vec<f32> {
+        (0..len)
+            .map(|k| unit(hash(seed, k, 2)) * 2.0 - 1.0)
+            .collect()
+    }
+
+    fn assert_bits_eq(got: &[f32], want: &[f32], context: &str) {
+        assert_eq!(got.len(), want.len(), "{context}: length");
+        for (i, (g, r)) in got.iter().zip(want).enumerate() {
+            assert_eq!(g.to_bits(), r.to_bits(), "{context}: element {i}");
+        }
+    }
+
+    #[test]
+    fn convolve_axis_matches_reference_bit_for_bit() {
+        for case in 0..400u32 {
+            let seed = case.wrapping_mul(2_654_435_761);
+            let w = 1 + (hash(seed, 0, 10) % 40) as usize;
+            let h = 1 + (hash(seed, 0, 11) % 40) as usize;
+            let len = 1 + 2 * (hash(seed, 0, 12) % 21) as usize;
+            let src = values(seed, w * h * 4);
+            let kernel = weights(seed, len);
+            for horizontal in [true, false] {
+                let context = format!("case {case}: {w}x{h}, len {len}, horizontal {horizontal}");
+                assert_bits_eq(
+                    &convolve_axis(&src, w, h, &kernel, horizontal),
+                    &convolve_axis_reference(&src, w, h, &kernel, horizontal),
+                    &context,
+                );
+            }
+        }
+    }
+
+    #[test]
+    fn convolve_axis_single_pixel_and_wide_kernel_matches_reference() {
+        let src = values(7, 4);
+        for len in [1, 3, 41] {
+            let kernel = weights(len as u32, len);
+            for horizontal in [true, false] {
+                assert_bits_eq(
+                    &convolve_axis(&src, 1, 1, &kernel, horizontal),
+                    &convolve_axis_reference(&src, 1, 1, &kernel, horizontal),
+                    &format!("1x1, len {len}, horizontal {horizontal}"),
+                );
+            }
+        }
+    }
+}
