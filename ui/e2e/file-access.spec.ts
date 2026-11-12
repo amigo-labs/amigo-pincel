@@ -1040,6 +1040,12 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
       await tauriDialogs(page, { pick: path });
       await page.getByRole('button', { name: 'Open…' }).click();
       await waitForEditor(page, mode);
+      // The recent is written in the background; leaving the page before it
+      // lands aborts the write (AGENTS.md Gotchas, `createDocument`).
+      const name = path.slice(path.lastIndexOf('/') + 1);
+      await expect
+        .poll(async () => (await recentRows(page)).map((r) => r.name))
+        .toContain(name);
       await gotoDesktopStart(page);
     }
     await expect(recentList(page).getByRole('listitem')).toHaveCount(2);
