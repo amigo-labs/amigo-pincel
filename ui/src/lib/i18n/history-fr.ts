@@ -96,6 +96,7 @@ export const historyFr: Record<keyof typeof historyEn, string> = {
   'history.resize_canvas': 'Taille du canevas',
   'history.crop_to_selection': 'Recadrer sur la sélection',
   'history.scale_image': 'Redimensionner l’image',
+  'history.assistant': 'Assistant',
 
   // Step kinds, Image mode only
   'history.brush': 'Pinceau',

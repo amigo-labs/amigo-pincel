@@ -96,6 +96,7 @@ export const historyEn = {
   'history.resize_canvas': 'Resize Canvas',
   'history.crop_to_selection': 'Crop to Selection',
   'history.scale_image': 'Scale Image',
+  'history.assistant': 'Assistant',
 
   // Step kinds, Image mode only
   'history.brush': 'Brush',

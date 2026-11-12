@@ -95,6 +95,7 @@ export const historyEs: Record<keyof typeof historyEn, string> = {
   'history.resize_canvas': 'Cambiar tamaño del lienzo',
   'history.crop_to_selection': 'Recortar a la selección',
   'history.scale_image': 'Escalar imagen',
+  'history.assistant': 'Asistente',
 
   // Step kinds, Image mode only
   'history.brush': 'Pincel',

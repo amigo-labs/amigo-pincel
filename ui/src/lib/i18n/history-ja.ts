@@ -95,6 +95,7 @@ export const historyJa: Record<keyof typeof historyEn, string> = {
   'history.resize_canvas': 'カンバスサイズを変更',
   'history.crop_to_selection': '選択範囲で切り抜き',
   'history.scale_image': '画像を拡大・縮小',
+  'history.assistant': 'アシスタント',
 
   // Step kinds, Image mode only
   'history.brush': 'ブラシ',

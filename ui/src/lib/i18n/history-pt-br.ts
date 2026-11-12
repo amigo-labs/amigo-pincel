@@ -96,6 +96,7 @@ export const historyPtBr: Record<keyof typeof historyEn, string> = {
   'history.resize_canvas': 'Redimensionar tela',
   'history.crop_to_selection': 'Cortar para a seleção',
   'history.scale_image': 'Redimensionar imagem',
+  'history.assistant': 'Assistente',
 
   // Step kinds, Image mode only
   'history.brush': 'Pincel',
