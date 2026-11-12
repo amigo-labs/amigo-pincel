@@ -76,33 +76,46 @@ const CHAT_HIDDEN = new Set([
   'doc.redo',
 ]);
 
-/** A chat's call: on the chat's own tab, whatever `doc` says
- *  (ai-chat-panel AC-26). */
+/** A chat's arguments bound to the chat's own tab, whatever `doc` says,
+ *  or why the call is refused (ai-chat-panel AC-26). */
+function chatArgs(
+  call: LiveCall,
+  chat: string,
+  args: Record<string, unknown>,
+): Record<string, unknown> | string {
+  const key = chatTabKey(chat);
+  const tab = key === null ? null : tabByKey(key);
+  if (tab === null || CHAT_HIDDEN.has(call.tool)) {
+    return `\`${call.tool}\` is not available in the chat`;
+  }
+  const id = docIdOf(tab);
+  if (args.doc !== undefined && args.doc !== id) {
+    return `document \`${String(args.doc)}\` is not available in the chat`;
+  }
+  return { ...args, doc: id };
+}
+
+/** A chat's call: on the chat's own tab (ai-chat-panel AC-26). */
 function chatCall(
   call: LiveCall,
   chat: string,
   args: Record<string, unknown>,
   shell: DocShell,
 ): Promise<Wire> | Wire {
-  const key = chatTabKey(chat);
-  const tab = key === null ? null : tabByKey(key);
-  if (tab === null || CHAT_HIDDEN.has(call.tool)) {
-    return fail(`\`${call.tool}\` is not available in the chat`);
-  }
-  const id = docIdOf(tab);
-  if (args.doc !== undefined && args.doc !== id) {
-    return fail(`document \`${String(args.doc)}\` is not available in the chat`);
-  }
-  const bound = { ...args, doc: id };
+  const bound = chatArgs(call, chat, args);
+  if (typeof bound === 'string') return fail(bound);
   if (isDocTool(call.tool)) return docTool(call, bound, shell);
   return documentTool(call, bound);
 }
 
+function argsOf(call: LiveCall): Record<string, unknown> {
+  return typeof call.args === 'object' && call.args !== null && !Array.isArray(call.args)
+    ? (call.args as Record<string, unknown>)
+    : {};
+}
+
 async function run(call: LiveCall, shell: DocShell): Promise<Wire> {
-  const args =
-    typeof call.args === 'object' && call.args !== null && !Array.isArray(call.args)
-      ? (call.args as Record<string, unknown>)
-      : {};
+  const args = argsOf(call);
   await strokeDone();
   if (call.chat !== null) return chatCall(call, call.chat, args, shell);
   if (isDocTool(call.tool)) return docTool(call, args, shell);
@@ -149,13 +162,14 @@ export function startLiveHost(shell: DocShell): () => void {
     }
     if (isGenTool(call.tool)) {
       // A generation takes minutes: it runs beside the queue of calls
-      // (comfyui-generate AC-16).
+      // (comfyui-generate AC-16); a chat's one on the chat's tab (AC-26).
+      const args = call.chat === null ? argsOf(call) : chatArgs(call, call.chat, argsOf(call));
+      if (typeof args === 'string') {
+        void answer(call.id, fail(args));
+        return;
+      }
       const abort = new AbortController();
       generating.set(call.id, abort);
-      const args =
-        typeof call.args === 'object' && call.args !== null && !Array.isArray(call.args)
-          ? (call.args as Record<string, unknown>)
-          : {};
       void genTool(call.tool, args, abort.signal)
         .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
         .then(async (reply) => {
