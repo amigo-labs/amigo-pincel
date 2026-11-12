@@ -20,6 +20,7 @@ type Responder = Box<dyn Fn(ForwardedCall) + Send>;
 struct Mock {
     calls: Mutex<Vec<ForwardedCall>>,
     sessions: Mutex<Vec<usize>>,
+    expired: Mutex<Vec<u64>>,
     responder: Mutex<Option<Responder>>,
 }
 
@@ -33,6 +34,10 @@ impl Bridge for Arc<Mock> {
 
     fn sessions_changed(&self, external: usize) {
         self.sessions.lock().unwrap().push(external);
+    }
+
+    fn expired(&self, id: u64) {
+        self.expired.lock().unwrap().push(id);
     }
 }
 
@@ -323,11 +328,55 @@ fn tools_list_matches_the_headless_server() {
             )
         })
         .collect();
+    // The headless server's tools, then the desktop host tools (AC-06).
     let want: Vec<(String, Value)> = pincel_agent::list_tools()
         .into_iter()
+        .chain(super::host_tools::host_tools())
         .map(|t| (t.name.to_owned(), t.input_schema))
         .collect();
     assert_eq!(got, want);
+    assert_eq!(
+        got[got.len() - 2..]
+            .iter()
+            .map(|(n, _)| n.as_str())
+            .collect::<Vec<_>>(),
+        ["gen.image", "gen.models"]
+    );
+    ep.disable();
+}
+
+#[test]
+fn generation_tools_go_to_the_editor_and_an_expired_one_is_cancelled_there() {
+    // comfyui-generate AC-19, AC-20: the tools are always listed and run in
+    // the editor; a call that times out tells the editor to drop its job.
+    let dir = tempfile::tempdir().unwrap();
+    let (ep, mock) = endpoint(
+        dir.path(),
+        Timing {
+            gen_call: Duration::from_millis(300),
+            ..timing()
+        },
+    );
+    let s = ep.enable(true).unwrap();
+    let (port, token) = (s.port.unwrap(), s.token.unwrap());
+    let session = initialize(port, &token);
+    let r = call_tool(port, &token, &session, 2, "gen.image");
+    assert_eq!(r["result"]["isError"], true);
+    let calls = mock.calls.lock().unwrap().clone();
+    assert_eq!(calls.len(), 1);
+    assert_eq!(calls[0].tool, "gen.image");
+    assert_eq!(*mock.expired.lock().unwrap(), [calls[0].id]);
+    // An answered call does not expire.
+    let ep2 = ep.clone();
+    *mock.responder.lock().unwrap() = Some(Box::new(move |call: ForwardedCall| {
+        ep2.deliver(
+            call.id,
+            json!({ "ok": true, "json": { "checkpoints": [], "loras": [] } }),
+        );
+    }));
+    let r = call_tool(port, &token, &session, 3, "gen.models");
+    assert_eq!(r["result"]["isError"], false, "{r}");
+    assert_eq!(mock.expired.lock().unwrap().len(), 1);
     ep.disable();
 }
 

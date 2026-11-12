@@ -22,6 +22,7 @@ use pincel_mcp::server::{Routed, ServerInfo, live_response, route, tool_error};
 use serde::Serialize;
 use serde_json::{Value, json};
 
+use super::host_tools::host_tools;
 use super::http::{ReadError, Request, Response, read_request, write_response};
 use super::secret::{Config, new_session_id, new_token, token_eq};
 
@@ -52,12 +53,6 @@ const CHAT_HIDDEN: &[&str] = &[
 /// Tools that return pixel data, hidden from a chat while "Agent may see
 /// the image" is off (ai-chat-panel AC-17).
 const IMAGE_TOOLS: &[&str] = &["doc.preview", "doc.read_pixels", "tile.read_pixels"];
-
-/// Tools the desktop app adds beside the document tools (`gen.*` from
-/// `comfyui-generate`), listed whether or not they can run (AC-06).
-fn host_tools() -> Vec<ToolDef> {
-    Vec::new()
-}
 
 /// How long the endpoint waits (AC-12, AC-19).
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -111,6 +106,9 @@ pub trait Bridge: Send + Sync {
     /// The number of open external sessions changed (the status-bar
     /// indicator, AC-12).
     fn sessions_changed(&self, external: usize);
+    /// Call `id` timed out: the editor drops its work, e.g. cancels a
+    /// generation (comfyui-generate AC-20).
+    fn expired(&self, id: u64);
 }
 
 /// What the AI agents dialog shows.
@@ -678,13 +676,16 @@ impl Inner {
         let limit = self.timing.limit_for(name);
         match self.wait(call_id, limit) {
             Some(wire) => live_response(id, &wire),
-            None => tool_error(
-                id,
-                &format!(
-                    "`{name}` timed out after {} s without a result from the editor",
-                    limit.as_secs_f32().round()
-                ),
-            ),
+            None => {
+                self.bridge.expired(call_id);
+                tool_error(
+                    id,
+                    &format!(
+                        "`{name}` timed out after {} s without a result from the editor",
+                        limit.as_secs_f32().round()
+                    ),
+                )
+            }
         }
     }
 

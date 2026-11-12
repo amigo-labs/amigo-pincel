@@ -7,6 +7,7 @@
 //! The commands here are thin wrappers around [`Endpoint`] (AGENTS.md §5.5).
 
 mod endpoint;
+mod host_tools;
 mod http;
 mod secret;
 #[cfg(test)]
@@ -22,6 +23,8 @@ use endpoint::{Bridge, ChatAccess, DEFAULT_PORT, ForwardedCall, Status, Timing};
 const CALL_EVENT: &str = "mcp-call";
 /// Event with the number of open external sessions (status-bar indicator).
 const SESSIONS_EVENT: &str = "mcp-sessions";
+/// Event with the id of a call that timed out (payload `u64`).
+const EXPIRED_EVENT: &str = "mcp-call-expired";
 
 /// The webview of the running app.
 struct Webview(AppHandle);
@@ -36,6 +39,10 @@ impl Bridge for Webview {
 
     fn sessions_changed(&self, external: usize) {
         let _ = self.0.emit(SESSIONS_EVENT, external);
+    }
+
+    fn expired(&self, id: u64) {
+        let _ = self.0.emit(EXPIRED_EVENT, id);
     }
 }
 
