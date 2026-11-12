@@ -46,6 +46,7 @@ import initWasm, {
   document_dpi,
   get_selection_mask,
   live_object,
+  live_transform,
   text_layout,
   register_font,
   read_palette_file,
@@ -61,10 +62,11 @@ import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { countCall, publishDocumentCount } from '../../../lib/diagnostics';
 import type { AgentFile } from '../../../lib/shell/types';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
+import type { LiveTransformSpec } from './generated/LiveTransformSpec';
 import type { TextLayout } from './generated/TextLayout';
 import type { TextLayoutRequest } from './generated/TextLayoutRequest';
 
-export type { LiveObjectSpec, TextLayout, TextLayoutRequest };
+export type { LiveObjectSpec, LiveTransformSpec, TextLayout, TextLayoutRequest };
 
 export type { OcrModel, OcrSession, Vectorizer };
 
@@ -627,6 +629,28 @@ export type LiveCommand =
   | { type: 'cancel_live' }
   | { type: 'cancel_live_gesture'; gesture: number };
 
+/** The box, angle, pivot and quality of the Move tools' live transform
+ *  (docs/specs/image-transform-handles.md); `gesture` merges one drag. */
+export interface TransformFields {
+  center_x: number;
+  center_y: number;
+  width: number;
+  height: number;
+  angle: number;
+  pivot_x: number;
+  pivot_y: number;
+  /** 0 Nearest, 1 Bilinear, 2 Bicubic. */
+  quality: number;
+  gesture?: number | null;
+}
+
+/** Begin, change, commit or cancel the Move tools' live transform. */
+export type SelectionTransformCommand =
+  | ({ type: 'begin_transform'; layer: number; pixels: boolean } & TransformFields)
+  | ({ type: 'edit_transform' } & TransformFields)
+  | { type: 'commit_transform' }
+  | { type: 'cancel_transform' };
+
 /** Any command emitted to the core. */
 export type ToolCommand =
   | PencilStrokeCommand
@@ -646,7 +670,8 @@ export type ToolCommand =
   | DrawShapeCommand
   | DrawGradientCommand
   | DrawTextCommand
-  | LiveCommand;
+  | LiveCommand
+  | SelectionTransformCommand;
 
 let initialized: Promise<unknown> | null = null;
 let compiled: WebAssembly.Module | null = null;
@@ -857,6 +882,9 @@ export const core = {
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,
+  /** The Move tools' live transform, or `null`. */
+  liveTransform: (handle: number): LiveTransformSpec | null =>
+    live_transform(handle) as LiveTransformSpec | null,
   /** The outline polygon of a box shape over a drag, as the core draws it
    *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
    *  kinds or a box without area. */

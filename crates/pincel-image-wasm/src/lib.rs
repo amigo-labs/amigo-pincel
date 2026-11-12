@@ -460,6 +460,21 @@ pub fn live_object(handle: u32) -> Result<JsValue, JsError> {
     })
 }
 
+/// The Move tools' live transform (docs/specs/image-transform-handles.md)
+/// as a `LiveTransformSpec` JS object, or `null` when none is live.
+#[wasm_bindgen]
+pub fn live_transform(handle: u32) -> Result<JsValue, JsError> {
+    with_bus(
+        handle,
+        |bus| match pincel_image_core::command::live_spec::live_transform_spec(bus) {
+            Some(spec) => {
+                serde_wasm_bindgen::to_value(&spec).map_err(|e| JsError::new(&e.to_string()))
+            }
+            None => Ok(JsValue::NULL),
+        },
+    )
+}
+
 /// Runs the effect `name` with the positional `params` (the shared
 /// `pincel_effects::EffectSpec` wire format, also used by Pixel mode — see
 /// `EFFECT_NAMES` and `ui/src/lib/effects/catalog.ts`) on the layer at
@@ -915,6 +930,8 @@ mod ts_bindings {
             .with_out_dir("../../ui/src/modes/image/core/generated");
         CommandSpec::export_all(&cfg).expect("export CommandSpec bindings");
         LiveObjectSpec::export_all(&cfg).expect("export LiveObjectSpec bindings");
+        pincel_image_core::command::live_spec::LiveTransformSpec::export_all(&cfg)
+            .expect("export LiveTransformSpec bindings");
         TextLayoutRequest::export_all(&cfg).expect("export TextLayoutRequest bindings");
         TextLayout::export_all(&cfg).expect("export TextLayout bindings");
         crate::OcrProgress::export_all(&cfg).expect("export OcrProgress bindings");
