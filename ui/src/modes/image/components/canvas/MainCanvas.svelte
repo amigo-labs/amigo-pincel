@@ -28,6 +28,7 @@
   import LiveHandles from './LiveHandles.svelte';
   import TransformBox from './TransformBox.svelte';
   import TextBox from './TextBox.svelte';
+  import GeneratePreview from './GeneratePreview.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
   // store-free element covering the document inside the transformed stage
@@ -548,6 +549,7 @@
       data-preview={previewDrawn}
       style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
     ></div>
+    <GeneratePreview />
   </div>
 
   <PixelGrid />

@@ -103,6 +103,7 @@
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import { loadImagePalette } from './stores/palette.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
+  import GeneratePanel from './components/panels/GeneratePanel.svelte';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import Modal from './components/dialogs/Modal.svelte';
@@ -1685,6 +1686,7 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
+{#snippet generateBody()}<GeneratePanel />{/snippet}
 {#snippet assistantBody()}
   <AssistantPanel {active} />
 {/snippet}
@@ -1715,10 +1717,18 @@
       body: historyBody,
       defaultCollapsed: true,
     },
-    // The Assistant needs the desktop app: a browser cannot start a CLI
-    // (ai-chat-panel AC-01, AC-02).
+    // Desktop only: Generate (comfyui-generate AC-01) starts collapsed, so
+    // no ComfyUI starts before it is needed (comfyui-connect AC-03); the
+    // Assistant needs a CLI a browser cannot start (ai-chat-panel AC-01, AC-02).
     ...(isTauri()
       ? [
+          {
+            id: 'generate',
+            title: t('panel.generate'),
+            icon: 'sparkles' as const,
+            body: generateBody,
+            defaultCollapsed: true,
+          },
           {
             id: 'assistant',
             title: t('panel.assistant'),

@@ -2,6 +2,12 @@
 // other module imports the generated bindings directly (CLAUDE.md §5.4). Document state lives in Rust;
 // JS only receives composited pixels and exported bytes (ADR-001).
 import initWasm, {
+  add_generated_layer,
+  fit_variant,
+  generation_input,
+  generation_mask,
+  generation_mask_png,
+  generation_size,
   create_document,
   open_image,
   open_project,
@@ -730,6 +736,45 @@ export const core = {
    *  `expand` grows the canvas to cover it there (spec §5.4). */
   pasteLayer: (handle: number, data: Uint8Array, x: number, y: number, expand: boolean): void =>
     paste_layer(handle, data, x, y, expand),
+  /** Width and height for `native` pixels at the aspect ratio of a `w × h`
+   *  target box (docs/specs/comfyui-generate.md, Terms). */
+  generationSize: (native: number, w: number, h: number): [number, number] => {
+    const [gw = 64, gh = 64] = generation_size(native, w, h);
+    return [gw, gh];
+  },
+  /** The selection's coverage inside the target box, one byte per pixel;
+   *  empty without a selection. */
+  generationMask: (handle: number, x: number, y: number, w: number, h: number): Uint8Array =>
+    generation_mask(handle, x, y, w, h),
+  /** The active layer inside the target box fitted to the generation size,
+   *  PNG bytes; empty when it is fully transparent there. */
+  generationInput: (
+    handle: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    genW: number,
+    genH: number,
+  ): Uint8Array => generation_input(handle, x, y, w, h, genW, genH),
+  /** A `w × h` mask fitted to the generation size, as a grey PNG. */
+  generationMaskPng: (mask: Uint8Array, w: number, h: number, genW: number, genH: number): Uint8Array =>
+    generation_mask_png(mask, w, h, genW, genH),
+  /** A variant fitted to the `w × h` target box with its alpha multiplied
+   *  by `mask` (empty: none), straight RGBA. */
+  fitVariant: (data: Uint8Array, w: number, h: number, mask: Uint8Array): Uint8ClampedArray =>
+    fit_variant(data, w, h, mask),
+  /** Adds the `w × h` RGBA as a new layer `name` above the active layer at
+   *  `x, y`, as one undo step (AC-12). */
+  addGeneratedLayer: (
+    handle: number,
+    rgba: Uint8ClampedArray,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    name: string,
+  ): void => add_generated_layer(handle, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.length), x, y, w, h, name),
   /** PNG of the active layer (`merged`: the visible composite) inside the selection (spec §5.4). */
   copySelection: (handle: number, merged: boolean): Uint8Array => copy_selection(handle, merged),
   /** `copySelection` of the active layer, then clears it, as one undo step. */

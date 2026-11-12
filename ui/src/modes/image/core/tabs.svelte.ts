@@ -17,6 +17,7 @@ import {
 import type { DocumentFile } from './document-file';
 import { gestureControl } from '../tools/gesture-control';
 import { dropCloneSource } from '../tools/clone-source.svelte';
+import { dropTabGeneration } from '../generate/generation.svelte';
 
 let nextId = 1;
 
@@ -32,6 +33,8 @@ function release(tab: ImageTab): void {
   if (at < 0) return;
   allocated.splice(at, 1);
   dropCloneSource(tab.id);
+  // A running generation has no document to land in (comfyui-generate AC-21).
+  dropTabGeneration(tab.id);
   if (tab.doc.handle !== null) core.closeDocument(tab.doc.handle);
   tab.doc.handle = null;
 }
