@@ -455,11 +455,17 @@ impl Manager {
         };
         watch_exit(Arc::clone(&self.shared), Arc::clone(&process), generation);
 
+        // The exit watcher may notice the end first and still be collecting
+        // the output when this loop does; the stopped status is built here
+        // from the same process, so it never reads "Starting".
+        let stopped = |process: &Process| Status::Stopped {
+            log: process.final_log(),
+        };
         let deadline = Instant::now() + config.start_timeout;
         loop {
             if process.exited() {
                 self.shared.process_ended(generation);
-                return self.status();
+                return stopped(&process);
             }
             if api::identify(&Url::local(port), config.timeouts.probe).is_ok()
                 && let Some(status) = self.connected_on(port)
@@ -469,7 +475,7 @@ impl Manager {
             if Instant::now() >= deadline {
                 process.kill();
                 self.shared.process_ended(generation);
-                return self.status();
+                return stopped(&process);
             }
             thread::sleep(config.poll);
         }

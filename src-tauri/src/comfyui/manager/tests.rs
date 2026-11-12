@@ -337,6 +337,27 @@ fn a_start_that_never_answers_stops_with_the_last_50_lines() {
     assert!(!env.manager.shared.paths.record.exists());
 }
 
+// Whichever notices the exit first — the start loop or the exit watcher —
+// the start reports the stopped status with the output, never "Starting".
+#[test]
+fn a_process_that_exits_while_starting_always_returns_stopped() {
+    for round in 0..12 {
+        let env = Env::new(vec![]);
+        let fake = FakeComfy {
+            lines: 1,
+            exit: Some(1),
+            ..FakeComfy::default()
+        };
+        env.installation("crashes", &fake, ServerChoice::Existing);
+        let status = env.manager.ensure();
+        assert!(
+            matches!(status, Status::Stopped { .. }),
+            "round {round}: {status:?}"
+        );
+        assert_eq!(env.manager.status(), status, "round {round}");
+    }
+}
+
 #[test]
 fn a_process_that_exits_while_starting_stops_with_its_output() {
     let env = Env::new(vec![]);
