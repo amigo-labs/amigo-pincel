@@ -88,8 +88,17 @@ certificate (see "macOS signing certificate" below), ad hoc without it.
 `src-tauri/src/updater.rs`, built on `tauri-plugin-updater`, behaves like
 amigo-blinzel's updater:
 
-- **Check:** at most once a day, 10 s after start, on a background thread.
-  Source: `https://github.com/amigo-labs/amigo-pincel/releases/latest/download/latest.json`
+- **Update choice:** the first start asks "Install automatically
+  (recommended)", "Notify me when an update is available" or "Never check
+  for updates"; the About dialog changes it later. Stored as `mode` in
+  `updater.json` in the app config directory (a file from before the
+  choice keeps its meaning: `auto_update` on = automatic, off = never). A
+  silent Windows install (`/S`, winget) stores "automatic" and asks nothing.
+- **Check:** at most once a day, 10 s after start (after the first-start
+  question is closed), on a background thread; "notify" only looks and
+  shows a notice with Install / Later. Opening About checks too, unless
+  the choice is "never check". Source:
+  `https://github.com/amigo-labs/amigo-pincel/releases/latest/download/latest.json`
   (only published releases are "latest").
 - **Verify:** the download's minisign signature is checked against the
   public key in `src-tauri/tauri.conf.json` (`plugins.updater.pubkey`).
@@ -97,9 +106,13 @@ amigo-blinzel's updater:
 - **Swap:** macOS and the Linux AppImage replace the installed app right
   away, and the next start runs the new version. Windows keeps the
   verified installer and runs it (passive) when Pincel exits.
-- **Menu:** Help → "Check for Updates…" (reports the result) and "Install
-  Updates Automatically" (default on). Both are stored in `updater.json` in
-  the app config directory.
+- **Restart Now:** the About dialog offers it once a version is
+  downloaded; after the unsaved-changes prompt Pincel closes and starts
+  again — on Windows the passive installer runs with `/R` and starts the
+  new version, elsewhere the replaced app is started.
+- **Menu:** Help → "Check for Updates…" checks whatever the choice and
+  reports in the About dialog; on macOS the native menu's entries open the
+  same dialog.
 - **Never:** debug builds, Linux `.deb` / `.rpm` installs (they belong
   to the package manager) and an AppImage that wasn't installed with
   `--install` (a portable download stays as it is).
