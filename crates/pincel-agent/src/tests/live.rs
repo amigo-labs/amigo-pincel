@@ -42,6 +42,7 @@ impl Editor {
                 active_frame: &mut self.active_frame,
             },
             input,
+            None,
             name,
             args,
         )
@@ -79,6 +80,7 @@ impl ImageEditor {
                 scratch: &mut self.scratch,
                 state: &mut self.state,
             },
+            None,
             None,
             name,
             args,
@@ -255,6 +257,7 @@ fn call_wire_parses_arguments_and_reports_malformed_json() {
                 active_frame: &mut ed.active_frame,
             },
             None,
+            None,
             "doc.info",
             "",
         );
@@ -272,10 +275,208 @@ fn call_wire_parses_arguments_and_reports_malformed_json() {
             state: &mut img.state,
         },
         None,
+        None,
         "doc.info",
         "{not json",
     );
     let wire: Value = serde_json::from_str(&reply).expect("json");
     assert_eq!(wire["ok"], false);
     assert!(wire["error"].as_str().is_some_and(|e| e.contains("JSON")));
+}
+
+// --- The editor's fonts (docs/specs/system-fonts-mcp.md AC-11) -------------
+
+fn font_fixture(name: &str) -> Vec<u8> {
+    let path = format!(
+        "{}/../pincel-core/tests/fixtures/{name}",
+        env!("CARGO_MANIFEST_DIR")
+    );
+    std::fs::read(&path).unwrap_or_else(|e| panic!("{path}: {e}"))
+}
+
+/// The webview's font list as it hands it over: Pincel Test Serif with its
+/// Regular and Bold (face 1 of the collection) and Italic faces, plus the
+/// faces it read for this call.
+fn wire_fonts(read: Value) -> String {
+    json!({
+        "faces": [
+            { "family": "Pincel Test Serif", "style": "Regular", "weight": 400, "italic": false, "stretch": 5 },
+            { "family": "Pincel Test Serif", "style": "Bold", "weight": 700, "italic": false, "stretch": 5 },
+            { "family": "Pincel Test Serif", "style": "Italic", "weight": 400, "italic": true, "stretch": 5 },
+        ],
+        "read": read,
+    })
+    .to_string()
+}
+
+/// The core's font registry in the test: id 9 is the collection's Bold.
+fn registered(id: u32) -> Result<(Vec<u8>, u32), String> {
+    match id {
+        9 => Ok((font_fixture("PincelTestSerif.ttc"), 1)),
+        _ => Err(format!("unknown font id {id}")),
+    }
+}
+
+fn image_wire(ed: &mut ImageEditor, fonts: Option<&str>, name: &str, args: Value) -> Value {
+    let reply = live::call_image_wire(
+        "tab-2",
+        ImageLoan {
+            bus: &mut ed.bus,
+            scratch: &mut ed.scratch,
+            state: &mut ed.state,
+        },
+        None,
+        fonts.map(|json| live::WireFonts {
+            json,
+            registered: &registered,
+        }),
+        name,
+        &args.to_string(),
+    );
+    serde_json::from_str(&reply).expect("json")
+}
+
+fn bold_text() -> Value {
+    json!({ "text": "Ag", "x": 2, "y": 2, "size": 24, "font": "Pincel Test Serif", "bold": true })
+}
+
+#[test]
+fn call_image_wire_draws_text_with_the_face_the_editor_read() {
+    let mut ed = ImageEditor::new(48, 32);
+    let fonts = wire_fonts(json!([{ "face": 1, "font": 9 }]));
+    let wire = image_wire(&mut ed, Some(&fonts), "draw.text", bold_text());
+    assert_eq!(wire["ok"], true, "{wire}");
+    // The editor's Text tool with the same face.
+    let mut reference = CommandBus::new(Document::new(48, 32).expect("doc"));
+    let spec: pincel_image_core::command::spec::CommandSpec = serde_json::from_value(json!({
+        "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag", "x": 2, "y": 2,
+        "size": 24, "color": [0, 0, 0, 255], "bold": false, "italic": false,
+        "anti_alias": true, "align": "left"
+    }))
+    .expect("spec");
+    let ttc = font_fixture("PincelTestSerif.ttc");
+    pincel_image_core::command::spec::run_command(
+        &mut reference,
+        spec,
+        &mut StrokeScratch::default(),
+        &[pincel_image_core::FontFace::new(&ttc, 1)],
+    )
+    .expect("runs");
+    let drawn = ed.bus.document.layers()[0].pixels.data().to_vec();
+    assert!(drawn.iter().any(|&v| v != 0), "text was drawn");
+    assert_eq!(drawn, reference.document.layers()[0].pixels.data());
+}
+
+#[test]
+fn call_pixel_wire_draws_text_with_the_face_the_editor_read() {
+    let mut ed = Editor::new(48, 32);
+    let fonts = wire_fonts(json!([{ "face": 1, "font": 9 }]));
+    let reply = live::call_pixel_wire(
+        "tab-1",
+        PixelLoan {
+            sprite: &mut ed.sprite,
+            cels: &mut ed.cels,
+            bus: &mut ed.bus,
+            active_layer: &mut ed.active_layer,
+            active_frame: &mut ed.active_frame,
+        },
+        None,
+        Some(live::WireFonts {
+            json: &fonts,
+            registered: &registered,
+        }),
+        "draw.text",
+        &json!({ "text": "Ag", "x": 1, "y": 1, "size": 16, "font": "Pincel Test Serif", "bold": true }).to_string(),
+    );
+    let wire: Value = serde_json::from_str(&reply).expect("json");
+    assert_eq!(wire["ok"], true, "{wire}");
+    // The Pixel editor's Text dialog with the same face.
+    let mut reference = Editor::new(48, 32);
+    let (l0, f0) = (LayerId(0), FrameIndex(0));
+    let style = pincel_core::TextStyle {
+        size: 16.0,
+        color: pincel_core::Rgba::BLACK,
+        bold: false,
+        italic: false,
+        anti_alias: false,
+        align: pincel_core::TextAlign::Left,
+    };
+    if reference.cels.get(l0, f0).is_none() {
+        reference.cels.insert(pincel_core::Cel::image(
+            l0,
+            f0,
+            pincel_core::PixelBuffer::empty(48, 32, pincel_core::ColorMode::Rgba),
+        ));
+    }
+    let cmd = pincel_core::DrawText::new(
+        l0,
+        f0,
+        (1, 1),
+        "Ag",
+        font_fixture("PincelTestSerif.ttc"),
+        style,
+    )
+    .with_face_index(1);
+    Bus::new()
+        .execute(cmd.into(), &mut reference.sprite, &mut reference.cels)
+        .expect("editor command");
+    let canvas = |e: &Editor| pincel_core::layer_canvas(&e.sprite, &e.cels, l0, f0).data;
+    let drawn = canvas(&ed);
+    assert!(drawn.iter().any(|&v| v != 0), "text was drawn");
+    assert_eq!(drawn, canvas(&reference));
+}
+
+#[test]
+fn call_wire_fonts_report_a_face_the_editor_could_not_read() {
+    let mut ed = ImageEditor::new(48, 32);
+    // The webview's read failed: its reason reaches the agent (AC-08).
+    let failed = wire_fonts(json!([{ "face": 1, "error": "the font file is gone" }]));
+    let wire = image_wire(&mut ed, Some(&failed), "draw.text", bold_text());
+    assert_eq!(wire["ok"], false);
+    let error = wire["error"].as_str().expect("error");
+    assert!(error.contains("Pincel Test Serif"), "{error}");
+    assert!(error.contains("the font file is gone"), "{error}");
+    // A face the webview did not read, or an id the registry does not know.
+    for read in [json!([]), json!([{ "face": 1, "font": 3 }])] {
+        let fonts = wire_fonts(read);
+        let wire = image_wire(&mut ed, Some(&fonts), "draw.text", bold_text());
+        assert_eq!(wire["ok"], false, "{wire}");
+        assert!(
+            wire["error"]
+                .as_str()
+                .is_some_and(|e| e.contains("Pincel Test Serif"))
+        );
+    }
+    // Malformed font lists are refused.
+    let wire = image_wire(&mut ed, Some("{\"faces\": 3}"), "draw.text", bold_text());
+    assert_eq!(wire["ok"], false);
+    assert!(
+        wire["error"]
+            .as_str()
+            .is_some_and(|e| e.contains("font list")),
+        "{wire}"
+    );
+    assert_eq!(ed.bus.history.undo_depth(), 0, "nothing was drawn");
+}
+
+#[test]
+fn call_wire_fonts_feed_font_list_and_matching() {
+    let mut ed = ImageEditor::new(8, 8);
+    let fonts = wire_fonts(json!([]));
+    let wire = image_wire(&mut ed, Some(&fonts), "font.list", json!({}));
+    assert_eq!(
+        wire["json"],
+        json!({ "families": [
+            { "name": "Liberation Sans", "styles": ["Regular"] },
+            { "name": "Pincel Test Serif", "styles": ["Regular", "Italic", "Bold"] },
+        ] })
+    );
+    // Without the editor's fonts only the bundled family is known.
+    let wire = image_wire(&mut ed, None, "draw.text", bold_text());
+    assert_eq!(wire["ok"], false);
+    assert!(
+        wire["error"]
+            .as_str()
+            .is_some_and(|e| e.contains("font.list"))
+    );
 }
