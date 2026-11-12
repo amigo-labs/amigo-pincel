@@ -32,10 +32,9 @@ Per Decision Log 2026-11-05 (MCP tool parity), MCP `doc.open` opens whatever the
 
 ### In scope
 
-- Open AVIF (still images; the first frame of an image sequence) and JPEG XL (codestream and container; lossy and lossless) as a one-layer Image document
+- Open JPEG XL (codestream and container; lossy and lossless) as a one-layer Image document; AVIF only if the spike succeeds (it did not, 2026-11-12)
 - Detection by content signature
 - Save back and Save As for JPEG XL (lossless)
-- AVIF documents going to Save As with the "cannot be written back" notice
 - Open-picker filters, desktop file associations, drop as layer, MCP `doc.open`
 - A measured, bounded growth of the Image-mode wasm module
 
@@ -56,21 +55,21 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user opens an AVIF still image (8, 10 or 12 bit, with or without alpha), then an Image document opens with one layer named "Background" at the image's width and height, whose pixels differ from a reference PNG rendering of the same file by a mean absolute error below 2 of 255 in each of the four channels (R, G, B, A); an image without alpha opens fully opaque.
-- [ ] AC-02 (event): When the user opens an AVIF image sequence, then the document opens from its first frame.
+- ~~AC-01 (event): When the user opens an AVIF still image (8, 10 or 12 bit, with or without alpha), then an Image document opens with one layer named "Background" at the image's width and height, whose pixels differ from a reference PNG rendering of the same file by a mean absolute error below 2 of 255 in each of the four channels (R, G, B, A); an image without alpha opens fully opaque.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
+- ~~AC-02 (event): When the user opens an AVIF image sequence, then the document opens from its first frame.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
 - [ ] AC-03 (event): When the user opens a JPEG XL file (bare codestream or ISOBMFF container, lossy or lossless, with or without alpha), then an Image document opens with one layer at the image's width and height; a lossless file with 8 bits per channel opens with exactly its pixels; a lossy file, or a lossless one with more than 8 bits per channel (down-converted), opens within a mean absolute error below 2 of 255 in each of the four channels of a reference PNG rendering; an animated file opens from its first frame.
-- [ ] AC-04 (always): AVIF and JPEG XL files are recognised by their content whatever their extension; a file named `.avif` or `.jxl` whose content is neither is not opened as AVIF or JPEG XL.
+- [ ] AC-04 (always): JPEG XL files are recognised by their content whatever their extension; a file named `.jxl` whose content is not JPEG XL is not opened as JPEG XL, and an AVIF file fails to open like any undecodable image (`image-files` AC-13).
 - [ ] AC-05 (always): JPEG XL files written by Image mode decode back to exactly the pixels that were written, for any pixel content including fully transparent pixels and a 1 × 1 image.
 - [ ] AC-06 (event): When the user saves a document opened from a JPEG XL file, then the file is written back in place as lossless JPEG XL without a quality dialog, following the flatten prompt and saved-state rules of the other writable formats (`save-original-format` AC-01 – AC-06, AC-08).
-- [ ] AC-07 (event): When the user saves a document opened from an AVIF file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09), and AVIF is not among its formats.
-- [ ] AC-08 (error): If an AVIF or JPEG XL file is truncated, corrupt, or uses a feature the decoder does not support, then opening fails as for any undecodable image (`image-files` AC-13), no document is created, and an already open document stays as it was.
-- [ ] AC-09 (event): When an MCP client calls `doc.open` with a workspace-relative `.avif` or `.jxl` file, then an Image document opens with the same size and pixels the editor's Open produces, and the `doc.open` description names both formats; an undecodable file fails with `isError: true` and adds no document.
-- [ ] AC-10 (always): The Open picker's "All supported files" and "Images" filters include `.avif` and `.jxl`, the desktop app registers both as file associations that open in Image mode, and an AVIF or JPEG XL file dropped onto an open Image document is offered as "Add as layer"; a dropped file that fails per AC-08 or AC-12, or is not recognised per AC-04 (e.g. HEIC named `.avif`), is handled as an undecodable drop (`file-access` AC-26).
+- ~~AC-07 (event): When the user saves a document opened from an AVIF file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09), and AVIF is not among its formats.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
+- [ ] AC-08 (error): If a JPEG XL file is truncated, corrupt, or uses a feature the decoder does not support, then opening fails as for any undecodable image (`image-files` AC-13), no document is created, and an already open document stays as it was.
+- [ ] AC-09 (event): When an MCP client calls `doc.open` with a workspace-relative `.jxl` file, then an Image document opens with the same size and pixels the editor's Open produces, and the `doc.open` description names JPEG XL; an undecodable file fails with `isError: true` and adds no document.
+- [ ] AC-10 (always): The Open picker's "All supported files" and "Images" filters include `.jxl`, the desktop app registers it as a file association that opens in Image mode, and a JPEG XL file dropped onto an open Image document is offered as "Add as layer"; a dropped file that fails per AC-08 or AC-12, or is not recognised per AC-04 (e.g. an AVIF file, or a PNG named `.jxl`), is handled as an undecodable drop (`file-access` AC-26).
 - [ ] AC-11 (always): The release Image-mode wasm module (after `wasm-opt`) is at most 2.0 MB larger than the same build at the commit before this spec's first commit (which already contains `image-formats-more`'s codecs); both sizes are recorded under `## Decisions`.
-- [ ] AC-12 (error): If an AVIF or JPEG XL file declares a width or height of 0 or above 32767 px, then opening fails with the size message of `image-files` AC-14 — not the undecodable-image message, also when its pixel data is missing or cut off — and no document is created.
+- [ ] AC-12 (error): If a JPEG XL file declares a width or height of 0 or above 32767 px, then opening fails with the size message of `image-files` AC-14 — not the undecodable-image message, also when its pixel data is missing or cut off — and no document is created.
 - [ ] AC-13 (event): When the user chooses Save As…, then JPEG XL (`.jxl`) is offered next to the existing formats, and the suggested file name is the document's name with `.jxl`.
 - [ ] AC-14 (error): If writing a JPEG XL file fails (Save or Save As), then an error notice says the file could not be written, an existing file at the target is left unchanged, and the document stays marked unsaved.
-- [ ] AC-15 (event): When the user drops an AVIF or JPEG XL file onto an open Image document and chooses "Add as layer", then it lands as a new layer above the active one in one undo step, with the same pixels Open produces.
+- [ ] AC-15 (event): When the user drops a JPEG XL file onto an open Image document and chooses "Add as layer", then it lands as a new layer above the active one in one undo step, with the same pixels Open produces.
 
 ## Technical notes
 
@@ -85,13 +84,10 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 
 | Scenario | Expected behavior |
 | -------- | ----------------- |
-| HEIC file named `photo.avif` | Not recognised as AVIF (AC-04); opening fails like an undecodable file |
-| AVIF with a separate alpha auxiliary image | Opens with that alpha |
-| AVIF with a grid of tiles (large camera images) | Opens the assembled image, or fails per AC-08 when the decoder cannot assemble it — never a single tile |
+| Any AVIF file, or HEIC named `photo.avif` | Fails to open like an undecodable file (AC-04) |
+| PNG opened, then Save As ▸ JPEG XL | Writes `.jxl`; later Saves write that file in place |
 | 16-bit lossless JPEG XL | Opens down-converted to 8 bit per channel; not pixel-exact, but within AC-03's lossy bound |
 | JPEG XL that is a recompressed JPEG (JPEG bitstream reconstruction box) | Opens as its decoded pixels; Save writes lossless JPEG XL, not the original JPEG |
-| AVIF opened, then Save As ▸ JPEG XL | Writes `.jxl`; later Saves write that file in place |
-| 8000 × 6000 px AVIF | Opens at full size |
 | JPEG XL declaring 40000 × 10 px with no pixel data | AC-12: size message |
 
 ## Assumptions
@@ -103,17 +99,19 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 
 ## Open questions
 
+- AC-05 asks that a 1 × 1 image round-trips. `zune-jpegxl` 0.5.2, the approved encoder, refuses any side of 1 px (its `ZeroDimension` guard is `<= 1`), and with that guard removed its frame-size writer asserts `size > 1` (tried 2026-11-12), so it cannot write such a file. Until settled, saving a document with a 1-px side as JPEG XL fails per AC-14. Choices: reword AC-05 to sides of at least 2 px and keep the AC-14 failure (perhaps with its own notice); another encoder (no pure-Rust one is known); or a patched / vendored `zune-jpegxl`.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
+| AC-01 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
+| AC-02 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
 | AC-03 |      | open   |        |
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-07 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
 | AC-08 |      | open   |        |
 | AC-09 |      | open   |        |
 | AC-10 |      | open   |        |
@@ -132,3 +130,4 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - 2026-11-05: No AVIF encoder for now (owner's choice), because `ravif` / `rav1e` add 1.5 – 2.5 MB of wasm and encode for seconds on the main thread; revisit after `performance-background-jobs`.
 - 2026-11-05: JPEG XL through `jxl-oxide` (decode) and `zune-jpegxl` (lossless encode) (owner's choice), because both are pure Rust, MIT / Apache licensed and small, and lossless save keeps Save in place working.
 - 2026-11-05: The new codecs live in the existing Image-mode wasm module, capped at +2.0 MB after `wasm-opt` (AC-11) (owner's choice), because a separate lazily loaded module would add a crate and a cross-crate boundary for a growth the cap already bounds.
+- 2026-11-12 (spec-build): The AVIF spike failed, so AVIF decoding is dropped as "AVIF spike gate" prescribes: `rav1d` 1.1 with default features off (no `asm`) does not build for `wasm32-unknown-unknown` with the workspace toolchain (`libc::ptrdiff_t`, `intptr_t` and `uintptr_t` are unresolved — `libc` defines no C types for that target), and its only public API is `unsafe extern "C" fn dav1d_*`, so the glue would also need new `unsafe` blocks (AGENTS.md §3.3). AC-01, AC-02 and AC-07 are dropped; AC-04, AC-08 – AC-10, AC-12 and AC-15 are reworded to JPEG XL only, as the gate says. Neither `rav1d` nor `avif-parse` joins the workspace. The fixture script keeps no AVIF part.
