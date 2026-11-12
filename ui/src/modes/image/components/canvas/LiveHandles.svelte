@@ -54,7 +54,7 @@
   {#each marks as m (m.id)}
     <div
       data-live-handle={m.id}
-      class="pointer-events-none absolute border border-pc-bg bg-pc-accent shadow-[0_0_0_1px_rgba(0,0,0,0.6)] {m.id ===
+      class="pointer-events-none absolute border border-pc-bg bg-pc-accent ring-1 ring-pc-bg {m.id ===
       'grip'
         ? 'rounded-full'
         : 'rounded-[2px]'}"

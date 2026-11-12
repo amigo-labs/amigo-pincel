@@ -70,7 +70,7 @@
   {#each marks as m (m.id)}
     <div
       data-transform-handle={m.id}
-      class="pointer-events-none absolute rounded-[2px] border border-pc-bg bg-pc-accent shadow-[0_0_0_1px_rgba(0,0,0,0.6)]"
+      class="pointer-events-none absolute rounded-[2px] border border-pc-bg bg-pc-accent ring-1 ring-pc-bg"
       style="left: {m.at[0] - SIZE / 2}px; top: {m.at[1] -
         SIZE / 2}px; width: {SIZE}px; height: {SIZE}px;"
     ></div>
