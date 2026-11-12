@@ -105,7 +105,7 @@ pub fn create_document(width: u32, height: u32) -> Result<u32, JsError> {
 }
 
 /// Opens an encoded image (PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS /
-/// ICO) as a single-layer document. Formats are detected by content;
+/// ICO / JPEG XL) as a single-layer document. Formats are detected by content;
 /// `mime_type` (a MIME type or a file name) is the hint TGA needs, since it
 /// has no signature.
 #[wasm_bindgen]
@@ -705,9 +705,20 @@ pub fn export_ico(handle: u32) -> Result<Vec<u8>, JsError> {
     })
 }
 
+/// Exports the flattened composite as lossless JPEG XL; fails when a side
+/// is 1 px (docs/specs/image-formats-more-modern.md AC-06, AC-14).
+#[wasm_bindgen]
+pub fn export_jxl(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        jobs::encode(&bus.document, EncodeFormat::Jxl, 0, 0).map_err(job_js)
+    })
+}
+
 /// Decodes `data` (a format `hint` — MIME type or file name — for TGA) and
-/// re-encodes it as PNG, so a dropped TGA / DDS / ICO goes through the
-/// same paste path as the browser's own formats (AC-13).
+/// re-encodes it as PNG, so a dropped TGA / DDS / ICO / JPEG XL goes
+/// through the same paste path as the browser's own formats
+/// (docs/specs/image-formats-more.md AC-13,
+/// docs/specs/image-formats-more-modern.md AC-15).
 #[wasm_bindgen]
 pub fn image_to_png(data: &[u8], hint: &str) -> Result<Vec<u8>, JsError> {
     let buffer = pincel_image_core::codec::decode_hinted(data, Some(hint))
@@ -1715,6 +1726,19 @@ mod export_tests {
         assert!(ico.starts_with(&[0, 0, 1, 0]));
         let png = image_to_png(&tga, "image/x-targa").expect("png");
         assert!(png.starts_with(b"\x89PNG"));
+    }
+
+    #[test]
+    fn export_jxl_and_image_to_png_round_trip() {
+        let doc = Document::new(5, 3).expect("doc");
+        let composite = pincel_image_core::render::compose(doc.layers());
+        let handle = insert(CommandBus::new(doc));
+        let jxl = export_jxl(handle).expect("jxl");
+        assert!(pincel_image_core::codec::is_jxl(&jxl));
+        assert_eq!(decode(&jxl).expect("decode"), composite);
+        let png = image_to_png(&jxl, "a.jxl").expect("png");
+        assert!(png.starts_with(b"\x89PNG"));
+        assert_eq!(decode(&png).expect("decode png"), composite);
     }
 
     #[test]
