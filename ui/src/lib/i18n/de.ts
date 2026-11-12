@@ -13,8 +13,9 @@ export const de: Record<MessageKey, string> = {
   'shell.save': 'Speichern',
   'shell.dontSave': 'Nicht speichern',
   'shell.saveAll': 'Alle speichern',
-  'shell.unsavedIn': 'Ungespeicherte Änderungen in {n} Bildern:',
-  'shell.dropSkipped': '{n} abgelegte Datei(en) konnten nicht geöffnet werden',
+  'shell.unsavedIn': 'Ungespeicherte Änderungen in {n, plural, one {# Bild} other {# Bildern}}:',
+  'shell.dropSkipped':
+    '{n, plural, one {# abgelegte Datei konnte} other {# abgelegte Dateien konnten}} nicht geöffnet werden',
   'shell.unsupported':
     '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
@@ -102,7 +103,7 @@ export const de: Record<MessageKey, string> = {
 
   // Recovery dialog
   'recovery.title': 'Ungespeicherte Arbeit wiederherstellen?',
-  'recovery.count': '{count} Sicherung(en)',
+  'recovery.count': '{count, plural, one {# Sicherung} other {# Sicherungen}}',
   'recovery.body':
     'Pincel hat automatische Sicherungen aus einer früheren Sitzung gefunden. Stelle eine Sicherung wieder her, um weiterzuarbeiten, oder verwirf sie endgültig.',
   'recovery.recover': 'Wiederherstellen',
@@ -373,10 +374,8 @@ export const de: Record<MessageKey, string> = {
   'svg.tolerance': 'Kurventoleranz',
   'svg.preview': 'SVG-Vorschau',
   'svg.summary': '{layers} · {outlines} · {size}',
-  'svg.layersOne': '1 Ebene',
-  'svg.layersMany': '{n} Ebenen',
-  'svg.outlinesOne': '1 Umriss',
-  'svg.outlinesMany': '{n} Umrisse',
+  'svg.layers': '{n, plural, one {# Ebene} other {# Ebenen}}',
+  'svg.outlines': '{n, plural, one {# Umriss} other {# Umrisse}}',
   'svg.tooManyColors': 'Pixelgenau unterstützt höchstens 256 Farben; dieses Bild hat {n}.',
   'svg.failed': 'Vektorisieren nicht möglich: {error}',
 
@@ -960,8 +959,7 @@ export const de: Record<MessageKey, string> = {
   'slices.activate': 'Slice {name} aktivieren',
   'slices.removeNamed': '{name} entfernen',
   'slices.bounds': 'Begrenzung von Slice {name}',
-  'slices.keyInfo': 'ID {id} · {count} Keys · Frame 0',
-  'slices.keyInfoOne': 'ID {id} · 1 Key · Frame 0',
+  'slices.keyInfo': 'ID {id} · {count, plural, one {# Key} other {# Keys}} · Frame 0',
   'slices.x': 'X',
   'slices.y': 'Y',
   'slices.w': 'B',
@@ -984,7 +982,7 @@ export const de: Record<MessageKey, string> = {
   'tiles.pixelEditor': 'Pixel-Editor für Kachel {tile}',
   'tiles.plusTile': '+ Kachel',
   'tiles.plusLayer': '+ Ebene',
-  'tiles.summary': 'ID {id} · {w}×{h} · {count} Kacheln',
+  'tiles.summary': 'ID {id} · {w}×{h} · {count, plural, one {# Kachel} other {# Kacheln}}',
   'tiles.summaryOne': 'ID {id} · {w}×{h} · 1 Kachel',
   'tiles.thumb': 'Kachel {tile}',
   'palette.move': 'Paletteneintrag verschieben',
@@ -1296,15 +1294,15 @@ export const de: Record<MessageKey, string> = {
   'palette.exportPal': 'JASC .pal',
   'palette.exportPng1': 'PNG-Streifen (1 px)',
   'palette.exportPng8': 'PNG-Streifen (8 px)',
-  'palette.imported': '{count} Palettenfarben importiert',
-  'palette.exported': '{count} Palettenfarben exportiert',
+  'palette.imported': '{count, plural, one {# Palettenfarbe} other {# Palettenfarben}} importiert',
+  'palette.exported': '{count, plural, one {# Palettenfarbe} other {# Palettenfarben}} exportiert',
   'palette.load': 'Palette laden',
   'palette.loadAction': 'Palette laden…',
   'palette.save': 'Palette speichern',
   'palette.reset': 'Auf Standardpalette zurücksetzen',
   'palette.addColor': 'Farbe hinzufügen',
-  'palette.loaded': '{count} Palettenfarben geladen',
-  'palette.saved': '{count} Palettenfarben gespeichert',
+  'palette.loaded': '{count, plural, one {# Palettenfarbe} other {# Palettenfarben}} geladen',
+  'palette.saved': '{count, plural, one {# Palettenfarbe} other {# Palettenfarben}} gespeichert',
   'palette.full': 'Die Palette ist voll (256 Farben)',
   'palette.duplicate': 'Die Farbe ist bereits in der Palette',
   'palette.storeFailed':
@@ -1327,10 +1325,10 @@ export const de: Record<MessageKey, string> = {
   'keys.exportKeymap': 'Exportieren…',
   'keys.importKeymap': 'Importieren…',
   'keys.imported': 'Tastenbelegung importiert.',
-  'keys.importIgnoredOne': '1 unbekannter Eintrag ignoriert.',
-  'keys.importIgnoredMany': '{n} unbekannte Einträge ignoriert.',
-  'keys.importReplacedOne': '1 Standardkürzel ersetzt.',
-  'keys.importReplacedMany': '{n} Standardkürzel ersetzt.',
+  'keys.importIgnored':
+    '{n, plural, one {# unbekannter Eintrag ignoriert.} other {# unbekannte Einträge ignoriert.}}',
+  'keys.importReplaced':
+    '{n, plural, one {# Standardkürzel ersetzt.} other {# Standardkürzel ersetzt.}}',
   'keys.importInvalid':
     'Diese Datei ist keine Pincel-Tastenbelegung; die Belegung bleibt unverändert.',
   'keys.importDuplicate': 'Die Datei belegt {chord} mehrfach; die Belegung bleibt unverändert.',

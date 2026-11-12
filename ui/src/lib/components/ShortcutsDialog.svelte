@@ -122,10 +122,8 @@
       return;
     }
     const parts = [t('keys.imported')];
-    if (result.ignored === 1) parts.push(t('keys.importIgnoredOne'));
-    if (result.ignored > 1) parts.push(t('keys.importIgnoredMany', { n: result.ignored }));
-    if (result.replaced === 1) parts.push(t('keys.importReplacedOne'));
-    if (result.replaced > 1) parts.push(t('keys.importReplacedMany', { n: result.replaced }));
+    if (result.ignored > 0) parts.push(t('keys.importIgnored', { n: result.ignored }));
+    if (result.replaced > 0) parts.push(t('keys.importReplaced', { n: result.replaced }));
     message = { kind: 'status', text: parts.join(' ') };
   }
 

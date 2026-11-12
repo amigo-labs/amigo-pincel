@@ -6,6 +6,7 @@
 
 import { de } from './de';
 import { en, type MessageKey } from './en';
+import { formatMessage } from './format';
 
 export type { MessageKey } from './en';
 
@@ -25,7 +26,8 @@ const DICTS: Record<Locale, Record<MessageKey, string>> = { en, de };
 
 /** The locale a browser asks for: German for any `de-*`, else English. */
 export function browserLocale(): Locale {
-  const langs = typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]);
+  const langs =
+    typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]);
   for (const l of langs) {
     const base = l.toLowerCase().split('-')[0];
     if (base === 'de' || base === 'en') return base;
@@ -58,12 +60,12 @@ export function applyLocale(next: Locale): void {
 
 /**
  * The message for `key` in the active locale. `{name}` placeholders are
- * filled from `params`; unknown placeholders stay as written.
+ * filled from `params` (unknown ones stay as written) and
+ * `{n, plural, one {…} other {…}}` blocks follow the locale's plural rules
+ * (`format.ts`).
  */
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
-  const s = DICTS[state.locale][key];
-  if (!params) return s;
-  return s.replace(/\{(\w+)\}/g, (m, k: string) => (k in params ? String(params[k]) : m));
+  return formatMessage(DICTS[state.locale][key], params, state.locale);
 }
 
 // Reverse lookups per locale: a message (parameterless) → its key.
