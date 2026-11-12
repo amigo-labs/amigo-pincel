@@ -181,10 +181,19 @@ test('a generation error fails the call in English (AC-16, AC-19)', async ({ pag
   });
 });
 
-test('gen.image on a Pixel document says it needs an Image document', async ({ page }) => {
+test('gen.image on a Pixel document applies one variant as a new layer (comfyui-generate-pixel AC-08)', async ({
+  page,
+}) => {
   await setup(page, 'pixel');
-  expect(await call(page, 'gen.image', { prompt: 'a pear' })).toEqual({
-    ok: false,
-    error: 'gen.image works on Image documents only; this is a Pixel document',
+  const id = await send(page, 'gen.image', { prompt: 'a small green slime monster', seed: 42 });
+  await expect.poll(async () => (await requests(page)).length).toBe(1);
+  expect((await requests(page))[0]).toMatchObject({ count: 1, seed: 42, width: 512, height: 512, input: null });
+  await emit(page, 'comfyui:generation', { kind: 'finished', job: 5, count: 1, error: null });
+  expect(await answer(page, id)).toEqual({
+    ok: true,
+    json: { layer: 'Generated: a small green slime monster', seed: 42, model: 'v1-5-pruned-emaonly-fp16.safetensors' },
   });
+  await expect(
+    page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / }),
+  ).toHaveCount(2);
 });

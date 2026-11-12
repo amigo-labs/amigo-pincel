@@ -1,6 +1,9 @@
 import { expect, test } from '@playwright/test';
+import { en } from '../src/lib/i18n/en';
 import {
+  BLOCK_ENGLISH,
   checkGenImage,
+  enlarges,
   familyOf,
   layerName,
   parseSeed,
@@ -57,4 +60,17 @@ test('gen.image defaults to the panel model, else the first checkpoint (AC-16, A
   });
   expect(checkGenImage({ prompt: 'x', lora: 'l' }, models, null)).toBe('unknown LoRA "l"; valid LoRAs: (none)');
   expect(checkGenImage({ prompt: 'x', seed: 1.5 }, models, null)).toBe('`seed` must be an integer of at least 0');
+});
+
+test('Pixel mode notes a target box larger than the generation (comfyui-generate-pixel AC-02)', () => {
+  expect(enlarges({ x: 0, y: 0, w: 32, h: 32 }, 512, 512)).toBe(false);
+  expect(enlarges({ x: 0, y: 0, w: 512, h: 512 }, 512, 512)).toBe(false);
+  expect(enlarges({ x: 0, y: 0, w: 640, h: 640 }, 512, 512)).toBe(true);
+  expect(enlarges({ x: 0, y: 0, w: 2048, h: 100 }, 2048, 512)).toBe(false);
+  expect(enlarges({ x: 0, y: 0, w: 100, h: 600 }, 512, 512)).toBe(true);
+});
+
+test('a palette without a visible color reads the same in the panel and in gen.image (comfyui-generate-pixel AC-10)', () => {
+  expect(BLOCK_ENGLISH.noVisibleColor).toBe('The palette has no visible color');
+  expect(en['gen.noVisibleColor']).toBe(BLOCK_ENGLISH.noVisibleColor);
 });
