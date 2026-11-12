@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, switchLanguage } from './helpers';
 
 // docs/specs/effects-distort.md: paint.net's nine distortions in the Distort
 // submenu, per mode (AC-01), their dialogs (AC-02) and the German names,
@@ -219,9 +219,7 @@ test('the distortion dialogs show exactly the parameters of the table (AC-02)', 
 
 test('German names, parameter labels and edge-behaviour options (AC-15)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const list = await distortions(page, 'Effekte', 'Verzerren');
   const names = [
     'Wölben…',

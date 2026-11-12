@@ -43,7 +43,7 @@ When the OS or browser asks for reduced motion, Pincel draws the selection outli
 - [ ] AC-10 (event): When the user changes Settings ▸ Reduce motion and reloads the app, then the setting is kept.
 - [ ] AC-11 (always): A new profile follows the system setting (Settings ▸ Reduce motion is not forced on).
 - [ ] AC-12 (option): Where the UI language is German, the Settings ▸ Reduce motion entry is German.
-- [ ] AC-13 (state): While the system requests reduced motion and Settings ▸ Reduce motion is unchecked, motion is reduced and the menu entry's label notes that the system setting is on (suffix "(on in system settings)").
+- [ ] AC-13 (state): While the system requests reduced motion and Settings ▸ Reduce motion is unchecked, motion is reduced and the setting notes that the system setting is on ("On in system settings" under the checkbox).
 
 ## Technical notes
 
@@ -84,7 +84,7 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 | Pixel playback with reduced motion | Playback runs normally (AC-07) |
 | In-app option on, system setting no-preference | Reduced motion in effect (AC-09) |
 | Effect dialog live preview under reduced motion | Unaffected — it is content, not UI motion |
-| System requests reduce, in-app option unchecked | Reduced motion in effect; the checkbox stays unchecked and the label carries the system suffix (AC-13) |
+| System requests reduce, in-app option unchecked | Reduced motion in effect; the checkbox stays unchecked and notes the system setting under it (AC-13) |
 
 ## Open questions
 

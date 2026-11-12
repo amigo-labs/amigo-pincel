@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { colorOf, createDocument, pixelCanvas, setColor } from './helpers';
+import { colorOf, createDocument, pixelCanvas, setColor, switchLanguage } from './helpers';
 
 // Pixel-mode tilesets and tilemap layers (docs/specs/tilemaps.md): the
 // Tilesets panel, the Tile Stamp tool and the Tile editor. Composed pixels
@@ -531,9 +531,7 @@ test('stamping on a frame added after the tilemap layer creates its grid in one 
 
 test('the Tilesets panel speaks the UI language', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const tilesets = page.getByRole('region', { name: 'Tilesets' });
   await tilesets.getByRole('button', { name: 'Tilesets', exact: true }).click();
   await tilesets.getByRole('button', { name: 'Tileset hinzufügen' }).click();

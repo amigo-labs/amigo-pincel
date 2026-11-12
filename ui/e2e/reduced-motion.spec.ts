@@ -1,9 +1,16 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart, imageCanvas, pixelCanvas, storedPref } from './helpers';
+import {
+  createDocument,
+  gotoStart,
+  imageCanvas,
+  pixelCanvas,
+  storedPref,
+  switchLanguage,
+} from './helpers';
 
 // "Reduce motion" (docs/specs/reduced-motion.md): the selection outline and
-// the other marching outlines stand still while the system or View ▸ Reduce
-// Motion asks for it, UI transitions finish instantly, playback keeps
+// the other marching outlines stand still while the system or Settings ▸
+// Reduce motion asks for it, UI transitions finish instantly, playback keeps
 // running. The canvas is compared through series of element screenshots
 // (AGENTS.md §7.4); the app never reads canvas pixels.
 
@@ -11,8 +18,8 @@ const MODES = ['pixel', 'image'] as const;
 type Mode = (typeof MODES)[number];
 
 const SIZE = 32;
-const LABEL = 'Reduce Motion';
-const SYSTEM_LABEL = 'Reduce Motion (on in system settings)';
+/** The note under the setting while the system asks for reduced motion. */
+const SYSTEM_NOTE = 'On in system settings';
 
 const canvasOf = (page: Page, mode: Mode): Locator =>
   mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
@@ -75,12 +82,25 @@ async function withSelection(page: Page, mode: Mode): Promise<void> {
   await expect.poll(async () => (await shot(page, mode)).equals(empty)).toBe(false);
 }
 
-/** The View ▸ Reduce Motion entry (whichever label it carries). */
-async function openViewMenu(page: Page): Promise<Locator> {
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+/** Opens Edit ▸ Settings… (docs/specs/settings-dialog.md) and returns its
+ *  Reduce motion checkbox; close the dialog with `closeSettings`. */
+async function reduceMotionBox(page: Page): Promise<Locator> {
+  await page.keyboard.press('Control+,');
   return page
-    .getByRole('menu', { name: 'View', exact: true })
-    .getByRole('menuitemcheckbox', { name: /^Reduce Motion/ });
+    .getByRole('dialog', { name: 'Settings', exact: true })
+    .getByRole('checkbox', { name: 'Reduce motion', exact: true });
+}
+
+async function closeSettings(page: Page): Promise<void> {
+  const dialog = page.getByRole('dialog', { name: 'Settings', exact: true });
+  await dialog.getByRole('button', { name: 'Close', exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Flips Settings ▸ Reduce motion and closes the dialog. */
+async function toggleReduceMotion(page: Page): Promise<void> {
+  await (await reduceMotionBox(page)).click();
+  await closeSettings(page);
 }
 
 /** The start screen's chevron and its computed transition / animation durations (ms). */
@@ -117,9 +137,10 @@ for (const mode of MODES) {
     await withSelection(page, mode);
     await expectStill(page, mode, false);
     // A new profile follows the system: the option is off.
-    const entry = await openViewMenu(page);
-    await expect(entry).toHaveAccessibleName(LABEL);
-    await expect(entry).toHaveAttribute('aria-checked', 'false');
+    const box = await reduceMotionBox(page);
+    await expect(box).not.toHaveAccessibleDescription(SYSTEM_NOTE);
+    await expect(box).not.toBeChecked();
+    await closeSettings(page);
   });
 
   test(`${mode}: under reduced motion a changed selection shows at its new place (AC-04)`, async ({
@@ -145,13 +166,13 @@ for (const mode of MODES) {
     await expectStill(page, mode, false);
   });
 
-  test(`${mode}: View ▸ Reduce Motion stills the outline without the system setting (AC-09)`, async ({
+  test(`${mode}: Settings ▸ Reduce motion stills the outline without the system setting (AC-09)`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'no-preference' });
     await withSelection(page, mode);
     await expectStill(page, mode, false);
-    await (await openViewMenu(page)).click();
+    await toggleReduceMotion(page);
     await expectStill(page, mode, true);
     // AC-04 under the option: a new selection is drawn, still static.
     const before = await shot(page, mode);
@@ -160,17 +181,17 @@ for (const mode of MODES) {
     expect(await looksStill(page, mode)).toBe(true);
   });
 
-  test(`${mode}: under a system reduce request the entry stays unchecked and names the system setting (AC-13)`, async ({
+  test(`${mode}: under a system reduce request the setting stays unchecked and notes the system setting (AC-13)`, async ({
     page,
   }) => {
     await page.emulateMedia({ reducedMotion: 'reduce' });
     await createDocument(page, mode, { width: SIZE, height: SIZE });
-    const entry = await openViewMenu(page);
-    await expect(entry).toHaveAccessibleName(SYSTEM_LABEL);
-    await expect(entry).toHaveAttribute('aria-checked', 'false');
-    await page.keyboard.press('Escape');
+    const box = await reduceMotionBox(page);
+    await expect(box).toHaveAccessibleDescription(SYSTEM_NOTE);
+    await expect(box).not.toBeChecked();
     await page.emulateMedia({ reducedMotion: 'no-preference' });
-    await expect(await openViewMenu(page)).toHaveAccessibleName(LABEL);
+    await expect(box).not.toHaveAccessibleDescription(SYSTEM_NOTE);
+    await closeSettings(page);
   });
 }
 
@@ -200,7 +221,7 @@ test('pixel: under reduced motion a drag preview and the active slice outline st
   await expectStill(page, 'pixel', true);
   // The in-app option does the same without the system setting (AC-09).
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await (await openViewMenu(page)).click();
+  await toggleReduceMotion(page);
   await expectStill(page, 'pixel', true);
 });
 
@@ -232,40 +253,35 @@ test('UI transitions finish instantly under reduced motion, from the system or t
   // The option, saved and restored on reload, does the same without the system.
   await page.emulateMedia({ reducedMotion: 'no-preference' });
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  await (await openViewMenu(page)).click();
+  await toggleReduceMotion(page);
   await expect.poll(() => storedPref(page, 'reduceMotion')).toBe(true);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
   await expect.poll(async () => (await chevronDurations(page))[0]).toBeLessThanOrEqual(0.01);
   for (const d of await chevronDurations(page)) expect(d).toBeLessThanOrEqual(0.01);
   await createDocument(page, 'image', { width: 8, height: 8 });
-  await expect(await openViewMenu(page)).toHaveAttribute('aria-checked', 'true');
-  await page.keyboard.press('Escape');
+  await expect(await reduceMotionBox(page)).toBeChecked();
+  await closeSettings(page);
 
   // Unchecking is kept too.
-  await (await openViewMenu(page)).click();
+  await toggleReduceMotion(page);
   await expect.poll(() => storedPref(page, 'reduceMotion')).toBe(false);
   await page.reload();
   await expect(page.getByRole('heading', { name: 'Pincel' })).toBeVisible();
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  await expect(await openViewMenu(page)).toHaveAttribute('aria-checked', 'false');
+  await expect(await reduceMotionBox(page)).not.toBeChecked();
+  await closeSettings(page);
 });
 
-test('View ▸ Reduce Motion is German in the German UI (AC-12)', async ({ page }) => {
+test('Settings ▸ Reduce motion is German in the German UI (AC-12)', async ({ page }) => {
   await page.emulateMedia({ reducedMotion: 'reduce' });
   await createDocument(page, 'pixel', { width: 8, height: 8 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'Ansicht', exact: true }).click();
-  const view = page.getByRole('menu', { name: 'Ansicht', exact: true });
-  await expect(
-    view.getByRole('menuitemcheckbox', { name: /^Bewegung reduzieren/ }),
-  ).toHaveAccessibleName('Bewegung reduzieren (in den Systemeinstellungen an)');
-  await page.keyboard.press('Escape');
+  await switchLanguage(page, 'Deutsch');
+  await page.keyboard.press('Control+,');
+  const box = page
+    .getByRole('dialog', { name: 'Einstellungen', exact: true })
+    .getByRole('checkbox', { name: 'Bewegung reduzieren', exact: true });
+  await expect(box).toHaveAccessibleDescription('In den Systemeinstellungen an');
   await page.emulateMedia({ reducedMotion: 'no-preference' });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'Ansicht', exact: true }).click();
-  await expect(
-    view.getByRole('menuitemcheckbox', { name: /^Bewegung reduzieren/ }),
-  ).toHaveAccessibleName('Bewegung reduzieren');
+  await expect(box).not.toHaveAccessibleDescription('In den Systemeinstellungen an');
 });

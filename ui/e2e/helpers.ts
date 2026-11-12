@@ -617,3 +617,18 @@ export async function setColor(page: Page, which: 'fg' | 'bg', hex: string): Pro
 export async function colorOf(page: Page, which: 'fg' | 'bg'): Promise<string> {
   return withPicker(page, which, async (field) => (await field.inputValue()).slice(0, 7));
 }
+
+/**
+ * Switches the UI language through Edit ▸ Settings… (docs/specs/settings-dialog.md)
+ * and closes the dialog; `language` is the option's label ("Deutsch", "English").
+ * Works from either editor whatever the current language is.
+ */
+export async function switchLanguage(page: Page, language: string): Promise<void> {
+  await page.keyboard.press('Control+,');
+  const dialog = page.getByRole('dialog', { name: /^(Settings|Einstellungen)$/ });
+  await dialog
+    .getByRole('combobox', { name: /^(Language|Sprache)$/ })
+    .selectOption({ label: language });
+  await dialog.getByRole('button', { name: /^(Close|Schließen)$/ }).click();
+  await expect(dialog).toBeHidden();
+}

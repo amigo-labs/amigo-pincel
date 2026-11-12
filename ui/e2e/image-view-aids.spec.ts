@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, menu, waitForEditor } from './helpers';
+import { createDocument, imageCanvas, menu, switchLanguage, waitForEditor } from './helpers';
 import { installTauriMock } from './tauri-mock';
 import { canvasShot, liveInput, textBox } from './text-helpers';
 import {
@@ -118,7 +118,7 @@ test('ruler labels never overlap from the minimum to the maximum zoom, in German
   test.setTimeout(180_000);
   const H = 100;
   await createDocument(page, 'image', { width: 20000, height: H });
-  await check(page, 'View', 'Language', 'Deutsch');
+  await switchLanguage(page, 'Deutsch');
   await check(page, 'Ansicht', 'Lineale');
   for (const unit of ['Zentimeter', 'Zoll', 'Pixel']) {
     await check(page, 'Ansicht', 'Einheiten', unit);
@@ -425,7 +425,7 @@ test('units switch the rulers and the status bar, in either language (AC-11, AC-
   await expect(pointerStatus(page)).toHaveText('37, 20 px');
 
   // German: `Zoll` and a decimal comma; ruler labels stay bare numbers.
-  await check(page, 'View', 'Language', 'Deutsch');
+  await switchLanguage(page, 'Deutsch');
   await check(page, 'Ansicht', 'Einheiten', 'Zoll');
   await only('Zoll', ['Pixel', 'Zoll', 'Zentimeter'], 'Einheiten', 'Ansicht');
   await expect(page.getByText('2,08 × 1,04 Zoll · sRGB', { exact: true })).toBeVisible();

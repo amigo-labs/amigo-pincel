@@ -10,7 +10,8 @@ import {
 } from './helpers';
 
 // UI language (spec §9.5): browser language by default, switchable on the
-// start screen and under View ▸ Language, remembered across reloads.
+// start screen and in Edit ▸ Settings… (docs/specs/settings-dialog.md),
+// remembered across reloads.
 
 test.describe('German browser', () => {
   test.use({ locale: 'de-DE' });
@@ -32,11 +33,9 @@ test('start-screen switch persists across reloads', async ({ page }) => {
   await expect(page.getByRole('button', { name: 'New image' })).toBeVisible();
 });
 
-test('View ▸ Language switches the editor', async ({ page }) => {
+test('Settings ▸ Language switches the editor', async ({ page }) => {
   await createDocument(page, 'pixel');
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'en', 'Deutsch');
   await expect(page.getByRole('button', { name: 'Vergrößern' })).toBeVisible();
   const bar = page.getByRole('menubar');
   const menus = [
@@ -60,31 +59,36 @@ test('View ▸ Language switches the editor', async ({ page }) => {
 
 const MODES = ['pixel', 'image'] as const;
 
-/** Menu, menu entry and picker titles per UI language. */
+/** Settings dialog, Language field and Close titles per UI language. */
 const UI = {
-  en: { view: 'View', language: 'Language' },
-  de: { view: 'Ansicht', language: 'Sprache' },
+  en: { dialog: 'Settings', language: 'Language', close: 'Close' },
+  de: { dialog: 'Einstellungen', language: 'Sprache', close: 'Schließen' },
 } as const;
 
-/** Opens View ▸ Language with the titles of UI language `lang`; returns the submenu. */
-async function languageSubmenu(page: Page, lang: keyof typeof UI): Promise<Locator> {
-  const { view, language } = UI[lang];
-  await page.getByRole('menubar').getByRole('menuitem', { name: view, exact: true }).click();
-  await page
-    .getByRole('menu', { name: view, exact: true })
-    .getByRole('menuitem', { name: language, exact: true })
-    .click();
-  return page.getByRole('menu', { name: language, exact: true });
+/** Opens Edit ▸ Settings… (Ctrl+,) with the titles of UI language `lang`;
+ *  returns its Language field. */
+async function languageField(page: Page, lang: keyof typeof UI): Promise<Locator> {
+  await page.keyboard.press('Control+,');
+  return page
+    .getByRole('dialog', { name: UI[lang].dialog, exact: true })
+    .getByRole('combobox', { name: UI[lang].language, exact: true });
 }
 
-/** View ▸ Language ▸ `pick`, opened with the titles of UI language `lang`. */
+/** Closes the Settings dialog, titled in UI language `lang`. */
+async function closeSettings(page: Page, lang: keyof typeof UI): Promise<void> {
+  const dialog = page.getByRole('dialog', { name: UI[lang].dialog, exact: true });
+  await dialog.getByRole('button', { name: UI[lang].close, exact: true }).click();
+  await expect(dialog).toBeHidden();
+}
+
+/** Settings ▸ Language ▸ `pick`, opened with the titles of UI language `lang`. */
 async function switchLanguage(
   page: Page,
   lang: keyof typeof UI,
   pick: 'English' | 'Deutsch',
 ): Promise<void> {
-  const submenu = await languageSubmenu(page, lang);
-  await submenu.getByRole('menuitemcheckbox', { name: pick, exact: true }).click();
+  await (await languageField(page, lang)).selectOption({ label: pick });
+  await closeSettings(page, pick === 'Deutsch' ? 'de' : 'en');
 }
 
 /** Marks the page so a later `expectNoReload` can tell it was not reloaded. */
@@ -116,7 +120,7 @@ test.describe('French browser', () => {
 const TOOL = { pixel: ['Pencil', 'Stift'], image: ['Brush', 'Pinsel'] } as const;
 
 for (const mode of MODES) {
-  test(`${mode}: View ▸ Language switches menus, panels, tools and buttons at once and checks the active language (AC-04)`, async ({
+  test(`${mode}: Settings ▸ Language switches menus, panels, tools and buttons at once and shows the active language (AC-04)`, async ({
     page,
   }) => {
     await createDocument(page, mode, { width: 16, height: 16 });
@@ -125,10 +129,10 @@ for (const mode of MODES) {
     const tools = (name: string) =>
       page.getByRole('toolbar').getByRole('button', { name, exact: true });
 
-    let submenu = await languageSubmenu(page, 'en');
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'English' })).toBeChecked();
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'Deutsch' })).not.toBeChecked();
-    await submenu.getByRole('menuitemcheckbox', { name: 'Deutsch', exact: true }).click();
+    let field = await languageField(page, 'en');
+    await expect(field).toHaveValue('en');
+    await field.selectOption({ label: 'Deutsch' });
+    await closeSettings(page, 'de');
 
     for (const name of ['Datei', 'Bearbeiten', 'Auswahl', 'Effekte', 'Korrekturen', 'Ansicht']) {
       await expect(bar.getByRole('menuitem', { name, exact: true })).toBeVisible();
@@ -140,10 +144,10 @@ for (const mode of MODES) {
     await expect(bar.getByRole('menuitem', { name: 'File', exact: true })).toHaveCount(0);
     await expectNoReload(page);
 
-    submenu = await languageSubmenu(page, 'de');
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'Deutsch' })).toBeChecked();
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'English' })).not.toBeChecked();
-    await submenu.getByRole('menuitemcheckbox', { name: 'English', exact: true }).click();
+    field = await languageField(page, 'de');
+    await expect(field).toHaveValue('de');
+    await field.selectOption({ label: 'English' });
+    await closeSettings(page, 'en');
 
     for (const name of ['File', 'Edit', 'Select', 'Effects', 'Adjustments', 'View']) {
       await expect(bar.getByRole('menuitem', { name, exact: true })).toBeVisible();
@@ -154,9 +158,9 @@ for (const mode of MODES) {
     await expect(page.getByRole('button', { name: 'Zoom in', exact: true })).toBeVisible();
     await expect(bar.getByRole('menuitem', { name: 'Datei', exact: true })).toHaveCount(0);
     await expectNoReload(page);
-    submenu = await languageSubmenu(page, 'en');
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'English' })).toBeChecked();
-    await expect(submenu.getByRole('menuitemcheckbox', { name: 'Deutsch' })).not.toBeChecked();
+    field = await languageField(page, 'en');
+    await expect(field).toHaveValue('en');
+    await closeSettings(page, 'en');
   });
 
   test(`${mode}: switching the language keeps the document, its unsaved state and its history (AC-06)`, async ({
@@ -278,12 +282,9 @@ test('image: file, layer and format names stay untranslated in German (AC-08)', 
   await expect(exportMenu.getByRole('menuitem', { name: 'JPEG…', exact: true })).toBeVisible();
 });
 
-/** The View ▸ Language entries, in order, by their accessible names. */
-async function expectLanguageItems(submenu: Locator): Promise<void> {
-  const items = submenu.getByRole('menuitemcheckbox');
-  await expect(items).toHaveCount(2);
-  await expect(items.nth(0)).toHaveAccessibleName('English');
-  await expect(items.nth(1)).toHaveAccessibleName('Deutsch');
+/** The Settings dialog's languages, in order, by their labels. */
+async function expectLanguageItems(field: Locator): Promise<void> {
+  await expect(field.locator('option')).toHaveText(['English', 'Deutsch']);
 }
 
 test('both pickers label each language in its own language (AC-09)', async ({ page }) => {
@@ -294,11 +295,12 @@ test('both pickers label each language in its own language (AC-09)', async ({ pa
   await page.getByLabel('Sprache').selectOption('en');
 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  let submenu = await languageSubmenu(page, 'en');
-  await expectLanguageItems(submenu);
-  await submenu.getByRole('menuitemcheckbox', { name: 'Deutsch', exact: true }).click();
-  submenu = await languageSubmenu(page, 'de');
-  await expectLanguageItems(submenu);
+  let field = await languageField(page, 'en');
+  await expectLanguageItems(field);
+  await field.selectOption({ label: 'Deutsch' });
+  await closeSettings(page, 'de');
+  field = await languageField(page, 'de');
+  await expectLanguageItems(field);
 });
 
 /** Init scripts that take IndexedDB away: failing on open, or missing. */

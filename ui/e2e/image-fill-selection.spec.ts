@@ -9,6 +9,7 @@ import {
   pixelCanvas,
   pixelOf,
   setColor,
+  switchLanguage,
   type ClipImage,
 } from './helpers';
 
@@ -106,9 +107,7 @@ test('Edit ▸ Fill Selection sits below Delete Selection with its key, in Engli
   ).toBeDisabled();
   await page.keyboard.press('Escape');
 
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const de = await editEntries(page, 'Bearbeiten');
   expect(de[de.indexOf('Auswahl löschen') + 1]).toBe('Auswahl füllen');
   expect(await menuHint(page, 'Bearbeiten', 'Auswahl füllen')).toBe('Backspace');

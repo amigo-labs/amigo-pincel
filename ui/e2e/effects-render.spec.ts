@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu, setColor } from './helpers';
+import { createDocument, menu, setColor, switchLanguage } from './helpers';
 
 // docs/specs/effects-render.md: paint.net's Render effects in the Render
 // submenu, per mode (AC-01), their dialogs with the colours starting at the
@@ -195,9 +195,7 @@ for (const mode of ['pixel', 'image'] as const) {
 
 test('German names, parameter labels and blend-mode options (AC-12)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const list = await renders(page, 'Effekte', 'Rendern');
   const names = ['Wolken…', 'Turbulenz…', 'Julia-Fraktal…', 'Mandelbrot-Fraktal…'];
   expect([...list].sort()).toEqual([...names].sort());

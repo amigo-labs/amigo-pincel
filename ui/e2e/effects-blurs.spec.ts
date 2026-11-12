@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, switchLanguage } from './helpers';
 
 // docs/specs/effects-blurs.md: paint.net's ten blurs in Image mode's Blurs
 // submenu (AC-01), the new dialogs (AC-02), Radial Blur without its Kind
@@ -155,9 +155,7 @@ test('Radial Blur shows Amount and Center but no Kind choice (AC-12)', async ({ 
 
 test('German names and parameter labels (AC-15)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const list = await blurs(page, 'Effekte', 'Weichzeichnen');
   const names = [
     'Bokeh…',

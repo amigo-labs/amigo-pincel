@@ -1,6 +1,6 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas, waitForEditor } from './helpers';
+import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor } from './helpers';
 
 // Tool-variant flyout on the tool rail (docs/specs/tool-variant-flyout.md):
 // a right-click, a long press or Shift+F10 on a group button lists the
@@ -436,9 +436,7 @@ test.describe('short window', () => {
 test.describe('German UI', () => {
   test('pixel mode: header and accessible name are German (AC-13)', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 32, height: 32 });
-    await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-    await page.getByRole('menuitem', { name: 'Language' }).click();
-    await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+    await switchLanguage(page, 'Deutsch');
     await page.getByRole('toolbar', { name: 'Werkzeuge' }).locator('[data-group="shapes"]').click({ button: 'right' });
     const menu = page.getByRole('menu', { name: 'Formen', exact: true });
     await expect(menu).toBeVisible();

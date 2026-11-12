@@ -69,18 +69,19 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-01 | `ui/e2e/settings-dialog.spec.ts` › pixel / image: Edit ▸ Settings… opens the dialog with the three settings (AC-01) | built |        |
+| AC-02 | `ui/e2e/settings-dialog.spec.ts` › pixel / image: Ctrl+, opens it, Escape closes it and no key reaches the editor (AC-02, AC-06); › the Keyboard Shortcuts overview lists Settings with Ctrl+, (AC-02); › the start screen opens Settings by its button and by Ctrl+, (AC-02, AC-03) | built |        |
+| AC-03 | `ui/e2e/settings-dialog.spec.ts` › the start screen opens Settings by its button and by Ctrl+, (AC-02, AC-03) | built |        |
+| AC-04 | `ui/e2e/settings-dialog.spec.ts` › pixel / image: a changed setting takes effect at once and is kept after a reload (AC-04); `ui/e2e/i18n.spec.ts` › Settings ▸ Language switches menus, panels, tools and buttons at once (AC-04); `ui/e2e/gestures.spec.ts` › Settings ▸ Touch gestures turns the taps off and is kept after a reload; `ui/e2e/reduced-motion.spec.ts` › Settings ▸ Reduce motion stills the outline without the system setting (AC-09) | built |        |
+| AC-05 | `ui/e2e/settings-dialog.spec.ts` › the system setting shows as a note on an unchecked Reduce motion (AC-05); `ui/e2e/reduced-motion.spec.ts` › under a system reduce request the setting stays unchecked and notes the system setting (AC-13) | built |        |
+| AC-06 | `ui/e2e/settings-dialog.spec.ts` › pixel / image: Ctrl+, opens it, Escape closes it and no key reaches the editor (AC-02, AC-06) | built |        |
+| AC-07 | `ui/e2e/settings-dialog.spec.ts` › pixel / image: View lists no app settings any more (AC-07); `ui/e2e/mcp-live-settings.spec.ts` › AC-13 | built |        |
+| AC-08 | manual on macOS: `src-tauri/src/main.rs` `build_menu` adds Edit ▸ Settings… (`menu:settings`, ⌘,), `ui/src/App.svelte` opens the dialog on `menu:settings` | open   |        |
+| AC-09 | `ui/e2e/settings-dialog.spec.ts` › the German UI names the entry and the dialog in German (AC-09); `ui/e2e/gestures.spec.ts`, `ui/e2e/reduced-motion.spec.ts` (German setting names) | built |        |
 
 ## Decisions
 
 - 2026-11-12: App settings move from View into a Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,) — the owner asked for a consistent View menu and chose the dialog over an Extras submenu; Edit ▸ Settings… is where Windows and Linux apps put it, ⌘, is the macOS convention, and a dialog has room for settings that come later.
 - 2026-11-12: On macOS the native entry sits in Edit, not in the application menu — the native menu bar builds no application menu of its own today (`build_menu` in `src-tauri/src/main.rs`), and Edit matches the in-app menus of the other platforms.
 - 2026-11-12: The start screen keeps its language picker and gains a Settings button only where no native menu exists — the picker serves a first run; on macOS ⌘, and the native menu reach the dialog.
+- 2026-11-12 (build): Red run — all 12 tests of `ui/e2e/settings-dialog.spec.ts` failed before the dialog existed (no dialog, no menu entry, no start-screen button). The 29 e2e specs that switched the language through View ▸ Language now use `switchLanguage` from `ui/e2e/helpers.ts` (Settings dialog); `gestures`, `i18n` and `reduced-motion` test the settings in the dialog. The menu helpers `languageMenu`, `reduceMotionMenuItem`, `touchGesturesItem` and their four strings are gone.

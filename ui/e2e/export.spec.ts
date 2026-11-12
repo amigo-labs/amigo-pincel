@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, waitForEditor } from './helpers';
+import { createDocument, gotoStart, menu, switchLanguage, waitForEditor } from './helpers';
 
 // Pixel-mode PNG frame and sprite-sheet export (docs/specs/pixel-export.md).
 // Force the download / <input type=file> fallbacks: the File System Access
@@ -322,9 +322,7 @@ test('the sprite sheet grid line follows the German language', async ({ page }) 
     .getByRole('region', { name: 'Timeline' })
     .getByRole('button', { name: 'Add frame' })
     .click();
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await menu(page, 'Datei', 'Exportieren', 'Sprite-Sheet…');
   const dialog = page.getByRole('dialog', { name: 'Sprite-Sheet exportieren' });
   await dialog.getByLabel('Spalten').fill('2');

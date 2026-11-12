@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, setColor } from './helpers';
+import { createDocument, drag, imageCanvas, menu, setColor, switchLanguage } from './helpers';
 
 // The Line / Curve tool in the editor (docs/specs/image-shapes-curves.md):
 // control points on a live line, caps, the new dash patterns, the move grip.
@@ -137,9 +137,7 @@ test('the options bar offers caps and five dash patterns; the tool reads Line / 
     overview.getByRole('rowheader', { name: 'Line / Curve', exact: true }),
   ).toBeVisible();
   await page.keyboard.press('Escape');
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await page.keyboard.press('l');
   const leiste = page.getByRole('toolbar', { name: 'Werkzeugoptionen' });
   await expect(

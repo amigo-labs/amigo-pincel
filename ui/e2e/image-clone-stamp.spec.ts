@@ -8,6 +8,7 @@ import {
   pixelCanvas,
   pixelOf,
   setColor,
+  switchLanguage,
 } from './helpers';
 
 // The Clone Stamp in Image mode (docs/specs/clone-stamp.md). The composite
@@ -458,9 +459,7 @@ test('Sample All Layers copies the visible composite into the active layer (AC-0
 
 test('in German the tool, its options and its notice are translated (AC-18)', async ({ page }) => {
   await createDocument(page, 'image', { width: N, height: N });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   await expect(page.getByRole('button', { name: 'Vergrößern' })).toBeVisible();
   await page.keyboard.press('c');
   const button = page.getByRole('button', { name: 'Kopierstempel', exact: true });

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, setColor } from './helpers';
+import { createDocument, drag, imageCanvas, setColor, switchLanguage } from './helpers';
 
 // The six new box shapes in the editor (docs/specs/image-shapes-curves-shapes.md).
 
@@ -151,9 +151,7 @@ test('U cycles the ten shapes; the flyout and the options bar list them in order
   ).toEqual(NAMES);
   await page.keyboard.press('Escape');
 
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const de = page.getByRole('radiogroup', { name: 'Formen-Variante' }).getByRole('radio');
   expect(await de.evaluateAll(label)).toEqual(NAMES_DE);
 });

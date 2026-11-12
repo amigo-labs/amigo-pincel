@@ -10,6 +10,7 @@
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
   import { getCurrentWindow } from '@tauri-apps/api/window';
   import AboutDialog from './lib/components/AboutDialog.svelte';
+  import SettingsDialog from './lib/components/SettingsDialog.svelte';
   import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
   import CommandPalette from './lib/components/CommandPalette.svelte';
   import ComfyUiDialog from './lib/comfyui/ComfyUiDialog.svelte';
@@ -17,10 +18,12 @@
   import {
     closeAbout,
     closePalette,
+    closeSettings,
     closeShortcuts,
     help,
     helpDialogOpen,
     loadUpdaterState,
+    openSettings,
   } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
@@ -94,7 +97,7 @@
   import { listRecents, onRecentsChanged, type RecentFile } from './lib/idb/recent-files';
   import { forgetRecent, listPresentRecents, recentIsGone } from './lib/fs/recents';
   import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
-  import { isTauri } from './lib/platform';
+  import { hasNativeMenu, isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
   import AgentsDialog from './lib/agent/AgentsDialog.svelte';
   import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
@@ -443,6 +446,13 @@
       requestNew('pixel');
       return;
     }
+    // Ctrl+, (settings-dialog AC-02); on macOS the native menu's ⌘, does it.
+    if (action === 'settings') {
+      if (hasNativeMenu()) return;
+      e.preventDefault();
+      openSettings();
+      return;
+    }
     if (action !== 'pasteNewImage') return;
     e.preventDefault();
     void clipboardImage().then(openPasted);
@@ -771,6 +781,9 @@
         'menu:open': () => void openFromPicker(),
         'menu:quit': () => requestClose(),
         'menu:tour': () => startTour(activeMode ?? 'start'),
+        'menu:settings': () => {
+          if (!helpDialogOpen()) openSettings();
+        },
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
           // entries recorded by an editor are found too.
@@ -946,6 +959,9 @@
 
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
+{/if}
+{#if help.settings}
+  <SettingsDialog onClose={closeSettings} />
 {/if}
 
 <Tour />

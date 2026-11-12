@@ -229,7 +229,6 @@ export const de: Record<MessageKey, string> = {
   'color.palette': 'Farbpalette',
 
   // Language menu
-  'menu.language': 'Sprache',
 
   // Layers
   'layers.addGroup': 'Gruppe hinzufügen',
@@ -314,6 +313,12 @@ export const de: Record<MessageKey, string> = {
   'menu.help': 'Hilfe',
   'menu.shortcuts': 'Tastenkürzel',
   'menu.about': 'Über Pincel',
+  'menu.settings': 'Einstellungen…',
+  'settings.title': 'Einstellungen',
+  'settings.language': 'Sprache',
+  'settings.reduceMotion': 'Bewegung reduzieren',
+  'settings.reduceMotionSystem': 'In den Systemeinstellungen an',
+  'settings.touchGestures': 'Touch-Gesten',
   'menu.checkUpdates': 'Nach Updates suchen…',
   'menu.autoUpdate': 'Updates automatisch installieren',
   'menu.new': 'Neu…',
@@ -450,7 +455,6 @@ export const de: Record<MessageKey, string> = {
   'menu.zoomActual': 'Originalgröße',
   'menu.showPixelGrid': 'Pixelraster anzeigen',
   'menu.showGrid': 'Raster anzeigen',
-  'menu.touchGestures': 'Touch-Gesten',
   'menu.imageGeneration': 'Bildgenerierung…',
   'menu.aiAgents': 'KI-Agenten…',
   'agents.title': 'KI-Agenten',
@@ -497,8 +501,6 @@ export const de: Record<MessageKey, string> = {
     'Die Zellgröße muss eine ganze Zahl von 1–65535 sein, der Versatz von −32768–32767.',
   'menu.probe': 'Frame-Zeit-Messung',
   'menu.toggleUi': 'Oberfläche ein-/ausblenden',
-  'menu.reduceMotion': 'Bewegung reduzieren',
-  'menu.reduceMotionSystem': 'Bewegung reduzieren (in den Systemeinstellungen an)',
 
   // Effects
   'effect.gaussian_blur': 'Gaußscher Weichzeichner',

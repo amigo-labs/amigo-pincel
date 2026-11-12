@@ -29,7 +29,6 @@
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
   import { printComposite, type PrintPlacement } from './core/print';
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
-  import { touchGesturesItem } from '../../lib/shell/touch-gestures.svelte';
   import { agentsMenuItems } from '../../lib/agent/access.svelte';
   import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
@@ -163,19 +162,18 @@
   import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
   import type { NewDocParams } from '../../lib/shell/types';
   import type { SaveTarget } from '../../lib/fs';
-  import { helpMenus } from '../../lib/help/menu';
+  import { helpMenus, settingsMenuItems } from '../../lib/help/menu';
   import {
     closeShortcuts,
     helpDialogOpen,
     openPalette,
+    openSettings,
     openShortcuts,
   } from '../../lib/help/state.svelte';
   import { recentMenuItems } from '../../lib/components/layout/recent-menu';
   import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
   import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
-  import { languageMenu } from '../../lib/i18n/locale';
-  import { reduceMotionMenuItem } from '../../lib/motion.svelte';
   import { locale, t, type MessageKey } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
@@ -644,6 +642,7 @@
     'togglePixelGrid',
     'toggleRulers',
     'commandPalette',
+    'settings',
     ...OPACITY_ACTIONS,
   ];
 
@@ -1106,6 +1105,9 @@
       case 'shortcuts':
         openOverview();
         return true;
+      case 'settings':
+        openSettings();
+        return true;
       case 'toggleUi':
         toggleUi();
         return true;
@@ -1409,6 +1411,7 @@
         { kind: 'separator' },
         { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
         { label: t('menu.defaultColors'), shortcut: hint('resetColors'), run: resetColors },
+        ...settingsMenuItems(),
       ],
     },
     {
@@ -1605,12 +1608,8 @@
         },
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
-        reduceMotionMenuItem(),
-        touchGesturesItem(),
         ...agentsMenuItems(),
         ...imageGenerationItems(),
-        { kind: 'separator' },
-        languageMenu(),
       ],
     },
     toolsMenu(openOcr, !hasDoc),

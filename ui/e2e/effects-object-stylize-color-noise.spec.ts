@@ -7,6 +7,7 @@ import {
   pixelCanvas,
   pixelOf,
   setColor,
+  switchLanguage,
   type ClipImage,
 } from './helpers';
 
@@ -208,9 +209,7 @@ test('pixel mode: Drop Shadow with its defaults casts a hard half-opaque black s
 
 test('German names and parameter labels (AC-12)', async ({ page }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
-  await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
-  await page.getByRole('menuitem', { name: 'Language' }).click();
-  await page.getByRole('menuitemcheckbox', { name: 'Deutsch' }).click();
+  await switchLanguage(page, 'Deutsch');
   const tree = await effectsTree(page, 'Effekte');
   expect(tree.Objekt).toContain('Schlagschatten…');
   expect(tree.Stilisieren).toContain('Kontur…');

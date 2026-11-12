@@ -1,13 +1,13 @@
 // Shell side of the UI language (spec §9.5): restore the saved choice,
-// persist a new one, keep the native Tauri menu in the same language, and
-// the View ▸ Language submenu both editors list.
+// persist a new one, and keep the native Tauri menu in the same language.
+// The user picks it on the start screen or in Edit ▸ Settings…
+// (docs/specs/settings-dialog.md).
 
 import { invoke } from '@tauri-apps/api/core';
-import type { MenuSubmenu } from '../components/layout/menu';
 import { isIdbAvailable } from '../idb/db';
 import { getPref, setPref } from '../idb/prefs';
 import { isTauri } from '../platform';
-import { LANGUAGE_PREF, LOCALES, applyLocale, isLocale, locale, t, type Locale } from './index.svelte';
+import { LANGUAGE_PREF, applyLocale, isLocale, locale, type Locale } from './index.svelte';
 
 function syncNativeMenu(next: Locale): void {
   if (!isTauri()) return;
@@ -41,15 +41,3 @@ export function setLocale(next: Locale): void {
   }
 }
 
-/** View ▸ Language, shared by both editors. */
-export function languageMenu(): MenuSubmenu {
-  return {
-    kind: 'submenu',
-    label: t('menu.language'),
-    items: LOCALES.map((l) => ({
-      label: l.label,
-      checked: locale() === l.id,
-      run: () => setLocale(l.id),
-    })),
-  };
-}
