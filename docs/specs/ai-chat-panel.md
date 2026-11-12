@@ -189,32 +189,32 @@ Du: `adjust.apply` (Helligkeit) auf die Ebene. Bei starker Änderung kurz bestä
 | ----- | ---- | ------ | ------ |
 | AC-01 |      | open   |        |
 | AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
+| AC-03 | `src-tauri/src/assistant/tests.rs` `find_in_takes_pathext_shims_on_windows_and_executables_elsewhere` (Rust side; panel pending) | open   |        |
 | AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-05 | `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events`, `an_answer_streams_events_records_its_inputs_and_finishes` (Rust side; panel pending) | open   |        |
+| AC-06 | `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events` (Rust side; panel pending) | open   |        |
 | AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-08 | `crates/pincel-core/src/command/bus.rs` `end_group_folds_the_group_into_one_step_that_undoes_and_redoes_whole`, `end_group_of_one_step_names_it_and_survives_dropped_old_steps`; `crates/pincel-image-core/src/command/mod.rs` `end_group_folds_the_group_into_one_assistant_step`; `crates/pincel-wasm/src/agent.rs` / `crates/pincel-image-wasm/src/agent.rs` `assistant_answer_of_several_calls_is_one_assistant_step` (cores; UI wiring pending) | open   |        |
+| AC-09 | `end_group_without_a_change_adds_no_step` in both cores; the wasm tests above (cores; UI wiring pending) | open   |        |
 | AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
+| AC-11 | `src-tauri/src/assistant/tests.rs` `stop_ends_the_cli_within_two_seconds` (Rust side; panel pending) | open   |        |
+| AC-12 | `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes` (Rust side; panel pending) | open   |        |
 | AC-13 |      | open   |        |
 | AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
+| AC-15 | `ui/e2e/assistant-context.spec.ts` "the editor-context block states …", "the block lists 50 layers at most …" (block builder; wiring pending) | open   |        |
+| AC-16 | `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes` | open   |        |
 | AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-18 | `ui/e2e/assistant-context.spec.ts` "the default system prompt is …" (texts; wiring pending) | open   |        |
 | AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-20 | `src-tauri/src/assistant/tests.rs` `a_failing_cli_reports_its_error_text_and_hint`, `an_error_result_fails_with_the_cli_text`, `unreadable_output_fails_the_answer`, `errors_get_the_hint_of_their_cause` (Rust side; panel pending) | open   |        |
+| AC-21 | `ui/e2e/assistant-context.spec.ts` "agent text splits into …" (segments; panel pending) | open   |        |
+| AC-22 | `src-tauri/src/assistant/tests.rs` `purge_removes_folders_left_by_a_crashed_run` (Rust side; close flow pending) | open   |        |
 | AC-23 |      | open   |        |
 | AC-24 |      | open   |        |
 | AC-25 |      | open   |        |
 | AC-26 |      | open   |        |
-| AC-27 |      | open   |        |
-| AC-28 |      | open   |        |
+| AC-27 | `src-tauri/src/assistant/tests.rs` `a_permission_prompt_fails_the_answer` (Rust side; panel pending) | open   |        |
+| AC-28 | `src-tauri/src/assistant/tests.rs` `a_chat_folder_that_cannot_be_written_starts_nothing`, `a_linked_chat_folder_is_refused_and_nothing_is_written_through_it`; `src-tauri/src/mcp/tests.rs` `a_chat_that_cannot_store_the_port_leaves_nothing_listening` (Rust side; panel pending) | open   |        |
 ## Decisions
 
 - 2026-11-06: The chat drives an installed agent CLI through Pincel's live MCP endpoint instead of a built-in LLM client — the CLI already handles the model loop, login and model choice, and the tools reach the agent through MCP unchanged (owner, Decision Log 2026-11-06).
@@ -225,3 +225,9 @@ Du: `adjust.apply` (Helligkeit) auf die Ebene. Bei starker Änderung kurz bestä
 - 2026-11-06: Pixel-returning tools are hidden from cloud models until the user turns on "Agent may see the image" per chat; Pincel enforces it, because a prompt rule is only a request to the model (owner).
 - 2026-11-06: The chat works independently of the external "Allow AI agents" setting through its own token (owner).
 - 2026-11-06 (clarification pass): Document-level tools (`doc.open`, `doc.new`, `doc.close`, `doc.list`, `doc.undo`, `doc.redo`) are hidden from the chat (owner). Changing the CLI or model starts a new chat, so a history with image data never moves to another model (owner). Web fetch dropped: the owner allowed web search only.
+- 2026-11-12 (spec-build): Flags re-checked against `claude --help` (Claude Code 2.1.322): besides the spec's list the CLI gets `--include-partial-messages` (text deltas for AC-05) and `--tools WebSearch` (its only built-in tool at all, AC-16); the prompt goes to stdin, which then closes, and the system prompt goes to `--append-system-prompt-file`, because Rust starts an npm `.cmd` shim through `cmd.exe`, which cannot carry a line break in an argument. A `.cmd` shim is started by `std::process::Command` directly (no shell string is built); Stop ends the process tree (`taskkill /T /F` on Windows, the process group on Unix).
+- 2026-11-12 (spec-build): A permission the CLI denied shows up in its `result` line (`permission_denials`); that fails the answer as AC-27. Tool names come back from Claude Code's wire form (`mcp__pincel__draw_rect`) to the real names through `pincel-agent`'s tool list.
+- 2026-11-12 (spec-build): Undo grouping lives in the cores as `begin_group` / `end_group(kind)` on Pixel's `Bus` and Image's `UndoStack` (exposed as `assistantBegin` / `assistantEnd` in both wasm crates); the group start follows steps the history cap drops, and an answer with no change adds no step. New history kind `assistant` in both cores.
+- 2026-11-12 (spec-build): Chat folders live in the user's app data folder (`<app_local_data_dir>/assistant/<chat>`), created owner-only and refused when a link stands in their place; the MCP config with the chat's token is a new owner-only file per answer and is removed when the answer ends (security review). The Rust tests use a fake CLI built as the example `fake_claude`.
+- 2026-11-12 (spec-build): The Node-side tests of the context block, the default prompts and the text segments (`ui/e2e/assistant-context.spec.ts`) were written right after the modules and were green at once; their red run is still owed when the panel wiring lands.
+- 2026-11-12 (spec-build): `gen.*` host tools and the Generate panel do not exist yet (`comfyui-generate` is `todo`), so AC-10's Generate / Apply and AC-11's cancelled `gen.*` call have nothing to act on in this build.
