@@ -50,7 +50,12 @@ for (const mode of ['pixel', 'image'] as const) {
 test('the start screen reaches About without a menu bar', async ({ page }) => {
   await gotoStart(page);
   await page.getByRole('button', { name: 'About Pincel' }).click();
-  await expect(page.getByRole('dialog', { name: 'About Pincel' })).toBeVisible();
+  const about = page.getByRole('dialog', { name: 'About Pincel' });
+  await expect(about).toBeVisible();
+  // A browser shows the version and no update option (desktop-app AC-15).
+  await expect(about.getByText(/^Version /)).toBeVisible();
+  await expect(about.getByRole('radiogroup')).toHaveCount(0);
+  await expect(about.getByRole('button', { name: 'Check for Updates' })).toHaveCount(0);
 });
 
 test('the web build offers no updater entries', async ({ page }) => {

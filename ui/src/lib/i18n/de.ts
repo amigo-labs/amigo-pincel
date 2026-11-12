@@ -134,6 +134,28 @@ export const de: Record<MessageKey, string> = {
   'about.upToDate': 'Pincel ist auf dem neuesten Stand.',
   'about.ready': 'Pincel {version} wurde geladen und wird ab dem nächsten Start verwendet.',
   'about.failed': 'Die Suche nach Updates ist fehlgeschlagen: {error}',
+  'about.readyOnExit':
+    'Pincel {version} wurde geladen und wird installiert, wenn Pincel beendet wird.',
+  'about.available': 'Pincel {version} ist verfügbar.',
+  'about.install': 'Installieren',
+  'about.restart': 'Jetzt neu starten',
+  'about.restartFailed': 'Der Neustart ist fehlgeschlagen: {error}',
+  'about.updates': 'Updates',
+  'about.check': 'Nach Updates suchen',
+  'about.notSaved':
+    'Die Update-Wahl konnte nicht gespeichert werden; sie gilt, bis Pincel beendet wird.',
+  'about.package': 'Updates kommen über deinen Paketmanager.',
+  'about.appimage': 'Installiere mit --install, um Updates zu erhalten.',
+  'update.auto': 'Automatisch installieren (empfohlen)',
+  'update.notify': 'Benachrichtigen, wenn ein Update verfügbar ist',
+  'update.off': 'Nie nach Updates suchen',
+  'update.question': 'Wie soll Pincel mit Updates umgehen?',
+  'update.confirm': 'Bestätigen',
+  'update.close': 'Schließen',
+  'update.notice': 'Update verfügbar',
+  'update.noticeText': 'Pincel {version} ist verfügbar',
+  'update.later': 'Später',
+  'update.closeNotice': 'Hinweis schließen',
 
   // ComfyUI connection (docs/specs/comfyui-connect.md)
   'comfy.title': 'Bildgenerierung',
@@ -176,7 +198,8 @@ export const de: Record<MessageKey, string> = {
   'comfy.error': 'Die Verbindung ist fehlgeschlagen: {error}',
   'comfy.folderNotFound': 'Diesen Ordner gibt es nicht',
   'comfy.folderNoComfyUi': 'Hier ist kein ComfyUI: main.py fehlt',
-  'comfy.folderNoPython': 'ComfyUI ist da, aber keine Python-Umgebung zum Starten (python_embeded, venv oder .venv)',
+  'comfy.folderNoPython':
+    'ComfyUI ist da, aber keine Python-Umgebung zum Starten (python_embeded, venv oder .venv)',
   'comfy.folderDesktop': 'Starte ComfyUI Desktop – Pincel findet es automatisch',
 
   // Editor frame
@@ -1004,7 +1027,8 @@ export const de: Record<MessageKey, string> = {
     'Systemschriften wurden nicht erlaubt. Beim nächsten Öffnen dieser Liste wird erneut gefragt — oder füge Schriftdateien hinzu.',
   'font.noteUnsupported':
     'Dieser Browser kann keine Systemschriften auflisten. Füge Schriftdateien hinzu, um sie zu nutzen.',
-  'font.fallback': 'Schrift „{family}“ ist nicht verfügbar — stattdessen wird Liberation Sans verwendet',
+  'font.fallback':
+    'Schrift „{family}“ ist nicht verfügbar — stattdessen wird Liberation Sans verwendet',
   'font.loading': 'Schrift „{family}“ wird geladen…',
   'font.added': 'Schrift hinzugefügt: {families}',
   'font.rejected': 'Nicht hinzugefügt: {files}',
@@ -1126,7 +1150,8 @@ export const de: Record<MessageKey, string> = {
   'pxRotate.method': 'Methode',
   'pxRotate.nearest': 'Nächster Nachbar',
   'pxRotate.rotsprite': 'RotSprite',
-  'pxRotate.tooLarge': 'RotSprite dreht höchstens {max}×{max} Pixel; hier sind es {w}×{h}. Wähle „Nächster Nachbar“ oder einen kleineren Bereich.',
+  'pxRotate.tooLarge':
+    'RotSprite dreht höchstens {max}×{max} Pixel; hier sind es {w}×{h}. Wähle „Nächster Nachbar“ oder einen kleineren Bereich.',
   'pxRotate.nothing': 'Drehen: nichts zu drehen',
   'pxRotate.done': 'um {angle}° gedreht',
   'px.notPng': 'Import: keine PNG-Datei',
@@ -1185,7 +1210,8 @@ export const de: Record<MessageKey, string> = {
   'save.asTitle': 'Speichern unter',
   'save.format': 'Format',
   'save.mergeLayers': 'Ebenen in der Datei zusammenführen',
-  'save.mergeLayersHint': 'Die Datei wird auf eine Ebene reduziert gespeichert; das Dokument behält seine Ebenen.',
+  'save.mergeLayersHint':
+    'Die Datei wird auf eine Ebene reduziert gespeichert; das Dokument behält seine Ebenen.',
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.fmtIco': 'ICO (Windows-Symbol)',
   'save.icoTooLarge': 'ICO fasst höchstens 256 × 256 px. Wähle ein anderes Format.',
@@ -1277,7 +1303,8 @@ export const de: Record<MessageKey, string> = {
   'palette.saved': '{count} Palettenfarben gespeichert',
   'palette.full': 'Die Palette ist voll (256 Farben)',
   'palette.duplicate': 'Die Farbe ist bereits in der Palette',
-  'palette.storeFailed': 'Die Palette konnte nicht gespeichert werden; sie bleibt bis zum Neuladen erhalten',
+  'palette.storeFailed':
+    'Die Palette konnte nicht gespeichert werden; sie bleibt bis zum Neuladen erhalten',
   'palette.swatchNamed': '{name} {hex}',
 
   // Keyboard Shortcuts dialog
@@ -1348,14 +1375,19 @@ export const de: Record<MessageKey, string> = {
   'tour.back': 'Zurück',
   'tour.next': 'Weiter',
   'tour.done': 'Fertig',
-  'tour.modes': 'Pincel hat zwei Modi: Pixel für Sprites und Animationen, Bild für Fotos und Artwork.',
+  'tour.modes':
+    'Pincel hat zwei Modi: Pixel für Sprites und Animationen, Bild für Fotos und Artwork.',
   'tour.create': 'Lege oben ein neues Dokument an oder öffne eine Datei von deinem Gerät.',
   'tour.samples': 'Keine Datei zur Hand? Öffne ein Beispiel-Sprite oder -Bild zum Ausprobieren.',
-  'tour.startHelp': 'Hilfe ▸ Rundgang zeigt diesen Rundgang erneut; Über nennt Version und Lizenzen.',
-  'tour.tools': 'Die Werkzeugleiste enthält alle Werkzeuge in Gruppen; mit der Taste eines Werkzeugs wählst du es.',
-  'tour.options': 'Die Optionsleiste zeigt die Einstellungen des aktiven Werkzeugs, etwa Größe und Deckkraft.',
+  'tour.startHelp':
+    'Hilfe ▸ Rundgang zeigt diesen Rundgang erneut; Über nennt Version und Lizenzen.',
+  'tour.tools':
+    'Die Werkzeugleiste enthält alle Werkzeuge in Gruppen; mit der Taste eines Werkzeugs wählst du es.',
+  'tour.options':
+    'Die Optionsleiste zeigt die Einstellungen des aktiven Werkzeugs, etwa Größe und Deckkraft.',
   'tour.panels': 'Panels enthalten Farben, Ebenen und mehr; klappe die ein, die du nicht brauchst.',
-  'tour.undo': 'Rückgängig und Wiederholen sind hier und auf Strg+Z / Strg+Y; Strg+/ listet alle Tastenkürzel.',
+  'tour.undo':
+    'Rückgängig und Wiederholen sind hier und auf Strg+Z / Strg+Y; Strg+/ listet alle Tastenkürzel.',
   'tour.help': 'Das Hilfe-Menü enthält die Tastenkürzel, diesen Rundgang und Über.',
   'tour.bannerText': 'Neu bei Pincel? Mach einen einminütigen Rundgang durch die App.',
   'tour.bannerTake': 'Rundgang',

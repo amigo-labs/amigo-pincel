@@ -21,11 +21,18 @@
     closeSettings,
     closeShortcuts,
     help,
+    confirmQuestion,
+    dismissQuestion,
     helpDialogOpen,
-    loadUpdaterState,
+    initUpdater,
+    laterUpdate,
+    openAbout,
     openSettings,
+    runUpdateCheck,
   } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
+  import UpdateNotice from './lib/components/UpdateNotice.svelte';
+  import UpdateQuestion from './lib/components/UpdateQuestion.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -147,6 +154,9 @@
   let picking = $state(false);
   let shellError = $state<string | null>(null);
   let fileAssocOpen = $state(false);
+  // True once it is known whether the file-association hint shows: the
+  // update question waits for it (desktop-app AC-22).
+  let fileAssocSettled = $state(false);
   // True until the "open like this on startup" pref is read, so the start
   // screen doesn't flash before an autostarted document replaces it.
   let booting = $state(true);
@@ -393,7 +403,13 @@
           }
           const file = await r.handle.getFile();
           const bytes = new Uint8Array(await file.arrayBuffer());
-          await routeFile({ name: file.name, bytes, mime: file.type, handle: r.handle, path: null });
+          await routeFile({
+            name: file.name,
+            bytes,
+            mime: file.type,
+            handle: r.handle,
+            path: null,
+          });
         } else {
           shellError = t('shell.noHandle', { name: r.name });
         }
@@ -738,6 +754,7 @@
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
+    let unlistenUpdater: UnlistenFn | null = null;
     // MCP clients' tool calls on the open documents (mcp-live-desktop).
     const stopAgentAccess = startAgentAccess();
     const stopLiveHost = tauriHost
@@ -766,7 +783,14 @@
         .catch((err: unknown) => {
           console.error('focus listen failed', err);
         });
-      void loadUpdaterState();
+      initUpdater()
+        .then((fn) => {
+          if (cancelled) fn?.();
+          else unlistenUpdater = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('updater start failed', err);
+        });
       Promise.resolve()
         .then(wireCloseGuard)
         .then((fn) => {
@@ -780,6 +804,10 @@
         'menu:new': () => requestNew(activeMode ?? 'pixel'),
         'menu:open': () => void openFromPicker(),
         'menu:quit': () => requestClose(),
+        'menu:about': () => {
+          if (!helpDialogOpen()) openAbout();
+        },
+        'menu:check-updates': () => runUpdateCheck(),
         'menu:tour': () => startTour(activeMode ?? 'start'),
         'menu:settings': () => {
           if (!helpDialogOpen()) openSettings();
@@ -812,7 +840,10 @@
           })
           .catch((err: unknown) => {
             console.error('getPref fileAssoc failed', err);
-          });
+          })
+          .finally(() => (fileAssocSettled = true));
+      } else {
+        fileAssocSettled = true;
       }
     }
     return () => {
@@ -826,15 +857,12 @@
       if (unlistenOpenFile) unlistenOpenFile();
       if (unlistenClose) unlistenClose();
       if (unlistenFocus) unlistenFocus();
+      if (unlistenUpdater) unlistenUpdater();
     };
   });
 </script>
 
-<svelte:window
-  onpaste={onShellPaste}
-  onkeydown={onShellKeydown}
-  onbeforeunload={onBeforeUnload}
-/>
+<svelte:window onpaste={onShellPaste} onkeydown={onShellKeydown} onbeforeunload={onBeforeUnload} />
 
 {#if booting && showStart}
   <div class="h-full bg-pc-bg"></div>
@@ -901,9 +929,7 @@
     {/if}
   {/each}
   {#if activeMode === null && editors.loading !== null}
-    <div
-      class="absolute inset-0 flex items-center justify-center bg-pc-bg text-sm text-pc-muted"
-    >
+    <div class="absolute inset-0 flex items-center justify-center bg-pc-bg text-sm text-pc-muted">
       {t('shell.loadingEditor', { mode: t(`mode.${editors.loading}`) })}
     </div>
   {/if}
@@ -957,8 +983,17 @@
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
 {/if}
 
+{#if help.question && fileAssocSettled && !fileAssocOpen}
+  <UpdateQuestion onConfirm={confirmQuestion} onDismiss={dismissQuestion} />
+{/if}
+
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
+{/if}
+
+{#if help.updater?.announce && !help.question}
+  {@const version = help.updater.announce}
+  <UpdateNotice {version} onInstall={runUpdateCheck} onLater={() => laterUpdate(version)} />
 {/if}
 {#if help.settings}
   <SettingsDialog onClose={closeSettings} />

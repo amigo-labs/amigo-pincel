@@ -132,6 +132,26 @@ export const en = {
   'about.upToDate': 'Pincel is up to date.',
   'about.ready': 'Pincel {version} has been downloaded and is used from the next start.',
   'about.failed': 'Checking for updates failed: {error}',
+  'about.readyOnExit': 'Pincel {version} has been downloaded and is installed when Pincel exits.',
+  'about.available': 'Pincel {version} is available.',
+  'about.install': 'Install',
+  'about.restart': 'Restart Now',
+  'about.restartFailed': 'Restarting failed: {error}',
+  'about.updates': 'Updates',
+  'about.check': 'Check for Updates',
+  'about.notSaved': 'The update choice could not be saved; it applies until Pincel closes.',
+  'about.package': 'Updates come from your package manager.',
+  'about.appimage': 'Install with --install to receive updates.',
+  'update.auto': 'Install automatically (recommended)',
+  'update.notify': 'Notify me when an update is available',
+  'update.off': 'Never check for updates',
+  'update.question': 'How should Pincel handle updates?',
+  'update.confirm': 'Confirm',
+  'update.close': 'Close',
+  'update.notice': 'Update available',
+  'update.noticeText': 'Pincel {version} is available',
+  'update.later': 'Later',
+  'update.closeNotice': 'Close notice',
 
   // ComfyUI connection (docs/specs/comfyui-connect.md)
   'comfy.title': 'Image generation',
@@ -174,7 +194,8 @@ export const en = {
   'comfy.error': 'The connection failed: {error}',
   'comfy.folderNotFound': 'This folder does not exist',
   'comfy.folderNoComfyUi': 'No ComfyUI here: main.py is missing',
-  'comfy.folderNoPython': 'ComfyUI is here, but no Python environment to start it (python_embeded, venv or .venv)',
+  'comfy.folderNoPython':
+    'ComfyUI is here, but no Python environment to start it (python_embeded, venv or .venv)',
   'comfy.folderDesktop': 'Start ComfyUI Desktop — Pincel finds it automatically',
 
   // Editor frame
@@ -368,7 +389,8 @@ export const en = {
   'ocr.line': 'Recognizing line {k} of {m}',
   'ocr.noText': 'No text found.',
   'ocr.verifyFailed': 'The language model could not be verified.',
-  'ocr.downloadFailed': 'The language model could not be downloaded. Check the connection and try again.',
+  'ocr.downloadFailed':
+    'The language model could not be downloaded. Check the connection and try again.',
   'ocr.failed': 'Text recognition failed.',
   'ocr.field': 'Recognized text',
   'ocr.copy': 'Copy',
@@ -1121,7 +1143,8 @@ export const en = {
   'pxRotate.method': 'Method',
   'pxRotate.nearest': 'Nearest',
   'pxRotate.rotsprite': 'RotSprite',
-  'pxRotate.tooLarge': 'RotSprite rotates at most {max}×{max} pixels; this is {w}×{h}. Choose Nearest or select a smaller area.',
+  'pxRotate.tooLarge':
+    'RotSprite rotates at most {max}×{max} pixels; this is {w}×{h}. Choose Nearest or select a smaller area.',
   'pxRotate.nothing': 'rotate: nothing to rotate',
   'pxRotate.done': 'rotated by {angle}°',
   'px.notPng': 'import: not a PNG file',
@@ -1339,12 +1362,15 @@ export const en = {
   'tour.back': 'Back',
   'tour.next': 'Next',
   'tour.done': 'Done',
-  'tour.modes': 'Pincel has two modes: Pixel for sprites and animation, Image for photos and artwork.',
+  'tour.modes':
+    'Pincel has two modes: Pixel for sprites and animation, Image for photos and artwork.',
   'tour.create': 'Create a new document above, or open a file from your device.',
   'tour.samples': 'No file at hand? Open a sample sprite or image to explore.',
   'tour.startHelp': 'Help ▸ Tour shows this tour again; About lists the version and licenses.',
-  'tour.tools': 'The tool rail holds every tool, grouped in sections; press a tool’s key to pick it.',
-  'tour.options': 'The options bar shows the settings of the active tool, such as size and opacity.',
+  'tour.tools':
+    'The tool rail holds every tool, grouped in sections; press a tool’s key to pick it.',
+  'tour.options':
+    'The options bar shows the settings of the active tool, such as size and opacity.',
   'tour.panels': 'Panels hold colors, layers and more; collapse the ones you do not need.',
   'tour.undo': 'Undo and Redo are here and on Ctrl+Z / Ctrl+Y; Ctrl+/ lists every shortcut.',
   'tour.help': 'The Help menu has the keyboard shortcuts, this tour and About.',

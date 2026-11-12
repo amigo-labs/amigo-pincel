@@ -6,6 +6,8 @@
 // File ▸ Save waits for it to end.
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { help } from '../help/state.svelte';
+import { updaterArmRestart } from '../help/updater';
 import { discardDocuments, guardUnsaved, hasUnsaved } from './unsaved.svelte';
 
 /** How long closing waits for the autosave store to drop a discarded
@@ -18,6 +20,32 @@ const DISCARD_BUDGET_MS = 2_000;
  *  for a save (unsaved-changes-prompt AC-08). */
 export async function requestClose(): Promise<void> {
   await guardUnsaved(() => void closeNow());
+}
+
+/** A restart is under way: further Restart Now clicks do nothing. */
+let restarting = false;
+
+/** Restart Now in the About dialog (docs/specs/desktop-app.md AC-32): the
+ *  same path as a close request, then the desktop shell is asked to start
+ *  Pincel again — the new version — once it has closed. Cancelling the
+ *  prompt, or a Save in it that fails, requests nothing. */
+export async function requestRestart(): Promise<void> {
+  if (restarting) return;
+  await guardUnsaved(() => void restartNow());
+}
+
+async function restartNow(): Promise<void> {
+  if (restarting) return;
+  restarting = true;
+  try {
+    // Waits for a running check, so the version already downloaded runs.
+    await updaterArmRestart();
+  } catch (err) {
+    restarting = false;
+    help.restartError = String(err);
+    return;
+  }
+  await closeNow();
 }
 
 /** Close the window (the app ends with its last window). After Don't

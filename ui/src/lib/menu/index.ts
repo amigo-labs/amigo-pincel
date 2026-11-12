@@ -52,6 +52,10 @@ export interface ShellMenuHandlers {
   'menu:tour': MenuHandler;
   /** Edit ▸ Settings… (⌘,): the shell's Settings dialog (settings-dialog AC-08). */
   'menu:settings': MenuHandler;
+  /** macOS Help ▸ About Pincel: the in-app About dialog (desktop-app AC-17). */
+  'menu:about': MenuHandler;
+  /** macOS Help ▸ Check for Updates…: reports in the About dialog (AC-16). */
+  'menu:check-updates': MenuHandler;
   recent: RecentHandler;
   /** Current editor handlers (`null` while the start screen shows). */
   editor: () => EditorMenuHandlers | null;
@@ -71,7 +75,9 @@ export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<Unlis
       payload === 'menu:open' ||
       payload === 'menu:quit' ||
       payload === 'menu:tour' ||
-      payload === 'menu:settings'
+      payload === 'menu:settings' ||
+      payload === 'menu:about' ||
+      payload === 'menu:check-updates'
     ) {
       void handlers[payload]();
       return;
