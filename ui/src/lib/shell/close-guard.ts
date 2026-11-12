@@ -8,17 +8,20 @@ import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
 import { help } from '../help/state.svelte';
 import { updaterArmRestart } from '../help/updater';
+import { stopAllAnswers } from '../assistant/chat.svelte';
 import { discardDocuments, guardUnsaved, hasUnsaved } from './unsaved.svelte';
 
 /** How long closing waits for the autosave store to drop a discarded
  *  document's snapshot before it closes anyway. */
 const DISCARD_BUDGET_MS = 2_000;
 
-/** Handle a close request: wait for a running save, ask first while any
- *  tab has unsaved changes (document-tabs AC-10, AC-11, AC-17), then close
- *  the app. Ignored while the prompt is open or an earlier request waits
- *  for a save (unsaved-changes-prompt AC-08). */
+/** Handle a close request: stop running Assistant answers and let them
+ *  finish (ai-chat-panel AC-22), wait for a running save, ask first while
+ *  any tab has unsaved changes (document-tabs AC-10, AC-11, AC-17), then
+ *  close the app. Ignored while the prompt is open or an earlier request
+ *  waits for a save (unsaved-changes-prompt AC-08). */
 export async function requestClose(): Promise<void> {
+  await stopAllAnswers();
   await guardUnsaved(() => void closeNow());
 }
 
@@ -31,6 +34,7 @@ let restarting = false;
  *  prompt, or a Save in it that fails, requests nothing. */
 export async function requestRestart(): Promise<void> {
   if (restarting) return;
+  await stopAllAnswers();
   await guardUnsaved(() => void restartNow());
 }
 
