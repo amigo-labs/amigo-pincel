@@ -44,6 +44,7 @@ export const historyEn = {
   'history.fill_selection': 'Fill Selection',
   'history.cut': 'Cut',
   'history.paste': 'Paste',
+  'history.generate': 'Generate Image',
   'history.draw_pixels': 'Draw Pixels',
   'history.tile_pixel': 'Paint Tile',
   'history.place_tile': 'Place Tile',

@@ -43,6 +43,7 @@ export const historyJa: Record<keyof typeof historyEn, string> = {
   'history.fill_selection': '選択範囲を塗りつぶし',
   'history.cut': 'カット',
   'history.paste': 'ペースト',
+  'history.generate': '画像を生成',
   'history.draw_pixels': 'ピクセルを描画',
   'history.tile_pixel': 'タイルを描画',
   'history.place_tile': 'タイルを配置',

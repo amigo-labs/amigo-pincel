@@ -90,6 +90,8 @@ history_kinds! {
     FillSelection => "fill_selection",
     /// Edit ▸ Paste.
     Paste => "paste",
+    /// A generated image applied as a new layer (docs/specs/comfyui-generate.md).
+    Generate => "generate",
     /// A selection set without a selection tool.
     Select => "select",
     /// Rectangle select.

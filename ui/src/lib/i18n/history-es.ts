@@ -43,6 +43,7 @@ export const historyEs: Record<keyof typeof historyEn, string> = {
   'history.fill_selection': 'Rellenar selección',
   'history.cut': 'Cortar',
   'history.paste': 'Pegar',
+  'history.generate': 'Generar imagen',
   'history.draw_pixels': 'Dibujar píxeles',
   'history.tile_pixel': 'Pintar mosaico',
   'history.place_tile': 'Colocar mosaico',

@@ -44,6 +44,7 @@ export const historyPtBr: Record<keyof typeof historyEn, string> = {
   'history.fill_selection': 'Preencher seleção',
   'history.cut': 'Recortar',
   'history.paste': 'Colar',
+  'history.generate': 'Gerar imagem',
   'history.draw_pixels': 'Desenhar pixels',
   'history.tile_pixel': 'Pintar bloco',
   'history.place_tile': 'Posicionar bloco',

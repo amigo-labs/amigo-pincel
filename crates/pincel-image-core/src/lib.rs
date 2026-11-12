@@ -14,6 +14,7 @@ pub mod color;
 pub mod command;
 pub mod document;
 pub mod error;
+pub mod generate;
 pub mod geometry;
 pub mod jobs;
 mod par;

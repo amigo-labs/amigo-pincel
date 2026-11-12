@@ -44,6 +44,7 @@ export const historyFr: Record<keyof typeof historyEn, string> = {
   'history.fill_selection': 'Remplir la sélection',
   'history.cut': 'Couper',
   'history.paste': 'Coller',
+  'history.generate': 'Générer une image',
   'history.draw_pixels': 'Dessiner des pixels',
   'history.tile_pixel': 'Peindre la tuile',
   'history.place_tile': 'Placer une tuile',
