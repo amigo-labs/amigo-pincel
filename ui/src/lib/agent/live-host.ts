@@ -133,14 +133,29 @@ async function answer(id: number, reply: Wire): Promise<void> {
 /** The calls taken so far, one after another. */
 let chain: Promise<void> = Promise.resolve();
 
+/** A running `gen.*` call: it runs beside the chain (comfyui-generate
+ *  AC-16). */
+interface Generation {
+  readonly abort: AbortController;
+  /** The Assistant chat that made the call; `null` for an external client. */
+  readonly chat: string | null;
+  /** Settles once the call has answered. */
+  readonly done: Promise<void>;
+}
+
+/** Running `gen.*` calls by call id. */
+const generating = new Map<number, Generation>();
+
 /** Resolves once every call taken so far — and every call taken while
- *  waiting — has answered (ai-chat-panel AC-11: a call already running
- *  counts towards the answer). */
-export async function liveIdle(): Promise<void> {
+ *  waiting — has answered, `chat`'s generations included
+ *  (ai-chat-panel AC-08, AC-11: a call already running counts towards the
+ *  answer). Another client's generation does not hold the answer up. */
+export async function liveIdle(chat: string): Promise<void> {
   for (;;) {
     const current = chain;
-    await current;
-    if (current === chain) return;
+    const own = [...generating.values()].filter((g) => g.chat === chat).map((g) => g.done);
+    await Promise.all([current, ...own]);
+    if (current === chain && own.length === 0) return;
   }
 }
 
@@ -152,8 +167,6 @@ export function startLiveHost(shell: DocShell): () => void {
   let stopped = false;
   let unlisten: (() => void) | null = null;
   let unlistenExpired: (() => void) | null = null;
-  /** Running `gen.*` calls, aborted when their call times out. */
-  const generating = new Map<number, AbortController>();
   listen<LiveCall>('mcp-call', (e) => {
     const call = e.payload;
     if (dialogOpen()) {
@@ -169,13 +182,13 @@ export function startLiveHost(shell: DocShell): () => void {
         return;
       }
       const abort = new AbortController();
-      generating.set(call.id, abort);
-      void genTool(call.tool, args, abort.signal)
+      const done = genTool(call.tool, args, abort.signal)
         .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
         .then(async (reply) => {
           generating.delete(call.id);
           await answer(call.id, reply);
         });
+      generating.set(call.id, { abort, chat: call.chat, done });
       return;
     }
     chain = chain.then(async () => {
@@ -194,7 +207,7 @@ export function startLiveHost(shell: DocShell): () => void {
     })
     .catch((err: unknown) => console.error('mcp-call listen failed', err));
   // A call that timed out: its generation is cancelled (comfyui-generate AC-20).
-  listen<number>('mcp-call-expired', (e) => generating.get(e.payload)?.abort())
+  listen<number>('mcp-call-expired', (e) => generating.get(e.payload)?.abort.abort())
     .then((fn) => {
       if (stopped) fn();
       else unlistenExpired = fn;
@@ -205,6 +218,6 @@ export function startLiveHost(shell: DocShell): () => void {
     stopStrokes();
     unlisten?.();
     unlistenExpired?.();
-    for (const abort of generating.values()) abort.abort();
+    for (const g of generating.values()) g.abort.abort();
   };
 }

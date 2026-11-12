@@ -1,7 +1,20 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { solidPng } from './helpers';
 import { commandCalls, emit, reply, type MockWindow } from './tauri-mock';
-import { chatCall, input, newTab, startDesktop, tabs } from './assistant-helpers';
+import {
+  canvas,
+  chatCall,
+  done,
+  drawCall,
+  input,
+  newTab,
+  panel,
+  sendMessage,
+  sent,
+  startDesktop,
+  tabs,
+  undoButton,
+} from './assistant-helpers';
 
 // The Assistant chat's `gen.*` calls (docs/specs/ai-chat-panel.md AC-08,
 // AC-10, AC-11, AC-26 with docs/specs/comfyui-generate.md AC-16): bound to
@@ -77,4 +90,32 @@ test('AC-26 a chat gen.image runs on the chat tab and refuses another document',
   const foreign = await chatCall(page, chat, 'gen.image', { prompt: 'a pear', doc: 'tab-2' });
   expect(foreign).toEqual({ ok: false, error: 'document `tab-2` is not available in the chat' });
   expect(await generations(page)).toBe(1);
+});
+
+test('AC-08 a generation of the answer lands in its one Assistant step', async ({ page }) => {
+  await setup(page);
+  const rows = await layerRows(page).count();
+  const before = await canvas(page, 'image').screenshot();
+  await sendMessage(page, 'Draw and generate');
+  const chat = String((await sent(page)).chat);
+  const { tool, args } = drawCall('image');
+  const drawn = await chatCall(page, chat, tool, args);
+  expect(drawn.ok, drawn.error).toBe(true);
+  const id = await genImage(page, chat, { prompt: 'a pear' });
+  await expect.poll(() => generations(page)).toBe(1);
+  // The CLI ends while its generation still runs: the answer waits for it.
+  await done(page, chat);
+  await expect(panel(page).getByRole('button', { name: 'Stop' })).toBeVisible();
+  await emit(page, 'comfyui:generation', { kind: 'finished', job: 5, count: 1, error: null });
+  const made = await answer(page, id);
+  expect(made.ok, made.error).toBe(true);
+  await expect(panel(page).getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(layerRows(page)).toHaveCount(rows + 1);
+  // One undo takes the stroke and the generated layer back.
+  await undoButton(page).click();
+  await expect(layerRows(page)).toHaveCount(rows);
+  await expect(undoButton(page)).toBeDisabled();
+  await expect
+    .poll(async () => (await canvas(page, 'image').screenshot()).equals(before))
+    .toBe(true);
 });

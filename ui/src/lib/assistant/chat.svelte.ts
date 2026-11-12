@@ -275,9 +275,10 @@ async function onEvent(chatId: string, event: ChatEvent): Promise<void> {
   }
   chat.items = applyEvent(chat.items, event);
   if (event.kind !== 'done') return;
-  // A call already running in the editor completes and counts towards
-  // the answer (AC-11); then the answer becomes one undo step (AC-08).
-  await liveIdle();
+  // A call already running in the editor — a generation of the chat
+  // included — completes and counts towards the answer (AC-11); then the
+  // answer becomes one undo step (AC-08).
+  await liveIdle(chat.id);
   tabByKey(chat.key)?.doc.assistantEnd();
   invoke('mcp_chat_answering', { chat: chat.id, running: false }).catch((err: unknown) =>
     console.error('mcp_chat_answering failed', err),
