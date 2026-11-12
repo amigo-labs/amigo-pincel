@@ -92,6 +92,26 @@ test.describe('desktop app', () => {
     await expect(card(page).getByRole('button', { name: 'Ignore', exact: true })).toBeVisible();
   });
 
+  test('the card sits in the page between the New cards and the clipboard row (AC-27, AC-34)', async ({
+    page,
+  }) => {
+    await launch(page, solidImage(400, 300));
+    await expect(card(page)).toBeVisible();
+    const pixelCard = await page.getByRole('button', { name: 'New pixel sprite' }).boundingBox();
+    const imageCard = await page.getByRole('button', { name: 'New image' }).boundingBox();
+    const box = await card(page).boundingBox();
+    const row = await page.getByRole('group', { name: 'Open from clipboard' }).boundingBox();
+    if (!pixelCard || !imageCard || !box || !row) throw new Error('start screen not laid out');
+    const cardsBottom = Math.max(pixelCard.y + pixelCard.height, imageCard.y + imageCard.height);
+    // Below the New cards, above the row, in the cards' column.
+    expect(box.y).toBeGreaterThanOrEqual(cardsBottom);
+    expect(box.y - cardsBottom).toBeLessThanOrEqual(24);
+    expect(row.y).toBeGreaterThanOrEqual(box.y + box.height);
+    expect(Math.abs(box.x - Math.min(pixelCard.x, imageCard.x))).toBeLessThanOrEqual(1);
+    // It scrolls with the page instead of floating over it.
+    expect(await card(page).evaluate((el) => getComputedStyle(el).position)).not.toBe('fixed');
+  });
+
   test('the preview keeps the aspect ratio and never scales up (AC-27)', async ({ page }) => {
     await launch(page, solidImage(100, 400));
     await expect(preview(page)).toHaveAttribute('width', '30');

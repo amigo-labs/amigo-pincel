@@ -824,15 +824,18 @@
     onOpenSample={(s) => void openSample(s)}
     onOpenClipboard={(m) => void openClipboardAs(m)}
     {dropHover}
-  />
-  {#if offer.image && !modalOpen && wasmSimd}
-    <ClipboardOffer
-      image={offer.image}
-      busy={picking || editors.pending > 0}
-      onOpen={() => void openOffer()}
-      onIgnore={dismissOffer}
-    />
-  {/if}
+  >
+    {#snippet clipboardCard()}
+      {#if offer.image && !modalOpen && wasmSimd}
+        <ClipboardOffer
+          image={offer.image}
+          busy={picking || editors.pending > 0}
+          onOpen={() => void openOffer()}
+          onIgnore={dismissOffer}
+        />
+      {/if}
+    {/snippet}
+  </StartScreen>
 {/if}
 
 <!-- The editors: at most one per mode; only the active tab's is shown and
