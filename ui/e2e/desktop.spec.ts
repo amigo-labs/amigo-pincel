@@ -346,7 +346,7 @@ test.describe('desktop on Linux', () => {
     await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(4);
   });
 
-  test('the open dialog offers TGA, DDS and ICO under all supported files and images (image-formats-more AC-14)', async ({
+  test('the open dialog offers TGA, DDS, ICO and JPEG XL under all supported files and images (image-formats-more AC-14, image-formats-more-modern AC-10)', async ({
     page,
   }) => {
     await desktopStart(page);
@@ -356,7 +356,7 @@ test.describe('desktop on Linux', () => {
     const filters = (dialog?.args.options as { filters: { name: string; extensions: string[] }[] })
       .filters;
     const images = filters.find((f) => f.name === 'Images');
-    for (const ext of ['tga', 'dds', 'ico']) {
+    for (const ext of ['tga', 'dds', 'ico', 'jxl']) {
       expect(filters[0]?.extensions).toContain(ext);
       expect(images?.extensions).toContain(ext);
     }

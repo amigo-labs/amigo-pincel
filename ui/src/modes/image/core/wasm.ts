@@ -41,6 +41,7 @@ import initWasm, {
   export_tiff,
   export_tga,
   export_ico,
+  export_jxl,
   image_to_png,
   get_document_info,
   document_dpi,
@@ -869,8 +870,12 @@ export const core = {
   exportTga: (handle: number): Uint8Array => export_tga(handle),
   /** A one-image ICO of the composite; throws above 256 × 256 px. */
   exportIco: (handle: number): Uint8Array => export_ico(handle),
+  /** Lossless JPEG XL of the composite; throws when a side is 1 px
+   *  (image-formats-more-modern AC-14). */
+  exportJxl: (handle: number): Uint8Array => export_jxl(handle),
   /** Decodes `data` (MIME type or name as the TGA hint) and re-encodes it
-   *  as PNG, so a dropped TGA / DDS / ICO pastes like a browser format. */
+   *  as PNG, so a dropped TGA / DDS / ICO / JPEG XL pastes like a browser
+   *  format. */
   imageToPng: (data: Uint8Array, hint: string): Uint8Array => image_to_png(data, hint),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
   /** Line boxes and caret positions of a text as a live text draws it

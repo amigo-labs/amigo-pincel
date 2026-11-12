@@ -118,6 +118,7 @@ const DOC_FORMATS: readonly DocFormat[] = [
   'tiff',
   'tga',
   'ico',
+  'jxl',
   'gif',
   'psd',
   'dds',
@@ -184,6 +185,7 @@ const EXTENSION: Record<DocSaveFormat, string> = {
   tiff: 'tiff',
   tga: 'tga',
   ico: 'ico',
+  jxl: 'jxl',
 };
 
 /** Writes the document as `format`: in place when it is the file's own

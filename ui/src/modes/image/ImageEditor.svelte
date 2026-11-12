@@ -271,6 +271,7 @@
     mimeFor('tga'),
     mimeFor('dds'),
     mimeFor('ico'),
+    mimeFor('jxl'),
   ]);
 
   /** Runs a pixel edit on the active layer unless it is refused — the layer
@@ -365,9 +366,10 @@
   async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
     const handle = editor.handle;
     if (handle === null) return;
-    // TGA / DDS / ICO go through the core's decoder as PNG, so sizing and
-    // the expand prompt work as for the browser's own formats
-    // (docs/specs/image-formats-more.md AC-13).
+    // TGA / DDS / ICO / JPEG XL go through the core's decoder as PNG, so
+    // sizing and the expand prompt work as for the browser's own formats
+    // (docs/specs/image-formats-more.md AC-13,
+    // docs/specs/image-formats-more-modern.md AC-15).
     if (CORE_DECODED.has(mime)) {
       bytes = core.imageToPng(bytes, mime);
       mime = 'image/png';
@@ -906,7 +908,7 @@
         !ui.modalOpen &&
         renaming === null &&
         savePrompt.value === null,
-      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico'],
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico', 'jxl'],
       addLayer: (opened) => {
         // A dropped file often has no MIME type: the content, else the
         // name, tells the format (TGA needs it as the decoder's hint).

@@ -50,6 +50,7 @@ const DOC_EXTENSIONS = [
   '.tga',
   '.dds',
   '.ico',
+  '.jxl',
   '.psd',
 ];
 

@@ -5,7 +5,7 @@
 import { core } from '../core/wasm';
 
 /** What a document can be written as. */
-export type EncodeFormat = 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico';
+export type EncodeFormat = 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico' | 'jxl';
 
 /** One encoding job: a document snapshot and how to write it. */
 export interface EncodeJob {
@@ -47,6 +47,8 @@ export function encodeHandle(
       return core.exportTga(handle);
     case 'ico':
       return core.exportIco(handle);
+    case 'jxl':
+      return core.exportJxl(handle);
   }
 }
 

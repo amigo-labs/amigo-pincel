@@ -16,7 +16,7 @@ export const en = {
   'shell.dropSkipped':
     '{n, plural, one {# dropped file} other {# dropped files}} could not be opened',
   'shell.unsupported':
-    '{name}: not a supported file (sprite, OpenRaster, PSD or PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
+    '{name}: not a supported file (sprite, OpenRaster, PSD or PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO / JPEG XL)',
   'shell.openFailed': 'Open failed: {error}',
   'shell.permissionDenied': '{name}: permission denied',
   'shell.noHandle': '{name}: no handle / path',

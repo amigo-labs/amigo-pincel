@@ -16,7 +16,7 @@ export const ja: Record<MessageKey, string> = {
   'shell.unsavedIn': '{n, plural, other {#個の画像}}に未保存の変更があります:',
   'shell.dropSkipped': 'ドロップしたファイルのうち {n, plural, other {#個}}を開けませんでした',
   'shell.unsupported':
-    '{name}: 対応していないファイルです（スプライト、OpenRaster、PSD、PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO に対応）',
+    '{name}: 対応していないファイルです（スプライト、OpenRaster、PSD、PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO / JPEG XL に対応）',
   'shell.openFailed': '開けませんでした: {error}',
   'shell.permissionDenied': '{name}: アクセスが拒否されました',
   'shell.noHandle': '{name}: ハンドルまたはパスがありません',

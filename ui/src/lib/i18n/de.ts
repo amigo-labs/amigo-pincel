@@ -17,7 +17,7 @@ export const de: Record<MessageKey, string> = {
   'shell.dropSkipped':
     '{n, plural, one {# abgelegte Datei konnte} other {# abgelegte Dateien konnten}} nicht geöffnet werden',
   'shell.unsupported':
-    '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
+    '{name}: kein unterstütztes Format (Sprite, OpenRaster, PSD oder PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO / JPEG XL)',
   'shell.openFailed': 'Öffnen fehlgeschlagen: {error}',
   'shell.permissionDenied': '{name}: Zugriff verweigert',
   'shell.noHandle': '{name}: kein Datei-Handle / Pfad',

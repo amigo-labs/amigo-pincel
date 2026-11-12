@@ -18,7 +18,7 @@ export const fr: Record<MessageKey, string> = {
   'shell.dropSkipped':
     '{n, plural, one {# fichier déposé n’a pas pu être ouvert} other {# fichiers déposés n’ont pas pu être ouverts}}',
   'shell.unsupported':
-    '{name} : format non pris en charge (sprite, OpenRaster, PSD ou PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO)',
+    '{name} : format non pris en charge (sprite, OpenRaster, PSD ou PNG / JPEG / WebP / BMP / GIF / TIFF / TGA / DDS / ICO / JPEG XL)',
   'shell.openFailed': 'Échec de l’ouverture : {error}',
   'shell.permissionDenied': '{name} : autorisation refusée',
   'shell.noHandle': '{name} : ni descripteur ni chemin',
