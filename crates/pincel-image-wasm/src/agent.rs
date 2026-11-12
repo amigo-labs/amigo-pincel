@@ -6,6 +6,7 @@ use std::cell::RefCell;
 use std::collections::HashMap;
 
 use pincel_agent::live::{ImageAgentState, ImageLoan, LiveFile, call_image_wire};
+use pincel_image_core::command::HistoryKind;
 use wasm_bindgen::prelude::*;
 
 use crate::{STROKES, with_bus};
@@ -58,6 +59,27 @@ pub fn agent_call(
     })
 }
 
+/// An Assistant answer starts on the document `handle`: the steps until
+/// [`assistant_end`] become one undo step (docs/specs/ai-chat-panel.md
+/// AC-08).
+#[wasm_bindgen(js_name = assistantBegin)]
+pub fn assistant_begin(handle: u32) -> Result<(), JsError> {
+    with_bus(handle, |bus| {
+        bus.history.begin_group();
+        Ok(())
+    })
+}
+
+/// The Assistant answer on `handle` ended: its changes become one undo step
+/// of kind `assistant`. Returns `false`, adding no step, when it changed
+/// nothing (AC-09).
+#[wasm_bindgen(js_name = assistantEnd)]
+pub fn assistant_end(handle: u32) -> Result<bool, JsError> {
+    with_bus(handle, |bus| {
+        Ok(bus.history.end_group(HistoryKind::Assistant))
+    })
+}
+
 /// Drop the agent state of a closed document.
 pub(crate) fn forget(handle: u32) {
     AGENT.with(|agent| {
@@ -94,6 +116,32 @@ mod tests {
         assert!(undo(handle).expect("undo"));
         assert_eq!(doc(handle), before);
         assert!(!undo(handle).expect("undo"), "exactly one step");
+        close_document(handle);
+    }
+
+    #[test]
+    fn assistant_answer_of_several_calls_is_one_assistant_step() {
+        let handle = create_document(16, 8).expect("doc");
+        let before = doc(handle);
+        assistant_begin(handle).expect("handle");
+        for color in ["#00ff00", "#ff0000"] {
+            let args = format!(r#"{{"points":[[1,1],[12,6]],"size":3,"color":"{color}"}}"#);
+            assert_eq!(call(handle, "draw.stroke", &args)["ok"], true);
+        }
+        assert!(assistant_end(handle).expect("handle"));
+        assert_eq!(
+            crate::history::undo_kinds(handle).expect("kinds"),
+            ["assistant"]
+        );
+        assert!(undo(handle).expect("undo"));
+        assert_eq!(doc(handle), before);
+        assert!(!undo(handle).expect("undo"), "exactly one step");
+        assistant_begin(handle).expect("handle");
+        assert_eq!(call(handle, "doc.info", "")["ok"], true);
+        assert!(
+            !assistant_end(handle).expect("handle"),
+            "no change, no step"
+        );
         close_document(handle);
     }
 
