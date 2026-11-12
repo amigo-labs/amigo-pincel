@@ -12,7 +12,7 @@ design: [pincel.md §9.2, pincel.md §9.4, pincel.md §15]
 
 The marching-ants selection outline runs continuously while a selection exists (two editors, two animation loops) — exactly the kind of perpetual motion vestibular-sensitive users switch off at the OS level. Respecting `prefers-reduced-motion` is an accessibility baseline (WCAG 2.3.3 "Animation from Interactions"), and the user asked for it. Nothing in the UI reads `prefers-reduced-motion` today.
 
-When the OS or browser asks for reduced motion, Pincel draws the selection outline as **static** dashes and **turns off UI transitions and animations**. Animation *content* — frame playback and the animation preview — is what the user asked to see and stays unaffected. An in-app View ▸ Reduce Motion option forces the same behavior regardless of the system setting. It has two states: checked = always reduce, unchecked = follow the system; motion can never be forced on while the system requests reduce.
+When the OS or browser asks for reduced motion, Pincel draws the selection outline as **static** dashes and **turns off UI transitions and animations**. Animation *content* — frame playback and the animation preview — is what the user asked to see and stays unaffected. An in-app Settings ▸ Reduce motion option forces the same behavior regardless of the system setting. It has two states: checked = always reduce, unchecked = follow the system; motion can never be forced on while the system requests reduce.
 
 ## Scope
 
@@ -21,7 +21,7 @@ When the OS or browser asks for reduced motion, Pincel draws the selection outli
 - Static selection outline (and the other marching outlines of the Pixel overlay) under reduced motion, in both modes
 - UI transitions and CSS animations finish instantly under reduced motion
 - Live reaction to a change of the system setting
-- View ▸ Reduce Motion, persisted in IndexedDB prefs
+- Settings ▸ Reduce motion, persisted in IndexedDB prefs
 - en + de strings; §9.4 accessibility sentence updated
 
 ### Out of scope
@@ -39,11 +39,11 @@ When the OS or browser asks for reduced motion, Pincel draws the selection outli
 - [ ] AC-06 (state): While reduced motion is in effect, UI transitions and CSS animations finish instantly: the computed transition and animation durations of animated UI elements (e.g. the start screen's chevron) are at most 0.01 ms.
 - [ ] AC-07 (state): While reduced motion is in effect in Pixel mode, frame playback still advances the timeline's current frame.
 - [ ] AC-08 (state, manual: visual design): While reduced motion is in effect, the static selection outline remains clearly visible on light and dark content (black and white dashes).
-- [ ] AC-09 (option): Where View ▸ Reduce Motion is on, the editor behaves as in AC-01, AC-03, AC-04 and AC-06 even when the system does not request reduced motion.
-- [ ] AC-10 (event): When the user changes View ▸ Reduce Motion and reloads the app, then the setting is kept.
-- [ ] AC-11 (always): A new profile follows the system setting (View ▸ Reduce Motion is not forced on).
-- [ ] AC-12 (option): Where the UI language is German, the View ▸ Reduce Motion entry is German.
-- [ ] AC-13 (state): While the system requests reduced motion and View ▸ Reduce Motion is unchecked, motion is reduced and the menu entry's label notes that the system setting is on (suffix "(on in system settings)").
+- [ ] AC-09 (option): Where Settings ▸ Reduce motion is on, the editor behaves as in AC-01, AC-03, AC-04 and AC-06 even when the system does not request reduced motion.
+- [ ] AC-10 (event): When the user changes Settings ▸ Reduce motion and reloads the app, then the setting is kept.
+- [ ] AC-11 (always): A new profile follows the system setting (Settings ▸ Reduce motion is not forced on).
+- [ ] AC-12 (option): Where the UI language is German, the Settings ▸ Reduce motion entry is German.
+- [ ] AC-13 (state): While the system requests reduced motion and Settings ▸ Reduce motion is unchecked, motion is reduced and the menu entry's label notes that the system setting is on (suffix "(on in system settings)").
 
 ## Technical notes
 
@@ -120,3 +120,4 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 - 2026-11-03 (build): Pixel mode's render tick keeps running (it drains the core's events every frame); under reduced motion only `marchPhase` stops advancing and rests at 0, and Image mode's overlay stops its rAF loop and redraws once per change at dash offset 0 — the tick has work besides the ants, the overlay loop has none.
 - 2026-11-03 (build): View ▸ Reduce Motion lives in the in-window menu bar of both editors (next to Language), not in the native Tauri menu — the native View menu carries only the zoom entries and has no Language submenu either.
 - 2026-11-03 (build): AC-07's test was green from the start — frame playback never read the flag; the test guards that it stays that way.
+- 2026-11-12: The entry moved from the View menu into the Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,; `settings-dialog`) — the owner wanted View to hold only what the canvas shows. Its behavior is unchanged.
