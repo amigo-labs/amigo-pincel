@@ -12,6 +12,7 @@ use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, 
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
+mod assistant;
 mod comfyui;
 mod fonts;
 mod job_server;
@@ -439,7 +440,11 @@ fn main() {
             mcp::mcp_chat_start,
             mcp::mcp_chat_end,
             mcp::mcp_chat_answering,
-            mcp::mcp_chat_image_access
+            mcp::mcp_chat_image_access,
+            assistant::assistant_clis,
+            assistant::assistant_send,
+            assistant::assistant_stop,
+            assistant::assistant_end
         ])
         .on_page_load(|webview, payload| match payload.event() {
             PageLoadEvent::Started => open_files::reset(webview.app_handle()),
@@ -452,6 +457,9 @@ fn main() {
             // Stopped until the user allows AI agents or a chat starts it
             // (mcp-live-desktop AC-01).
             app.manage(mcp::create(handle));
+            // The Assistant chat's CLIs (ai-chat-panel); clears chat
+            // folders a crashed run left behind (AC-22).
+            app.manage(assistant::create(handle));
             // The native job backend's endpoint; without it the UI keeps
             // every job in the Web Worker.
             let jobs = app.state::<native_jobs::NativeJobs>().inner().clone();
@@ -495,6 +503,7 @@ fn main() {
 // held for it (Windows) is installed.
 fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
     if let tauri::RunEvent::Exit = event {
+        assistant::shutdown(app);
         comfyui::shutdown(app);
         if let Some(endpoint) = app.try_state::<mcp::Endpoint>() {
             endpoint.shutdown();
