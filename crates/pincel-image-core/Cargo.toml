@@ -15,6 +15,13 @@ thiserror = { workspace = true }
 # use the OS math library (docs/specs/pincel.md §15, 2026-11-11).
 libm = "0.2"
 image = { workspace = true }
+# JPEG XL (docs/specs/image-formats-more-modern.md; owner's choice
+# 2026-11-05): pure-Rust decoding without rayon or lcms2, so it builds for
+# wasm32; lossless encoding (the only pure-Rust JPEG XL encoder), single
+# threaded for the same reason. `zune-core` carries the encoder's options.
+jxl-oxide = { version = "0.12.6", default-features = false }
+zune-jpegxl = { version = "0.5.2", default-features = false, features = ["std"] }
+zune-core = "0.5"
 serde = { workspace = true }
 serde_json = { workspace = true }
 ab_glyph = { workspace = true }

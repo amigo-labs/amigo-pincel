@@ -20,10 +20,12 @@ use image::codecs::tiff::TiffEncoder;
 use image::codecs::webp::WebPEncoder;
 use image::{ExtendedColorType, ImageEncoder, ImageFormat};
 use std::io::{Cursor, Seek, Write};
+pub mod jxl;
 pub mod ora;
 pub mod psd;
 pub mod snapshot;
 
+pub use jxl::{is_jxl, to_jxl_bytes};
 pub use ora::{OraError, from_ora_bytes, to_ora_bytes};
 
 use thiserror::Error;
@@ -60,6 +62,11 @@ pub enum CodecError {
     /// ICO holds at most 256 × 256 px per image (AC-08).
     #[error("ICO holds at most 256 × 256 px")]
     IcoTooLarge,
+
+    /// A JPEG XL file could not be read or written
+    /// (docs/specs/image-formats-more-modern.md AC-08).
+    #[error("JPEG XL: {0}")]
+    Jxl(String),
 }
 
 /// Largest ICO image edge, px.
@@ -109,6 +116,10 @@ fn hints_tga(hint: &str) -> bool {
 /// through its hint, and only when the bytes carry no known signature
 /// (docs/specs/image-formats-more.md AC-04).
 pub fn decode_hinted(bytes: &[u8], hint: Option<&str>) -> Result<ImageBuffer, CodecError> {
+    // By signature, whatever the name (docs/specs/image-formats-more-modern.md AC-04).
+    if jxl::is_jxl(bytes) {
+        return jxl::decode_jxl(bytes);
+    }
     let format = match image::guess_format(bytes) {
         Ok(f) => Some(f),
         Err(_) if hint.is_some_and(hints_tga) => Some(ImageFormat::Tga),
