@@ -187,34 +187,35 @@ Du: `adjust.apply` (Helligkeit) auf die Ebene. Bei starker Änderung kurz bestä
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 | `src-tauri/src/assistant/tests.rs` `find_in_takes_pathext_shims_on_windows_and_executables_elsewhere` (Rust side; panel pending) | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 | `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events`, `an_answer_streams_events_records_its_inputs_and_finishes` (Rust side; panel pending) | open   |        |
-| AC-06 | `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events` (Rust side; panel pending) | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 | `crates/pincel-core/src/command/bus.rs` `end_group_folds_the_group_into_one_step_that_undoes_and_redoes_whole`, `end_group_of_one_step_names_it_and_survives_dropped_old_steps`; `crates/pincel-image-core/src/command/mod.rs` `end_group_folds_the_group_into_one_assistant_step`; `crates/pincel-wasm/src/agent.rs` / `crates/pincel-image-wasm/src/agent.rs` `assistant_answer_of_several_calls_is_one_assistant_step` (cores; UI wiring pending) | open   |        |
-| AC-09 | `end_group_without_a_change_adds_no_step` in both cores; the wasm tests above (cores; UI wiring pending) | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 | `src-tauri/src/assistant/tests.rs` `stop_ends_the_cli_within_two_seconds` (Rust side; panel pending) | open   |        |
-| AC-12 | `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes` (Rust side; panel pending) | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 | `ui/e2e/assistant-context.spec.ts` "the editor-context block states …", "the block lists 50 layers at most …" (block builder; wiring pending) | open   |        |
-| AC-16 | `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes` | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 | `ui/e2e/assistant-context.spec.ts` "the default system prompt is …" (texts; wiring pending) | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 | `src-tauri/src/assistant/tests.rs` `a_failing_cli_reports_its_error_text_and_hint`, `an_error_result_fails_with_the_cli_text`, `unreadable_output_fails_the_answer`, `errors_get_the_hint_of_their_cause` (Rust side; panel pending) | open   |        |
-| AC-21 | `ui/e2e/assistant-context.spec.ts` "agent text splits into …" (segments; panel pending) | open   |        |
-| AC-22 | `src-tauri/src/assistant/tests.rs` `purge_removes_folders_left_by_a_crashed_run` (Rust side; close flow pending) | open   |        |
-| AC-23 |      | open   |        |
+| AC-01 | `ui/e2e/assistant-panel.spec.ts` "AC-01 the browser app shows no Assistant panel in either editor" | built  |        |
+| AC-02 | `ui/e2e/assistant-panel.spec.ts` "AC-02 AC-03 AC-04 both editors list the panel; …" | built  |        |
+| AC-03 | `ui/e2e/assistant-panel.spec.ts` "AC-02 AC-03 AC-04 …"; `src-tauri/src/assistant/tests.rs` `find_in_takes_pathext_shims_on_windows_and_executables_elsewhere` | built  |        |
+| AC-04 | `ui/e2e/assistant-panel.spec.ts` "AC-02 AC-03 AC-04 …" | built  |        |
+| AC-05 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 AC-12 AC-15 AC-21 a pixel / image answer streams, …"; `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events`, `an_answer_streams_events_records_its_inputs_and_finishes` | built  |        |
+| AC-06 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 …"; `src-tauri/src/assistant/tests.rs` `stream_json_becomes_session_text_and_tool_events` | built  |        |
+| AC-07 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 …" | built  |        |
+| AC-08 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 …" (both modes); `crates/pincel-core/src/command/bus.rs` `end_group_folds_the_group_into_one_step_that_undoes_and_redoes_whole`, `end_group_of_one_step_names_it_and_survives_dropped_old_steps`; `crates/pincel-image-core/src/command/mod.rs` `end_group_folds_the_group_into_one_assistant_step`; `crates/pincel-wasm/src/agent.rs` / `crates/pincel-image-wasm/src/agent.rs` `assistant_answer_of_several_calls_is_one_assistant_step` | built  |        |
+| AC-09 | `ui/e2e/assistant-panel.spec.ts` "AC-09 an answer that changes nothing adds no undo step"; `end_group_without_a_change_adds_no_step` in both cores | built  |        |
+| AC-10 | `ui/e2e/assistant-chat.spec.ts` "AC-10 while an answer runs only zoom, pan and the chat stay usable" | built  |        |
+| AC-11 | `ui/e2e/assistant-panel.spec.ts` "AC-11 Stop ends the answer: …"; `src-tauri/src/assistant/tests.rs` `stop_ends_the_cli_within_two_seconds` | built  |        |
+| AC-12 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 AC-12 …"; `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes` | built  |        |
+| AC-13 | `ui/e2e/assistant-chat.spec.ts` "AC-13 AC-14 each tab has its own chat; …" | built  |        |
+| AC-14 | `ui/e2e/assistant-chat.spec.ts` "AC-13 AC-14 …" | built  |        |
+| AC-15 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 AC-12 AC-15 …" (block in the sent prompt, recent steps); `ui/e2e/assistant-context.spec.ts` "the editor-context block states …", "the block lists 50 layers at most …" | built  |        |
+| AC-16 | `src-tauri/src/assistant/tests.rs` `claude_args_allow_only_pincel_and_web_search_and_resume_the_session`, `an_answer_streams_events_records_its_inputs_and_finishes`; `src-tauri/src/mcp/tests.rs` `a_chat_session_lists_and_runs_only_its_tools` | built  |        |
+| AC-17 | `ui/e2e/assistant-chat.spec.ts` "AC-17 the image switch is off for a new chat and warns when turned on"; `src-tauri/src/mcp/tests.rs` `a_chat_session_lists_and_runs_only_its_tools` | built  |        |
+| AC-18 | `ui/e2e/assistant-chat.spec.ts` "AC-18 AC-19 AC-23 the system prompt: …"; `ui/e2e/assistant-context.spec.ts` "the default system prompt is …" | built  |        |
+| AC-19 | `ui/e2e/assistant-chat.spec.ts` "AC-18 AC-19 AC-23 …" | built  |        |
+| AC-20 | `ui/e2e/assistant-panel.spec.ts` "AC-20 AC-27 a failed answer shows the CLI error, …"; `src-tauri/src/assistant/tests.rs` `a_failing_cli_reports_its_error_text_and_hint`, `an_error_result_fails_with_the_cli_text`, `unreadable_output_fails_the_answer`, `errors_get_the_hint_of_their_cause` | built  |        |
+| AC-21 | `ui/e2e/assistant-panel.spec.ts` "AC-05 – AC-08 AC-12 AC-15 AC-21 …"; `ui/e2e/assistant-context.spec.ts` "agent text splits into …" | built  |        |
+| AC-22 | `ui/e2e/assistant-chat.spec.ts` "AC-22 closing the window during an answer stops it before the close flow"; `src-tauri/src/assistant/tests.rs` `purge_removes_folders_left_by_a_crashed_run` | built  |        |
+| AC-23 | `ui/e2e/assistant-chat.spec.ts` "AC-18 AC-19 AC-23 …" (German panel and prompt); every key in all six dictionaries (`pnpm check`) | built  |        |
 | AC-24 |      | open   |        |
-| AC-25 |      | open   |        |
-| AC-26 |      | open   |        |
-| AC-27 | `src-tauri/src/assistant/tests.rs` `a_permission_prompt_fails_the_answer` (Rust side; panel pending) | open   |        |
-| AC-28 | `src-tauri/src/assistant/tests.rs` `a_chat_folder_that_cannot_be_written_starts_nothing`, `a_linked_chat_folder_is_refused_and_nothing_is_written_through_it`; `src-tauri/src/mcp/tests.rs` `a_chat_that_cannot_store_the_port_leaves_nothing_listening` (Rust side; panel pending) | open   |        |
+| AC-25 | `ui/e2e/assistant-chat.spec.ts` "AC-25 changing the model of a chat with messages asks first"; `ui/e2e/assistant-panel.spec.ts` "AC-20 AC-27 …" (confirmed change) | built  |        |
+| AC-26 | `ui/e2e/assistant-chat.spec.ts` "AC-26 the chat gets no document-level tools and acts on its own tab only"; `src-tauri/src/mcp/tests.rs` `a_chat_session_lists_and_runs_only_its_tools` | built  |        |
+| AC-27 | `ui/e2e/assistant-panel.spec.ts` "AC-20 AC-27 …"; `src-tauri/src/assistant/tests.rs` `a_permission_prompt_fails_the_answer` | built  |        |
+| AC-28 | `ui/e2e/assistant-panel.spec.ts` "AC-28 a chat that cannot start shows the reason and adds nothing"; `src-tauri/src/assistant/tests.rs` `a_chat_folder_that_cannot_be_written_starts_nothing`, `a_linked_chat_folder_is_refused_and_nothing_is_written_through_it`; `src-tauri/src/mcp/tests.rs` `a_chat_that_cannot_store_the_port_leaves_nothing_listening` | built  |        |
+
 ## Decisions
 
 - 2026-11-06: The chat drives an installed agent CLI through Pincel's live MCP endpoint instead of a built-in LLM client — the CLI already handles the model loop, login and model choice, and the tools reach the agent through MCP unchanged (owner, Decision Log 2026-11-06).
@@ -230,4 +231,9 @@ Du: `adjust.apply` (Helligkeit) auf die Ebene. Bei starker Änderung kurz bestä
 - 2026-11-12 (spec-build): Undo grouping lives in the cores as `begin_group` / `end_group(kind)` on Pixel's `Bus` and Image's `UndoStack` (exposed as `assistantBegin` / `assistantEnd` in both wasm crates); the group start follows steps the history cap drops, and an answer with no change adds no step. New history kind `assistant` in both cores.
 - 2026-11-12 (spec-build): Chat folders live in the user's app data folder (`<app_local_data_dir>/assistant/<chat>`), created owner-only and refused when a link stands in their place; the MCP config with the chat's token is a new owner-only file per answer and is removed when the answer ends (security review). The Rust tests use a fake CLI built as the example `fake_claude`.
 - 2026-11-12 (spec-build): The Node-side tests of the context block, the default prompts and the text segments (`ui/e2e/assistant-context.spec.ts`) were written right after the modules and were green at once; their red run is still owed when the panel wiring lands.
+- 2026-11-12 (spec-build): The system-prompt editor and New chat are icon buttons in the panel header — the panel has no menu of its own, and the editors' menus are inert while an answer runs. "Reset to default" applies at once; saving the unchanged default text stores nothing, so the default keeps following the app's language (AC-18).
+- 2026-11-12 (spec-build): The CLI and the model per CLI are app-wide prefs (`assistantCli`, `assistantModels`, `assistantPrompt` in IndexedDB); a chat with messages keeps the CLI and model its messages went to, and a change there asks and starts a new chat for that tab only (AC-25).
+- 2026-11-12 (spec-build): AC-10's inert editor also covers every panel but the Assistant (Layers, History, Timeline change the document), file drops, pastes, File ▸ New / Open from the native menu, and native editor menu items other than zoom and the shortcut overview; the keys that pass are zoom, fit, actual size, the grids, rulers, Toggle UI and the shortcut overview.
+- 2026-11-12 (spec-build): Closing or restarting the app waits at most 5 s for stopped answers to end (the CLI itself ends within 2 s, AC-11) before the unsaved-changes flow. The UI refuses the chat-hidden tools and a foreign `doc` itself as well as the endpoint, so a chat's call can never reach another tab.
+- 2026-11-12 (spec-build): Red run of the UI blocks: `ui/e2e/assistant-panel.spec.ts` and `ui/e2e/assistant-chat.spec.ts` against a bundle built from the previous head (UI sources stashed): 14 of 15 failed for the missing panel; AC-01 passed at once, because the browser build had no panel before — it guards that the new panel stays desktop-only. The Node-side tests of `ui/e2e/assistant-context.spec.ts` stay green-at-once as recorded above; the e2e specs now cover their wiring.
 - 2026-11-12 (spec-build): `gen.*` host tools and the Generate panel do not exist yet (`comfyui-generate` is `todo`), so AC-10's Generate / Apply and AC-11's cancelled `gen.*` call have nothing to act on in this build.
