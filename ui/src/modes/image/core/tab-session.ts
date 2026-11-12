@@ -4,6 +4,7 @@
 // unsaved-changes prompt (AC-08, AC-10, AC-11, AC-13). Closing a tab asks
 // about its unsaved changes first, then frees it; closing the last one
 // releases the editor (AC-09, AC-16).
+import { generateForAgent } from '../generate/generation.svelte';
 import { AutosaveSession } from '../../../lib/idb/autosave-session.svelte';
 import type { SaveTarget } from '../../../lib/fs';
 import type { AgentFile, EditorDocument } from '../../../lib/shell/types';
@@ -109,6 +110,7 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
       return added;
     },
     undoKinds: () => (tab.doc.handle === null ? [] : core.history(tab.doc.handle).undo),
+    generateImage: (args, models, signal) => generateForAgent(tab, args, models, signal),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

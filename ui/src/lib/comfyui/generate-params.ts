@@ -6,6 +6,9 @@
 import type { MessageKey } from '../i18n/en';
 import type { ComfyStatus } from './bridge';
 
+/** The IndexedDB pref holding the Generate panel's settings. */
+export const GEN_PREF = 'comfyGenerate';
+
 /** `Family` in src-tauri/src/comfyui/generate/workflow.rs. */
 export type Family = 'sd15' | 'sdxl' | 'flux';
 

@@ -9,6 +9,9 @@ export const jobTabs = new Map<number, number>();
 /** The handler of each agent job (`gen.image`). */
 export const agentJobs = new Map<number, (event: GenEvent) => void>();
 
+/** The tab id of each agent job, so closing the tab cancels it. */
+export const agentTabs = new Map<number, number>();
+
 /** Events of jobs not bound yet: the backend may report before the start
  *  call has returned the job id. */
 const early: GenEvent[] = [];

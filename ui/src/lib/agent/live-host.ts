@@ -13,6 +13,7 @@ import { activateTab, session, tabByKey } from '../shell/session.svelte';
 import { chatTabKey } from '../assistant/chat-tabs';
 import type { AgentFile } from '../shell/types';
 import { docIdOf, runOn, targetTab } from './tab-calls';
+import { genTool, isGenTool } from './gen-tools';
 import {
   USER_CANCELLED,
   baseName,
@@ -137,10 +138,30 @@ export function startLiveHost(shell: DocShell): () => void {
   const stopStrokes = watchStrokes();
   let stopped = false;
   let unlisten: (() => void) | null = null;
+  let unlistenExpired: (() => void) | null = null;
+  /** Running `gen.*` calls, aborted when their call times out. */
+  const generating = new Map<number, AbortController>();
   listen<LiveCall>('mcp-call', (e) => {
     const call = e.payload;
     if (dialogOpen()) {
       void answer(call.id, fail('editor busy: a dialog is open'));
+      return;
+    }
+    if (isGenTool(call.tool)) {
+      // A generation takes minutes: it runs beside the queue of calls
+      // (comfyui-generate AC-16).
+      const abort = new AbortController();
+      generating.set(call.id, abort);
+      const args =
+        typeof call.args === 'object' && call.args !== null && !Array.isArray(call.args)
+          ? (call.args as Record<string, unknown>)
+          : {};
+      void genTool(call.tool, args, abort.signal)
+        .catch((err: unknown) => fail(err instanceof Error ? err.message : String(err)))
+        .then(async (reply) => {
+          generating.delete(call.id);
+          await answer(call.id, reply);
+        });
       return;
     }
     chain = chain.then(async () => {
@@ -158,9 +179,18 @@ export function startLiveHost(shell: DocShell): () => void {
       else unlisten = fn;
     })
     .catch((err: unknown) => console.error('mcp-call listen failed', err));
+  // A call that timed out: its generation is cancelled (comfyui-generate AC-20).
+  listen<number>('mcp-call-expired', (e) => generating.get(e.payload)?.abort())
+    .then((fn) => {
+      if (stopped) fn();
+      else unlistenExpired = fn;
+    })
+    .catch((err: unknown) => console.error('mcp-call-expired listen failed', err));
   return () => {
     stopped = true;
     stopStrokes();
     unlisten?.();
+    unlistenExpired?.();
+    for (const abort of generating.values()) abort.abort();
   };
 }

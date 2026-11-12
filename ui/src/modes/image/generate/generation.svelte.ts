@@ -21,6 +21,7 @@ import {
   type GenEvent,
 } from '../../../lib/comfyui/generate-bridge';
 import {
+  GEN_PREF,
   asGenError,
   familyOf,
   layerName,
@@ -30,9 +31,12 @@ import {
   type Box,
   type Family,
   type GenError,
+  type GenImageArgs,
   type Models,
 } from '../../../lib/comfyui/generate-params';
-import { agentJobs, holdEarly, jobTabs, takeEarly } from './job-routing';
+import { agentJobs, agentTabs, holdEarly, jobTabs, takeEarly } from './job-routing';
+import { strokeDone } from '../../../lib/agent/busy';
+import type { GeneratedLayer } from '../../../lib/shell/types';
 
 /** The panel settings that persist across restarts (AC-03). */
 export interface GenSettings {
@@ -47,7 +51,6 @@ export interface GenSettings {
   families: Record<string, Family>;
 }
 
-const PREF = 'comfyGenerate';
 
 export const genSettings: GenSettings = $state({
   model: null,
@@ -110,7 +113,7 @@ let loaded: Promise<void> | null = null;
 export function loadGenSettings(): Promise<void> {
   loaded ??= (async () => {
     try {
-      const stored = (await getPref(PREF)) as Partial<GenSettings> | undefined;
+      const stored = (await getPref(GEN_PREF)) as Partial<GenSettings> | undefined;
       if (stored && typeof stored === 'object') Object.assign(genSettings, stored);
     } catch {
       // No IndexedDB: the defaults stay.
@@ -121,7 +124,7 @@ export function loadGenSettings(): Promise<void> {
 
 /** Stores the settings (AC-03). */
 export function saveGenSettings(): void {
-  void setPref(PREF, $state.snapshot(genSettings)).catch(() => undefined);
+  void setPref(GEN_PREF, $state.snapshot(genSettings)).catch(() => undefined);
 }
 
 /** A server is needed (the panel opened): resolve it and its models
@@ -428,35 +431,26 @@ export function dropTabGeneration(tabId: number): void {
   const gen = genTabs[tabId];
   if (gen?.job != null) void cancelGeneration(gen.job).catch(() => undefined);
   clear(tabId);
-}
-
-/** What `gen.image` reports (AC-16). */
-export interface AgentResult {
-  layer: string;
-  seed: number;
-  model: string;
+  // An agent's generation for this tab ends too, adding nothing (AC-20).
+  for (const [job, owner] of agentTabs) {
+    if (owner === tabId) void cancelGeneration(job).catch(() => undefined);
+  }
 }
 
 /** One variant for an agent call, applied without preview (AC-16); the
  *  panel's own variants stay. `signal` cancels the job (AC-20). */
 export async function generateForAgent(
   tab: ImageTab,
-  args: {
-    prompt: string;
-    negative: string;
-    model: string;
-    lora: string | null;
-    loraStrength: number;
-    strength: number;
-    seed: number | null;
-  },
+  args: GenImageArgs,
+  models: Models,
   signal: AbortSignal,
-): Promise<AgentResult> {
+): Promise<GeneratedLayer> {
   ensureListening();
+  await loadGenSettings();
   const handle = tab.doc.handle;
   if (handle === null) throw new Error('no document is open');
-  const checkpoint = genServer.models?.checkpoints.find((c) => c.name === args.model);
-  const family = familyOf(checkpoint ?? { name: args.model, family: null }, genSettings.families);
+  const checkpoint = models.checkpoints.find((c) => c.name === args.model);
+  const family = familyOf(checkpoint, genSettings.families);
   const taken = capture(handle, family, args.strength);
   if (taken === null) throw new Error('the selection lies outside the canvas');
   const started = await startGeneration({
@@ -474,6 +468,7 @@ export async function generateForAgent(
     input: taken.input,
     mask: taken.maskPng,
   });
+  agentTabs.set(started.job, tab.id);
   const ended = new Promise<GenEvent>((resolve) => {
     agentJobs.set(started.job, (event) => {
       if (event.kind === 'finished' || event.kind === 'failed' || event.kind === 'cancelled') resolve(event);
@@ -489,6 +484,8 @@ export async function generateForAgent(
     if (end.kind === 'failed') throw end.error;
     if (end.kind !== 'finished' || end.count === 0) throw new Error('no image came back');
     const variant = await fetchVariant(started.job, 0);
+    // Applied like any command: not in the middle of the user's stroke.
+    await strokeDone();
     if (signal.aborted || tab.doc.handle !== handle) throw new Error('the generation was cancelled');
     const rgba = core.fitVariant(variant, taken.box.w, taken.box.h, taken.mask);
     const layer = addLayer(handle, rgba, taken.box, args.prompt);
@@ -496,6 +493,7 @@ export async function generateForAgent(
   } finally {
     signal.removeEventListener('abort', abort);
     agentJobs.delete(started.job);
+    agentTabs.delete(started.job);
     void releaseGeneration(started.job).catch(() => undefined);
   }
 }

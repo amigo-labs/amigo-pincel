@@ -1,6 +1,7 @@
 // Contract between the app shell (src/App.svelte) and the two editors
 // (src/modes/pixel/PixelEditor.svelte, src/modes/image/ImageEditor.svelte).
 // See docs/specs/pincel.md §1.1 "Two modes" and §9.2.
+import type { GenImageArgs, Models } from '../comfyui/generate-params';
 import type { TabBarProps } from '../components/layout/TabBar.svelte';
 import type { FileFormat, FileLocation, OpenedFile } from '../fs';
 import type { AutosaveSnapshotMeta } from '../idb/autosave';
@@ -64,6 +65,20 @@ export interface EditorDocument {
   assistantEnd(): boolean;
   /** Kind ids of the undo steps, oldest first (AC-15). */
   undoKinds(): string[];
+  /** `gen.image` on this document: generates one variant and applies it
+   *  as a new layer; `signal` cancels it (docs/specs/comfyui-generate.md
+   *  AC-16, AC-20). Absent where the editor cannot generate yet (Pixel
+   *  mode, comfyui-generate-pixel). Rejects with a `GenError` or an
+   *  `Error`. */
+  generateImage?(args: GenImageArgs, models: Models, signal: AbortSignal): Promise<GeneratedLayer>;
+}
+
+/** What `gen.image` reports (comfyui-generate AC-16). */
+export interface GeneratedLayer {
+  /** The new layer's name. */
+  layer: string;
+  seed: number;
+  model: string;
 }
 
 /** The file the user picked for an agent tool that reads one. */
