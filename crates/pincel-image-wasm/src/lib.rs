@@ -767,27 +767,35 @@ struct DocumentInfo {
     undo_depth: usize,
     /// Whether a selection is currently active (`Some` mask in the document).
     has_selection: bool,
+    /// Changes whenever the selection may have changed
+    /// ([`CommandBus::selection_generation`]), so the UI re-reads the mask
+    /// only then; compare it for equality only.
+    selection_generation: u32,
     /// Layers ordered bottom (index 0) to top, matching core storage order.
     layers: Vec<LayerInfo>,
+}
+
+/// The UI's view of the document behind `bus`.
+fn document_info(bus: &CommandBus) -> DocumentInfo {
+    DocumentInfo {
+        width: bus.document.canvas.width(),
+        height: bus.document.canvas.height(),
+        layer_count: bus.document.layer_count(),
+        active_layer: bus.document.active_layer_index(),
+        can_undo: bus.history.can_undo(),
+        can_redo: bus.history.can_redo(),
+        undo_depth: bus.history.undo_depth(),
+        has_selection: bus.document.selection.is_some(),
+        selection_generation: bus.selection_generation(),
+        layers: layer_infos(&bus.document),
+    }
 }
 
 /// Returns the current document state as a plain JS object.
 #[wasm_bindgen]
 pub fn get_document_info(handle: u32) -> Result<JsValue, JsError> {
     with_bus(handle, |bus| {
-        let layers = layer_infos(&bus.document);
-        let info = DocumentInfo {
-            width: bus.document.canvas.width(),
-            height: bus.document.canvas.height(),
-            layer_count: bus.document.layer_count(),
-            active_layer: bus.document.active_layer_index(),
-            can_undo: bus.history.can_undo(),
-            can_redo: bus.history.can_redo(),
-            undo_depth: bus.history.undo_depth(),
-            has_selection: bus.document.selection.is_some(),
-            layers,
-        };
-        serde_wasm_bindgen::to_value(&info).map_err(|e| JsError::new(&e.to_string()))
+        serde_wasm_bindgen::to_value(&document_info(bus)).map_err(|e| JsError::new(&e.to_string()))
     })
 }
 
@@ -1047,6 +1055,39 @@ mod paste_tests {
             Ok(())
         })
         .expect("select");
+    }
+
+    fn selection_generation(handle: u32) -> u32 {
+        with_bus(handle, |bus| Ok(document_info(bus).selection_generation)).expect("info")
+    }
+
+    #[test]
+    fn document_info_selection_generation_follows_selection_changes_not_strokes() {
+        let handle = painted();
+        let start = selection_generation(handle);
+        apply_command(
+            handle,
+            r#"{"type":"select_rectangle","x":0,"y":0,"w":3,"h":3}"#,
+        )
+        .expect("select");
+        let selected = selection_generation(handle);
+        assert_ne!(selected, start, "select");
+        for (x, id) in [(1, 5), (2, 5)] {
+            let dab = format!(
+                r#"{{"type":"pencil_stroke","layer":0,"size":1,"color":[0,255,0,255],"opacity":1,"points":[[{x},1]],"stroke_id":{id}}}"#
+            );
+            apply_command(handle, &dab).expect("paint");
+        }
+        assert_eq!(layer_pixel(handle, 0, 2, 1), Color::rgba(0, 255, 0, 255));
+        assert_eq!(selection_generation(handle), selected, "stroke");
+        assert!(undo(handle).expect("undo stroke"));
+        assert_eq!(selection_generation(handle), selected, "undo of the stroke");
+        apply_command(handle, r#"{"type":"deselect"}"#).expect("deselect");
+        let deselected = selection_generation(handle);
+        assert_ne!(deselected, selected, "deselect");
+        assert!(undo(handle).expect("undo deselect"));
+        assert_ne!(selection_generation(handle), deselected, "undo of deselect");
+        close_document(handle);
     }
 
     #[test]
