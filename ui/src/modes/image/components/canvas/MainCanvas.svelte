@@ -34,14 +34,61 @@
   let surface: HTMLDivElement;
   let viewport: HTMLDivElement;
 
+  // What the picture on the canvas was drawn from. An edit is presented
+  // once: the tools draw right after it (in their animation frame), and the
+  // effect that sees the same revision finds the picture current; other
+  // changes (view, undo, menus) are drawn once in the next animation frame.
+  let drawnKey = '';
+  let drawnPreview: Uint8ClampedArray | null = null;
+  let frame = 0;
+
+  /** Everything the picture depends on besides the effect preview. */
+  function pictureKey(): string {
+    return [
+      editor.handle,
+      editor.revision,
+      editor.width,
+      editor.height,
+      view.zoom,
+      view.panX,
+      view.panY,
+      canvas.clientWidth,
+      canvas.clientHeight,
+      window.devicePixelRatio,
+    ].join(':');
+  }
+
+  /** True while the canvas does not show the current state. */
+  function stale(): boolean {
+    return pictureKey() !== drawnKey || editor.previewComposite !== drawnPreview;
+  }
+
+  /** Draws now, unless the canvas already shows the current state. */
   function redraw(): void {
-    if (!canvas || editor.handle === null) {
+    if (frame !== 0) {
+      cancelAnimationFrame(frame);
+      frame = 0;
+    }
+    if (!canvas || editor.handle === null || !stale()) {
       return;
     }
+    drawnKey = pictureKey();
     // An open effect dialog overrides the canvas with its live preview.
     const preview = editor.previewComposite;
+    drawnPreview = preview;
     const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
     drawViewport(canvas, editor.width, editor.height, view, sample);
+    ready = true;
+  }
+
+  /** Draws in the next animation frame, once however often it is asked. */
+  function requestRedraw(): void {
+    if (frame === 0) {
+      frame = requestAnimationFrame(() => {
+        frame = 0;
+        redraw();
+      });
+    }
   }
 
   /** Fits the document to the viewport and centres it (spec §6.4). */
@@ -416,31 +463,31 @@
     return () => {
       detach();
       ro.disconnect();
+      cancelAnimationFrame(frame);
     };
   });
 
   // Recompose whenever the document mutates or the view moves (only the
   // visible rect is composited); fit a freshly opened document. A tab
   // switched back to keeps its own zoom and scroll (document-tabs AC-05):
-  // only a view still in fit mode is re-fitted.
+  // only a view still in fit mode is re-fitted. A newly shown document is
+  // drawn at once; any other change at most once per animation frame.
   let lastHandle: number | null = null;
   // A document is open, fitted and drawn — the canvas takes input.
   // Published as `data-ready` on the surface.
   let ready = $state(false);
   $effect(() => {
-    void editor.revision;
-    void editor.previewComposite;
-    void view.zoom;
-    void view.panX;
-    void view.panY;
-    if (editor.handle !== lastHandle) {
-      lastHandle = editor.handle;
-      if (editor.handle !== null && view.fit) {
+    const handle = editor.handle;
+    if (handle !== lastHandle) {
+      lastHandle = handle;
+      if (handle !== null && view.fit) {
         fitView();
       }
+      redraw();
+    } else if (stale()) {
+      requestRedraw();
     }
-    redraw();
-    ready = editor.handle !== null;
+    if (handle === null) ready = false;
   });
 </script>
 
