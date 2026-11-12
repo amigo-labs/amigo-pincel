@@ -56,6 +56,12 @@ pub(crate) fn angle(v: f32) -> f32 {
 /// Convolves a flat premultiplied RGBA f32 buffer with a 1-D `kernel` along one
 /// axis, clamping at the edges. `kernel` is centred on `kernel.len() / 2` and is
 /// expected to sum to 1.0 for a blur.
+///
+/// Every output channel starts at 0.0 and adds `sample * weight` for the taps
+/// in kernel order, so the result is bit-identical however the loops below
+/// are arranged: only the pixels whose taps leave the image clamp a source
+/// coordinate, and everything else adds contiguous runs of floats tap by tap
+/// ([`accumulate_taps`]), which the compiler vectorises.
 pub(crate) fn convolve_axis(
     src: &[f32],
     w: usize,
@@ -64,28 +70,86 @@ pub(crate) fn convolve_axis(
     horizontal: bool,
 ) -> Vec<f32> {
     let mut out = vec![0.0f32; src.len()];
-    let center = (kernel.len() / 2) as isize;
-    for y in 0..h {
-        for x in 0..w {
-            let mut acc = [0.0f32; 4];
-            for (k, &weight) in kernel.iter().enumerate() {
-                let offset = k as isize - center;
-                let (sx, sy) = if horizontal {
-                    ((x as isize + offset).clamp(0, w as isize - 1) as usize, y)
-                } else {
-                    (x, (y as isize + offset).clamp(0, h as isize - 1) as usize)
-                };
-                let o = (sy * w + sx) * 4;
-                acc[0] += src[o] * weight;
-                acc[1] += src[o + 1] * weight;
-                acc[2] += src[o + 2] * weight;
-                acc[3] += src[o + 3] * weight;
+    if kernel.is_empty() || w == 0 || h == 0 {
+        return out;
+    }
+    let stride = w * 4;
+    let center = kernel.len() / 2;
+    let mut taps: Vec<(&[f32], f32)> = Vec::with_capacity(kernel.len());
+    if horizontal {
+        let right = kernel.len() - 1 - center;
+        // Interior pixels `lo..hi` have every tap inside the row:
+        // x - center >= 0 and x + right <= w - 1. A non-empty interior starts
+        // at `lo == center`, so tap `k` of pixel `lo + i` is pixel `i + k`.
+        let lo = center.min(w);
+        let hi = w.saturating_sub(right).max(lo);
+        let span = (hi - lo) * 4;
+        for (src_row, out_row) in src.chunks_exact(stride).zip(out.chunks_exact_mut(stride)) {
+            let (pixels, _) = src_row.as_chunks::<4>();
+            let (out_pixels, _) = out_row.as_chunks_mut::<4>();
+            for x in (0..lo).chain(hi..w) {
+                let mut acc = [0.0f32; 4];
+                for (k, &weight) in kernel.iter().enumerate() {
+                    let sx = (x + k).saturating_sub(center).min(w - 1);
+                    for (a, &s) in acc.iter_mut().zip(&pixels[sx]) {
+                        *a += s * weight;
+                    }
+                }
+                out_pixels[x] = acc;
             }
-            let o = (y * w + x) * 4;
-            out[o..o + 4].copy_from_slice(&acc);
+            if span > 0 {
+                taps.clear();
+                taps.extend(
+                    kernel
+                        .iter()
+                        .enumerate()
+                        .map(|(k, &weight)| (&src_row[k * 4..k * 4 + span], weight)),
+                );
+                accumulate_taps(&mut out_row[lo * 4..hi * 4], &taps);
+            }
+        }
+    } else {
+        for (y, out_row) in out.chunks_exact_mut(stride).enumerate() {
+            taps.clear();
+            taps.extend(kernel.iter().enumerate().map(|(k, &weight)| {
+                // Row `y + k - center`, clamped to the image.
+                let sy = (y + k).saturating_sub(center).min(h - 1);
+                (&src[sy * stride..(sy + 1) * stride], weight)
+            }));
+            accumulate_taps(out_row, &taps);
         }
     }
     out
+}
+
+/// Floats per accumulator tile of [`accumulate_taps`]: small enough to stay in
+/// registers or L1 while every tap adds to it.
+const TILE: usize = 32;
+
+/// Sets `out[i]` to the sum of `source[i] * weight` over `taps` in order,
+/// starting from 0.0. Every source is at least `out.len()` floats long.
+fn accumulate_taps(out: &mut [f32], taps: &[(&[f32], f32)]) {
+    let (full, rest) = out.as_chunks_mut::<TILE>();
+    for (t, out_tile) in full.iter_mut().enumerate() {
+        let start = t * TILE;
+        let mut acc = [0.0f32; TILE];
+        for &(source, weight) in taps {
+            for (a, &s) in acc.iter_mut().zip(&source[start..start + TILE]) {
+                *a += s * weight;
+            }
+        }
+        *out_tile = acc;
+    }
+    let start = full.len() * TILE;
+    let mut acc = [0.0f32; TILE];
+    let acc = &mut acc[..rest.len()];
+    let end = start + rest.len();
+    for &(source, weight) in taps {
+        for (a, &s) in acc.iter_mut().zip(&source[start..end]) {
+            *a += s * weight;
+        }
+    }
+    rest.copy_from_slice(acc);
 }
 
 /// Bilinearly samples a flat premultiplied RGBA f32 buffer at fractional
