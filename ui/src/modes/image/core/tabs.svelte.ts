@@ -57,11 +57,19 @@ export function openTab(handle: number, file: DocumentFile): ImageTab {
 export function activateTab(tab: ImageTab): void {
   if (tabs.active === tab) return;
   gestureControl.cancel();
-  // The live object is committed in the tab it belongs to (AC-09).
+  // The live object is committed in the tab it belongs to (AC-09); so is
+  // the Move tools' transform (image-transform-handles AC-18).
   gestureControl.commitLive();
+  gestureControl.commitTransform();
   tabs.active = tab;
   // Only the active tab can have a live object, and switching committed it.
   live.object = null;
+  live.transform = null;
+  // The box of the Move tools shows this tab's selection
+  // (image-transform-handles AC-01).
+  const handle = tab.doc.handle;
+  live.selectionBox =
+    handle !== null && tab.doc.hasSelection ? core.selectionBounds(handle) : null;
   live.cursor = null;
   editor.previewComposite = null;
   editor.notice = null;

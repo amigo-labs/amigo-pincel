@@ -1,7 +1,7 @@
 <script lang="ts">
   // Tool options bar (spec §16.3, §9.2). Controls shown depend on the active
   // tool. Bindings write straight into the tool store.
-  import { tool, editor, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
+  import { tool, editor, live, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
 
   // Size, tip, hardness and the pressure toggles are the same four tools'
   // business; each adds its own control below them.
@@ -24,6 +24,7 @@
   import { imageFont } from '../../core/text-font';
   import FontPicker from '../../../../lib/components/fonts/FontPicker.svelte';
   import CloneOptions from './CloneOptions.svelte';
+  import { setTransformQuality, transformBox } from '../../core/transform';
 
   // Hardness only matters for soft/flat tips.
   const showHardness = $derived(tool.shape !== 'hard_round');
@@ -40,9 +41,16 @@
   // The tools that draw an edge Antialiasing can smooth; one shared setting
   // (docs/specs/image-edit-extras-tool-options.md AC-01).
   const showAntiAlias = $derived(
-    ['pencil', 'eraser', 'recolor', 'smudge', 'text', 'ellipse_select', 'lasso', 'polygon_lasso'].includes(
-      tool.kind,
-    ) || isShapeTool(tool.kind),
+    [
+      'pencil',
+      'eraser',
+      'recolor',
+      'smudge',
+      'text',
+      'ellipse_select',
+      'lasso',
+      'polygon_lasso',
+    ].includes(tool.kind) || isShapeTool(tool.kind),
   );
 
   // The tools that composite a paint color; the Gradient only on its Color
@@ -52,6 +60,22 @@
       isShapeTool(tool.kind) ||
       (tool.kind === 'gradient' && tool.gradientChannel === 'color'),
   );
+
+  // Position (top-left corner of the unturned box), size and angle of the
+  // live transform (AC-07); nothing before the first drag.
+  const transformReadout = $derived.by(() => {
+    if (live.transform === null) return null;
+    const b = transformBox();
+    if (b === null) return null;
+    const round = (v: number): number => Math.round(v * 10) / 10;
+    return t('opt.transformReadout', {
+      x: round(b.center[0] - b.size[0] / 2),
+      y: round(b.center[1] - b.size[1] / 2),
+      w: round(b.size[0]),
+      h: round(b.size[1]),
+      angle: round(b.angle),
+    });
+  });
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
@@ -179,6 +203,25 @@
         <option value={31}>31×31</option>
       </select>
     </label>
+  {:else if tool.kind === 'move_selection' || tool.kind === 'move_mask'}
+    <!-- The transform box's quality and readout
+         (docs/specs/image-transform-handles.md AC-07, AC-12). -->
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.transformQuality')}</span>
+      <select
+        class="opt-field"
+        value={tool.moveQuality}
+        onchange={(e) => setTransformQuality(Number(e.currentTarget.value))}
+      >
+        <option value={0}>{t('fx.Nearest')}</option>
+        <option value={1}>{t('fx.Bilinear')}</option>
+        <option value={2}>{t('fx.Bicubic')}</option>
+      </select>
+    </label>
+    {#if transformReadout !== null}
+      <span class="tabular-nums text-pc-text" data-transform-readout>{transformReadout}</span>
+    {/if}
+    <span class="text-pc-faint">{t('opt.transformHint')}</span>
   {:else if tool.kind === 'move'}
     <span class="text-pc-faint">{t('opt.moveHint')}</span>
   {:else if isShapeSelect}

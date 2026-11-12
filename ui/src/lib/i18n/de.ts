@@ -853,6 +853,10 @@ export const de: Record<MessageKey, string> = {
   'clone.noSourceMac': 'Erst mit ⌘+Klick eine Quelle festlegen',
   'opt.composite': 'Gesamtbild',
   'opt.moveHint': 'Ziehen verschiebt die aktive Ebene.',
+  'opt.transformQuality': 'Qualität',
+  'opt.transformReadout': 'X {x}  Y {y}  B {w}  H {h}  {angle}°',
+  'opt.transformHint':
+    'Griffe ziehen skaliert, außerhalb oder mit der rechten Taste dreht; Enter übernimmt, Esc bricht ab.',
   'opt.feather': 'Weiche Kante',
   'opt.selectHint': 'Umschalt = hinzufügen · Alt = abziehen · Umschalt+Alt = Schnittmenge',
   'opt.outline': 'Kontur',

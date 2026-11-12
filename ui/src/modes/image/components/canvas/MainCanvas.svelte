@@ -25,6 +25,7 @@
   import CloneCrosshair from './CloneCrosshair.svelte';
   import PixelGrid from './PixelGrid.svelte';
   import LiveHandles from './LiveHandles.svelte';
+  import TransformBox from './TransformBox.svelte';
   import TextBox from './TextBox.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
@@ -551,6 +552,7 @@
   <CanvasOverlay />
   <CloneCrosshair />
   <LiveHandles />
+  <TransformBox />
   <TextBox />
 
   {#if zoomRect}

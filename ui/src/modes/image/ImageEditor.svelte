@@ -27,6 +27,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { cancelTransform, commitTransform } from './core/transform';
   import { printComposite, type PrintPlacement } from './core/print';
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
   import { agentsMenuItems } from '../../lib/agent/access.svelte';
@@ -922,6 +923,7 @@
     if (!active) {
       gestureControl.cancel();
       untrack(commitLive);
+      untrack(commitTransform);
     }
   });
 
@@ -943,6 +945,17 @@
       } else {
         commitLive();
       }
+    });
+  });
+
+  // Another tool commits the Move tools' live transform; so does the other
+  // Move tool, which moves something else (image-transform-handles AC-08).
+  $effect(() => {
+    const kind = tool.kind;
+    untrack(() => {
+      const t = live.transform;
+      if (t === null) return;
+      if (kind !== (t.pixels ? 'move_selection' : 'move_mask')) commitTransform();
     });
   });
 
@@ -982,6 +995,13 @@
       commitLive();
       return;
     }
+    // Enter applies the Move tools' live transform
+    // (image-transform-handles AC-08).
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.transform !== null) {
+      e.preventDefault();
+      commitTransform();
+      return;
+    }
     // Enter closes an open polygonal lasso (spec §5.4).
     if (
       e.key === 'Enter' &&
@@ -1009,7 +1029,13 @@
     // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && !cancelLive() && !closeTextBox() && editor.hasSelection) {
+      if (
+        !gestureControl.cancel() &&
+        !cancelLive() &&
+        !cancelTransform() &&
+        !closeTextBox() &&
+        editor.hasSelection
+      ) {
         deselect();
       }
       return;
@@ -1195,8 +1221,10 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
-    // The effect previews and applies to the committed pixels (AC-09).
+    // The effect previews and applies to the committed pixels (AC-09;
+    // image-transform-handles AC-08).
     commitLive();
+    commitTransform();
     if (effectOpen) {
       endEffectRun();
       clearEffectPreview();

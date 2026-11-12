@@ -848,6 +848,10 @@ export const en = {
   'clone.noSourceMac': '⌘+click to set a source first',
   'opt.composite': 'Composite',
   'opt.moveHint': 'Drag to translate the active layer.',
+  'opt.transformQuality': 'Quality',
+  'opt.transformReadout': 'X {x}  Y {y}  W {w}  H {h}  {angle}°',
+  'opt.transformHint':
+    'Drag handles to scale, outside or with the right button to turn; Enter applies, Esc cancels.',
   'opt.feather': 'Feather',
   'opt.selectHint': 'Shift = add · Alt = subtract · Shift+Alt = intersect',
   'opt.outline': 'Outline',

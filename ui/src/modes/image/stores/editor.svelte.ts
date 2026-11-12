@@ -2,7 +2,11 @@
 // The document and view stores are per tab (docs/specs/document-tabs.md):
 // their per-document keys forward to the active tab (`lib/shell/tab-store`).
 import { tabStore } from '../../../lib/shell/tab-store';
-import { EMPTY_HISTORY, type HistoryOrigin, type HistorySnapshot } from '../../../lib/history/names';
+import {
+  EMPTY_HISTORY,
+  type HistoryOrigin,
+  type HistorySnapshot,
+} from '../../../lib/history/names';
 import type {
   BrushShape,
   DashPattern,
@@ -12,6 +16,7 @@ import type {
   GradientKind,
   LayerInfo,
   LiveObjectSpec,
+  LiveTransformSpec,
   SampleSource,
   ShapeKind,
   ShapeMode,
@@ -265,6 +270,12 @@ export const live = $state({
   object: null as LiveObjectSpec | null,
   /** The cursor over a handle or the body; `null` keeps the tool's. */
   cursor: null as string | null,
+  /** The Move tools' live transform (docs/specs/image-transform-handles.md),
+   *  `null` when none is live. */
+  transform: null as LiveTransformSpec | null,
+  /** The selection's bounds `[x, y, w, h]`, `null` without a selection that
+   *  selects a pixel: where the transform box shows before a drag. */
+  selectionBox: null as [number, number, number, number] | null,
 });
 
 /** Tool options across the M6 tool suite (spec §9.2, §16.3). */
@@ -323,6 +334,9 @@ export const tool = $state({
    *  setting for every tool that has the switch
    *  (docs/specs/image-edit-extras-tool-options.md AC-01). */
   antiAlias: true,
+  /** Resampling of the Move tools' transform: 0 Nearest, 1 Bilinear,
+   *  2 Bicubic (docs/specs/image-transform-handles.md AC-12). */
+  moveQuality: 1,
   /** Blending: Normal or Overwrite; one setting for Brush, Bucket,
    *  Gradient (Color), Line, shapes and Text (AC-08). */
   blend: 'normal' as ToolBlend,

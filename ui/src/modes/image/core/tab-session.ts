@@ -127,7 +127,10 @@ function agentCall(
     return JSON.stringify({ ok: false, error: 'no document is open' });
   }
   const active = tab === tabs.active;
-  if (active) gestureControl.commitLive();
+  if (active) {
+    gestureControl.commitLive();
+    gestureControl.commitTransform();
+  }
   const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file);
   if (active) syncInfo();
   return reply;
