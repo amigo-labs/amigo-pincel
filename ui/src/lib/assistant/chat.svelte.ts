@@ -7,7 +7,7 @@
 import { untrack } from 'svelte';
 import { invoke } from '@tauri-apps/api/core';
 import { listen } from '@tauri-apps/api/event';
-import { liveIdle } from '../agent/live-host';
+import { cancelChatGenerations, liveIdle } from '../agent/live-host';
 import { docIdOf } from '../agent/tab-calls';
 import { parseWire } from '../agent/wire';
 import { historyStepName } from '../history/names';
@@ -194,9 +194,11 @@ export function newChat(chat: Chat): void {
   bindChatTab(chat.id, chat.key);
 }
 
-/** Stop (AC-11): the CLI ends; the `done` event finishes the answer. */
+/** Stop (AC-11): the CLI ends and the chat's running generations are
+ *  cancelled; the `done` event finishes the answer. */
 export function stopAnswer(chat: Chat): void {
   if (!chat.answering) return;
+  cancelChatGenerations(chat.id);
   invoke('assistant_stop', { chat: chat.id }).catch((err: unknown) =>
     console.error('assistant_stop failed', err),
   );

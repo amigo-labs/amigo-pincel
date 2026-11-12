@@ -7,6 +7,7 @@ import {
   done,
   drawCall,
   input,
+  isInert,
   newTab,
   panel,
   sendMessage,
@@ -118,4 +119,32 @@ test('AC-08 a generation of the answer lands in its one Assistant step', async (
   await expect
     .poll(async () => (await canvas(page, 'image').screenshot()).equals(before))
     .toBe(true);
+});
+
+test('AC-10 AC-11 the Generate panel is inert during an answer; Stop cancels its generation', async ({
+  page,
+}) => {
+  await setup(page);
+  const rows = await layerRows(page).count();
+  await sendMessage(page, 'Generate');
+  const chat = String((await sent(page)).chat);
+  // AC-10: the panel's Generate and Apply cannot be reached.
+  expect(await isInert(page.getByRole('region', { name: 'Generate', exact: true }))).toBe(true);
+  const id = await genImage(page, chat, { prompt: 'a pear' });
+  await expect.poll(() => generations(page)).toBe(1);
+  await panel(page).getByRole('button', { name: 'Stop' }).click();
+  await expect
+    .poll(async () => (await commandCalls(page, 'assistant_stop')).map((c) => c.args.chat))
+    .toEqual([chat]);
+  await expect
+    .poll(async () =>
+      (await commandCalls(page, 'comfyui_generation_cancel')).map((c) => c.args.job),
+    )
+    .toEqual([5]);
+  await emit(page, 'comfyui:generation', { kind: 'cancelled', job: 5 });
+  expect((await answer(page, id)).ok).toBe(false);
+  await done(page, chat, 'stopped');
+  await expect(panel(page).getByRole('button', { name: 'Send' })).toBeVisible();
+  await expect(layerRows(page)).toHaveCount(rows);
+  await expect(undoButton(page)).toBeDisabled();
 });

@@ -159,6 +159,12 @@ export async function liveIdle(chat: string): Promise<void> {
   }
 }
 
+/** Stop (ai-chat-panel AC-11): `chat`'s running generations are
+ *  cancelled on the server; nothing is added. */
+export function cancelChatGenerations(chat: string): void {
+  for (const g of generating.values()) if (g.chat === chat) g.abort.abort();
+}
+
 /** Takes the endpoint's calls; returns the function that stops. Calls run
  *  one after another; a call that arrives while a dialog is open fails at
  *  once (AC-18), one during a stroke waits for pointerup (AC-17). */
