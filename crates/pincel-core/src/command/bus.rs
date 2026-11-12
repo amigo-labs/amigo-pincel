@@ -6,6 +6,7 @@ use crate::document::{CelMap, Sprite};
 use crate::geometry::Point;
 
 use super::AnyCommand;
+use super::batch::CommandBatch;
 use super::dirty::DirtyRegion;
 use super::error::CommandError;
 use super::history::HistoryKind;
@@ -44,6 +45,9 @@ pub struct Bus {
     /// When set, the next `execute` skips the merge-with-top attempt (and
     /// clears the flag). See [`Bus::seal`].
     sealed: bool,
+    /// While a group is open: the undo depth at which it starts (see
+    /// [`Bus::begin_group`]).
+    group: Option<usize>,
 }
 
 impl Bus {
@@ -62,6 +66,7 @@ impl Bus {
             revision: 0,
             last_dirty: DirtyRegion::None,
             sealed: false,
+            group: None,
         }
     }
 
@@ -128,8 +133,44 @@ impl Bus {
         if self.undo.len() > self.cap {
             self.undo.pop_front();
             self.dropped = true;
+            if let Some(start) = &mut self.group {
+                *start = start.saturating_sub(1);
+            }
         }
         Ok(())
+    }
+
+    /// Open a group: the steps added until [`Bus::end_group`] become one
+    /// step (the Assistant chat's answer, `docs/specs/ai-chat-panel.md`
+    /// AC-08). Seals the top, so the group's first command never merges
+    /// into an older step. A group already open keeps its start.
+    pub fn begin_group(&mut self) {
+        if self.group.is_none() {
+            self.group = Some(self.undo.len());
+        }
+        self.sealed = true;
+    }
+
+    /// Close the group: the steps added since [`Bus::begin_group`] that are
+    /// still on the undo stack become one step of kind `kind`, applied in
+    /// order and reverted in reverse. Returns `true` when the group left a
+    /// step, `false` when it changed nothing or no group was open (AC-09).
+    /// Seals the top.
+    pub fn end_group(&mut self, kind: HistoryKind) -> bool {
+        let Some(start) = self.group.take() else {
+            return false;
+        };
+        self.sealed = true;
+        let start = start.min(self.undo.len());
+        let mut steps: Vec<AnyCommand> = self.undo.drain(start..).map(|s| s.cmd).collect();
+        let cmd = match steps.len() {
+            0 => return false,
+            1 => steps.remove(0),
+            _ => AnyCommand::Batch(CommandBatch::new(steps)),
+        };
+        self.undo.push_back(Step { cmd, kind });
+        self.revision = self.revision.wrapping_add(1);
+        true
     }
 
     /// Extend the live stroke gesture to `to`: when the unsealed undo top is
@@ -175,6 +216,9 @@ impl Bus {
         self.last_dirty = step.cmd.dirty_region();
         self.redo.push(step);
         self.sealed = true;
+        if let Some(start) = &mut self.group {
+            *start = (*start).min(self.undo.len());
+        }
         self.revision = self.revision.wrapping_add(1);
         true
     }
@@ -328,6 +372,80 @@ mod tests {
         bus.seal();
         bus.execute(SetFrameDuration::new(FrameIndex::new(1), 70).into(), s, c)
             .expect("duration");
+    }
+
+    #[test]
+    fn end_group_folds_the_group_into_one_step_that_undoes_and_redoes_whole() {
+        let (mut s, mut c) = doc();
+        let mut bus = Bus::new();
+        bus.execute(
+            SetFrameDuration::new(FrameIndex::new(0), 10).into(),
+            &mut s,
+            &mut c,
+        )
+        .expect("duration");
+        bus.begin_group();
+        // Unsealed, a duration change of the same frame would merge into
+        // the step before the group.
+        bus.execute(
+            SetFrameDuration::new(FrameIndex::new(0), 20).into(),
+            &mut s,
+            &mut c,
+        )
+        .expect("duration");
+        three_steps(&mut bus, &mut s, &mut c);
+        assert!(bus.end_group(HistoryKind::Assistant));
+        assert_eq!(ids(bus.undo_kinds()), ["frame_duration", "assistant"]);
+        assert!(bus.undo(&mut s, &mut c));
+        assert_eq!(s.frames.len(), 1);
+        assert_eq!(s.frames[0].duration_ms, 10);
+        assert_eq!(s.layers[0].name, "bg");
+        assert_eq!(bus.redo(&mut s, &mut c), Ok(true));
+        assert_eq!(s.frames.len(), 2);
+        assert_eq!(s.frames[1].duration_ms, 70);
+        assert_eq!(s.layers[0].name, "ground");
+        assert_eq!(ids(bus.undo_kinds()), ["frame_duration", "assistant"]);
+    }
+
+    #[test]
+    fn end_group_without_a_change_adds_no_step() {
+        let (mut s, mut c) = doc();
+        let mut bus = Bus::new();
+        three_steps(&mut bus, &mut s, &mut c);
+        let r = bus.revision();
+        bus.begin_group();
+        assert!(!bus.end_group(HistoryKind::Assistant));
+        assert_eq!(bus.undo_depth(), 3);
+        assert_eq!(bus.revision(), r);
+        assert!(!bus.end_group(HistoryKind::Assistant), "no group open");
+    }
+
+    #[test]
+    fn end_group_of_one_step_names_it_and_survives_dropped_old_steps() {
+        let (mut s, mut c) = doc();
+        let mut bus = Bus::with_capacity(2);
+        three_steps(&mut bus, &mut s, &mut c);
+        bus.begin_group();
+        bus.execute(AddFrame::append(Frame::new(30)).into(), &mut s, &mut c)
+            .expect("add frame");
+        bus.execute(AddFrame::append(Frame::new(40)).into(), &mut s, &mut c)
+            .expect("add frame");
+        // The cap dropped the two older steps; the group's two remain.
+        assert!(bus.end_group(HistoryKind::Assistant));
+        assert_eq!(ids(bus.undo_kinds()), ["assistant"]);
+        assert!(bus.undo(&mut s, &mut c));
+        assert_eq!(s.frames.len(), 2);
+        bus.begin_group();
+        bus.execute(
+            SetLayerName::new(LayerId::new(0), "sky").into(),
+            &mut s,
+            &mut c,
+        )
+        .expect("rename");
+        assert!(bus.end_group(HistoryKind::Assistant));
+        assert_eq!(ids(bus.undo_kinds()), ["assistant"]);
+        assert_eq!(bus.redo_depth(), 0);
+        assert_eq!(s.layers[0].name, "sky");
     }
 
     #[test]

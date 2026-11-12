@@ -172,6 +172,9 @@ history_kinds! {
     CropToSelection => "crop_to_selection",
     /// Image ▸ Scale Image.
     ScaleImage => "scale_image",
+    /// Every change of one answer of the Assistant chat
+    /// (`docs/specs/ai-chat-panel.md` AC-08).
+    Assistant => "assistant",
 }
 
 impl HistoryKind {
