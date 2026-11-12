@@ -12,7 +12,7 @@ import { jobRunner, type JobRunner, type JobSetup } from '../../../lib/jobs/runn
 import { isTauri } from '../../../lib/platform';
 import { compiledCore, core } from '../core/wasm';
 import { encodeSnapshot, type EncodeFormat, type EncodeJob } from './encode';
-import { runNative } from './native';
+import { nativeVia } from './native';
 import { previewBytes, regionBytes, type EffectJob, type ImageJob } from './protocol';
 
 export type { EncodeFormat, EffectJob };
@@ -25,7 +25,7 @@ const jobs = jobRunner<ImageJob, Uint8Array, WebAssembly.Module | null>(
 );
 
 // Native first, the worker as its fallback (AC-06); the desktop app only.
-const nativeJobs = nativeFirst(runNative, jobs, 'image jobs');
+const nativeJobs = nativeFirst(nativeVia(jobs), jobs, 'image jobs');
 
 /** The runner for jobs on document `handle`: native in the desktop app
  *  from the crossover size up, the worker otherwise (AC-03). */

@@ -19,9 +19,9 @@ export interface ClipImage {
 /** The mocked system clipboard: an image, no image, or a refused read. */
 export type ClipContent = ClipImage | null | 'error';
 
-/** How the native job command (`image_job`) answers: as a build without
- *  the command, with an error, or with `nativeAnswer`
- *  (docs/specs/performance-desktop-jobs.md). */
+/** How the native job backend answers: as a build without the
+ *  `job_endpoint` command, with an error from the endpoint, or with
+ *  `nativeAnswer` (docs/specs/performance-desktop-jobs.md). */
 export type NativeJobMode = 'missing' | 'fail' | 'answer';
 
 export interface TauriMock {
@@ -66,11 +66,17 @@ export interface TauriMock {
    *  order (`mcp_enable:true` for a fresh enable), its state, and the port
    *  the next start reports as changed. */
   mcpCommands: string[];
-  mcp: { enabled: boolean; token: string | null; port: number; portChanged: boolean; sessions: number };
+  mcp: {
+    enabled: boolean;
+    token: string | null;
+    port: number;
+    portChanged: boolean;
+    sessions: number;
+  };
   nativeJob: NativeJobMode;
-  /** The bytes `image_job` answers with in `answer` mode. */
+  /** The bytes the native endpoint answers with in `answer` mode. */
   nativeAnswer: number[];
-  /** The jobs the UI sent the native command (their header JSON). */
+  /** The jobs the job worker sent the native endpoint (their header JSON). */
   nativeJobs: Record<string, unknown>[];
 }
 
@@ -132,21 +138,12 @@ export async function installTauriMock(page: Page): Promise<void> {
       };
     };
     let nextRid = 1;
-    const invoke = async (
-      cmd: string,
-      args: Record<string, unknown>,
-      options?: { headers?: Record<string, string> },
-    ): Promise<unknown> => {
+    const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
       switch (cmd) {
-        case 'image_job': {
-          mock.nativeJobs.push(
-            JSON.parse(options?.headers?.['pincel-job'] ?? '{}') as Record<string, unknown>,
-          );
+        case 'job_endpoint':
           // Tauri rejects with a plain string.
-          if (mock.nativeJob === 'missing') throw 'Command image_job not found';
-          if (mock.nativeJob === 'fail') throw 'the native job failed';
-          return new Uint8Array(mock.nativeAnswer).buffer;
-        }
+          if (mock.nativeJob === 'missing') throw 'Command job_endpoint not found';
+          return { url: 'http://127.0.0.1:47123/job', token: 'test-token' };
         case 'plugin:event|listen': {
           const event = String(args.event);
           const handler = Number(args.handler);
@@ -236,7 +233,10 @@ export async function installTauriMock(page: Page): Promise<void> {
           delete mock.images[Number(args.rid)];
           return null;
         default: {
-          mock.calls.push({ cmd, args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown> });
+          mock.calls.push({
+            cmd,
+            args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown>,
+          });
           if (mock.hold.includes(cmd)) {
             await new Promise<void>((resolve) => mock.held.push(resolve));
           }
@@ -269,14 +269,46 @@ export async function installTauriMock(page: Page): Promise<void> {
       __TAURI_EVENT_PLUGIN_INTERNALS__: { unregisterListener: () => undefined },
     });
   });
+  // The native job endpoint the job worker fetches (`job_endpoint` above):
+  // answered here as `nativeJob` says, with the CORS headers the real
+  // endpoint sends the app's origin.
+  await page.route(NATIVE_JOB_URL, async (route) => {
+    const req = route.request();
+    const cors = {
+      'Access-Control-Allow-Origin': req.headers()['origin'] ?? '*',
+      'Access-Control-Allow-Headers': 'authorization, pincel-job, content-type',
+      'Access-Control-Allow-Methods': 'POST',
+    };
+    if (req.method() === 'OPTIONS') {
+      await route.fulfill({ status: 204, headers: cors });
+      return;
+    }
+    const answer = await page.evaluate((header) => {
+      const mock = (window as unknown as MockWindow).__mock;
+      mock.nativeJobs.push(JSON.parse(header ?? '{}') as Record<string, unknown>);
+      return { mode: mock.nativeJob, bytes: mock.nativeAnswer };
+    }, req.headers()['pincel-job']);
+    if (answer.mode !== 'answer') {
+      await route.fulfill({ status: 500, headers: cors, body: 'the native job failed' });
+      return;
+    }
+    await route.fulfill({
+      status: 200,
+      headers: { ...cors, 'Content-Type': 'application/octet-stream' },
+      body: Buffer.from(answer.bytes),
+    });
+  });
 }
+
+/** Where the mocked `job_endpoint` points the job worker. */
+const NATIVE_JOB_URL = 'http://127.0.0.1:47123/job';
 
 /** Emits a Tauri event to the UI's listeners. */
 export async function emit(page: Page, event: string, payload: unknown = null): Promise<void> {
-  await page.evaluate(([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p), [
-    event,
-    payload,
-  ]);
+  await page.evaluate(
+    ([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p),
+    [event, payload],
+  );
 }
 
 /** The window's close button (title-bar ×, Alt+F4, the taskbar). */

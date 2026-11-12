@@ -9,7 +9,7 @@
 //
 // In the app's page it builds document snapshots of several sizes, runs
 // the same jobs in the Image job worker of the bundle and through the
-// native `image_job` command, and prints the median wall time of each
+// native job endpoint the worker fetches (`job_endpoint`), and prints the median wall time of each
 // (transfer included) and the longest frame while it ran.
 
 import { readdirSync, readFileSync } from 'node:fs';
@@ -155,13 +155,10 @@ for (const s of SCENARIOS) {
           };
         }
       ).__TAURI_INTERNALS__;
-      const viaNative = async (req: Record<string, unknown>): Promise<Bytes> => {
-        const { snapshot: body = new Uint8Array(0), ...job } = req as { snapshot?: Bytes };
-        const res = await internals.invoke('image_job', body, {
-          headers: { 'pincel-job': JSON.stringify(job) },
-        });
-        return new Uint8Array(res as ArrayBuffer);
-      };
+      // The app's own path: the worker fetches the loopback endpoint.
+      const endpoint = await internals.invoke('job_endpoint', {}, undefined);
+      const viaNative = (req: Record<string, unknown>): Promise<Bytes> =>
+        viaWorker({ kind: 'native', endpoint, job: req });
 
       const effect = { layer: 0, name: 'gaussian_blur', params: [10] };
       const job = async (run: (req: Record<string, unknown>) => Promise<Bytes>) => {
@@ -190,8 +187,8 @@ for (const s of SCENARIOS) {
         return { ms: median(times), frame };
       };
       const w = await measure(viaWorker);
-      worker.terminate();
       const n = await measure(viaNative);
+      worker.terminate();
       return { w, n };
     },
     { s, reps, url: `/assets/${workerName}` },
