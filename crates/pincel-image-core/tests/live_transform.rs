@@ -323,3 +323,47 @@ fn consecutive_quality_changes_merge() {
     }
     assert_eq!(bus.history.undo_depth(), depth + 2);
 }
+
+// The editor's wire form: begin, edit and commit through `CommandSpec`,
+// and the locked-layer gate (AC-16) refuses only the pixel transform.
+#[test]
+fn command_spec_drives_the_transform() {
+    use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
+    let mut bus = bus();
+    let depth = bus.history.undo_depth();
+    let run = |bus: &mut CommandBus, json: &str| {
+        let spec: CommandSpec = serde_json::from_str(json).expect("spec");
+        run_command(bus, spec, &mut StrokeScratch::default(), &[]).expect("runs");
+    };
+    run(
+        &mut bus,
+        r#"{"type":"begin_transform","layer":0,"pixels":true,"center_x":9,"center_y":5,
+            "width":4,"height":4,"angle":0,"pivot_x":0.5,"pivot_y":0.5,"quality":1,"gesture":1}"#,
+    );
+    let live = pincel_image_core::command::live_spec::live_transform_spec(&bus).expect("live");
+    assert_eq!(live.bounds, [4, 3, 4, 4]);
+    assert_eq!(live.center, [9.0, 5.0]);
+    run(
+        &mut bus,
+        r#"{"type":"edit_transform","center_x":10,"center_y":6,"width":4,"height":4,
+            "angle":0,"pivot_x":0.5,"pivot_y":0.5,"quality":0,"gesture":2}"#,
+    );
+    run(&mut bus, r#"{"type":"commit_transform"}"#);
+    assert!(bus.live_transform().is_none());
+    assert_eq!(bus.history.undo_depth(), depth + 1);
+
+    let locked: CommandSpec = serde_json::from_str(
+        r#"{"type":"begin_transform","layer":0,"pixels":true,"center_x":9,"center_y":5,
+            "width":4,"height":4,"angle":0,"pivot_x":0.5,"pivot_y":0.5,"quality":1}"#,
+    )
+    .expect("spec");
+    let outline: CommandSpec = serde_json::from_str(
+        r#"{"type":"begin_transform","layer":0,"pixels":false,"center_x":9,"center_y":5,
+            "width":4,"height":4,"angle":0,"pivot_x":0.5,"pivot_y":0.5,"quality":1}"#,
+    )
+    .expect("spec");
+    bus.apply(Box::new(SetLayerLocked::new(0, true)))
+        .expect("lock");
+    assert!(locked.refused(&bus.document));
+    assert!(!outline.refused(&bus.document));
+}
