@@ -256,6 +256,24 @@ impl Manager {
         Ok(settings.clone())
     }
 
+    /// Changes the stored settings (the managed install records its folder).
+    pub fn update_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<Settings, String> {
+        let mut settings = self.settings();
+        change(&mut settings);
+        self.store(&settings)
+    }
+
+    /// Ends the server this app started, before its installation changes
+    /// (comfyui-install AC-14), and forgets the status.
+    pub fn stop(&self) {
+        let _guard = self
+            .start_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.end_owned();
+        self.shared.set_status(Status::Idle);
+    }
+
     /// Stores the server choice.
     pub fn set_server(&self, server: ServerChoice) -> Result<Settings, String> {
         let mut settings = self.settings();
