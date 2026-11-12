@@ -5,7 +5,7 @@
 use std::cell::RefCell;
 use std::collections::HashMap;
 
-use pincel_agent::live::{ImageAgentState, ImageLoan, LiveFile, call_image_wire};
+use pincel_agent::live::{ImageAgentState, ImageLoan, LiveFile, WireFonts, call_image_wire};
 use pincel_image_core::command::HistoryKind;
 use wasm_bindgen::prelude::*;
 
@@ -21,10 +21,13 @@ thread_local! {
 /// none) on the document `handle`, which the reply calls `doc_id`. A
 /// mutating call is exactly one undo step. `file_path` / `file_bytes` carry
 /// the file the user picked for a reading tool (`layer.import`,
-/// `palette.import`). Returns the JSON reply of
-/// `pincel_agent::live::LiveReply::to_json`; the files a writing tool
-/// produced are in it for the app to save where the user confirms. Errs
-/// only on an unknown handle.
+/// `palette.import`). `fonts_json` is the editor's font list with the faces
+/// read for this call, by their [`register_font`](crate::register_font) ids
+/// (`pincel_agent::live::WireFonts`, docs/specs/system-fonts-mcp.md AC-11);
+/// without it `draw.text` knows the bundled face only. Returns the JSON
+/// reply of `pincel_agent::live::LiveReply::to_json`; the files a writing
+/// tool produced are in it for the app to save where the user confirms.
+/// Errs only on an unknown handle.
 #[wasm_bindgen]
 pub fn agent_call(
     handle: u32,
@@ -33,6 +36,7 @@ pub fn agent_call(
     args_json: &str,
     file_path: Option<String>,
     file_bytes: Option<Vec<u8>>,
+    fonts_json: Option<String>,
 ) -> Result<String, JsError> {
     let input = match (&file_path, &file_bytes) {
         (Some(path), Some(bytes)) => Some(LiveFile { path, bytes }),
@@ -51,6 +55,10 @@ pub fn agent_call(
                         state: agent.entry(handle).or_default(),
                     },
                     input,
+                    fonts_json.as_deref().map(|json| WireFonts {
+                        json,
+                        registered: &crate::fonts::face,
+                    }),
                     name,
                     args_json,
                 ))
@@ -94,7 +102,7 @@ mod tests {
     use pincel_image_core::command::CommandBus;
 
     fn call(handle: u32, name: &str, args: &str) -> serde_json::Value {
-        let text = agent_call(handle, "tab-3", name, args, None, None).expect("handle");
+        let text = agent_call(handle, "tab-3", name, args, None, None, None).expect("handle");
         serde_json::from_str(&text).expect("json")
     }
 
@@ -159,5 +167,49 @@ mod tests {
         assert_eq!(r["json"]["doc"], "tab-3");
         close_document(handle);
         assert!(AGENT.with(|a| !a.borrow().contains_key(&handle)));
+    }
+
+    const SERIF_TTC: &[u8] = include_bytes!(concat!(
+        env!("CARGO_MANIFEST_DIR"),
+        "/../pincel-core/tests/fixtures/PincelTestSerif.ttc"
+    ));
+
+    #[test]
+    fn agent_call_draws_text_with_a_face_the_editor_registered() {
+        let font = crate::register_font(SERIF_TTC, Some(1));
+        let fonts = serde_json::json!({
+            "faces": [
+                { "family": "Pincel Test Serif", "style": "Regular", "weight": 400, "italic": false, "stretch": 5 },
+                { "family": "Pincel Test Serif", "style": "Bold", "weight": 700, "italic": false, "stretch": 5 },
+            ],
+            "read": [{ "face": 1, "font": font }],
+        })
+        .to_string();
+        let args = r#"{"text":"Ag","x":2,"y":2,"size":24,"font":"Pincel Test Serif","bold":true}"#;
+        let handle = create_document(48, 32).expect("doc");
+        let text = agent_call(handle, "tab-3", "draw.text", args, None, None, Some(fonts))
+            .expect("handle");
+        let r: serde_json::Value = serde_json::from_str(&text).expect("json");
+        assert_eq!(r["ok"], true, "{r}");
+        // The editor's Text tool with the same face.
+        let mut editor = CommandBus::new(pincel_image_core::Document::new(48, 32).expect("doc"));
+        let spec: pincel_image_core::command::spec::CommandSpec =
+            serde_json::from_value(serde_json::json!({
+                "type": "draw_text", "layer": 0, "font_id": 0, "text": "Ag", "x": 2, "y": 2,
+                "size": 24, "color": [0, 0, 0, 255], "bold": false, "italic": false,
+                "anti_alias": true, "align": "left"
+            }))
+            .expect("spec");
+        pincel_image_core::command::spec::run_command(
+            &mut editor,
+            spec,
+            &mut pincel_image_core::command::spec::StrokeScratch::default(),
+            &[pincel_image_core::FontFace::new(SERIF_TTC, 1)],
+        )
+        .expect("runs");
+        let drawn = doc(handle).layers()[0].pixels.data().to_vec();
+        assert!(drawn.iter().any(|&v| v != 0), "text was drawn");
+        assert_eq!(drawn, editor.document.layers()[0].pixels.data());
+        close_document(handle);
     }
 }
