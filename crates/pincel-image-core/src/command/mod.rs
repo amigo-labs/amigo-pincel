@@ -13,6 +13,7 @@ mod layers;
 mod live;
 pub mod live_spec;
 mod live_text;
+mod live_transform;
 mod merge;
 mod paste;
 mod pixels;
@@ -33,6 +34,7 @@ pub use live::{
     BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
 };
 pub use live_text::{LiveFont, LiveText, text_box};
+pub use live_transform::{LiveTransform, TransformSettings};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::SetPixels;
@@ -236,7 +238,8 @@ impl UndoStack {
     /// (docs/specs/image-live-objects.md AC-14).
     fn drop_oldest(&mut self) {
         let folded = match self.undo.as_slice() {
-            [first, second, ..] => live::LiveStep::fold(first.as_ref(), second.as_ref()),
+            [first, second, ..] => live::LiveStep::fold(first.as_ref(), second.as_ref())
+                .or_else(|| live_transform::TransformStep::fold(first.as_ref(), second.as_ref())),
             _ => None,
         };
         match folded {

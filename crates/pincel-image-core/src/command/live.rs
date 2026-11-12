@@ -854,6 +854,11 @@ impl CommandBus {
         if self.top_live_step().is_some() {
             self.commit_live()?;
         }
+        // The Move tools' live transform is a live object too
+        // (docs/specs/image-transform-handles.md AC-08).
+        if self.live_transform().is_some() {
+            self.commit_transform()?;
+        }
         Ok(())
     }
 
