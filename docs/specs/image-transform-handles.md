@@ -135,32 +135,34 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-20 (budget): a live update of a 2048² selection on the 4K, 10-layer document takes 381 ms (p95, pointer event to the canvas draw) on the reference machine, against ≤ 33 ms. The core alone needs about 147 ms natively for one update after the one-pass Nearest / Bilinear path (Decisions, 2026-11-12) — 4.2 M resampled pixels on one core — and the browser adds the recompose of the changed area and the outline. Re-applying the transform in full resolution on the CPU at every pointer move cannot reach 33 ms. Options: (a) during a drag the editor shows the lifted patch transformed by the GPU / canvas (no core work), and the core applies the transform once per drag on release — which changes the owner decision "the core applies the live transform to the layer at every change"; (b) the core applies a reduced-resolution update during the drag and the full one on release; (c) relax the budget for this row. Recommendation: (a).
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-01 | e2e `a selection shows the box with eight handles and a pivot for both Move tools only (AC-01)` (ui/e2e/transform-handles.spec.ts); `empty_selection_starts_nothing` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-02 | e2e `dragging inside moves the content during the drag; the readout follows (AC-02, AC-07)` (ui/e2e/transform-handles.spec.ts); `begin_transform_translate_moves_pixels_and_outline` (crates/pincel-image-core/tests/live_transform.rs); `the pivot keeps its place relative to the box when it scales or moves (AC-02, AC-03)` (ui/e2e/transform-box.spec.ts) | built |        |
+| AC-03 | `a corner drag keeps the opposite corner and scales along the box axes (AC-03)`, `a box never flips and never gets below 1 px (AC-03)`, `an edge drag scales along its axis only, the opposite edge fixed (AC-03)` (ui/e2e/transform-box.spec.ts); e2e `a corner handle scales and a right-drag turns; the readout says so (AC-03, AC-05, AC-07)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-04 | `Shift keeps the starting width-to-height ratio on a corner drag (AC-04)` (ui/e2e/transform-box.spec.ts); the drag reads Shift through `shiftHeld` (key or on-screen toggle) | built |        |
+| AC-05 | `a rotation turns about the pivot, clockwise positive; Shift snaps to 15° (AC-05, AC-06)`, `hit-testing in screen pixels: pivot, handles, inside, outside (AC-05)` (ui/e2e/transform-box.spec.ts); e2e `a corner handle scales and a right-drag turns …` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-06 | e2e `moving the pivot changes no pixel (AC-06)` (ui/e2e/transform-handles.spec.ts); `a rotation turns about the pivot …` (ui/e2e/transform-box.spec.ts) | built |        |
+| AC-07 | e2e `dragging inside moves the content during the drag; the readout follows (AC-02, AC-07)` (ui/e2e/transform-handles.spec.ts); `consecutive_quality_changes_merge`, `commit_transform_folds_its_steps_into_one` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-08 | e2e `Enter commits as one undo step; Undo restores the pixels (AC-08, AC-09)`, `a click outside the box commits; another tool commits (AC-08)` (ui/e2e/transform-handles.spec.ts); `another_command_commits_first` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-09 | `commit_transform_folds_its_steps_into_one` (crates/pincel-image-core/tests/live_transform.rs); e2e `Enter commits as one undo step; Undo restores the pixels (AC-08, AC-09)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-10 | `cancel_transform_restores_everything` (crates/pincel-image-core/tests/live_transform.rs); e2e `Escape cancels: pixels and the undo state as before (AC-10)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-11 | `round_trips_leave_no_loss_and_no_step` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-12 | `nearest_uses_only_existing_colours` (crates/pincel-image-core/tests/live_transform.rs); e2e `changing the quality while live re-applies the transform (AC-12)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-13 | `content_beyond_the_canvas_returns_unchanged` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-14 | `a_second_transform_carries_the_moved_patch`, `begin_transform_translate_moves_pixels_and_outline` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-15 | `move_selection_transform_changes_only_the_outline` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-16 | `locked_layer_refuses_pixels_but_not_the_outline`, `command_spec_drives_the_transform` (crates/pincel-image-core/tests/live_transform.rs); e2e `a locked layer refuses Move Selected Pixels, not Move Selection (AC-16)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-17 | `empty_selection_starts_nothing`, `round_trips_leave_no_loss_and_no_step` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-18 | `saving_while_live_keeps_the_transform_and_writes_plain_pixels` (crates/pincel-image-core/tests/live_transform.rs); e2e `saving while live keeps the transform; switching tabs commits it (AC-18)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-19 | `steps_carry_the_move_history_kinds`, `command_spec_drives_the_transform` (crates/pincel-image-core/tests/live_transform.rs); the names come from `history.move_selection` / `history.move_selection_mask` (en, de) | built |        |
+| AC-20 | `ui/e2e-perf/scenarios.perf.ts` › "image 4K, 10 layers: live transform of a 2048² selection" (`browser/image-transform-4k/dab-draw-latency-p95`, budget 33 ms in `budgets.json`): measured 381 ms on the reference machine — not met, see Open questions | open |        |
+| AC-21 | `undo_while_live_steps_back_one_drag` (crates/pincel-image-core/tests/live_transform.rs); e2e `Undo while live steps back one drag and keeps it live (AC-21)` (ui/e2e/transform-handles.spec.ts) | built |        |
+| AC-22 | `capacity_folds_live_steps_and_cancel_still_restores` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
 
 ## Decisions
 
@@ -170,3 +172,8 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 - 2026-11-05: §4.5 gains the budget row "Live transform update, Image 4K, 2048² selection: ≤ 33 ms", owned by this spec — owner's choice, because the per-change apply in the core sits on the input path; AC-20 keeps it (Decision Log 2026-11-05).
 - 2026-11-05: Clarification pass — aligned with `image-live-objects`: a commit that changes nothing leaves no step (AC-17, its AC-12), quality changes are steps that merge like style edits (AC-07, its AC-03), the undo capacity keeps the transform's steps (AC-22, its AC-14), save / export / autosave neither commit nor carry settings (AC-18, its AC-13; this replaces "saves or exports" as a commit trigger), and at most one live object exists (AC-08). The box turns with the content and scales along its own axes, the pivot follows the box (AC-01 – AC-03), because that is how paint.net's handles behave and it keeps a handle under the corner it moves. Click threshold 4 screen px.
 - 2026-11-05: Split from Layer ▸ Rotate / Zoom (`image-transform-handles-rotate-zoom`) — because together they exceed size L; the dialog needs no live-edit architecture and builds the shared resampler, so it goes first.
+
+- 2026-11-12 (spec-build): the live transform is its own step type beside the live object's (`command/live_transform.rs`): a begin step lifts the selection once — the original layer, the layer with the lifted pixels taken out, the lifted patch and the selection's coverage — and every step re-applies the transform from that patch, so the result depends only on the final box (AC-11) and content beyond the canvas is kept (AC-13). Settings are the box centre, size along its own axes, angle and the pivot relative to the box (the canonical form of "scale about the opposite handle, rotate about the pivot, translate": the UI turns each drag into it, `ui/src/modes/image/tools/transform-box.ts`). Settings equal to the start render the original exactly, so a round trip loses nothing and commits no step (AC-11, AC-17). `commit_if_live` commits a live transform too, so every other command, `set_active_layer` and a new live object commit it first (AC-08); the history capacity folds its oldest steps like a live object's (AC-22).
+- 2026-11-12 (spec-build): the transform commands are `CommandSpec` variants with flat fields (`begin_transform`, `edit_transform`, `commit_transform`, `cancel_transform`) and the query `live_transform` (`LiveTransformSpec`); the UI mirrors them as `SelectionTransformCommand` (`TransformCommand` was taken by the layer transform). Saving, export and autosave do not commit (AC-18): the save flow's `gestureControl.commitLive` leaves the transform alone, and a separate `gestureControl.commitTransform` runs on a tab switch and before an MCP call.
+- 2026-11-12 (spec-build): live updates take a one-pass path for Nearest and Bilinear (content and coverage from the lifted bytes, written straight into the layer and a canvas-sized mask buffer; integer casts instead of `floor` / `round`, which are library calls on baseline x86-64); Bicubic keeps the shared `pincel_effects::transform::resample`. Measured natively on 3840×2160 with a 2048² selection: 270 ms per update before, 147 ms after; in the browser 742 → 381 ms p95 (AC-20 still open).
+- 2026-11-12 (spec-build): a press with a Move tool while the box shows always goes to the box (`tools/transform-drag.ts`): inside translates, a handle scales, the pivot moves, a right-button drag rotates, a left press outside rotates once it moves 4 screen px and is a click (commit) otherwise. Without a selection Move Selected Pixels keeps moving the whole layer on release as before. Red runs: the core tests failed to compile before `live_transform.rs` existed; the e2e tests ran red against the editor before the box (no `[data-transform-box]`); the core tests for AC-12, AC-14, AC-18 and AC-19 were written after the implementation and green at once (the properties hold by construction).
