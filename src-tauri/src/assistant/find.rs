@@ -7,6 +7,8 @@ use std::process::{Command, Stdio};
 use std::sync::mpsc;
 use std::time::Duration;
 
+use super::adapter::Kind;
+
 /// A supported CLI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
 pub struct CliDef {
@@ -18,15 +20,49 @@ pub struct CliDef {
     pub program: &'static str,
     /// Where to install it.
     pub install_url: &'static str,
+    /// Its adapter.
+    pub kind: Kind,
+    /// The oldest version offering the tool limits, streamed JSON output
+    /// and session resume Pincel relies on (ai-chat-clis AC-04).
+    pub min_version: [u32; 3],
 }
 
-/// The CLIs this build supports (`ai-chat-clis` adds more).
-pub const CLIS: &[CliDef] = &[CliDef {
-    id: "claude",
-    name: "Claude Code",
-    program: "claude",
-    install_url: "https://docs.claude.com/en/docs/claude-code",
-}];
+/// The supported CLIs, in the picker's order (ai-chat-clis AC-01). The
+/// minimum versions are recorded in docs/specs/ai-chat-clis.md, Decisions.
+pub const CLIS: &[CliDef] = &[
+    CliDef {
+        id: "claude",
+        name: "Claude Code",
+        program: "claude",
+        install_url: "https://docs.claude.com/en/docs/claude-code",
+        kind: Kind::Claude,
+        min_version: [2, 1, 69],
+    },
+    CliDef {
+        id: "codex",
+        name: "Codex CLI",
+        program: "codex",
+        install_url: "https://github.com/openai/codex",
+        kind: Kind::Codex,
+        min_version: [0, 122, 0],
+    },
+    CliDef {
+        id: "gemini",
+        name: "Gemini CLI",
+        program: "gemini",
+        install_url: "https://github.com/google-gemini/gemini-cli",
+        kind: Kind::Gemini,
+        min_version: [0, 34, 0],
+    },
+    CliDef {
+        id: "opencode",
+        name: "opencode",
+        program: "opencode",
+        install_url: "https://opencode.ai",
+        kind: Kind::Opencode,
+        min_version: [1, 1, 1],
+    },
+];
 
 /// The CLI with the id `id`.
 pub fn cli(id: &str) -> Option<&'static CliDef> {
@@ -97,7 +133,12 @@ fn executable(p: &std::path::Path) -> bool {
 /// `program` where the user's terminal finds it, with that `PATH`.
 pub fn locate(program: &str) -> (Option<PathBuf>, OsString) {
     let path = search_path();
+    (locate_in(program, &path), path)
+}
+
+/// `program` in the `PATH` `path`, with the platform's extensions.
+pub fn locate_in(program: &str, path: &OsStr) -> Option<PathBuf> {
     let pathext = cfg!(windows)
         .then(|| std::env::var("PATHEXT").unwrap_or_else(|_| ".COM;.EXE;.BAT;.CMD".to_owned()));
-    (find_in(program, &path, pathext.as_deref()), path)
+    find_in(program, path, pathext.as_deref())
 }

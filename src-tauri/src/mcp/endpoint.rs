@@ -386,6 +386,9 @@ impl Endpoint {
             image_access,
             answering: false,
         });
+        // Each answer brings the chat's current image access: a local
+        // model always sees the image (ai-chat-clis AC-06).
+        entry.image_access = image_access;
         Ok(ChatAccess {
             url: url(port),
             port,

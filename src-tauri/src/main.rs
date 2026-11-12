@@ -449,6 +449,7 @@ fn main() {
             mcp::mcp_chat_answering,
             mcp::mcp_chat_image_access,
             assistant::assistant_clis,
+            assistant::assistant_models,
             assistant::assistant_send,
             assistant::assistant_stop,
             assistant::assistant_end

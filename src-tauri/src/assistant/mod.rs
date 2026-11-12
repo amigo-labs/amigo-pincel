@@ -2,13 +2,21 @@
 //! installed agent CLIs, start one per answer against the live MCP
 //! endpoint with the chat's token, stream its output to the webview as
 //! `assistant-event`s, stop it, and clean up. The commands are thin
-//! wrappers (AGENTS.md §5.5); the UI owns the chat itself.
+//! wrappers (AGENTS.md §5.5); the UI owns the chat itself. One adapter
+//! per supported CLI (docs/specs/ai-chat-clis.md).
 
+mod adapter;
 mod claude;
+mod codex;
 mod find;
+mod gemini;
+mod opencode;
+mod probe;
 mod run;
 #[cfg(test)]
 mod tests;
+#[cfg(test)]
+mod tests_clis;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -92,6 +100,11 @@ pub enum Hint {
     UnknownModel,
     /// The CLI asked for a permission Pincel does not grant.
     Permission,
+    /// A local model's server (Ollama, LM Studio) is not reachable
+    /// (ai-chat-clis AC-08).
+    LocalServer,
+    /// The model cannot call tools (ai-chat-clis, Edge cases).
+    NoTools,
     /// Anything else.
     Unexpected,
 }
@@ -154,7 +167,8 @@ pub(crate) fn shutdown(app: &AppHandle) {
     }
 }
 
-/// A supported CLI and whether the user's terminal finds it (AC-03).
+/// A supported CLI, whether the user's terminal finds it (AC-03) and
+/// whether its version is new enough (ai-chat-clis AC-04).
 #[derive(Debug, Serialize)]
 #[serde(rename_all = "camelCase")]
 pub(crate) struct CliStatus {
@@ -162,20 +176,65 @@ pub(crate) struct CliStatus {
     name: &'static str,
     install_url: &'static str,
     installed: bool,
+    /// The installed version; `None` when not installed or unreadable.
+    version: Option<String>,
+    /// The oldest version Pincel works with.
+    min_version: String,
+    /// Installed with a known version of at least `min_version`.
+    supported: bool,
 }
 
-/// The supported CLIs, looked up afresh (AC-03).
+/// The supported CLIs, looked up afresh with their versions (AC-03,
+/// ai-chat-clis AC-01, AC-04); the CLIs are asked in parallel.
 #[tauri::command]
 pub(crate) async fn assistant_clis() -> Result<Vec<CliStatus>, String> {
-    Ok(find::CLIS
+    let path = find::search_path();
+    let path_env = (!cfg!(windows)).then_some(path.as_os_str());
+    let found: Vec<(&find::CliDef, Option<PathBuf>)> = find::CLIS
         .iter()
-        .map(|c| CliStatus {
+        .map(|c| (c, find::locate_in(c.program, &path)))
+        .collect();
+    let versions: Vec<Option<[u32; 3]>> = std::thread::scope(|s| {
+        let asks: Vec<_> = found
+            .iter()
+            .map(|(_, program)| {
+                s.spawn(move || {
+                    program
+                        .as_deref()
+                        .and_then(|p| probe::version(p, path_env, &[]))
+                })
+            })
+            .collect();
+        asks.into_iter().map(|h| h.join().ok().flatten()).collect()
+    });
+    Ok(found
+        .iter()
+        .zip(versions)
+        .map(|((c, program), version)| CliStatus {
             id: c.id,
             name: c.name,
             install_url: c.install_url,
-            installed: find::locate(c.program).0.is_some(),
+            installed: program.is_some(),
+            version: version.map(probe::version_text),
+            min_version: probe::version_text(c.min_version),
+            supported: version.is_some_and(|v| v >= c.min_version),
         })
         .collect())
+}
+
+/// The models the model field lists for `cli` (ai-chat-clis AC-05): for
+/// opencode, `opencode models` within 5 s; no list for the others. An
+/// error makes the field take free text.
+#[tauri::command]
+pub(crate) async fn assistant_models(cli: String) -> Result<Vec<probe::Model>, String> {
+    let def = find::cli(&cli).ok_or_else(|| format!("unknown CLI `{cli}`"))?;
+    if def.kind != adapter::Kind::Opencode {
+        return Ok(Vec::new());
+    }
+    let (program, path) = find::locate(def.program);
+    let program = program.ok_or_else(|| format!("{} is not installed", def.name))?;
+    let path_env = (!cfg!(windows)).then_some(path.as_os_str());
+    probe::opencode_models(&program, path_env, &[], probe::DEADLINE)
 }
 
 /// What the UI sends for one answer.
@@ -207,6 +266,7 @@ pub(crate) async fn assistant_send(
     let access = endpoint.chat_start(&chat, request.image_access)?;
     let answer = Answer {
         chat: chat.clone(),
+        kind: def.kind,
         program,
         path_env: (!cfg!(windows)).then_some(path),
         prompt: request.prompt,

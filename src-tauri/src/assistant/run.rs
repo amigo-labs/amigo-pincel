@@ -12,7 +12,7 @@ use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
 use std::thread;
 use std::time::{Duration, Instant};
 
-use super::claude::{self, Parser, classify};
+use super::adapter::{self, Kind, Launch, classify, is_local};
 use super::{ChatEvent, Failure, Hint, Outcome};
 
 /// How long stderr may stay open after the process ended (a grandchild
@@ -22,7 +22,7 @@ const READER_GRACE: Duration = Duration::from_secs(1);
 const STDERR_LINES: usize = 40;
 
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(super) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// Where the chat's events go (the webview in the app, a list in tests).
 pub trait Sink: Send + Sync {
@@ -35,6 +35,8 @@ pub trait Sink: Send + Sync {
 pub struct Answer {
     /// The chat's id.
     pub chat: String,
+    /// Which CLI runs the answer (ai-chat-clis).
+    pub kind: Kind,
     /// The CLI's executable.
     pub program: PathBuf,
     /// The `PATH` the CLI runs with (the login shell's on macOS / Linux);
@@ -121,11 +123,13 @@ impl Assistant {
             return Err("an answer is already running in this chat".to_owned());
         }
         let dir = self.chat_dir(&answer.chat);
-        prepare(&self.root, &dir, &answer)
+        let launch = adapter::launch(&answer, &dir);
+        prepare(&self.root, &dir, &launch)
             .map_err(|e| format!("cannot write the chat folder {}: {e}", dir.display()))?;
         let mut command = Command::new(&answer.program);
         command
-            .args(claude::args(&answer, &dir))
+            .args(&launch.args)
+            .envs(launch.env.iter().map(|(k, v)| (k, v)))
             .current_dir(&dir)
             .stdin(Stdio::piped())
             .stdout(Stdio::piped())
@@ -166,7 +170,9 @@ impl Assistant {
             .spawn(move || {
                 let done = supervise(&mut child, &answer, &*sink, &stopped);
                 // The token stays on disk only while an answer runs.
-                let _ = std::fs::remove_file(dir.join(claude::MCP_CONFIG));
+                for name in &launch.secret {
+                    let _ = std::fs::remove_file(dir.join(name));
+                }
                 lock(&runs).remove(&answer.chat);
                 sink.event(&answer.chat, done);
             });
@@ -257,18 +263,21 @@ fn private_file(path: &Path, text: &str) -> std::io::Result<()> {
     options.open(path)?.write_all(text.as_bytes())
 }
 
-/// The chat folder `dir` under `root` with the answer's MCP config (the
-/// chat's token) and system prompt (AC-28 when it fails).
-fn prepare(root: &Path, dir: &Path, answer: &Answer) -> std::io::Result<()> {
+/// The chat folder `dir` under `root` with the answer's files: its CLI's
+/// config with the chat's token and the system prompt (AC-28 when it
+/// fails).
+fn prepare(root: &Path, dir: &Path, launch: &Launch) -> std::io::Result<()> {
     private_dir(root)?;
     private_dir(dir)?;
-    private_file(&dir.join(claude::MCP_CONFIG), &claude::mcp_config(answer))?;
-    private_file(&dir.join(claude::SYSTEM_PROMPT), &answer.system_prompt)
+    for (name, text) in &launch.files {
+        private_file(&dir.join(name), text)?;
+    }
+    Ok(())
 }
 
 /// End process `pid` and its children: on Windows the whole tree (an npm
 /// `.cmd` shim runs Node as its child), elsewhere its process group.
-fn kill_tree(pid: u32) {
+pub(super) fn kill_tree(pid: u32) {
     let mut command = if cfg!(windows) {
         let mut c = Command::new("taskkill");
         c.args(["/PID", &pid.to_string(), "/T", "/F"]);
@@ -321,7 +330,7 @@ fn supervise(
     stopped: &AtomicBool,
 ) -> ChatEvent {
     let stderr = child.stderr.take().map(follow_stderr);
-    let mut parser = Parser::default();
+    let mut parser = adapter::stream(answer.kind);
     let mut unreadable: Option<String> = None;
     if let Some(stdout) = child.stdout.take() {
         let mut reader = BufReader::new(stdout);
@@ -365,8 +374,9 @@ fn supervise(
         };
     }
     let model = answer.model.as_deref();
+    let local = is_local(answer.kind, model);
     if let Some(line) = unreadable {
-        let hint = classify(&line, model);
+        let hint = classify(&line, model, local);
         return fail(line, hint);
     }
     if parser.denied() {
@@ -389,6 +399,6 @@ fn supervise(
             Ok(s) => format!("exited with {s}"),
             Err(e) => e.to_string(),
         });
-    let hint = classify(&text, model);
+    let hint = classify(&text, model, local);
     fail(text, hint)
 }

@@ -1,5 +1,6 @@
 //! The Assistant's CLI side (docs/specs/ai-chat-panel.md) against a fake
-//! Claude Code (`examples/fake_claude.rs`), which `cargo test` builds.
+//! CLI (`examples/fake_claude.rs`), which `cargo test` builds; the other
+//! CLIs' adapters are tested in `tests_clis.rs` with the same helpers.
 
 use std::path::{Path, PathBuf};
 use std::sync::{Arc, Condvar, Mutex};
@@ -7,6 +8,7 @@ use std::time::{Duration, Instant};
 
 use serde_json::{Value, json};
 
+use super::adapter::{self, Kind, Stream};
 use super::claude::{self, Parser};
 use super::find::find_in;
 use super::run::{Answer, Assistant, Sink};
@@ -14,8 +16,8 @@ use super::{ChatEvent, Hint, Outcome};
 
 /// Collects the events per chat and wakes waiters on `done`.
 #[derive(Default)]
-struct Events {
-    seen: Mutex<Vec<(String, ChatEvent)>>,
+pub(super) struct Events {
+    pub(super) seen: Mutex<Vec<(String, ChatEvent)>>,
     changed: Condvar,
 }
 
@@ -29,7 +31,7 @@ impl Sink for Events {
 
 impl Events {
     /// The events of `chat` once its answer is done (fails after 10 s).
-    fn until_done(&self, chat: &str) -> Vec<ChatEvent> {
+    pub(super) fn until_done(&self, chat: &str) -> Vec<ChatEvent> {
         let deadline = Instant::now() + Duration::from_secs(10);
         let mut seen = self.seen.lock().expect("events");
         loop {
@@ -52,7 +54,7 @@ impl Events {
 /// `<profile>/deps/` or, with cargo's newer build-dir layout, deeper under
 /// `<profile>/build/<package>/<hash>/`; examples land in `<profile>/examples/`
 /// either way, so the nearest ancestor holding the example wins.
-fn fake_cli() -> PathBuf {
+pub(super) fn fake_cli() -> PathBuf {
     let exe = std::env::current_exe().expect("test exe");
     let name = format!("fake_claude{}", std::env::consts::EXE_SUFFIX);
     exe.ancestors()
@@ -67,9 +69,10 @@ fn fake_cli() -> PathBuf {
         })
 }
 
-fn answer(chat: &str, program: PathBuf) -> Answer {
+pub(super) fn answer(chat: &str, program: PathBuf) -> Answer {
     Answer {
         chat: chat.to_owned(),
+        kind: Kind::Claude,
         program,
         path_env: None,
         prompt: "<editor-context>\ndocument: a.png\n</editor-context>\n\nDraw it".to_owned(),
@@ -81,7 +84,7 @@ fn answer(chat: &str, program: PathBuf) -> Answer {
     }
 }
 
-fn setup() -> (tempfile::TempDir, Arc<Events>, Assistant) {
+pub(super) fn setup() -> (tempfile::TempDir, Arc<Events>, Assistant) {
     let root = tempfile::tempdir().expect("tempdir");
     let events = Arc::new(Events::default());
     let sink: Arc<dyn Sink> = events.clone();
@@ -89,7 +92,7 @@ fn setup() -> (tempfile::TempDir, Arc<Events>, Assistant) {
     (root, events, assistant)
 }
 
-fn script(assistant: &Assistant, chat: &str, lines: &[&str]) {
+pub(super) fn script(assistant: &Assistant, chat: &str, lines: &[&str]) {
     std::fs::create_dir_all(assistant.root()).expect("root");
     std::fs::write(
         assistant.root().join(format!("{chat}.script")),
@@ -98,11 +101,11 @@ fn script(assistant: &Assistant, chat: &str, lines: &[&str]) {
     .expect("script");
 }
 
-fn recorded(assistant: &Assistant, chat: &str, suffix: &str) -> String {
+pub(super) fn recorded(assistant: &Assistant, chat: &str, suffix: &str) -> String {
     std::fs::read_to_string(assistant.root().join(format!("{chat}.{suffix}"))).unwrap_or_default()
 }
 
-fn done(events: &[ChatEvent]) -> (Outcome, Option<(String, Hint)>) {
+pub(super) fn done(events: &[ChatEvent]) -> (Outcome, Option<(String, Hint)>) {
     match events.last() {
         Some(ChatEvent::Done { outcome, error }) => {
             (*outcome, error.as_ref().map(|f| (f.text.clone(), f.hint)))
@@ -150,7 +153,7 @@ fn find_in_takes_pathext_shims_on_windows_and_executables_elsewhere() {
 fn claude_args_allow_only_pincel_and_web_search_and_resume_the_session() {
     let dir = Path::new("chat-dir");
     let a = answer("c1", PathBuf::from("claude"));
-    let args = claude::args(&a, dir);
+    let args = adapter::launch(&a, dir).args;
     let has = |pair: &[&str]| args.windows(pair.len()).any(|w| w == pair);
     assert!(has(&["-p"]));
     assert!(has(&["--output-format", "stream-json", "--verbose"]));
@@ -184,7 +187,7 @@ fn claude_args_allow_only_pincel_and_web_search_and_resume_the_session() {
         session: None,
         ..answer("c1", PathBuf::from("claude"))
     };
-    let args = claude::args(&fresh, dir);
+    let args = adapter::launch(&fresh, dir).args;
     assert!(!args.iter().any(|a| a == "--resume" || a == "--model"));
     let config: Value = serde_json::from_str(&claude::mcp_config(&a)).expect("json");
     assert_eq!(
@@ -260,7 +263,7 @@ fn stream_json_becomes_session_text_and_tool_events() {
 
 #[test]
 fn errors_get_the_hint_of_their_cause() {
-    use super::claude::classify;
+    let classify = |text: &str, model: Option<&str>| adapter::classify(text, model, false);
     let model = Some("gpt-9");
     assert_eq!(
         classify("Invalid API key · Please run /login", model),
@@ -313,7 +316,7 @@ fn an_answer_streams_events_records_its_inputs_and_finishes() {
         serde_json::from_str(&recorded(&assistant, "c1", "args.json")).expect("args");
     assert_eq!(
         args,
-        claude::args(&answer("c1", fake_cli()), &assistant.chat_dir("c1"))
+        adapter::launch(&answer("c1", fake_cli()), &assistant.chat_dir("c1")).args
     );
     assert_eq!(
         recorded(&assistant, "c1", "stdin.txt"),
