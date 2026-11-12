@@ -129,6 +129,7 @@
     {"job":{"kind":"encode","format":"bmp","level":6,"quality":90},"len":12410,"fnv1a64":"a6bba88ebe8b08d1"},
     {"job":{"kind":"encode","format":"tiff","level":6,"quality":90},"len":12502,"fnv1a64":"a60febba47707b52"},
     {"job":{"kind":"encode","format":"tga","level":6,"quality":90},"len":12356,"fnv1a64":"12aa266966840f74"},
-    {"job":{"kind":"encode","format":"ico","level":6,"quality":90},"len":6501,"fnv1a64":"b2dff55706e7d248"}
+    {"job":{"kind":"encode","format":"ico","level":6,"quality":90},"len":6501,"fnv1a64":"b2dff55706e7d248"},
+    {"job":{"kind":"encode","format":"jxl","level":6,"quality":90},"len":6602,"fnv1a64":"55272a344056d205"}
   ]
 }

@@ -75,6 +75,7 @@ function allJobs(): Job[] {
     encode('tiff'),
     encode('tga'),
     encode('ico'),
+    encode('jxl'),
   ];
 }
 
