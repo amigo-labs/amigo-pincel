@@ -840,6 +840,68 @@ fn doc_open_reads_tga_dds_and_ico_with_the_editors_reasons() {
     }
 }
 
+/// docs/specs/image-formats-more-modern.md AC-09: `doc.open` reads JPEG XL
+/// (by content, whatever the name) with the pixels of the editor's Open; an
+/// undecodable `.jxl` and an AVIF file fail and add no document.
+#[test]
+fn doc_open_reads_jpeg_xl_like_the_editors_open() {
+    use pincel_image_core::codec::decode_hinted;
+    const LOSSLESS: &[u8] =
+        include_bytes!("../../../pincel-image-core/tests/fixtures/modern/lossless8.jxl");
+    const CONTAINER: &[u8] =
+        include_bytes!("../../../pincel-image-core/tests/fixtures/modern/container.jxl");
+    const TRUNCATED: &[u8] =
+        include_bytes!("../../../pincel-image-core/tests/fixtures/modern/truncated.jxl");
+    const HUGE: &[u8] = include_bytes!("../../../pincel-image-core/tests/fixtures/modern/huge.jxl");
+    const AVIF: &[u8] =
+        include_bytes!("../../../pincel-image-core/tests/fixtures/modern/still.avif");
+
+    let mut s = S::new();
+    for (name, bytes) in [
+        ("photos/lossless8.jxl", LOSSLESS),
+        ("container.jxl", CONTAINER),
+        ("noext", LOSSLESS),
+    ] {
+        s.host.files.insert(name.into(), bytes.to_vec());
+        let out = s.ok("doc.open", json!({ "path": name }));
+        let id = out["doc"].as_str().expect("id").to_owned();
+        let want = decode_hinted(bytes, Some(name)).expect("decode");
+        let doc = s.image(&id).document();
+        assert_eq!(
+            (doc.canvas.width(), doc.canvas.height()),
+            (want.width(), want.height()),
+            "{name}"
+        );
+        assert_eq!(doc.layers().len(), 1, "{name}");
+        assert_eq!(doc.layers()[0].pixels, want, "{name}");
+    }
+
+    let before = s.ok("doc.list", json!({}));
+    for (name, bytes) in [
+        ("cut.jxl", TRUNCATED),
+        ("huge.jxl", HUGE),
+        ("still.avif", AVIF),
+    ] {
+        s.host.files.insert(name.into(), bytes.to_vec());
+        let e = s.err("doc.open", json!({ "path": name }));
+        assert!(e.contains(name), "{name}: {e}");
+    }
+    // The size limit keeps its own reason (AC-12).
+    let e = s.err("doc.open", json!({ "path": "huge.jxl" }));
+    assert!(!e.contains("failed to decode"), "{e}");
+    assert_eq!(s.ok("doc.list", json!({})), before);
+
+    let tools = crate::list_tools();
+    let open = tools
+        .iter()
+        .find(|t| t.name == "doc.open")
+        .expect("doc.open");
+    assert!(
+        open.description.contains("JPEG XL"),
+        "doc.open's description does not name JPEG XL"
+    );
+}
+
 /// docs/specs/image-edit-extras-tool-options.md AC-14 – AC-16 (Antialiasing).
 #[test]
 fn anti_alias_reaches_strokes_and_selections_like_the_editor() {

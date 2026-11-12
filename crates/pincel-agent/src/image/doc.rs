@@ -2,7 +2,7 @@
 //! pixel readback, undo / redo, `.ora` save and flat exports.
 
 use pincel_image_core::codec::{
-    decode_hinted, from_ora_bytes, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes,
+    decode_hinted, from_ora_bytes, is_jxl, to_bmp_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes,
     to_tiff_bytes, to_webp_bytes,
 };
 use pincel_image_core::{Document, ImageBuffer, Rect, compose, compose_region};
@@ -48,6 +48,8 @@ fn flat_format(path: &str, bytes: &[u8]) -> &'static str {
         "DDS"
     } else if bytes.starts_with(&[0, 0, 1, 0]) {
         "ICO"
+    } else if is_jxl(bytes) {
+        "JPEG XL"
     } else if path.to_ascii_lowercase().ends_with(".tga") {
         "TGA"
     } else {
@@ -128,7 +130,8 @@ fn is_psd(path: &str, bytes: &[u8]) -> bool {
 }
 
 /// `doc.open` of an `.ora` project, a PSD or a flat image (PNG, JPEG,
-/// WebP, BMP, GIF, TIFF, TGA, DDS, ICO), decoded as the editor's Open does.
+/// WebP, BMP, GIF, TIFF, TGA, DDS, ICO, JPEG XL), decoded as the editor's
+/// Open does.
 pub(crate) fn open(ctx: &mut Ctx<'_>, path: &str) -> Result<ToolOutput, AgentError> {
     let fail = |e: String| AgentError::tool(format!("cannot open `{path}`: {e}"));
     let bytes = ctx.host.read(path).map_err(fail)?;
@@ -544,6 +547,7 @@ mod tests {
         assert_eq!(flat_format("a.bin", b"nothing"), "image");
         assert_eq!(flat_format("A.TGA", b"\0\0\x02"), "TGA");
         assert_eq!(flat_format("x", b"DDS |"), "DDS");
+        assert_eq!(flat_format("x.png", &[0xFF, 0x0A, 0]), "JPEG XL");
     }
 
     #[test]
