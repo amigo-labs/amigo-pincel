@@ -9,9 +9,10 @@ import { listen } from '@tauri-apps/api/event';
 import { invoke } from '@tauri-apps/api/core';
 import { dialogOpen, strokeDone, watchStrokes } from './busy';
 import { docTool, isDocTool, type DocShell } from './doc-tools';
-import { activateTab, session } from '../shell/session.svelte';
+import { activateTab, session, tabByKey } from '../shell/session.svelte';
+import { chatTabKey } from '../assistant/chat-tabs';
 import type { AgentFile } from '../shell/types';
-import { runOn, targetTab } from './tab-calls';
+import { docIdOf, runOn, targetTab } from './tab-calls';
 import {
   USER_CANCELLED,
   baseName,
@@ -63,12 +64,46 @@ async function documentTool(call: LiveCall, args: Record<string, unknown>): Prom
   return { ok: true, json: { ...json, saved_to: picked }, ...(wire.png ? { png: wire.png } : {}) };
 }
 
+/** Tools an Assistant chat is not offered (ai-chat-panel AC-26); the
+ *  endpoint refuses them too (`CHAT_HIDDEN` in src-tauri/src/mcp). */
+const CHAT_HIDDEN = new Set([
+  'doc.open',
+  'doc.new',
+  'doc.close',
+  'doc.list',
+  'doc.undo',
+  'doc.redo',
+]);
+
+/** A chat's call: on the chat's own tab, whatever `doc` says
+ *  (ai-chat-panel AC-26). */
+function chatCall(
+  call: LiveCall,
+  chat: string,
+  args: Record<string, unknown>,
+  shell: DocShell,
+): Promise<Wire> | Wire {
+  const key = chatTabKey(chat);
+  const tab = key === null ? null : tabByKey(key);
+  if (tab === null || CHAT_HIDDEN.has(call.tool)) {
+    return fail(`\`${call.tool}\` is not available in the chat`);
+  }
+  const id = docIdOf(tab);
+  if (args.doc !== undefined && args.doc !== id) {
+    return fail(`document \`${String(args.doc)}\` is not available in the chat`);
+  }
+  const bound = { ...args, doc: id };
+  if (isDocTool(call.tool)) return docTool(call, bound, shell);
+  return documentTool(call, bound);
+}
+
 async function run(call: LiveCall, shell: DocShell): Promise<Wire> {
   const args =
     typeof call.args === 'object' && call.args !== null && !Array.isArray(call.args)
       ? (call.args as Record<string, unknown>)
       : {};
   await strokeDone();
+  if (call.chat !== null) return chatCall(call, call.chat, args, shell);
   if (isDocTool(call.tool)) return docTool(call, args, shell);
   return documentTool(call, args);
 }
@@ -81,12 +116,25 @@ async function answer(id: number, reply: Wire): Promise<void> {
   }
 }
 
+/** The calls taken so far, one after another. */
+let chain: Promise<void> = Promise.resolve();
+
+/** Resolves once every call taken so far — and every call taken while
+ *  waiting — has answered (ai-chat-panel AC-11: a call already running
+ *  counts towards the answer). */
+export async function liveIdle(): Promise<void> {
+  for (;;) {
+    const current = chain;
+    await current;
+    if (current === chain) return;
+  }
+}
+
 /** Takes the endpoint's calls; returns the function that stops. Calls run
  *  one after another; a call that arrives while a dialog is open fails at
  *  once (AC-18), one during a stroke waits for pointerup (AC-17). */
 export function startLiveHost(shell: DocShell): () => void {
   const stopStrokes = watchStrokes();
-  let chain: Promise<void> = Promise.resolve();
   let stopped = false;
   let unlisten: (() => void) | null = null;
   listen<LiveCall>('mcp-call', (e) => {
