@@ -97,16 +97,16 @@ The in-app option sets a `data-reduce-motion` attribute on `<html>`; duplicate t
 | AC-01 | `pixel: under reduced motion the selection outline stands still (AC-01)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-02 | `pixel: without reduced motion the selection outline marches (AC-02, AC-11)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-03 | `pixel: under reduced motion a drag preview and the active slice outline stand still (AC-03, AC-09)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
-| AC-04 | `pixel: under reduced motion a changed selection shows at its new place (AC-04)`, `image: …` (same title); `pixel: View ▸ Reduce Motion stills the outline without the system setting (AC-09)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-04 | `pixel: under reduced motion a changed selection shows at its new place (AC-04)`, `image: …` (same title); `pixel: Settings ▸ Reduce motion stills the outline without the system setting (AC-09)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-05 | `pixel: a switch of the system setting stops and starts the march without a reload (AC-05)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-06 | `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-07 | `pixel: frame playback still advances under reduced motion (AC-07)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-08 | manual sign-off pending: check the still outline on light and dark content in both modes (`manual: {who} checked {what}, {date}`); both overlays keep their black and white dashes, only the march stops | open |        |
-| AC-09 | `pixel: View ▸ Reduce Motion stills the outline without the system setting (AC-09)`, `image: …` (same title); `pixel: under reduced motion a drag preview and the active slice outline stand still (AC-03, AC-09)`; `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-09 | `pixel: Settings ▸ Reduce motion stills the outline without the system setting (AC-09)`, `image: …` (same title); `pixel: under reduced motion a drag preview and the active slice outline stand still (AC-03, AC-09)`; `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-10 | `UI transitions finish instantly under reduced motion, from the system or the option (AC-06, AC-09, AC-10)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 | AC-11 | `pixel: without reduced motion the selection outline marches (AC-02, AC-11)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
-| AC-12 | `View ▸ Reduce Motion is German in the German UI (AC-12)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
-| AC-13 | `pixel: under a system reduce request the entry stays unchecked and names the system setting (AC-13)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-12 | `Settings ▸ Reduce motion is German in the German UI (AC-12)` (`ui/e2e/reduced-motion.spec.ts`) | built |        |
+| AC-13 | `pixel: under a system reduce request the setting stays unchecked and notes the system setting (AC-13)`, `image: …` (same title) (`ui/e2e/reduced-motion.spec.ts`) | built |        |
 
 ## Decisions
 
