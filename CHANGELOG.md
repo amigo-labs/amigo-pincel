@@ -1,5 +1,41 @@
 # Changelog
 
+## [1.12.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.11.0...v1.12.0) (2026-11-12)
+
+
+### Features
+
+* **tauri:** add Edit &gt; Settings... (Cmd+,) to the native macOS menu ([bf94c4c](https://github.com/amigo-labs/amigo-pincel/commit/bf94c4c21fccf72b07eaea945689ec182d51377f))
+* **tauri:** add files_exist to tell which recent paths still hold a file ([3a93b29](https://github.com/amigo-labs/amigo-pincel/commit/3a93b29b3dbd9976092be2a9f75224eae64dcb1c))
+* **ui:** add the Settings dialog and move app settings out of View ([84b71c6](https://github.com/amigo-labs/amigo-pincel/commit/84b71c6463611c21fad2497086e9e5071eb7ca9b))
+* **ui:** remove recent files whose file was deleted (AC-30, AC-31) ([33a7f50](https://github.com/amigo-labs/amigo-pincel/commit/33a7f50cb279a1566054265b2e240a5b0d24fe6f))
+* **ui:** settings dialog and a tidy View menu ([8f879b3](https://github.com/amigo-labs/amigo-pincel/commit/8f879b3b7c4068dfea354c57f86b5058b1dcf345))
+* **ui:** show the clipboard card in the start screen between the New cards and the clipboard row ([361f592](https://github.com/amigo-labs/amigo-pincel/commit/361f5921f6fe60accc23e392b87f576278701688))
+
+
+### Bug Fixes
+
+* **pincel-image-core:** mark OpenRaster entries as made on Unix on every platform ([ee89225](https://github.com/amigo-labs/amigo-pincel/commit/ee89225003c9f4daf5d89f0592a835c6bd6a47bd))
+* **ui:** accept today's release wasm in the perf setup ([175aa5c](https://github.com/amigo-labs/amigo-pincel/commit/175aa5cc6bfe74be70d9c925d1c8a3c81666eca1))
+* **ui:** drop deleted recent files and place the clipboard card in the start screen ([416bf7c](https://github.com/amigo-labs/amigo-pincel/commit/416bf7c714bd902c3156ba369b14093d894ba250))
+* **ui:** find the bundle's wasm at its root path in the perf setup ([8da8218](https://github.com/amigo-labs/amigo-pincel/commit/8da8218394c2f2eacededf5102ebfa32dc152087))
+
+
+### Performance Improvements
+
+* faster convolutions, job digest pins and a working pnpm perf ([3302708](https://github.com/amigo-labs/amigo-pincel/commit/3302708d747601b984d442137337081af82cd47b))
+* **pincel-effects:** convolve rows without per-tap clamping ([b8f85ad](https://github.com/amigo-labs/amigo-pincel/commit/b8f85ad5b93304d2b5a3ede8878bc15fa7bef975))
+* **pincel-effects:** skip edge clamping inside the 3x3 convolution ([275c3c5](https://github.com/amigo-labs/amigo-pincel/commit/275c3c5bc8b28ef13619dcf2ff1a84614edb9c6f))
+* **pincel-image-core:** flatten over a background through lookup tables ([caf9f64](https://github.com/amigo-labs/amigo-pincel/commit/caf9f64558251ea0ec5c355e7e73c272b27dbadc))
+* **pincel-image-core:** Image-mode quick wins for export, selection, open, thumbnails and redraw ([1cbb72c](https://github.com/amigo-labs/amigo-pincel/commit/1cbb72c452916190ad4885156f729b86f67faae9))
+* **pincel-image-core:** move decoded RGBA8 pixels instead of copying ([6e88011](https://github.com/amigo-labs/amigo-pincel/commit/6e88011399a45241eb4384ffd9c8f5edb601d443))
+* **pincel-image-core:** run selection modifiers in O(1) per pixel ([b4316d3](https://github.com/amigo-labs/amigo-pincel/commit/b4316d35043dd3377800111076994154139043c5))
+* **pincel-image-core:** track a selection generation on the command bus ([8f5c475](https://github.com/amigo-labs/amigo-pincel/commit/8f5c4750d1d97a376a05f19d4dce40a68973face))
+* **pincel-image-wasm:** compose group thumbnails at thumbnail size ([03b51f9](https://github.com/amigo-labs/amigo-pincel/commit/03b51f9118ba0afd628918c271a212d4e7920e05))
+* **pincel-image-wasm:** report the selection generation in DocumentInfo ([692788d](https://github.com/amigo-labs/amigo-pincel/commit/692788d98c308fcbb12475bbc04bfe3007d5ec61))
+* **ui:** present each Image-mode canvas change once per frame ([2a5f98e](https://github.com/amigo-labs/amigo-pincel/commit/2a5f98e6705f08a661b2ca0b2262f3bdff3c7a2e))
+* **ui:** rebuild the selection outline only when the selection changes ([4ab193a](https://github.com/amigo-labs/amigo-pincel/commit/4ab193a9f93cccaa3720569df657a6c58761466a))
+
 ## [1.11.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.10.1...v1.11.0) (2026-11-12)
 
 
