@@ -165,7 +165,10 @@ impl Document {
 #[cfg(test)]
 mod tests {
     use super::*;
-    use pincel_core::{Cel, CelData, ColorMode, FrameIndex, PaletteEntry, Rgba};
+    use pincel_core::{
+        Cel, CelData, ColorMode, FrameIndex, PaletteEntry, Rgba, TileImage, TileRef, Tileset,
+        TilesetId,
+    };
 
     const RED: u32 = 0xFF0000FF;
 
@@ -295,5 +298,56 @@ mod tests {
                 .expect("preview"),
         );
         assert_eq!(rgba, vec![211, 211, 211, 255]);
+    }
+
+    #[test]
+    fn a_tilemap_layer_is_read_as_shown_and_gets_a_normal_layer_above() {
+        let mut doc = Document::new(2, 1).expect("doc");
+        let mut ts = Tileset::new(TilesetId::new(0), "t", (1, 1));
+        let mut tile = PixelBuffer::empty(1, 1, ColorMode::Rgba);
+        tile.data.copy_from_slice(&[0, 0, 255, 255]);
+        ts.tiles.push(TileImage {
+            pixels: PixelBuffer::empty(1, 1, ColorMode::Rgba),
+        });
+        ts.tiles.push(TileImage { pixels: tile });
+        doc.sprite.tilesets.push(ts);
+        let map = LayerId::new(5);
+        doc.sprite
+            .layers
+            .push(Layer::tilemap(map, "map", TilesetId::new(0)));
+        doc.cels.insert(Cel {
+            data: CelData::Tilemap {
+                grid_w: 2,
+                grid_h: 1,
+                tiles: vec![TileRef::new(0), TileRef::new(1)],
+            },
+            ..Cel::image(
+                map,
+                FrameIndex::new(0),
+                PixelBuffer::empty(1, 1, ColorMode::Rgba),
+            )
+        });
+        doc.set_active_layer(5);
+        // Strength below 100 %: the tiles as the sprite shows them.
+        let (w, h, rgba) = decode(&doc.generation_input(0, 0, 2, 1, 128, 64).expect("input"));
+        assert_eq!((w, h), (128, 64));
+        assert_eq!(&rgba[0..4], &[0, 0, 0, 0]);
+        assert_eq!(&rgba[64 * 4..65 * 4], &[0, 0, 255, 255]);
+        // Apply: a normal image layer directly above the tilemap.
+        let variant = png(&[255, 0, 0, 255], 1, 1);
+        let id = doc
+            .add_generated_layer(&variant, &[0, 0, 2, 1], &[], "g")
+            .expect("apply");
+        let at = doc
+            .sprite
+            .layers
+            .iter()
+            .position(|l| l.id == map)
+            .expect("map");
+        assert_eq!(doc.sprite.layers[at + 1].id, LayerId::new(id));
+        assert_eq!(
+            doc.sprite.layers[at + 1].kind,
+            pincel_core::LayerKind::Image
+        );
     }
 }
