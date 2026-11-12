@@ -1,5 +1,53 @@
 # Changelog
 
+## [1.11.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.10.1...v1.11.0) (2026-11-12)
+
+
+### Features
+
+* **pincel-agent:** describe font.list and font matching in pincel://guide (AC-12) ([4ca9462](https://github.com/amigo-labs/amigo-pincel/commit/4ca94629429c3555fd9eedeeca4bf60593726633))
+* **pincel-agent:** font.list and a font argument for draw.text (AC-01..AC-08, AC-10, AC-13) ([7f061a2](https://github.com/amigo-labs/amigo-pincel/commit/7f061a25f7ad335e288b9a1990b6f7cfdd557993))
+* **pincel-agent:** run the tools on a document an editor owns (AC-07) ([19c43c6](https://github.com/amigo-labs/amigo-pincel/commit/19c43c61d0ae7014b619cec01455f0158e99eca3))
+* **pincel-core:** draw text with a face of a font collection (AC-08) ([6d28c9c](https://github.com/amigo-labs/amigo-pincel/commit/6d28c9c46898cb054b436a2febd40b5e97707cc1))
+* **pincel-image-core:** text faces with a collection index and a live font edit (AC-07, AC-08) ([4f21b53](https://github.com/amigo-labs/amigo-pincel/commit/4f21b53e73781b67961c873cbc8eda1a5cb2fe4c))
+* **pincel-image-wasm:** agent_call on the open document (AC-07) ([a5a595e](https://github.com/amigo-labs/amigo-pincel/commit/a5a595e4eb20a0f684ba84f72063d060bfadfa6b))
+* **pincel-image-wasm:** OCR session over a snapshot's source area (AC-03, AC-10, AC-11, AC-17) ([bccc6b1](https://github.com/amigo-labs/amigo-pincel/commit/bccc6b1c6676913c457b4712dcf754c269c1a172))
+* **pincel-image-wasm:** read and write palette files (AC-03, AC-04, AC-07, AC-08) ([421d265](https://github.com/amigo-labs/amigo-pincel/commit/421d265acf8337df01080ff3c542c220c4b404f4))
+* **pincel-image-wasm:** register_font takes an optional face index (AC-08) ([fb90e5b](https://github.com/amigo-labs/amigo-pincel/commit/fb90e5b3e7a157b00ff9ac545be7413f741cadf9))
+* **pincel-mcp:** offer the system's fonts to draw.text and font.list (AC-09) ([7426000](https://github.com/amigo-labs/amigo-pincel/commit/74260004f13e8e1c08268f9112ab9d06936440d6))
+* **pincel-ocr:** read whole pages in reading order ([4c96d9f](https://github.com/amigo-labs/amigo-pincel/commit/4c96d9f095ea90a4ae188b23b6f1a6386736690a))
+* **pincel-ocr:** read whole pages in reading order (AC-01, AC-02, AC-03, AC-04, AC-05, AC-14) ([4ddfcd2](https://github.com/amigo-labs/amigo-pincel/commit/4ddfcd2f966d939d1cd2b0add4f07aa015dc589a))
+* **pincel-palette:** add shared palette file codec crate (AC-21) ([87539fa](https://github.com/amigo-labs/amigo-pincel/commit/87539fa0a847a4e696ca6daebfa8bc47c689a3fb))
+* **pincel-wasm:** agentCall on the open document (AC-07) ([00efee8](https://github.com/amigo-labs/amigo-pincel/commit/00efee81139a1aa250c48dc64a5f97bbb0df4d88))
+* **pincel-wasm:** registerFont takes an optional face index (AC-08) ([9223b09](https://github.com/amigo-labs/amigo-pincel/commit/9223b093753a73b98de7e732360982b0693c0fa9))
+* **tauri:** find, start and connect a ComfyUI server ([8fc7fca](https://github.com/amigo-labs/amigo-pincel/commit/8fc7fca988d8bbf96ac708c54003674564c17dd4))
+* **tauri:** find, start and end ComfyUI servers (AC-02 – AC-13) ([9a8678c](https://github.com/amigo-labs/amigo-pincel/commit/9a8678cf0c888ae22891b7539de52011af524bfc))
+* **tauri:** let the desktop app download the OCR models from pincel.amigo-labs.dev ([f3a96e4](https://github.com/amigo-labs/amigo-pincel/commit/f3a96e47b29e13e1ea2cc2248397103ca1bb474c))
+* **tauri:** list system fonts with fontdb and read a listed font file (AC-15, AC-16) ([8829edd](https://github.com/amigo-labs/amigo-pincel/commit/8829edd1c9e4dd024edb736c591a79017fb00de5))
+* **tauri:** live MCP endpoint for agents on the open documents ([85127e2](https://github.com/amigo-labs/amigo-pincel/commit/85127e2435d3340be86098bc63e3984651429152))
+* **tauri:** live MCP endpoint on 127.0.0.1 (AC-05, AC-06, AC-08, AC-22, AC-23) ([2bb23a5](https://github.com/amigo-labs/amigo-pincel/commit/2bb23a599ebc4ed81e2628f2947caf7e2087ae5e))
+* **tauri:** reach ComfyUI over HTTPS through reqwest and rustls (AC-08) ([3ba039b](https://github.com/amigo-labs/amigo-pincel/commit/3ba039be9b4c3486af2a066b3c3ed45e4e83c345))
+* **ui:** font family list in the Pixel and Image Text tools (AC-01, AC-03, AC-04, AC-06, AC-07, AC-08, AC-09, AC-10, AC-12 – AC-14, AC-18, AC-22) ([9b55740](https://github.com/amigo-labs/amigo-pincel/commit/9b55740f7c22ebcb539b14507b0c46d9fe2931ed))
+* **ui:** font sources, face choice and added fonts for the Text tools (AC-02, AC-05, AC-07, AC-11, AC-20, AC-21, AC-23, AC-24) ([5c108be](https://github.com/amigo-labs/amigo-pincel/commit/5c108be74ed911e22ca2e14991931c97bc85abe3))
+* **ui:** installed fonts in both Text tools ([f42ecab](https://github.com/amigo-labs/amigo-pincel/commit/f42ecabea879f08ee5e5f57914da6e9be7442c96))
+* **ui:** load, save and reset Image mode's palette ([f851ecf](https://github.com/amigo-labs/amigo-pincel/commit/f851ecf3e7d785330acad8ca8b7ea4918e2547d7))
+* **ui:** load, save, extend and reset Image mode's palette (AC-01..AC-20, AC-22..AC-25) ([5cd3e20](https://github.com/amigo-labs/amigo-pincel/commit/5cd3e20d54c57c6ffb1dd5828c86642a47a455b6))
+* **ui:** open the clipboard from the start screen as a pixel sprite or an image (AC-34, AC-35, AC-36, AC-37, AC-38) ([9dd8793](https://github.com/amigo-labs/amigo-pincel/commit/9dd879328850b34444e3a0b75217f212880c2674))
+* **ui:** run live agent calls on the open documents (AC-07, AC-09, AC-10, AC-11, AC-15, AC-16, AC-17, AC-18, AC-19) ([d6ff138](https://github.com/amigo-labs/amigo-pincel/commit/d6ff138081c04cd6b28a32f0c9d5beb24b44e9a7))
+* **ui:** Tools &gt; Recognize Text dialog with the model download on first use (AC-01, AC-02, AC-03, AC-04, AC-07, AC-16, AC-17) ([653b05b](https://github.com/amigo-labs/amigo-pincel/commit/653b05b07ed8fba13960ac00c8266494b7a6eb3e))
+* **ui:** Tools ▸ Recognize Text with the OCR model download on first use ([1eabaa8](https://github.com/amigo-labs/amigo-pincel/commit/1eabaa8ae17d828e26ff710ec7fadfe968f7256b))
+* **ui:** View ▸ AI Agents… and the AI connected indicator (AC-01, AC-02, AC-03, AC-04, AC-12, AC-13, AC-14, AC-20, AC-21) ([16532b4](https://github.com/amigo-labs/amigo-pincel/commit/16532b4a25a42b30c6322a99e18acecd1b8c9740))
+* **ui:** View ▸ Image generation… dialog for the ComfyUI connection (AC-01 – AC-08, AC-11 – AC-14) ([f4c170a](https://github.com/amigo-labs/amigo-pincel/commit/f4c170a688a40b808236426e3037e30d57c31e8f))
+
+
+### Bug Fixes
+
+* **tauri:** a chat that cannot store the port leaves nothing listening (AC-03) ([f8af412](https://github.com/amigo-labs/amigo-pincel/commit/f8af412fc5fb7f8571c780dbd5714b6d04983ea6))
+* **tauri:** end stale sessions on a new token and stay off when the config cannot be written ([e7ffbd8](https://github.com/amigo-labs/amigo-pincel/commit/e7ffbd8400ea5b6ad105bea703216e975dc4a924))
+* **ui:** create the OCR model store in profiles already at schema 3 ([8e7e8a4](https://github.com/amigo-labs/amigo-pincel/commit/8e7e8a4a03e170c7bba0632c02cf7fb0c24f9dbf))
+* **ui:** read background Pixel tabs for doc.list without switching them ([18d63b7](https://github.com/amigo-labs/amigo-pincel/commit/18d63b7e0257d7eb6e28734d24936a6fa9d9baef))
+* **ui:** render an added family from its added faces, never a system face (AC-05) ([974a186](https://github.com/amigo-labs/amigo-pincel/commit/974a18674d9a144d24963faa15f839cc820c66e2))
+
 ## [1.10.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.10.0...v1.10.1) (2026-11-10)
 
 
