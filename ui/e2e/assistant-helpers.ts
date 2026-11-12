@@ -10,14 +10,40 @@ import { commandCalls, emit, installTauriMock, reply, type MockWindow } from './
 
 export type Mode = 'pixel' | 'image';
 
+/** The supported CLIs as `assistant_clis` reports them (ai-chat-clis
+ *  AC-01), in the picker's order. */
+const CLIS = {
+  claude: ['Claude Code', 'https://docs.claude.com/en/docs/claude-code', '2.1.69'],
+  codex: ['Codex CLI', 'https://github.com/openai/codex', '0.122.0'],
+  gemini: ['Gemini CLI', 'https://github.com/google-gemini/gemini-cli', '0.34.0'],
+  opencode: ['opencode', 'https://opencode.ai', '1.1.1'],
+} as const;
+
+export type CliId = keyof typeof CLIS;
+
+/** One CLI's status: installed with `version` (its minimum by default,
+ *  `null` for an unreadable one), or not installed. */
+export function cliStatus(
+  id: CliId,
+  installed: boolean,
+  version: string | null = CLIS[id][2],
+  supported: boolean = installed && version !== null,
+): Record<string, unknown> {
+  const [name, installUrl, minVersion] = CLIS[id];
+  return {
+    id,
+    name,
+    installUrl,
+    installed,
+    version: installed ? version : null,
+    minVersion,
+    supported: installed && supported,
+  };
+}
+
 /** Claude Code as `assistant_clis` reports it. */
 export function claude(installed: boolean): Record<string, unknown> {
-  return {
-    id: 'claude',
-    name: 'Claude Code',
-    installUrl: 'https://docs.claude.com/en/docs/claude-code',
-    installed,
-  };
+  return cliStatus('claude', installed);
 }
 
 export const RECT = { x0: 1, y0: 1, x1: 8, y1: 8, color: '#ff0000', filled: true };
