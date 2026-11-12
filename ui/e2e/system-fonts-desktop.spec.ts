@@ -2,16 +2,17 @@ import { expect, test, type Page } from '@playwright/test';
 import { clearClipboard, copiedImage, menu, setColor, waitForEditor } from './helpers';
 import {
   SERIF,
-  fixtureBytes,
   fontControl,
   fontEntries,
   fontList,
   imageReference,
   installLocalFonts,
+  installShellFonts,
   lfaLog,
   openFontList,
   pickFamily,
   sameInk,
+  shellLog,
 } from './font-helpers';
 import { installTauriMock } from './tauri-mock';
 import { H, W, at, chooseText, liveInput, setFontSize, textBox, undoAll } from './text-helpers';
@@ -27,104 +28,6 @@ test.use({
   userAgent:
     'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
 });
-
-/** One face as the shell lists it. */
-interface ShellFace {
-  file: number;
-  index: number;
-  family: string;
-  style: string;
-  weight: number;
-  italic: boolean;
-  stretch: number;
-  postscript: string;
-}
-
-const FACES: ShellFace[] = [
-  {
-    file: 0,
-    index: 0,
-    family: 'Pincel Test Serif',
-    style: 'Regular',
-    weight: 400,
-    italic: false,
-    stretch: 5,
-    postscript: 'PincelTestSerif-Regular',
-  },
-  {
-    file: 0,
-    index: 1,
-    family: 'Pincel Test Serif',
-    style: 'Bold',
-    weight: 700,
-    italic: false,
-    stretch: 5,
-    postscript: 'PincelTestSerif-Bold',
-  },
-  {
-    file: 1,
-    index: 0,
-    family: 'Pincel Test Serif',
-    style: 'Italic',
-    weight: 400,
-    italic: true,
-    stretch: 5,
-    postscript: 'PincelTestSerif-Italic',
-  },
-  {
-    file: 2,
-    index: 0,
-    family: 'Desk Sans',
-    style: 'Regular',
-    weight: 400,
-    italic: false,
-    stretch: 5,
-    postscript: 'DeskSans',
-  },
-];
-const FILES = ['PincelTestSerif.ttc', 'PincelTestSerif-Italic.ttf', 'LiberationSans-Regular.ttf'];
-
-/** Answers the font commands of the mocked shell; counts the calls. */
-async function installShellFonts(page: Page): Promise<void> {
-  const files = await Promise.all(
-    FILES.map(async (f) => Buffer.from(await fixtureBytes(f)).toString('base64')),
-  );
-  await page.addInitScript(
-    ({ faces, files }) => {
-      const internals = (
-        window as unknown as {
-          __TAURI_INTERNALS__: {
-            invoke: (c: string, a: Record<string, unknown>) => Promise<unknown>;
-          };
-        }
-      ).__TAURI_INTERNALS__;
-      const log = { lists: 0, reads: [] as number[] };
-      (window as unknown as { __shellFonts: typeof log }).__shellFonts = log;
-      const inner = internals.invoke;
-      internals.invoke = async (cmd, args) => {
-        if (cmd === 'system_font_faces') {
-          log.lists += 1;
-          return faces;
-        }
-        if (cmd === 'system_font_file') {
-          const file = Number(args.file);
-          log.reads.push(file);
-          const b64 = files[file];
-          if (b64 === undefined) throw new Error('unknown font file');
-          return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
-        }
-        return inner(cmd, args);
-      };
-    },
-    { faces: FACES, files },
-  );
-}
-
-async function shellLog(page: Page): Promise<{ lists: number; reads: number[] }> {
-  return page.evaluate(
-    () => (window as unknown as { __shellFonts: { lists: number; reads: number[] } }).__shellFonts,
-  );
-}
 
 /** Opens the desktop app with a new image and the Text tool at size 32. */
 async function start(page: Page): Promise<void> {
