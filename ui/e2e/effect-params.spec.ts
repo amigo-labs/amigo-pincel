@@ -80,9 +80,7 @@ test('angle: the dial and the degree field set the same angle (AC-09)', async ({
   }
 });
 
-test('point: X / Y in percent, default centre, the effect follows it (AC-10)', async ({
-  page,
-}) => {
+test('point: X / Y in percent, default centre, the effect follows it (AC-10)', async ({ page }) => {
   await scene(page);
   const dialog = await open(page, 'Blurs', 'Radial Blur…');
   const x = dialog.getByLabel('Center X in percent');
@@ -95,10 +93,14 @@ test('point: X / Y in percent, default centre, the effect follows it (AC-10)', a
   const centred = await canvas.screenshot({ mask: [dialog] });
   await x.fill('5');
   await y.fill('95');
-  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(false);
+  await expect
+    .poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred))
+    .toBe(false);
   await x.fill('50');
   await y.fill('50');
-  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(true);
+  await expect
+    .poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred))
+    .toBe(true);
 });
 
 test('point: Pick on canvas sets the point without a tool stroke (AC-11)', async ({ page }) => {
@@ -198,15 +200,15 @@ test('point: a picked point updates the preview (AC-11)', async ({ page }) => {
   await pressAt(page, canvas, 0.05, 0.95);
   await page.mouse.up();
   await expect(dialog.getByLabel('Center X in percent')).toHaveValue('5');
-  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred)).toBe(false);
+  await expect
+    .poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(centred))
+    .toBe(false);
 });
 
 test.describe('touch device', () => {
   test.use({ hasTouch: true });
 
-  test('pen and single touch pick the point; two fingers still pinch (AC-11)', async ({
-    page,
-  }) => {
+  test('pen and single touch pick the point; two fingers still pinch (AC-11)', async ({ page }) => {
     await createDocument(page, 'image', { width: 40, height: 40 });
     await page.keyboard.press('b');
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
@@ -233,7 +235,10 @@ test.describe('touch device', () => {
       y: box.y + box.height * fy,
       id,
     });
-    await cdp.send('Input.dispatchTouchEvent', { type: 'touchStart', touchPoints: [at(0.3, 0.2, 1)] });
+    await cdp.send('Input.dispatchTouchEvent', {
+      type: 'touchStart',
+      touchPoints: [at(0.3, 0.2, 1)],
+    });
     await cdp.send('Input.dispatchTouchEvent', { type: 'touchEnd', touchPoints: [] });
     await expect(x).toHaveValue('30');
     await expect(y).toHaveValue('20');
@@ -267,7 +272,9 @@ test('seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12)
   const seed = dialog.getByLabel('Seed value');
   await expect(seed).toHaveValue('1');
   const canvas = imageCanvas(page);
-  await page.waitForTimeout(300);
+  // The seed-1 preview must be on screen first: under load the worker can
+  // take longer than any fixed wait.
+  await expect(canvas).toHaveAttribute('data-preview', 'true');
   const first = await canvas.screenshot({ mask: [dialog] });
   for (let i = 0; i < 5; i++) {
     const before = await seed.inputValue();
@@ -276,9 +283,13 @@ test('seed: Reseed draws a new seed, the same seed gives the same pixels (AC-12)
     expect(String(after)).not.toBe(before);
     expect(Number.isInteger(after) && after >= 0 && after <= 9999).toBe(true);
   }
-  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first)).toBe(false);
+  await expect
+    .poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first))
+    .toBe(false);
   await seed.fill('1');
-  await expect.poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first)).toBe(true);
+  await expect
+    .poll(async () => (await canvas.screenshot({ mask: [dialog] })).equals(first))
+    .toBe(true);
 });
 
 test('linked pair: Square Blur width and height move together while linked (AC-13)', async ({

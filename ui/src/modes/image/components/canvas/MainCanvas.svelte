@@ -79,6 +79,7 @@
     const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
     drawViewport(canvas, editor.width, editor.height, view, sample);
     ready = true;
+    previewDrawn = preview !== null;
   }
 
   /** Draws in the next animation frame, once however often it is asked. */
@@ -476,6 +477,9 @@
   // A document is open, fitted and drawn — the canvas takes input.
   // Published as `data-ready` on the surface.
   let ready = $state(false);
+  // Whether the last drawing shows an effect preview; published as
+  // `data-preview`, so a test waits for the preview to be on screen.
+  let previewDrawn = $state(false);
   $effect(() => {
     const handle = editor.handle;
     if (handle !== lastHandle) {
@@ -538,6 +542,7 @@
       role="img"
       aria-label="Image canvas"
       data-ready={ready}
+      data-preview={previewDrawn}
       style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
     ></div>
   </div>
