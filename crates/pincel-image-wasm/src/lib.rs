@@ -16,8 +16,8 @@ use pincel_image_core::command::spec::{
 use pincel_image_core::command::{CommandBus, HistoryKind, PasteLayer, SetPixels};
 use pincel_image_core::jobs::{self, EncodeFormat, JobError, decode_region, encode_region};
 use pincel_image_core::{
-    BlendMode, Color, Document, Eyedropper, ImageBuffer, Point, Rect, RenderCache, SampleSize,
-    compose, copy_selection as copy_selection_pixels, delete_selection,
+    BlendMode, Color, Document, Eyedropper, ImageBuffer, Layer, Point, Rect, RenderCache,
+    SampleSize, compose, copy_selection as copy_selection_pixels, delete_selection,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -356,8 +356,8 @@ const THUMBNAIL_DIM: u32 = 32;
 
 /// Downscales a layer buffer to a 32×32 RGBA8 thumbnail by nearest-neighbor
 /// sampling (spec §5.3).
-fn thumbnail(src: &ImageBuffer) -> Vec<u8> {
-    let mut out = vec![0u8; (THUMBNAIL_DIM * THUMBNAIL_DIM * 4) as usize];
+fn thumbnail(src: &ImageBuffer) -> ImageBuffer {
+    let mut out = ImageBuffer::new_transparent(THUMBNAIL_DIM, THUMBNAIL_DIM);
     let sw = src.width().max(1);
     let sh = src.height().max(1);
     for ty in 0..THUMBNAIL_DIM {
@@ -365,11 +365,7 @@ fn thumbnail(src: &ImageBuffer) -> Vec<u8> {
             let sx = (tx * sw / THUMBNAIL_DIM).min(sw - 1);
             let sy = (ty * sh / THUMBNAIL_DIM).min(sh - 1);
             let c = src.get_pixel(sx, sy).unwrap_or(Color::TRANSPARENT);
-            let i = ((ty * THUMBNAIL_DIM + tx) * 4) as usize;
-            out[i] = c.r;
-            out[i + 1] = c.g;
-            out[i + 2] = c.b;
-            out[i + 3] = c.a;
+            out.set_pixel(tx, ty, c);
         }
     }
     out
@@ -822,17 +818,38 @@ pub fn get_layer_thumbnail(handle: u32, layer_id: &str) -> Result<Clamped<Vec<u8
 /// group the composite of its subtree, hidden or not. `None` for an
 /// unknown id.
 fn layer_thumbnail_pixels(doc: &Document, layer_id: &str) -> Option<Vec<u8>> {
+    let mut id = [0u8; uuid::fmt::Hyphenated::LENGTH];
     let index = doc
         .layers()
         .iter()
-        .position(|l| l.id.to_string() == layer_id)?;
+        .position(|l| l.id.hyphenated().encode_lower(&mut id) == layer_id)?;
     let layer = &doc.layers()[index];
     if !layer.is_group() {
-        return Some(thumbnail(&layer.pixels));
+        return Some(thumbnail(&layer.pixels).into_raw());
     }
-    let mut subtree = doc.layers()[index..doc.subtree_end(index)].to_vec();
+    // Compositing is per pixel, so composing the subtree's layers sampled
+    // to the thumbnail grid gives exactly the pixels that sampling the
+    // canvas-sized composite would, at a fraction of the work.
+    let mut subtree: Vec<Layer> = doc.layers()[index..doc.subtree_end(index)]
+        .iter()
+        .map(|l| Layer {
+            id: l.id,
+            name: String::new(),
+            kind: l.kind,
+            parent: l.parent,
+            pixels: if l.is_group() {
+                ImageBuffer::new_transparent(0, 0)
+            } else {
+                thumbnail(&l.pixels)
+            },
+            opacity: l.opacity,
+            blend_mode: l.blend_mode,
+            visible: l.visible,
+            locked: l.locked,
+        })
+        .collect();
     subtree[0].visible = true;
-    Some(thumbnail(&compose(&subtree)))
+    Some(thumbnail(&compose(&subtree)).into_raw())
 }
 
 /// Returns the selection's bounding box as `[x, y, w, h]`, or an empty array
@@ -932,6 +949,113 @@ mod group_tests {
         assert_eq!((infos[2].depth, infos[2].parent), (1, Some(1)));
         assert!(infos[2].locked_by_parent && !infos[2].locked);
         assert!(!infos[1].locked_by_parent);
+    }
+
+    /// The thumbnail as it was built before it sampled the layers first:
+    /// the whole subtree composed at canvas size, then sampled. Frozen as
+    /// the reference the faster path must match byte for byte.
+    fn reference_thumbnail(doc: &Document, layer_id: &str) -> Option<Vec<u8>> {
+        let index = doc
+            .layers()
+            .iter()
+            .position(|l| l.id.to_string() == layer_id)?;
+        let layer = &doc.layers()[index];
+        if !layer.is_group() {
+            return Some(reference_sample(&layer.pixels));
+        }
+        let mut subtree = doc.layers()[index..doc.subtree_end(index)].to_vec();
+        subtree[0].visible = true;
+        Some(reference_sample(&compose(&subtree)))
+    }
+
+    /// The nearest-neighbor 32×32 sampling the reference used.
+    fn reference_sample(src: &ImageBuffer) -> Vec<u8> {
+        let mut out = vec![0u8; 32 * 32 * 4];
+        let sw = src.width().max(1);
+        let sh = src.height().max(1);
+        for ty in 0..32 {
+            for tx in 0..32 {
+                let sx = (tx * sw / 32).min(sw - 1);
+                let sy = (ty * sh / 32).min(sh - 1);
+                let c = src.get_pixel(sx, sy).unwrap_or(Color::TRANSPARENT);
+                let i = ((ty * 32 + tx) * 4) as usize;
+                out[i..i + 4].copy_from_slice(&[c.r, c.g, c.b, c.a]);
+            }
+        }
+        out
+    }
+
+    /// A `w`×`h` raster layer of pseudo-random straight-alpha pixels.
+    fn noise(name: &str, w: u32, h: u32, seed: u32, parent: Option<uuid::Uuid>) -> Layer {
+        let mut state = seed.wrapping_mul(2_654_435_761).wrapping_add(1);
+        let data = (0..w * h * 4)
+            .map(|_| {
+                state = state.wrapping_mul(1_664_525).wrapping_add(1_013_904_223);
+                (state >> 24) as u8
+            })
+            .collect();
+        let pixels = ImageBuffer::from_raw(w, h, data).expect("buffer");
+        Layer::from_pixels(name, pixels).with_parent(parent)
+    }
+
+    /// bg, G1 { a, G2 { b, c (hidden) }, d (opacity 0) }, G3 (hidden,
+    /// empty), G4 (hidden) { e }, f — with blend modes and opacities.
+    fn nested(w: u32, h: u32) -> Document {
+        let mut doc = Document::new(w, h).expect("doc");
+        doc.active_layer_mut().pixels = noise("bg", w, h, 1, None).pixels;
+        let g1 = Layer::new_group("G1")
+            .with_opacity(0.7)
+            .with_blend_mode(BlendMode::Multiply);
+        let g2 = Layer::new_group("G2")
+            .with_opacity(0.9)
+            .with_blend_mode(BlendMode::Overlay)
+            .with_parent(Some(g1.id));
+        let mut g3 = Layer::new_group("G3");
+        g3.visible = false;
+        let mut g4 = Layer::new_group("G4").with_blend_mode(BlendMode::SoftLight);
+        g4.visible = false;
+        let (g1id, g2id, g4id) = (g1.id, g2.id, g4.id);
+        let mut c = noise("c", w, h, 5, Some(g2id));
+        c.visible = false;
+        let layers = [
+            g1,
+            noise("a", w, h, 2, Some(g1id))
+                .with_opacity(0.5)
+                .with_blend_mode(BlendMode::Screen),
+            g2,
+            noise("b", w, h, 4, Some(g2id)).with_blend_mode(BlendMode::Difference),
+            c,
+            noise("d", w, h, 6, Some(g1id)).with_opacity(0.0),
+            g3,
+            g4,
+            noise("e", w, h, 7, Some(g4id)).with_blend_mode(BlendMode::ColorBurn),
+            noise("f", w, h, 8, None).with_opacity(0.33),
+        ];
+        for (i, layer) in layers.into_iter().enumerate() {
+            doc.insert_layer(i + 1, layer).expect("insert");
+        }
+        doc
+    }
+
+    #[test]
+    fn layer_thumbnail_pixels_matches_composing_the_whole_subtree() {
+        for (w, h) in [(1, 1), (3, 700), (5000, 3), (33, 31), (64, 64), (100, 37)] {
+            let mut doc = nested(w, h);
+            for hide_g1 in [false, true] {
+                doc.set_active_layer(1).expect("G1");
+                doc.active_layer_mut().visible = !hide_g1;
+                for layer in doc.layers() {
+                    let id = layer.id.to_string();
+                    assert_eq!(
+                        layer_thumbnail_pixels(&doc, &id),
+                        reference_thumbnail(&doc, &id),
+                        "{w}x{h}, layer {}, G1 hidden: {hide_g1}",
+                        layer.name
+                    );
+                }
+            }
+        }
+        assert_eq!(layer_thumbnail_pixels(&nested(2, 2), "nope"), None);
     }
 
     #[test]
