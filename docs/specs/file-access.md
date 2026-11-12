@@ -70,6 +70,8 @@ Each mode saves its own project format — `.aseprite` in Pixel mode, OpenRaster
 - [ ] AC-27 (state): While files are dragged over an open editor whose document is loaded and no modal dialog is open, the editor shows an overlay reading "Drop to add or open"; it disappears when the drag leaves the window or ends.
 - [ ] AC-28 (state): While the remembered choice is "Add as Layer" and "Add as layer" is not possible for a drop (AC-22), the dialog shows instead of the remembered action.
 - [ ] AC-29 (event, manual: needs the desktop app): When the user drops files onto the desktop app's start screen or an open editor, then they behave as in the browser (AC-15, AC-20 – AC-28), and a document opened by the drop is recorded in the recent files and saves as a document opened by path does (AC-05; a raster file follows `save-original-format`).
+- [ ] AC-30 (error): If re-opening a recent file fails because the file no longer exists (the desktop app finds no file at its path; in the browser its handle reports it as not found), then its entry leaves the recent-files registry — the start screen's Recent list, File ▸ Open Recent in both modes and the desktop app's native Open Recent submenu no longer show it — and the notice reads "<name> was not found and was removed from the recent files" ("„<name>“ wurde nicht gefunden und aus „Zuletzt geöffnet“ entfernt"); a denied permission (AC-14) or any other failed read (AC-16) keeps the entry.
+- [ ] AC-31 (state): While the desktop app shows its recent files (start screen, File ▸ Open Recent, the native submenu), entries whose path no longer holds a file are removed from the registry and not shown; the browser checks no entry ahead of a click, because a check there could ask for permission.
 
 ## Technical notes
 
@@ -93,6 +95,9 @@ Hints, not contracts — paths drift; grep for the names.
 | Clipboard image larger than the Image-mode limits | Prefilled size is clamped like a typed size |
 | Recent entry recorded before the two-mode shell (no `mode`) | Listed as Pixel |
 | Recent entry without handle and without path | Error notice "<name>: no handle / path" |
+| A recent file was moved or deleted outside Pincel | Desktop: gone from the list the next time it shows (AC-31); a click before that removes it with the notice (AC-30). Browser: removed on the click (AC-30) |
+| A recent file sits on a drive that is not connected | Desktop: the path holds no file, so the entry is removed (AC-31) — the path check cannot tell a missing drive from a deleted file |
+| A recent file exists but cannot be read (locked, no permission) | Entry kept, AC-14 / AC-16 notice |
 | Several files dropped at once on the start screen | Only the first opens |
 | A drop onto an open editor while a modal dialog is open, or before its document is loaded | Ignored, no drop overlay — because the dialog owns the input and an unloaded editor has no layer to add to |
 | A drag of text or a link (no files) over an open editor | No drop state, nothing happens |
@@ -141,6 +146,8 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-27 | `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: pixel: a file drag shows the overlay; a raster drop asks, Cancel changes nothing`; `ui/e2e/editor-drop.spec.ts › AC-20, AC-27: image: a file drag shows the overlay; a raster drop asks, Cancel changes nothing` | built | |
 | AC-28 | `ui/e2e/editor-drop.spec.ts › AC-28: a remembered Add as Layer asks when the drop cannot be added` | built | |
 | AC-29 | | open | |
+| AC-30 | | open | |
+| AC-31 | | open | |
 
 Still `open`: AC-09 and AC-29 are manual checks on the desktop app. AC-29's code path is built — `watchFileDrops` in `ui/src/lib/fs/drop.ts` listens to Tauri's `onDragDropEvent` and reads the dropped paths with `read_file_bytes`, feeding the same shell flow as a browser drop — and waits for a sign-off on the desktop app (`manual: {who} checked {what}, {date}`).
 
@@ -165,3 +172,4 @@ Still `open`: AC-09 and AC-29 are manual checks on the desktop app. AC-29's code
 - 2026-11-04: A drop that arrives while the layers of an earlier drop are still being added (a larger-image dialog is open) is ignored like any drop under a modal dialog — because the dialog owns the input.
 - 2026-11-04: "Don't ask again" ticked with Cancel stores nothing (AC-20), and Escape in the drop dialog is Cancel — because only a confirmed action can be remembered.
 - 2026-11-05: AC-23 and AC-24 reworded for `document-tabs` AC-19, when the drop-onto-editor work met the tabs: "Open as document" and a dropped project file open every dropped file as a tab instead of replacing the document with the first one, so neither the unsaved-changes guard nor the "only the first was opened" notice applies; both back to `open` — because a new tab replaces nothing.
+- 2026-11-12: Recent entries whose file no longer exists leave the registry, on a click (AC-30) and, in the desktop app, before the list shows (AC-31) — the owner asked for deleted files to leave the history (screenshot: "os error 2" on a recent click). Only "not found" removes an entry: a denied permission or a locked file may work again later. The browser does no pre-check, because `getFile()` on a stored handle may need a permission prompt. The three recent lists (shell, Pixel editor, Image editor) refresh through one change notifier in `ui/src/lib/idb/recent-files.ts`, so a removal shows everywhere at once.
