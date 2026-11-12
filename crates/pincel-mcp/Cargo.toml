@@ -14,7 +14,7 @@ path = "src/main.rs"
 [dependencies]
 # Enumerates the system's fonts for draw.text / font.list, as the desktop
 # app does (Decision Log 2026-11-05, docs/specs/system-fonts-mcp.md).
-fontdb = "0.23"
+fontdb = "0.24"
 pincel-agent = { workspace = true }
 serde_json = { workspace = true }
 
