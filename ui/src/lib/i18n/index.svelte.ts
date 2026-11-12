@@ -6,43 +6,39 @@
 
 import { de } from './de';
 import { en, type MessageKey } from './en';
-import { formatMessage } from './format';
+import { es } from './es';
+import { fr } from './fr';
+import { ja } from './ja';
+import { isLocale, LOCALES, pickLocale, type Locale } from './locales';
+import { ptBr } from './pt-br';
+import { formatDateTime, formatFixed, formatMessage, formatPercent } from './format';
 
 export type { MessageKey } from './en';
 
-/** Supported UI languages. */
-export type Locale = 'en' | 'de';
-
-/** Language picker entries, each labelled in its own language. */
-export const LOCALES: readonly { id: Locale; label: string }[] = [
-  { id: 'en', label: 'English' },
-  { id: 'de', label: 'Deutsch' },
-];
+export { isLocale, LOCALES, type Locale };
 
 /** IndexedDB pref holding the user's explicit choice. */
 export const LANGUAGE_PREF = 'language';
 
-const DICTS: Record<Locale, Record<MessageKey, string>> = { en, de };
+const DICTS: Record<Locale, Record<MessageKey, string>> = {
+  en,
+  de,
+  es,
+  ja,
+  fr,
+  'pt-BR': ptBr,
+};
 
-/** The locale a browser asks for: German for any `de-*`, else English. */
+/** The locale the browser asks for (docs/specs/more-languages.md AC-03). */
 export function browserLocale(): Locale {
   const langs =
     typeof navigator === 'undefined' ? [] : (navigator.languages ?? [navigator.language]);
-  for (const l of langs) {
-    const base = l.toLowerCase().split('-')[0];
-    if (base === 'de' || base === 'en') return base;
-  }
-  return 'en';
+  return pickLocale(langs);
 }
 
 /** `true` when `key` names a message (for keys built at runtime). */
 export function isMessageKey(key: string): key is MessageKey {
   return key in en;
-}
-
-/** Narrow a stored pref value to a locale. */
-export function isLocale(v: unknown): v is Locale {
-  return v === 'en' || v === 'de';
 }
 
 const state = $state<{ locale: Locale }>({ locale: browserLocale() });
@@ -95,4 +91,20 @@ export function englishLabel(label: string): string | null {
     return base === null ? null : `${base}…`;
   }
   return null;
+}
+
+/** `value` (0–100) as a percentage in the active locale ("100 %" in
+ *  French; docs/specs/more-languages.md AC-09). Reactive like `t()`. */
+export function percent(value: number): string {
+  return formatPercent(value, state.locale);
+}
+
+/** `value` with exactly `digits` decimals in the active locale ("1,5"). */
+export function decimal(value: number, digits: number): string {
+  return formatFixed(value, state.locale, digits);
+}
+
+/** `time` (ms since the epoch) as a date and time in the active locale. */
+export function dateTime(time: number): string {
+  return formatDateTime(time, state.locale);
 }

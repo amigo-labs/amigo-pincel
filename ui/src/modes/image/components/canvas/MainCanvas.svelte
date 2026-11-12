@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../../../lib/i18n/index.svelte';
+  import { percent, t } from '../../../../lib/i18n/index.svelte';
   import { onMount } from 'svelte';
   import {
     editor,
@@ -565,7 +565,7 @@
   <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
   {#if editor.handle !== null}
     <ZoomControl
-      label={`${Math.round(view.zoom * 100)}%`}
+      label={percent(Math.round(view.zoom * 100))}
       onZoomIn={() => setZoom(view.zoom * 1.25)}
       onZoomOut={() => setZoom(view.zoom / 1.25)}
       onFit={fitView}

@@ -102,6 +102,14 @@ export function formatNumber(value: number, locale: string, maxFraction = 2): st
   return new Intl.NumberFormat(locale, { maximumFractionDigits: maxFraction }).format(value);
 }
 
+/** `value` with exactly `digits` decimals, as the locale writes them. */
+export function formatFixed(value: number, locale: string, digits: number): string {
+  return new Intl.NumberFormat(locale, {
+    minimumFractionDigits: digits,
+    maximumFractionDigits: digits,
+  }).format(value);
+}
+
 /** `percent` (0–100) as the locale writes a percentage ("100 %" in French). */
 export function formatPercent(percent: number, locale: string, maxFraction = 0): string {
   return new Intl.NumberFormat(locale, {

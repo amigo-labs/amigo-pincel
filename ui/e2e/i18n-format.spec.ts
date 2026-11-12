@@ -1,6 +1,10 @@
 import { expect, test } from '@playwright/test';
 import { de } from '../src/lib/i18n/de';
 import { en, type MessageKey } from '../src/lib/i18n/en';
+import { es } from '../src/lib/i18n/es';
+import { fr } from '../src/lib/i18n/fr';
+import { ja } from '../src/lib/i18n/ja';
+import { ptBr } from '../src/lib/i18n/pt-br';
 import {
   formatDateTime,
   formatMessage,
@@ -13,7 +17,13 @@ import {
 // (docs/specs/more-languages.md AC-06 – AC-09). Node only: the
 // dictionaries and `format.ts` are rune-free.
 
-const DICTS: Readonly<Record<string, Readonly<Record<MessageKey, string>>>> = { de };
+const DICTS: Readonly<Record<string, Readonly<Record<MessageKey, string>>>> = {
+  de,
+  es,
+  ja,
+  fr,
+  'pt-BR': ptBr,
+};
 
 test('count messages follow the locale plural rules (AC-07, AC-08)', () => {
   const snapshots = '{count, plural, one {# snapshot} other {# snapshots}}';

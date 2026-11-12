@@ -2,11 +2,13 @@
 // (docs/specs/image-view-aids.md). Rune-free, so node-side Playwright specs
 // can test the arithmetic (AC-03, AC-12, AC-20, AC-21).
 
+import { usesDecimalComma, type Locale } from '../../lib/i18n/locales';
+
 /** The unit the rulers and the status bar show. */
 export type ViewUnit = 'px' | 'in' | 'cm';
 
 /** The UI language, for the decimal separator and the unit suffix. */
-export type ViewLocale = 'en' | 'de';
+export type ViewLocale = Locale;
 
 /** The persisted Image view state (AC-13, AC-14). */
 export interface ImageViewPref {
@@ -71,7 +73,7 @@ export function formatUnitValue(v: number, unit: ViewUnit, locale: ViewLocale): 
   const s = unit === 'px' ? String(Math.round(v)) : v.toFixed(2);
   // `-0.00` reads as a sign error.
   const clean = /^-0(\.0+)?$/.test(s) ? s.slice(1) : s;
-  return locale === 'de' ? clean.replace('.', ',') : clean;
+  return usesDecimalComma(locale) ? clean.replace('.', ',') : clean;
 }
 
 /** A pixel value `p` shown in `unit`. */
