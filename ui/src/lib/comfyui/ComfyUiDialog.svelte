@@ -10,15 +10,22 @@
     comfy,
     isLoopbackUrl,
     pickFolder,
+    retryStart,
     testConnection,
   } from './state.svelte';
+  import InstallWizard from './InstallWizard.svelte';
+  import ManagedSection from './ManagedSection.svelte';
+  import { chooseAnotherServer, install, installAgain, loadInstall, openInstallWizard } from './install.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
   let closeButton: HTMLButtonElement | undefined = $state();
 
   // The dialog owns the keyboard: keys must not reach the editor behind it.
-  onMount(() => closeButton?.focus());
+  onMount(() => {
+    closeButton?.focus();
+    void loadInstall();
+  });
 
   function onKeydown(e: KeyboardEvent): void {
     e.stopPropagation();
@@ -49,12 +56,20 @@
   function gb(bytes: number): string {
     return (bytes / 1024 ** 3).toFixed(1);
   }
+
+  // comfyui-install edge case: CUDA's error for an old driver names it.
+  function namesDriver(log: string[]): boolean {
+    return log.some((line) => /nvidia driver|driver version is insufficient|cuda driver/i.test(line));
+  }
 </script>
 
 {#snippet folderButton(label: MessageKey)}
   <button class="panel-btn min-h-8" onclick={() => void pickFolder()}>{t(label)}</button>
 {/snippet}
 
+{#if install.open}
+  <InstallWizard />
+{:else}
 <div
   class="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
   role="dialog"
@@ -142,7 +157,7 @@
             onclick={() => void chooseServer('existing').then(() => pickFolder())}
             >{t('comfy.useExisting')}</button
           >
-          <button class="panel-btn min-h-8" disabled title={t('comfy.installLater')}
+          <button class="panel-btn min-h-8" disabled={install.info === null} onclick={() => openInstallWizard()}
             >{t('comfy.install')}</button
           >
         </div>
@@ -175,6 +190,12 @@
         </ul>
       {:else if status.kind === 'stopped'}
         <p class="mb-2 text-pc-danger-text">{t('comfy.stopped')}</p>
+        {#if namesDriver(status.log)}
+          <p class="mb-2 text-pc-accent-text">{t('comfy.driverHint')}</p>
+        {/if}
+        {#if choice === 'managed'}
+          <button class="panel-btn mb-2 min-h-8" onclick={retryStart}>{t('comfy.retryStart')}</button>
+        {/if}
         {#if status.log.length > 0}
           <p class="text-xs text-pc-muted">{t('comfy.output')}</p>
           <pre
@@ -183,7 +204,17 @@
         {/if}
       {:else if status.kind === 'installationNotFound'}
         <p class="mb-2 text-pc-danger-text">{t('comfy.installationNotFound', { path: status.path })}</p>
-        {@render folderButton('comfy.chooseAnother')}
+        {#if choice === 'managed'}
+          {@const path = status.path}
+          <div class="flex flex-wrap gap-2">
+            <button class="panel-btn min-h-8" onclick={() => installAgain(path)}>{t('comfy.installAgain')}</button>
+            <button class="panel-btn min-h-8" onclick={() => void chooseAnotherServer()}
+              >{t('comfy.chooseServer')}</button
+            >
+          </div>
+        {:else}
+          {@render folderButton('comfy.chooseAnother')}
+        {/if}
       {:else if status.kind === 'installationInvalid'}
         <p class="mb-2 text-pc-danger-text">{t(FOLDER_PROBLEM[status.problem])}</p>
         {@render folderButton('comfy.chooseAnother')}
@@ -200,6 +231,8 @@
       {/if}
     </div>
 
+    <ManagedSection />
+
     <div class="flex justify-end">
       <button bind:this={closeButton} class="panel-btn min-h-8" onclick={onClose}>
         {t('common.close')}
@@ -207,3 +240,4 @@
     </div>
   </div>
 </div>
+{/if}
