@@ -304,7 +304,12 @@ test('the dialog lists each document’s latest snapshot of both modes, newest f
     { docId: 'photo', ts: base, name: 'photo.ora', byteLength: 4096, mode: 'image' },
   ];
   await seedSnapshots(page, metas);
-  const when = (ts: number) => page.evaluate((t) => new Date(t).toLocaleString(), ts);
+  // As the dialog writes a date in English (more-languages AC-09).
+  const when = (ts: number) =>
+    page.evaluate(
+      (t) => new Intl.DateTimeFormat('en', { dateStyle: 'medium', timeStyle: 'short' }).format(t),
+      ts,
+    );
   const dialog = recoveryDialog(page);
   const rows = dialog.getByRole('listitem');
 

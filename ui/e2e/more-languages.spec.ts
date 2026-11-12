@@ -104,7 +104,8 @@ test('French writes the brush opacity as a French percentage (AC-09)', async ({ 
     .click();
   await expect(imageCanvas(page)).toHaveAttribute('data-ready', 'true');
   await page.keyboard.press('b');
-  await expect(page.getByText(/^100[\u00a0\u202f]%$/).first()).toBeVisible();
+  const options = page.getByRole('toolbar', { name: fr['frame.toolOptions'] });
+  await expect(options.getByText(/^100[\u00a0\u202f]%$/).first()).toBeVisible();
 });
 
 /** The layer names the Layers panel shows in `loc`, read off the grips. */
