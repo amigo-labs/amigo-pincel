@@ -77,13 +77,13 @@ function allJobs(): Job[] {
 
 /** The built bundle's Image job worker script. */
 function workerScript(): string {
-  const assets = `${root}ui/dist/app/assets/`;
+  const assets = `${root}ui/dist/assets/`;
   const name = readdirSync(assets).find(
     (f) =>
       /^worker-.*\.js$/.test(f) &&
       readFileSync(`${assets}${f}`, 'utf8').includes('no document loaded as'),
   );
-  if (!name) throw new Error('no Image job worker in ui/dist/app/assets (run pnpm build)');
+  if (!name) throw new Error('no Image job worker in ui/dist/assets (run pnpm build)');
   return `./assets/${name}`;
 }
 
