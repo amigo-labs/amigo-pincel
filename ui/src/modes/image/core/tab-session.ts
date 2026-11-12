@@ -99,6 +99,16 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
     close: () => requestCloseTab(tab),
     saveAs: () => saveTab(tab, true),
     agentCall: (docId, name, argsJson, file) => agentCall(tab, docId, name, argsJson, file),
+    assistantBegin: () => {
+      if (tab.doc.handle !== null) core.assistantBegin(tab.doc.handle);
+    },
+    assistantEnd: () => {
+      if (tab.doc.handle === null) return false;
+      const added = core.assistantEnd(tab.doc.handle);
+      if (tab === tabs.active) syncInfo();
+      return added;
+    },
+    undoKinds: () => (tab.doc.handle === null ? [] : core.history(tab.doc.handle).undo),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

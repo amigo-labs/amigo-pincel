@@ -251,6 +251,18 @@ export function runAgentCall(
   return reply;
 }
 
+/** Ends an Assistant answer on the active document: its steps fold into
+ *  one, and the undo buttons and the History panel follow
+ *  (docs/specs/ai-chat-panel.md AC-08, AC-09). */
+export function runAssistantEnd(): boolean {
+  const doc = ed.doc;
+  if (!doc) return false;
+  const added = doc.assistantEnd();
+  syncMeta();
+  ed.docRev += 1;
+  return added;
+}
+
 /** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History
  *  panel (history-panel AC-05): one core call and one recompose (AC-13). A
  *  failed redo stops there and reports in the status bar (AC-12). */

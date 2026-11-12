@@ -29,6 +29,8 @@ import initWasm, {
   undo,
   redo,
   agent_call,
+  assistantBegin as assistant_begin,
+  assistantEnd as assistant_end,
   undo_kinds,
   redo_kinds,
   history_dropped,
@@ -851,6 +853,12 @@ export const core = {
     file: AgentFile | null,
   ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes),
   redo: (handle: number): boolean => redo(handle),
+  /** An Assistant answer starts on `handle`: the steps until
+   *  `assistantEnd` become one undo step (docs/specs/ai-chat-panel.md AC-08). */
+  assistantBegin: (handle: number): void => assistant_begin(handle),
+  /** The answer ended: its steps become one `assistant` step; `false`,
+   *  adding none, when it changed nothing (AC-09). */
+  assistantEnd: (handle: number): boolean => assistant_end(handle),
   /** Kind ids of the undo steps (oldest first) and the redo steps (next
    *  redo first), and whether a step was dropped (history-panel AC-02). */
   history: (handle: number): { undo: string[]; redo: string[]; dropped: boolean } => ({

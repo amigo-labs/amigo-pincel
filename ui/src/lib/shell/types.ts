@@ -54,6 +54,16 @@ export interface EditorDocument {
    *  (docs/specs/mcp-live-desktop.md AC-07). The caller makes the tab
    *  active first. */
   agentCall(docId: string, name: string, argsJson: string, file: AgentFile | null): string;
+  /** An Assistant answer starts on this document: the changes until
+   *  `assistantEnd` become one undo step (docs/specs/ai-chat-panel.md
+   *  AC-08). */
+  assistantBegin(): void;
+  /** The Assistant answer ended: its changes become one undo step named
+   *  "Assistant", and the editor shows the new history. Returns `false`,
+   *  adding no step, when the answer changed nothing (AC-09). */
+  assistantEnd(): boolean;
+  /** Kind ids of the undo steps, oldest first (AC-15). */
+  undoKinds(): string[];
 }
 
 /** The file the user picked for an agent tool that reads one. */
