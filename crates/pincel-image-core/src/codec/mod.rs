@@ -122,7 +122,8 @@ pub fn decode_hinted(bytes: &[u8], hint: Option<&str>) -> Result<ImageBuffer, Co
         None => image::load_from_memory(bytes),
     }
     .map_err(CodecError::Decode)?;
-    let rgba = img.to_rgba8();
+    // Moves the pixels when the decoder already gave RGBA8, converts otherwise.
+    let rgba = img.into_rgba8();
     let (w, h) = rgba.dimensions();
     Ok(ImageBuffer::from_raw(w, h, rgba.into_raw())?)
 }
@@ -398,5 +399,73 @@ mod tests {
     #[test]
     fn decode_garbage_errors() {
         assert!(decode(&[0, 1, 2, 3, 4]).is_err());
+    }
+
+    /// Decoding before `into_rgba8`: the decoded image copied by
+    /// `to_rgba8`, kept as the reference the moving decode must reproduce.
+    fn decode_hinted_reference(
+        bytes: &[u8],
+        hint: Option<&str>,
+    ) -> Result<ImageBuffer, CodecError> {
+        let format = match image::guess_format(bytes) {
+            Ok(f) => Some(f),
+            Err(_) if hint.is_some_and(hints_tga) => Some(ImageFormat::Tga),
+            Err(_) => None,
+        };
+        if format == Some(ImageFormat::Dds) {
+            check_dds(bytes)?;
+        }
+        let img = match format {
+            Some(f) => image::load_from_memory_with_format(bytes, f),
+            None => image::load_from_memory(bytes),
+        }
+        .map_err(CodecError::Decode)?;
+        let rgba = img.to_rgba8();
+        let (w, h) = rgba.dimensions();
+        Ok(ImageBuffer::from_raw(w, h, rgba.into_raw())?)
+    }
+
+    /// A 7 × 5 PNG of `color` type: varied 8-bit samples (16-bit types get
+    /// each sample twice), so every channel and the alpha differ per pixel.
+    fn png_of(color: ExtendedColorType) -> Vec<u8> {
+        let (w, h) = (7u32, 5u32);
+        let samples = w as usize * h as usize * usize::from(color.bits_per_pixel()) / 8;
+        let data: Vec<u8> = (0..samples).map(|i| (i * 37 % 251) as u8).collect();
+        let mut out = Vec::new();
+        PngEncoder::new(&mut out)
+            .write_image(&data, w, h, color)
+            .expect("PNG encodes");
+        out
+    }
+
+    #[test]
+    fn decode_matches_the_copying_decode_for_every_png_color_type() {
+        let mut inputs: Vec<(String, Vec<u8>)> = [
+            ExtendedColorType::Rgba8,
+            ExtendedColorType::Rgb8,
+            ExtendedColorType::La8,
+            ExtendedColorType::L8,
+            ExtendedColorType::Rgba16,
+            ExtendedColorType::Rgb16,
+            ExtendedColorType::La16,
+            ExtendedColorType::L16,
+        ]
+        .into_iter()
+        .map(|c| (format!("PNG {c:?}"), png_of(c)))
+        .collect();
+        inputs.push((
+            "JPEG".to_owned(),
+            to_jpeg_bytes(&gradient(16, 12), 90).expect("JPEG encodes"),
+        ));
+        for (name, bytes) in inputs {
+            let fast = decode(&bytes).expect("decodes");
+            let reference = decode_hinted_reference(&bytes, None).expect("decodes");
+            assert_eq!(
+                (fast.width(), fast.height()),
+                (reference.width(), reference.height()),
+                "{name}"
+            );
+            assert!(fast.data() == reference.data(), "{name}");
+        }
     }
 }

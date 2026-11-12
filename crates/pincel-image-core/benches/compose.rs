@@ -43,6 +43,9 @@
 //! * `selection/feather_r20_4k`, `selection/expand_r20_4k` — Feather and
 //!   Expand by 20 px of an anti-aliased elliptical selection on a
 //!   3840×2160 canvas (spec §8.4).
+//! * `image_open/png_4k` — decoding a 3840×2160 RGBA PNG (per-pixel varied
+//!   color and alpha, written by the crate's own encoder) into an
+//!   [`ImageBuffer`], as opening a file does.
 //!
 //! The 4K scenarios take hundreds of milliseconds to seconds per
 //! iteration natively, so their groups run the minimum 10 samples.
@@ -410,6 +413,17 @@ fn bench_selection(c: &mut Criterion) {
     group.finish();
 }
 
+fn bench_open(c: &mut Criterion) {
+    let mut group = c.benchmark_group("image_open");
+    heavy(&mut group);
+    let mut png = Vec::new();
+    codec::encode_png(&varied(UHD.0, UHD.1), &mut png, 6).expect("PNG encodes");
+    group.bench_function("png_4k", |b| {
+        b.iter(|| black_box(codec::decode(black_box(&png)).expect("PNG decodes")));
+    });
+    group.finish();
+}
+
 criterion_group!(
     benches,
     bench_full_compose,
@@ -420,6 +434,7 @@ criterion_group!(
     bench_live,
     bench_curve,
     bench_export,
-    bench_selection
+    bench_selection,
+    bench_open
 );
 criterion_main!(benches);
