@@ -8,6 +8,7 @@ pub mod api;
 mod download;
 mod engine;
 mod extract;
+pub mod generate;
 pub mod hardware;
 mod http;
 pub mod install;
@@ -25,6 +26,7 @@ use tauri::{AppHandle, Emitter, Manager as _, Runtime};
 
 use api::ServerInfo;
 use download::InstallError;
+use generate::{GenConfig, GenError, GenEvent, GenerateRequest, Generations, Models, Started};
 use managed::{InstallInfo, LocationCheck, ManagedState, Service};
 use manager::{Config, FolderCheck, Manager, Paths, Status};
 use settings::{ServerChoice, Settings};
@@ -36,11 +38,18 @@ pub const STATUS_EVENT: &str = "comfyui:status";
 /// Event carrying the progress and end of a managed-install job.
 pub const INSTALL_EVENT: &str = "comfyui:install";
 
+/// Event carrying a generation's queue position, progress, preview and
+/// end (comfyui-generate).
+pub const GENERATION_EVENT: &str = "comfyui:generation";
+
 /// Managed state: the app's one connection.
 pub struct ComfyState(Arc<Manager>);
 
 /// Managed state: the managed installation.
 pub struct InstallState(Arc<Service>);
+
+/// Managed state: the generation jobs (comfyui-generate).
+pub struct GenerationState(Generations);
 
 /// Creates the connection and, off the start path, takes over a server an
 /// earlier run left running (AC-10).
@@ -63,13 +72,23 @@ pub fn setup<R: Runtime>(app: &AppHandle<R>) {
     ));
     app.manage(ComfyState(Arc::clone(&manager)));
     let jobs = app.clone();
-    app.manage(InstallState(Arc::new(Service::new(
+    let service = Arc::new(Service::new(
         Arc::clone(&manager),
         dir,
         Box::new(move |event| {
             let _ = jobs.emit(INSTALL_EVENT, event);
         }),
-    ))));
+    ));
+    app.manage(InstallState(Arc::clone(&service)));
+    let generations = app.clone();
+    app.manage(GenerationState(Generations::new(
+        GenConfig::default(),
+        Box::new(move |event: &GenEvent| {
+            let _ = generations.emit(GENERATION_EVENT, event);
+        }),
+        // No package change while a generation runs (comfyui-install AC-14).
+        Box::new(move |running| service.set_generating(running)),
+    )));
     std::thread::spawn(move || manager.adopt_on_start());
 }
 
@@ -247,9 +266,71 @@ pub async fn comfyui_uninstall(app: AppHandle) -> Result<(), InstallError> {
 }
 
 /// Marks a generation as running or ended, so the installation is not
-/// changed under it (AC-14). comfyui-generate sets it around each
-/// generation; until then nothing does and the flag stays off.
+/// changed under it (AC-14). The generation jobs of comfyui-generate set
+/// the flag in the backend themselves (`GenerationState`).
 #[tauri::command]
 pub async fn comfyui_set_generating(app: AppHandle, running: bool) -> Result<(), String> {
     installing(&app, move |s| s.set_generating(running)).await
+}
+
+fn generations<R: Runtime>(app: &AppHandle<R>) -> Result<Generations, String> {
+    app.try_state::<GenerationState>()
+        .map(|state| state.0.clone())
+        .ok_or_else(|| "ComfyUI generation unavailable".to_string())
+}
+
+/// The server's checkpoints (with the catalog's model family) and LoRAs
+/// for the Generate panel and `gen.models`; the reason when no server is
+/// usable (comfyui-generate AC-02, AC-03, AC-18).
+#[tauri::command]
+pub async fn comfyui_generation_models(app: AppHandle) -> Result<Models, String> {
+    let server = blocking(&app, |m| m.ensure_usable()).await??;
+    Ok(generate::models(&server))
+}
+
+/// Starts a generation on the usable server (comfyui-generate AC-05 –
+/// AC-07); its progress arrives as `comfyui:generation` events.
+#[tauri::command]
+pub async fn comfyui_generate(
+    app: AppHandle,
+    request: GenerateRequest,
+) -> Result<Started, GenError> {
+    let gens = generations(&app).map_err(|message| GenError::NotUsable { message })?;
+    let server = blocking(&app, |m| m.ensure_usable())
+        .await
+        .map_err(|message| GenError::NotUsable { message })?
+        .map_err(|message| GenError::NotUsable { message })?;
+    tauri::async_runtime::spawn_blocking(move || gens.start(&server, &request))
+        .await
+        .map_err(|e| GenError::Failed {
+            message: e.to_string(),
+        })?
+}
+
+/// Cancels a generation: off the queue, or stopped if it runs (AC-09).
+#[tauri::command]
+pub async fn comfyui_generation_cancel(app: AppHandle, job: u64) -> Result<(), String> {
+    generations(&app)?.cancel(job);
+    Ok(())
+}
+
+/// Variant `index` of a finished generation, PNG bytes (AC-10).
+#[tauri::command]
+pub async fn comfyui_variant(
+    app: AppHandle,
+    job: u64,
+    index: usize,
+) -> Result<tauri::ipc::Response, String> {
+    generations(&app)?
+        .variant(job, index)
+        .map(tauri::ipc::Response::new)
+        .ok_or_else(|| "no such variant".to_string())
+}
+
+/// The editor dropped a generation's variants (Apply, Discard, a new
+/// Generate, the tab closed); a running one is cancelled (AC-13, AC-21).
+#[tauri::command]
+pub async fn comfyui_generation_release(app: AppHandle, job: u64) -> Result<(), String> {
+    generations(&app)?.release(job);
+    Ok(())
 }

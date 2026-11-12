@@ -173,6 +173,28 @@ pub fn get(url: &Url, path: &str, timeout: Duration) -> Result<Response, HttpErr
     })
 }
 
+/// `POST <prefix><path>` with `body` of `content_type` and `timeout` for
+/// the whole exchange. Blocks like [`get`].
+pub fn post(
+    url: &Url,
+    path: &str,
+    content_type: &str,
+    body: Vec<u8>,
+    timeout: Duration,
+) -> Result<Response, HttpError> {
+    let request = client(url.is_loopback())?
+        .post(format!("{}{path}", url.display()))
+        .header(reqwest::header::CONTENT_TYPE, content_type)
+        .body(body)
+        .timeout(timeout);
+    tauri::async_runtime::block_on(async move {
+        let response = request.send().await.map_err(unreachable)?;
+        let status = response.status().as_u16();
+        let body = response.bytes().await.map_err(unreachable)?.to_vec();
+        Ok(Response { status, body })
+    })
+}
+
 fn strip_prefix_ignore_case<'a>(text: &'a str, prefix: &str) -> Option<&'a str> {
     let head = text.get(..prefix.len())?;
     head.eq_ignore_ascii_case(prefix)
