@@ -1,5 +1,5 @@
 import { existsSync, readdirSync, rmSync, statSync } from 'node:fs';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 
 /**
@@ -10,17 +10,28 @@ import { fileURLToPath } from 'node:url';
  */
 const DEV_WASM_BYTES = 5 * 1024 * 1024;
 
+/** The built bundle's asset folder (`vite build`, `base: '/'`). */
+const ASSETS = fileURLToPath(new URL('../dist/assets/', import.meta.url));
+
+/** Paths of the wasm modules in the built bundle; empty without a build. */
+export function bundleWasm(): string[] {
+  return existsSync(ASSETS)
+    ? readdirSync(ASSETS)
+        .filter((f) => f.endsWith('.wasm'))
+        .map((f) => join(ASSETS, f))
+    : [];
+}
+
 /**
  * Checks that the bundle under test carries the release wasm, then starts the
  * run with an empty results file.
  */
 export default function globalSetup(): void {
-  const assets = fileURLToPath(new URL('../dist/app/assets/', import.meta.url));
-  const wasm = existsSync(assets) ? readdirSync(assets).filter((f) => f.endsWith('.wasm')) : [];
+  const wasm = bundleWasm();
   if (wasm.length === 0) {
     throw new Error('pnpm perf measures the built bundle: run `pnpm build` first.');
   }
-  const dev = wasm.filter((f) => statSync(join(assets, f)).size > DEV_WASM_BYTES);
+  const dev = wasm.filter((f) => statSync(f).size > DEV_WASM_BYTES).map((f) => basename(f));
   if (dev.length > 0) {
     throw new Error(
       `pnpm perf needs the release wasm, but dist/ holds a dev build (${dev.join(', ')}): ` +
