@@ -7,8 +7,8 @@
 //! docs/specs/performance-desktop-jobs.md AC-01).
 
 use crate::codec::{
-    CodecError, OraError, to_bmp_bytes, to_ico_bytes, to_jpeg_bytes, to_ora_bytes, to_png_bytes,
-    to_tga_bytes, to_tiff_bytes, to_webp_bytes,
+    CodecError, OraError, to_bmp_bytes, to_ico_bytes, to_jpeg_bytes, to_jxl_bytes, to_ora_bytes,
+    to_png_bytes, to_tga_bytes, to_tiff_bytes, to_webp_bytes,
 };
 use crate::document::{Document, ImageBuffer};
 use crate::error::DocumentError;
@@ -63,11 +63,13 @@ pub enum EncodeFormat {
     Tga,
     /// Flattened one-image ICO (at most 256 × 256 px).
     Ico,
+    /// Flattened lossless JPEG XL (at least 2 px on each side).
+    Jxl,
 }
 
 impl EncodeFormat {
     /// The format named `name` (`"ora"`, `"png"`, `"jpeg"`, `"webp"`,
-    /// `"bmp"`, `"tiff"`, `"tga"`, `"ico"` — the UI's `EncodeFormat`).
+    /// `"bmp"`, `"tiff"`, `"tga"`, `"ico"`, `"jxl"` — the UI's `EncodeFormat`).
     pub fn parse(name: &str) -> Result<Self, JobError> {
         Ok(match name {
             "ora" => Self::Ora,
@@ -78,6 +80,7 @@ impl EncodeFormat {
             "tiff" => Self::Tiff,
             "tga" => Self::Tga,
             "ico" => Self::Ico,
+            "jxl" => Self::Jxl,
             other => return Err(JobError::UnknownFormat(other.to_string())),
         })
     }
@@ -101,6 +104,7 @@ pub fn encode(
         EncodeFormat::Tiff => to_tiff_bytes(&compose(doc.layers()))?,
         EncodeFormat::Tga => to_tga_bytes(&compose(doc.layers()))?,
         EncodeFormat::Ico => to_ico_bytes(&compose(doc.layers()))?,
+        EncodeFormat::Jxl => to_jxl_bytes(&compose(doc.layers()))?,
     })
 }
 
@@ -186,10 +190,20 @@ mod tests {
         assert_eq!(EncodeFormat::parse("png").ok(), Some(EncodeFormat::Png));
         assert_eq!(EncodeFormat::parse("tga").ok(), Some(EncodeFormat::Tga));
         assert_eq!(EncodeFormat::parse("ico").ok(), Some(EncodeFormat::Ico));
+        assert_eq!(EncodeFormat::parse("jxl").ok(), Some(EncodeFormat::Jxl));
         assert!(matches!(
             EncodeFormat::parse("psd"),
             Err(JobError::UnknownFormat(_))
         ));
+    }
+
+    #[test]
+    fn encode_jxl_decodes_back_to_the_composite() {
+        let doc = Document::new(5, 3).expect("doc");
+        let bytes = encode(&doc, EncodeFormat::Jxl, 0, 0).expect("jxl");
+        assert!(crate::codec::is_jxl(&bytes));
+        let back = crate::codec::decode(&bytes).expect("decodes");
+        assert_eq!(back, compose(doc.layers()));
     }
 
     #[test]
