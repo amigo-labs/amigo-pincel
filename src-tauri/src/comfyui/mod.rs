@@ -4,6 +4,11 @@
 //! It lives here rather than in the webview, so the CSP stays closed.
 
 pub mod api;
+mod download;
+mod engine;
+mod extract;
+pub mod hardware;
+mod pins;
 mod http;
 pub mod install;
 pub mod manager;

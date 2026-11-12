@@ -325,3 +325,147 @@ pub fn starts(root: &Path) -> Vec<String> {
         .map(str::to_string)
         .collect()
 }
+
+/// How a [`FileServer`] serves one file.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub enum Serve {
+    /// Honours `Range: bytes=N-` with 206.
+    Ranges,
+    /// Ignores ranges and always sends the whole file with 200.
+    Whole,
+    /// The first request announces the whole file but the connection
+    /// drops after this many bytes; later requests behave like `Ranges`.
+    DropAfter(usize),
+}
+
+type Requests = std::sync::Arc<std::sync::Mutex<Vec<(String, Option<String>)>>>;
+
+/// A static file server on 127.0.0.1 (404 for unknown paths) that records
+/// each request's path and `Range` header.
+pub struct FileServer {
+    pub port: u16,
+    requests: Requests,
+}
+
+impl FileServer {
+    pub fn start(files: Vec<(&str, Vec<u8>, Serve)>) -> Self {
+        let files: Vec<(String, Vec<u8>, Serve)> = files
+            .into_iter()
+            .map(|(p, b, s)| (p.to_string(), b, s))
+            .collect();
+        let listener = TcpListener::bind("127.0.0.1:0").expect("bind");
+        let port = listener.local_addr().expect("addr").port();
+        let requests: Requests = Default::default();
+        let log = std::sync::Arc::clone(&requests);
+        thread::spawn(move || {
+            let mut dropped = false;
+            for stream in listener.incoming().flatten() {
+                let Some((path, range)) = read_request_head(&stream) else {
+                    continue;
+                };
+                log.lock()
+                    .expect("lock")
+                    .push((path.clone(), range.clone()));
+                let mut stream = stream;
+                let Some((_, bytes, serve)) = files.iter().find(|(p, _, _)| *p == path) else {
+                    let _ = stream.write_all(Route::json("", 404, "{}").response.as_bytes());
+                    continue;
+                };
+                let start = range
+                    .as_deref()
+                    .and_then(|r| r.strip_prefix("bytes="))
+                    .and_then(|r| r.strip_suffix('-'))
+                    .and_then(|n| n.parse::<usize>().ok())
+                    .filter(|_| *serve != Serve::Whole);
+                let (head, body) = match start {
+                    Some(start) if start >= bytes.len() => (
+                        format!(
+                            "HTTP/1.1 416 Range Not Satisfiable\r\nContent-Range: bytes */{}\r\nContent-Length: 0\r\nConnection: close\r\n\r\n",
+                            bytes.len()
+                        ),
+                        &bytes[..0],
+                    ),
+                    Some(start) => (
+                        format!(
+                            "HTTP/1.1 206 Partial Content\r\nContent-Range: bytes {start}-{}/{}\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            bytes.len() - 1,
+                            bytes.len(),
+                            bytes.len() - start
+                        ),
+                        &bytes[start..],
+                    ),
+                    None => (
+                        format!(
+                            "HTTP/1.1 200 OK\r\nContent-Length: {}\r\nConnection: close\r\n\r\n",
+                            bytes.len()
+                        ),
+                        &bytes[..],
+                    ),
+                };
+                let _ = stream.write_all(head.as_bytes());
+                match serve {
+                    Serve::DropAfter(n) if !dropped => {
+                        dropped = true;
+                        let _ = stream.write_all(&body[..(*n).min(body.len())]);
+                        let _ = stream.flush();
+                        let _ = stream.shutdown(std::net::Shutdown::Both);
+                    }
+                    _ => {
+                        let _ = stream.write_all(body);
+                    }
+                }
+            }
+        });
+        Self { port, requests }
+    }
+
+    /// `http://127.0.0.1:<port><path>`.
+    pub fn url(&self, path: &str) -> String {
+        format!("http://127.0.0.1:{}{path}", self.port)
+    }
+
+    /// Path and `Range` header of every request so far.
+    pub fn requests(&self) -> Vec<(String, Option<String>)> {
+        self.requests.lock().expect("lock").clone()
+    }
+}
+
+/// The path and `Range` header of a request.
+fn read_request_head(mut stream: &TcpStream) -> Option<(String, Option<String>)> {
+    let _ = stream.set_read_timeout(Some(Duration::from_secs(2)));
+    let mut raw = Vec::new();
+    let mut buf = [0u8; 1024];
+    while !raw.windows(4).any(|w| w == b"\r\n\r\n") {
+        let n = stream.read(&mut buf).ok()?;
+        if n == 0 {
+            break;
+        }
+        raw.extend_from_slice(&buf[..n]);
+    }
+    let text = String::from_utf8_lossy(&raw);
+    let path = text.split_whitespace().nth(1)?.to_string();
+    let range = text.lines().find_map(|line| {
+        let (name, value) = line.split_once(':')?;
+        name.trim()
+            .eq_ignore_ascii_case("range")
+            .then(|| value.trim().to_string())
+    });
+    Some((path, range))
+}
+
+/// The interpreter of the shared test venv (runs fake `uv` and `main.py`).
+pub fn test_python() -> PathBuf {
+    let venv = shared_venv();
+    if cfg!(windows) {
+        venv.join("Scripts").join("python.exe")
+    } else {
+        venv.join("bin").join("python")
+    }
+}
+
+/// The text of a fake `main.py` (see [`write_main_py`]).
+pub fn main_py_text(fake: &FakeComfy) -> Vec<u8> {
+    let tmp = tempfile::tempdir().expect("tmp");
+    write_main_py(tmp.path(), fake);
+    std::fs::read(tmp.path().join("main.py")).expect("main.py")
+}

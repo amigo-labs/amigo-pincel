@@ -37,6 +37,14 @@ pincel-mcp = { workspace = true }
 # provider, installed once process-wide (Decision Log 2026-11-11).
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# The managed ComfyUI install (docs/specs/comfyui-install.md, Decision Log
+# 2026-11-06 "Managed ComfyUI install"): pinned SHA-256 checks and the uv /
+# ComfyUI archives (zip on Windows, tar.gz elsewhere), all already in the
+# tree through the updater plugin.
+flate2 = { workspace = true }
+sha2 = "0.10"
+tar = "0.4"
+zip = { workspace = true }
 # The native job backend (docs/specs/performance-desktop-jobs.md) runs the
 # Image-mode job functions the wasm job worker runs, on all cores.
 pincel-effects = { workspace = true }

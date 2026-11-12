@@ -20,7 +20,7 @@ pub const LOG_LINES: usize = 50;
 
 /// Windows: start the console program without a console window.
 #[cfg(windows)]
-const CREATE_NO_WINDOW: u32 = 0x0800_0000;
+pub(super) const CREATE_NO_WINDOW: u32 = 0x0800_0000;
 
 /// The last [`LOG_LINES`] lines of a process's stdout and stderr.
 #[derive(Debug, Clone, Default)]
