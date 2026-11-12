@@ -88,7 +88,8 @@ fn soft_and_flat_tips_ignore_the_setting() {
 #[test]
 fn soft_and_flat_tips_change_nothing_outside_their_outline_off() {
     let (cx, cy, r) = (10.3_f32, 10.6_f32, 4.5_f32);
-    let (sin, cos) = 45.0_f32.to_radians().sin_cos();
+    let angle = 45.0_f32.to_radians();
+    let (sin, cos) = (libm::sinf(angle), libm::cosf(angle));
     for shape in ["soft_round", "flat"] {
         let alpha = dab(shape, 9, false);
         let mut painted = 0;

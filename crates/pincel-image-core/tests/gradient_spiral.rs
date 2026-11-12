@@ -71,12 +71,13 @@ fn expected_t(x: u32, y: u32, a: (f32, f32), b: (f32, f32), clockwise: bool) -> 
     let (ax, ay) = (f64::from(a.0), f64::from(a.1));
     let (bx, by) = (f64::from(b.0), f64::from(b.1));
     let (dx, dy) = (f64::from(x) + 0.5 - ax, f64::from(y) + 0.5 - ay);
-    let len = (bx - ax).hypot(by - ay);
-    let r = dx.hypot(dy);
+    let len = libm::hypot(bx - ax, by - ay);
+    let r = libm::hypot(dx, dy);
     let theta = if r == 0.0 {
         0.0
     } else {
-        (dy.atan2(dx).to_degrees() - (by - ay).atan2(bx - ax).to_degrees()).rem_euclid(360.0)
+        (libm::atan2(dy, dx).to_degrees() - libm::atan2(by - ay, bx - ax).to_degrees())
+            .rem_euclid(360.0)
     };
     let v = if clockwise {
         r / len - theta / 360.0

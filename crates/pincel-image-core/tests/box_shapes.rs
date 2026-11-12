@@ -76,7 +76,7 @@ fn sd(x: f32, y: f32, v: &[Point]) -> f32 {
         let (a, b) = (v[i], v[(i + 1) % v.len()]);
         let (ex, ey, wx, wy) = (b.x - a.x, b.y - a.y, x - a.x, y - a.y);
         let t = ((wx * ex + wy * ey) / (ex * ex + ey * ey)).clamp(0.0, 1.0);
-        d = d.min((wx - ex * t).hypot(wy - ey * t));
+        d = d.min(libm::hypotf(wx - ex * t, wy - ey * t));
         if (a.y > y) != (b.y > y) && x < a.x + (y - a.y) / (b.y - a.y) * (b.x - a.x) {
             inside = !inside;
         }
@@ -130,7 +130,7 @@ fn star(cx: f32, cy: f32, r: f32, n: u32, ratio: f32) -> Vec<Point> {
         .map(|k| {
             let rad = if k % 2 == 0 { r } else { r * ratio };
             let ang = -std::f32::consts::FRAC_PI_2 + std::f32::consts::PI * k as f32 / n as f32;
-            p(cx + rad * ang.cos(), cy + rad * ang.sin())
+            p(cx + rad * libm::cosf(ang), cy + rad * libm::sinf(ang))
         })
         .collect()
 }
