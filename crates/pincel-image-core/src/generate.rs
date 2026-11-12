@@ -55,7 +55,9 @@ pub fn fit_mask(mask: &[u8], mw: u32, mh: u32, w: u32, h: u32) -> Vec<u8> {
     };
     fit(&buf, w, h)
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .map(|p| p[0])
         .collect()
 }
@@ -66,7 +68,7 @@ pub fn apply_mask(img: &mut ImageBuffer, mask: &[u8]) {
     if mask.is_empty() {
         return;
     }
-    for (px, &m) in img.data_mut().chunks_exact_mut(4).zip(mask) {
+    for (px, &m) in img.data_mut().as_chunks_mut::<4>().0.iter_mut().zip(mask) {
         px[3] = ((u32::from(px[3]) * u32::from(m) + 127) / 255) as u8;
         if px[3] == 0 {
             px.copy_from_slice(&[0; 4]);
@@ -108,7 +110,9 @@ pub fn generation_input(doc: &Document, area: Rect) -> Option<ImageBuffer> {
     };
     pixels
         .data()
-        .chunks_exact(4)
+        .as_chunks::<4>()
+        .0
+        .iter()
         .any(|p| p[3] != 0)
         .then_some(pixels)
 }
