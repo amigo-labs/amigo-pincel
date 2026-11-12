@@ -367,3 +367,93 @@ fn command_spec_drives_the_transform() {
     assert!(locked.refused(&bus.document));
     assert!(!outline.refused(&bus.document));
 }
+
+// AC-12: with Nearest and a hard-edged selection, every committed pixel is
+// a lifted colour, an untouched layer colour, or transparent.
+#[test]
+fn nearest_uses_only_existing_colours() {
+    let mut bus = bus();
+    let mut allowed: std::collections::HashSet<[u8; 4]> = bus.document.layers()[0]
+        .pixels
+        .data()
+        .as_chunks::<4>()
+        .0
+        .iter()
+        .copied()
+        .collect();
+    allowed.insert([0, 0, 0, 0]);
+    let s = TransformSettings {
+        angle: 37.0,
+        quality: Quality::Nearest,
+        ..start(&bus).scaled_by(1.7, 0.6)
+    };
+    bus.begin_transform(0, true, s, Some(1)).expect("begin");
+    bus.commit_transform().expect("commit");
+    for c in bus.document.layers()[0].pixels.data().as_chunks::<4>().0 {
+        assert!(allowed.contains(c), "{c:?}");
+    }
+}
+
+// AC-14: the outline follows the committed content, so a second transform
+// carries the moved patch on.
+#[test]
+fn a_second_transform_carries_the_moved_patch() {
+    let mut bus = bus();
+    let block = at(&bus, 4, 3);
+    bus.begin_transform(0, true, moved(start(&bus), 3.0, 0.0), Some(1))
+        .expect("first");
+    bus.commit_transform().expect("commit");
+    assert_eq!(at(&bus, 7, 3), block);
+    bus.begin_transform(0, true, moved(start(&bus), 0.0, 4.0), Some(2))
+        .expect("second");
+    bus.commit_transform().expect("commit");
+    assert_eq!(at(&bus, 7, 7), block);
+    assert_eq!(at(&bus, 7, 3), Color::TRANSPARENT);
+}
+
+// AC-19: live and committed steps carry the Move tools' history kinds.
+#[test]
+fn steps_carry_the_move_history_kinds() {
+    use pincel_image_core::command::HistoryKind;
+    let mut bus = bus();
+    let s = start(&bus);
+    bus.begin_transform(0, true, moved(s, 1.0, 0.0), Some(1))
+        .expect("begin");
+    assert_eq!(
+        bus.history.undo_kinds().last(),
+        Some(HistoryKind::MoveSelection)
+    );
+    bus.commit_transform().expect("commit");
+    assert_eq!(
+        bus.history.undo_kinds().last(),
+        Some(HistoryKind::MoveSelection)
+    );
+    bus.begin_transform(0, false, moved(start(&bus), 1.0, 0.0), Some(2))
+        .expect("outline");
+    bus.commit_transform().expect("commit");
+    assert_eq!(
+        bus.history.undo_kinds().last(),
+        Some(HistoryKind::MoveSelectionMask)
+    );
+}
+
+// AC-18: a snapshot or project saved while live holds the applied pixels
+// and outline and no transform; saving changes no history.
+#[test]
+fn saving_while_live_keeps_the_transform_and_writes_plain_pixels() {
+    use pincel_image_core::codec::snapshot::{from_snapshot_bytes, to_snapshot_bytes};
+    let mut bus = bus();
+    bus.begin_transform(0, true, moved(start(&bus), 3.0, 2.0), Some(1))
+        .expect("begin");
+    let depth = bus.history.undo_depth();
+    let snapshot = to_snapshot_bytes(&bus.document);
+    assert!(bus.live_transform().is_some());
+    assert_eq!(bus.history.undo_depth(), depth);
+    let back = from_snapshot_bytes(&snapshot).expect("snapshot");
+    assert_eq!(
+        back.layers()[0].pixels.data(),
+        bus.document.layers()[0].pixels.data()
+    );
+    assert_eq!(back.selection, bus.document.selection);
+    assert!(CommandBus::new(back).live_transform().is_none());
+}
