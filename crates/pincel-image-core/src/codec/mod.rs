@@ -10,7 +10,7 @@
 use crate::color::Color;
 use crate::document::ImageBuffer;
 use crate::error::DocumentError;
-use crate::render::over_background;
+use crate::render::over_background_rgb;
 use image::codecs::bmp::BmpEncoder;
 use image::codecs::ico::IcoEncoder;
 use image::codecs::jpeg::JpegEncoder;
@@ -168,11 +168,7 @@ pub fn encode_png<W: Write>(
 /// JPEG has no alpha channel; the buffer is composited over opaque white in
 /// linear light, matching Flatten Image (spec §5.2).
 pub fn encode_jpeg<W: Write>(buf: &ImageBuffer, writer: W, quality: u8) -> Result<(), CodecError> {
-    let flat = over_background(buf.clone(), Color::WHITE);
-    let mut rgb = Vec::with_capacity(flat.data().len() / 4 * 3);
-    for px in flat.data().as_chunks::<4>().0 {
-        rgb.extend_from_slice(&px[..3]);
-    }
+    let rgb = over_background_rgb(buf, Color::WHITE);
     let mut encoder = JpegEncoder::new_with_quality(writer, quality.clamp(1, 100));
     encoder
         .encode(&rgb, buf.width(), buf.height(), ExtendedColorType::Rgb8)

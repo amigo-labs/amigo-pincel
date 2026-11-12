@@ -115,31 +115,65 @@ pub fn compose_over(layers: &[Layer], background: Color) -> ImageBuffer {
 }
 
 /// Composites a straight-alpha buffer over an opaque `background` in linear
-/// light, yielding a fully opaque buffer (also used by the JPEG encoder).
+/// light, yielding a fully opaque buffer (Flatten Image).
 pub(crate) fn over_background(mut out: ImageBuffer, background: Color) -> ImageBuffer {
-    let bg_lin = [
-        srgb_to_linear(background.r as f32 / 255.0),
-        srgb_to_linear(background.g as f32 / 255.0),
-        srgb_to_linear(background.b as f32 / 255.0),
-    ];
-    for y in 0..out.height() {
-        for x in 0..out.width() {
-            let s = out.get_pixel(x, y).unwrap_or(Color::TRANSPARENT);
-            let sa = s.a as f32 / 255.0;
-            let s_lin = [
-                srgb_to_linear(s.r as f32 / 255.0),
-                srgb_to_linear(s.g as f32 / 255.0),
-                srgb_to_linear(s.b as f32 / 255.0),
-            ];
-            let mut rgb = [0u8; 3];
-            for i in 0..3 {
-                let co = sa * s_lin[i] + (1.0 - sa) * bg_lin[i];
-                rgb[i] = (linear_to_srgb(co).clamp(0.0, 1.0) * 255.0).round() as u8;
-            }
-            out.set_pixel(x, y, Color::rgba(rgb[0], rgb[1], rgb[2], 255));
-        }
+    let over = OverBackground::new(background);
+    for px in out.data_mut().as_chunks_mut::<4>().0 {
+        let [r, g, b] = over.pixel(*px);
+        *px = [r, g, b, 255];
     }
     out
+}
+
+/// The RGB bytes of `buf` composited over `background`, exactly the color
+/// channels [`over_background`] gives, without copying `buf` first (the
+/// JPEG encoder's input).
+pub(crate) fn over_background_rgb(buf: &ImageBuffer, background: Color) -> Vec<u8> {
+    let over = OverBackground::new(background);
+    let mut rgb = Vec::with_capacity(buf.data().len() / 4 * 3);
+    for px in buf.data().as_chunks::<4>().0 {
+        rgb.extend_from_slice(&over.pixel(*px));
+    }
+    rgb
+}
+
+/// The over-background blend `sa * s + (1 - sa) * bg` in linear light,
+/// operation for operation as the float path, with the sRGB decode, the
+/// alpha division and the encode taken from the exact lookup tables.
+struct OverBackground {
+    bg_lin: [f32; 3],
+    decode: &'static [f32; 256],
+    alpha: &'static [f32; 256],
+    encoder: &'static Encoder,
+}
+
+impl OverBackground {
+    fn new(background: Color) -> Self {
+        Self {
+            bg_lin: [
+                srgb_to_linear(background.r as f32 / 255.0),
+                srgb_to_linear(background.g as f32 / 255.0),
+                srgb_to_linear(background.b as f32 / 255.0),
+            ],
+            decode: decode_table(),
+            alpha: alpha_table(),
+            encoder: encoder(),
+        }
+    }
+
+    #[inline]
+    fn pixel(&self, [r, g, b, a]: [u8; 4]) -> [u8; 3] {
+        let sa = self.alpha[usize::from(a)];
+        let channel = |c: u8, bg: f32| {
+            let co = sa * self.decode[usize::from(c)] + (1.0 - sa) * bg;
+            self.encoder.encode(co)
+        };
+        [
+            channel(r, self.bg_lin[0]),
+            channel(g, self.bg_lin[1]),
+            channel(b, self.bg_lin[2]),
+        ]
+    }
 }
 
 /// sRGB byte → linear light: exactly `srgb_to_linear(b / 255)` for each
@@ -874,6 +908,97 @@ mod tests {
                     "{mode:?} at opacity {opacity}"
                 );
             }
+        }
+    }
+
+    // ---- The over-background blend before the lookup tables, kept as the
+    // reference the table-driven version must reproduce byte for byte.
+
+    fn over_background_reference(mut out: ImageBuffer, background: Color) -> ImageBuffer {
+        let bg_lin = [
+            srgb_to_linear(background.r as f32 / 255.0),
+            srgb_to_linear(background.g as f32 / 255.0),
+            srgb_to_linear(background.b as f32 / 255.0),
+        ];
+        for y in 0..out.height() {
+            for x in 0..out.width() {
+                let s = out.get_pixel(x, y).unwrap_or(Color::TRANSPARENT);
+                let sa = s.a as f32 / 255.0;
+                let s_lin = [
+                    srgb_to_linear(s.r as f32 / 255.0),
+                    srgb_to_linear(s.g as f32 / 255.0),
+                    srgb_to_linear(s.b as f32 / 255.0),
+                ];
+                let mut rgb = [0u8; 3];
+                for i in 0..3 {
+                    let co = sa * s_lin[i] + (1.0 - sa) * bg_lin[i];
+                    rgb[i] = (linear_to_srgb(co).clamp(0.0, 1.0) * 255.0).round() as u8;
+                }
+                out.set_pixel(x, y, Color::rgba(rgb[0], rgb[1], rgb[2], 255));
+            }
+        }
+        out
+    }
+
+    /// Every (channel byte, alpha byte) pair in every channel: pixel
+    /// `(c, a)` carries three different permutations of `c` and alpha `a`.
+    fn every_channel_alpha_pair() -> ImageBuffer {
+        let mut data = Vec::with_capacity(256 * 256 * 4);
+        for a in 0..=255u8 {
+            for c in 0..=255u8 {
+                data.extend_from_slice(&[c, 255 - c, c ^ 0x5a, a]);
+            }
+        }
+        ImageBuffer::from_raw(256, 256, data).expect("256 x 256 RGBA")
+    }
+
+    const BACKGROUNDS: [Color; 5] = [
+        Color::WHITE,
+        Color::BLACK,
+        Color {
+            r: 1,
+            g: 128,
+            b: 254,
+            a: 255,
+        },
+        Color {
+            r: 200,
+            g: 13,
+            b: 77,
+            a: 255,
+        },
+        Color {
+            r: 255,
+            g: 0,
+            b: 10,
+            a: 0,
+        },
+    ];
+
+    #[test]
+    fn over_background_matches_the_float_path_for_every_channel_alpha_pair() {
+        let src = every_channel_alpha_pair();
+        for bg in BACKGROUNDS {
+            assert!(
+                over_background(src.clone(), bg) == over_background_reference(src.clone(), bg),
+                "background {bg:?}"
+            );
+        }
+    }
+
+    #[test]
+    fn over_background_rgb_matches_the_float_path_without_alpha() {
+        let src = every_channel_alpha_pair();
+        for bg in BACKGROUNDS {
+            let reference = over_background_reference(src.clone(), bg);
+            let rgb: Vec<u8> = reference
+                .data()
+                .as_chunks::<4>()
+                .0
+                .iter()
+                .flat_map(|px| [px[0], px[1], px[2]])
+                .collect();
+            assert!(over_background_rgb(&src, bg) == rgb, "background {bg:?}");
         }
     }
 }
