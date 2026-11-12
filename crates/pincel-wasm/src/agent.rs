@@ -3,6 +3,7 @@
 //! the same `pincel-agent` tools as the headless server.
 
 use pincel_agent::live::{LiveFile, PixelLoan, call_pixel_wire};
+use pincel_core::HistoryKind;
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
@@ -51,6 +52,22 @@ impl Document {
         }
         reply
     }
+
+    /// An Assistant answer starts: the steps until
+    /// [`Document::assistant_end`] become one undo step
+    /// (docs/specs/ai-chat-panel.md AC-08).
+    #[wasm_bindgen(js_name = assistantBegin)]
+    pub fn assistant_begin(&mut self) {
+        self.bus.begin_group();
+    }
+
+    /// The Assistant answer ended: its changes become one undo step of kind
+    /// `assistant`. Returns `false`, adding no step, when it changed
+    /// nothing (AC-09).
+    #[wasm_bindgen(js_name = assistantEnd)]
+    pub fn assistant_end(&mut self) -> bool {
+        self.bus.end_group(HistoryKind::Assistant)
+    }
 }
 
 #[cfg(test)]
@@ -80,6 +97,34 @@ mod tests {
         );
         assert!(doc.undo());
         assert_eq!(doc.compose(0, 1).expect("compose").pixels(), before);
+    }
+
+    #[test]
+    fn assistant_answer_of_several_calls_is_one_assistant_step() {
+        let mut doc = Document::new(8, 8).expect("doc");
+        let before = doc.compose(0, 1).expect("compose").pixels();
+        doc.assistant_begin();
+        for (x, color) in [(1, "#ff0000"), (4, "#0000ff")] {
+            let args = format!(
+                r##"{{"x0":{x},"y0":1,"x1":{},"y1":3,"color":"{color}","filled":true}}"##,
+                x + 1
+            );
+            assert_eq!(reply(&mut doc, "draw.rect", &args)["ok"], true);
+        }
+        assert!(doc.assistant_end());
+        assert_eq!(doc.undo_kinds(), ["assistant"]);
+        let after = doc.compose(0, 1).expect("compose").pixels();
+        assert!(doc.undo());
+        assert_eq!(doc.compose(0, 1).expect("compose").pixels(), before);
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.compose(0, 1).expect("compose").pixels(), after);
+        doc.assistant_begin();
+        assert_eq!(reply(&mut doc, "doc.info", "")["ok"], true);
+        assert!(
+            !doc.assistant_end(),
+            "an answer without a change adds no step"
+        );
+        assert_eq!(doc.undo_depth(), 1);
     }
 
     #[test]
