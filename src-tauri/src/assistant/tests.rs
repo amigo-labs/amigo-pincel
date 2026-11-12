@@ -461,3 +461,97 @@ fn purge_removes_folders_left_by_a_crashed_run() {
     assistant.purge();
     assert!(!left.exists());
 }
+
+/// Links `link` to the folder `target`: a symlink, or on Windows a
+/// junction, which needs no elevation.
+fn link_dir(target: &Path, link: &Path) {
+    #[cfg(unix)]
+    std::os::unix::fs::symlink(target, link).expect("symlink");
+    #[cfg(windows)]
+    {
+        let status = std::process::Command::new("cmd")
+            .args(["/C", "mklink", "/J"])
+            .arg(link)
+            .arg(target)
+            .stdout(std::process::Stdio::null())
+            .status()
+            .expect("mklink");
+        assert!(status.success(), "mklink /J failed");
+    }
+}
+
+#[test]
+fn a_linked_chat_folder_is_refused_and_nothing_is_written_through_it() {
+    let (root, events, assistant) = setup();
+    let elsewhere = root.path().join("elsewhere");
+    std::fs::create_dir_all(&elsewhere).expect("dir");
+    std::fs::create_dir_all(assistant.root()).expect("root");
+    link_dir(&elsewhere, &assistant.chat_dir("c8"));
+    let err = assistant
+        .start(answer("c8", fake_cli()))
+        .expect_err("a linked folder");
+    assert!(err.contains("folder"), "{err}");
+    assert_eq!(
+        std::fs::read_dir(&elsewhere).expect("dir").count(),
+        0,
+        "nothing written through the link"
+    );
+    assert!(!assistant.running("c8"));
+    assert!(events.seen.lock().expect("events").is_empty());
+}
+
+#[test]
+fn the_chat_token_file_goes_when_the_answer_ends_and_comes_back_with_the_next() {
+    let (_root, events, assistant) = setup();
+    let lines = [
+        r#"out {"type":"result","subtype":"success","is_error":false,"result":"","session_id":"s"}"#,
+    ];
+    script(&assistant, "c9", &lines);
+    let config = assistant.chat_dir("c9").join(claude::MCP_CONFIG);
+    assistant.start(answer("c9", fake_cli())).expect("start");
+    assert_eq!(done(&events.until_done("c9")), (Outcome::Finished, None));
+    assert!(
+        !config.exists(),
+        "the token stays on disk only while an answer runs"
+    );
+    events.seen.lock().expect("events").clear();
+    assistant
+        .start(answer("c9", fake_cli()))
+        .expect("second answer");
+    assert_eq!(done(&events.until_done("c9")), (Outcome::Finished, None));
+    assert!(recorded(&assistant, "c9", "mcp.json").contains("tok-123"));
+}
+
+#[cfg(unix)]
+#[test]
+fn the_chat_folder_and_its_token_file_are_private() {
+    use std::os::unix::fs::PermissionsExt;
+    let (_root, events, assistant) = setup();
+    script(&assistant, "c10", &["sleep 30000"]);
+    assistant.start(answer("c10", fake_cli())).expect("start");
+    let mode = |p: &Path| std::fs::metadata(p).expect("meta").permissions().mode() & 0o777;
+    assert_eq!(mode(assistant.root()), 0o700);
+    assert_eq!(mode(&assistant.chat_dir("c10")), 0o700);
+    assert_eq!(
+        mode(&assistant.chat_dir("c10").join(claude::MCP_CONFIG)),
+        0o600
+    );
+    assistant.stop("c10");
+    events.until_done("c10");
+}
+
+#[test]
+fn chat_folders_live_in_the_users_app_data_not_the_shared_temp_dir() {
+    let data = Path::new("C:/Users/u/AppData/Local/pincel");
+    assert_eq!(
+        super::chats_root(Some(data.to_path_buf())),
+        data.join("assistant")
+    );
+    let fallback = super::chats_root(None);
+    assert_ne!(fallback, std::env::temp_dir().join("pincel-assistant"));
+    assert_ne!(
+        fallback,
+        super::chats_root(None),
+        "a fallback is unique per start"
+    );
+}

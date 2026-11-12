@@ -10,8 +10,9 @@ mod run;
 #[cfg(test)]
 mod tests;
 
+use std::path::PathBuf;
 use std::sync::Arc;
-use std::time::Duration;
+use std::time::{Duration, SystemTime, UNIX_EPOCH};
 
 use serde::{Deserialize, Serialize};
 use serde_json::Value;
@@ -119,11 +120,26 @@ impl Sink for Webview {
     }
 }
 
+/// Where the chat folders live: `assistant` in the user's own app data
+/// folder (the MCP config in them carries the chat's token, so never the
+/// shared temp folder); without one, a folder of this start alone.
+fn chats_root(local_data: Option<PathBuf>) -> PathBuf {
+    local_data.map_or_else(
+        || {
+            let nanos = SystemTime::now()
+                .duration_since(UNIX_EPOCH)
+                .map_or(0, |d| d.as_nanos());
+            std::env::temp_dir().join(format!("pincel-assistant-{}-{nanos}", std::process::id()))
+        },
+        |dir| dir.join("assistant"),
+    )
+}
+
 /// The app's Assistant; chat folders from a crashed run are removed here
 /// (AC-22).
 pub(crate) fn create(app: &AppHandle) -> Assistant {
     let assistant = Assistant::new(
-        std::env::temp_dir().join("pincel-assistant"),
+        chats_root(app.path().app_local_data_dir().ok()),
         Arc::new(Webview(app.clone())),
     );
     assistant.purge();

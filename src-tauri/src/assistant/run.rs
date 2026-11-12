@@ -5,7 +5,7 @@
 use std::collections::HashMap;
 use std::ffi::OsString;
 use std::io::{BufRead, BufReader, Read, Write};
-use std::path::PathBuf;
+use std::path::{Path, PathBuf};
 use std::process::{Child, ChildStderr, Command, Stdio};
 use std::sync::atomic::{AtomicBool, Ordering};
 use std::sync::{Arc, Mutex, MutexGuard, PoisonError};
@@ -121,10 +121,7 @@ impl Assistant {
             return Err("an answer is already running in this chat".to_owned());
         }
         let dir = self.chat_dir(&answer.chat);
-        let write = |name: &str, text: &str| std::fs::write(dir.join(name), text);
-        std::fs::create_dir_all(&dir)
-            .and_then(|()| write(claude::MCP_CONFIG, &claude::mcp_config(&answer)))
-            .and_then(|()| write(claude::SYSTEM_PROMPT, &answer.system_prompt))
+        prepare(&self.root, &dir, &answer)
             .map_err(|e| format!("cannot write the chat folder {}: {e}", dir.display()))?;
         let mut command = Command::new(&answer.program);
         command
@@ -168,6 +165,8 @@ impl Assistant {
             .name("assistant-answer".to_owned())
             .spawn(move || {
                 let done = supervise(&mut child, &answer, &*sink, &stopped);
+                // The token stays on disk only while an answer runs.
+                let _ = std::fs::remove_file(dir.join(claude::MCP_CONFIG));
                 lock(&runs).remove(&answer.chat);
                 sink.event(&answer.chat, done);
             });
@@ -213,6 +212,52 @@ impl Assistant {
         }
         let _ = std::fs::remove_dir_all(self.chat_dir(chat));
     }
+}
+
+/// A private folder: created owner-only (0o700 on Unix), and refused when
+/// it is a link or not a folder, so nothing is written through a link
+/// someone else planted.
+fn private_dir(dir: &Path) -> std::io::Result<()> {
+    let mut builder = std::fs::DirBuilder::new();
+    builder.recursive(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::DirBuilderExt;
+        builder.mode(0o700);
+    }
+    builder.create(dir)?;
+    let meta = std::fs::symlink_metadata(dir)?;
+    if meta.file_type().is_symlink() || !meta.is_dir() {
+        return Err(std::io::Error::other("it is a link, not a folder"));
+    }
+    Ok(())
+}
+
+/// A new owner-only file (0o600 on Unix): an older one is removed first,
+/// and an existing entry in its place is never written through.
+fn private_file(path: &Path, text: &str) -> std::io::Result<()> {
+    match std::fs::remove_file(path) {
+        Ok(()) => {}
+        Err(e) if e.kind() == std::io::ErrorKind::NotFound => {}
+        Err(e) => return Err(e),
+    }
+    let mut options = std::fs::OpenOptions::new();
+    options.write(true).create_new(true);
+    #[cfg(unix)]
+    {
+        use std::os::unix::fs::OpenOptionsExt;
+        options.mode(0o600);
+    }
+    options.open(path)?.write_all(text.as_bytes())
+}
+
+/// The chat folder `dir` under `root` with the answer's MCP config (the
+/// chat's token) and system prompt (AC-28 when it fails).
+fn prepare(root: &Path, dir: &Path, answer: &Answer) -> std::io::Result<()> {
+    private_dir(root)?;
+    private_dir(dir)?;
+    private_file(&dir.join(claude::MCP_CONFIG), &claude::mcp_config(answer))?;
+    private_file(&dir.join(claude::SYSTEM_PROMPT), &answer.system_prompt)
 }
 
 /// End process `pid` and its children: on Windows the whole tree (an npm
