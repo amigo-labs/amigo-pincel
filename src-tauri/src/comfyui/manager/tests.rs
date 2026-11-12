@@ -13,6 +13,8 @@ use crate::comfyui::testing::{
 };
 
 struct Env {
+    /// Keeps timing tests from running beside this one's processes.
+    _spawning: crate::test_support::Spawning,
     tmp: TempDir,
     events: Arc<Mutex<Vec<Status>>>,
     manager: Manager,
@@ -24,10 +26,12 @@ impl Env {
     }
 
     fn with(auto_ports: Vec<u16>, start_timeout: Duration) -> Self {
+        let spawning = crate::test_support::spawning();
         let tmp = tempfile::tempdir().unwrap();
         let events = Arc::new(Mutex::new(Vec::new()));
         let manager = Self::manager_in(&tmp, auto_ports, start_timeout, &events);
         Self {
+            _spawning: spawning,
             tmp,
             events,
             manager,

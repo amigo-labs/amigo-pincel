@@ -96,6 +96,8 @@ fn model_bytes(seed: u8) -> Vec<u8> {
 /// and an install folder below a location with a space and non-ASCII
 /// characters (edge cases).
 pub(crate) struct Fixture {
+    /// Keeps timing tests from running beside this one's processes.
+    _spawning: crate::test_support::Spawning,
     pub(crate) tmp: TempDir,
     server: FileServer,
     pub(crate) layout: Layout,
@@ -111,6 +113,7 @@ impl Fixture {
 
     /// ComfyUI's `main.py` behaves as `comfy` says.
     pub(crate) fn with_comfy(comfy: FakeComfy) -> Self {
+        let spawning = crate::test_support::spawning();
         let tmp = tempfile::tempdir().unwrap();
         // A location with a space and non-ASCII characters (edge cases).
         let layout = Layout::new(tmp.path().join("Ablage für Modelle").join(FOLDER));
@@ -132,6 +135,7 @@ impl Fixture {
             ("/pixel.safetensors", model_bytes(7), Serve::Ranges),
         ]);
         Self {
+            _spawning: spawning,
             tmp,
             server,
             layout,

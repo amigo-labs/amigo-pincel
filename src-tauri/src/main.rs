@@ -22,6 +22,8 @@ mod mcp;
 mod menu_labels;
 mod native_jobs;
 mod open_files;
+#[cfg(test)]
+mod test_support;
 mod updater;
 mod webview_data;
 

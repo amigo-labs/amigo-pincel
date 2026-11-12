@@ -337,6 +337,9 @@ fn an_answer_streams_events_records_its_inputs_and_finishes() {
 
 #[test]
 fn stop_ends_the_cli_within_two_seconds() {
+    // Times the stop alone, not Windows starting `taskkill.exe` beside the
+    // ComfyUI tests' Python processes (crate::test_support).
+    let _timing = crate::test_support::timing();
     let (_root, events, assistant) = setup();
     script(
         &assistant,
