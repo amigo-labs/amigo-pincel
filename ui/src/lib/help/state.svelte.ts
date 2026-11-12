@@ -3,7 +3,7 @@
 // The Help menu exists wherever the OS draws no native menu bar — the web
 // build, and the desktop app on Windows and Linux (spec §11.3). Its entries
 // are the ones the native macOS menu serves there: About Pincel, and the
-// updater's manual check and auto-install toggle.
+// updater's manual check (the update choice lives in the About dialog).
 //
 // The state lives here rather than in a mode's store because `App.svelte`
 // renders the dialog: that covers the start screen, where no editor and so
@@ -13,7 +13,7 @@ import { comfyDialogOpen } from '../comfyui/state.svelte';
 import { isTauri } from '../platform';
 import type { PaletteSource } from '../shell/command-palette';
 import type { ShortcutSource } from '../shell/shortcut-list';
-import { updaterCheck, updaterSetAuto, updaterState, type UpdaterInfo } from './updater';
+import { updaterCheck, updaterState, type UpdaterInfo } from './updater';
 
 /** Outcome of a manual update check, shown in the About dialog. */
 export type UpdateResult =
@@ -126,17 +126,5 @@ export function runUpdateCheck(): void {
     })
     .finally(() => {
       help.checking = false;
-    });
-}
-
-/** Help ▸ Install Updates Automatically. The checkbox follows the stored
- *  value, not the click, so a failed write leaves it where it was. */
-export function setAutoUpdate(enabled: boolean): void {
-  updaterSetAuto(enabled)
-    .then((stored) => {
-      if (help.updater !== null) help.updater.autoUpdate = stored;
-    })
-    .catch((err: unknown) => {
-      console.error('updater_set_auto failed', err);
     });
 }

@@ -318,7 +318,6 @@ export const en = {
   'settings.reduceMotionSystem': 'On in system settings',
   'settings.touchGestures': 'Touch gestures',
   'menu.checkUpdates': 'Check for Updates…',
-  'menu.autoUpdate': 'Install Updates Automatically',
   'menu.new': 'New…',
   'menu.open': 'Open…',
   'menu.openRecent': 'Open Recent',

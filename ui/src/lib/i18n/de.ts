@@ -320,7 +320,6 @@ export const de: Record<MessageKey, string> = {
   'settings.reduceMotionSystem': 'In den Systemeinstellungen an',
   'settings.touchGestures': 'Touch-Gesten',
   'menu.checkUpdates': 'Nach Updates suchen…',
-  'menu.autoUpdate': 'Updates automatisch installieren',
   'menu.new': 'Neu…',
   'menu.open': 'Öffnen…',
   'menu.openRecent': 'Zuletzt geöffnet',

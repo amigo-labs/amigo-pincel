@@ -37,10 +37,19 @@ interface Bridge {
   /** Files `read_file_bytes` can read, by path. */
   files?: Record<string, number[]>;
   /** What `updater_state` answers. */
-  updater?: { supported: boolean; autoUpdate: boolean; ready: string | null };
+  updater?: Partial<UpdaterAnswer>;
   /** Files the OS handed over before the page listened (launch argument);
    *  the first `take_open_files` returns them, later calls nothing. */
   launchFiles?: string[];
+}
+
+/** What `updater_state` answers (src-tauri/src/updater.rs `UpdaterInfo`). */
+interface UpdaterAnswer {
+  supported: boolean;
+  mode: 'auto' | 'notify' | 'off';
+  chosen: boolean;
+  ready: string | null;
+  unsupported: 'package' | 'appimage' | null;
 }
 
 interface Call {
@@ -57,11 +66,18 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
     const calls: { cmd: string; args: Record<string, unknown> }[] = [];
     let nextId = 1;
     const state = {
-      updater: cfg.updater ?? { supported: false, autoUpdate: true, ready: null },
+      updater: {
+        supported: false,
+        mode: 'auto',
+        chosen: true,
+        ready: null,
+        unsupported: null,
+        ...cfg.updater,
+      },
       /** Answers of the next `updater_check` calls: a version, `null`, or an error. */
       checks: [] as ({ version: string | null } | { error: string })[],
-      /** What `updater_set_auto` stores; `null` stores the requested value. */
-      storeAuto: null as boolean | null,
+      /** Whether `updater_set_mode` manages to store the choice. */
+      storeMode: true,
       launchFiles: [...(cfg.launchFiles ?? [])],
     };
     const invoke = async (cmd: string, args: Record<string, unknown> = {}): Promise<unknown> => {
@@ -88,10 +104,10 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
           if ('error' in next) throw next.error;
           return next.version;
         }
-        case 'updater_set_auto': {
-          const stored = state.storeAuto ?? (args.enabled as boolean);
-          state.updater.autoUpdate = stored;
-          return stored;
+        case 'updater_set_mode': {
+          const mode = args.mode as UpdaterAnswer['mode'];
+          state.updater = { ...state.updater, mode, chosen: true };
+          return { mode, saved: state.storeMode };
         }
         default:
           return null;
@@ -282,10 +298,11 @@ test.describe('desktop on Linux', () => {
     }
   });
 
-  test('Help ▸ Check for Updates… reports the outcome and the stored auto-update value (AC-16)', async ({
+  test('Help ▸ Check for Updates… checks whatever the update choice and reports the outcome; no auto-update checkbox (AC-16)', async ({
     page,
   }) => {
-    await desktopStart(page, { updater: { supported: true, autoUpdate: true, ready: null } });
+    // "never check" (AC-27): the manual check still checks.
+    await desktopStart(page, { updater: { supported: true, mode: 'off' } });
     await page.getByRole('button', { name: 'New pixel sprite' }).click();
     await page
       .getByRole('form', { name: 'New pixel sprite' })
@@ -325,32 +342,12 @@ test.describe('desktop on Linux', () => {
     await close();
     expect(await calls(page, 'updater_check')).toHaveLength(3);
 
-    // The checkbox shows what was stored, not what was clicked.
-    // Each look opens the Help menu afresh (Escape closes one left open).
-    const auto = async () => {
-      await page.keyboard.press('Escape');
-      return (await openHelp()).getByRole('menuitemcheckbox', {
-        name: 'Install Updates Automatically',
-      });
-    };
-    await expect(await auto()).toHaveAttribute('aria-checked', 'true');
-    await page.evaluate(() => {
-      (
-        window as unknown as { __desktopMock: { state: { storeAuto: boolean | null } } }
-      ).__desktopMock.state.storeAuto = true;
-    });
-    await (await auto()).click();
-    await expect.poll(async () => (await calls(page, 'updater_set_auto')).length).toBe(1);
-    expect((await calls(page, 'updater_set_auto'))[0]?.args).toEqual({ enabled: false });
-    await expect(await auto()).toHaveAttribute('aria-checked', 'true');
-    await page.evaluate(() => {
-      (
-        window as unknown as { __desktopMock: { state: { storeAuto: boolean | null } } }
-      ).__desktopMock.state.storeAuto = null;
-    });
-    await (await auto()).click();
-    await expect.poll(async () => (await calls(page, 'updater_set_auto')).length).toBe(2);
-    await expect(await auto()).toHaveAttribute('aria-checked', 'false');
+    // The update choice replaced the Install Updates Automatically checkbox.
+    await page.keyboard.press('Escape');
+    const help = await openHelp();
+    await expect(help.getByRole('menuitem', { name: 'Check for Updates…' })).toBeVisible();
+    await expect(help.getByRole('menuitemcheckbox')).toHaveCount(0);
+    await expect(help.getByText('Install Updates Automatically')).toHaveCount(0);
   });
 
   test('the native Open Recent submenu follows the recents; menu items reach the shell or the editor (AC-19)', async ({
