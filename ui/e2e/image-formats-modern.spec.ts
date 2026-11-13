@@ -16,6 +16,7 @@ import {
   waitForEditor,
   type DraggedFile,
 } from './helpers';
+import { installTauriMock, putFile, setMock, type MockWindow } from './tauri-mock';
 
 // JPEG XL in Image mode (docs/specs/image-formats-more-modern.md). The
 // files are the core's fixtures, rendered once with the reference tools;
@@ -165,10 +166,11 @@ test('Save As offers JPEG XL with the name <name>.jxl (AC-13)', async ({ page })
   await expect(page.getByTitle('image.jxl', { exact: true })).toBeVisible();
 });
 
-test('a JPEG XL that cannot be written leaves the document unsaved with a notice (AC-14)', async ({
+const TOO_SMALL = 'JPEG XL needs at least 2 × 2 px. Choose another format.';
+
+test('Save As ▸ JPEG XL of a 1-px canvas says JPEG XL needs 2 × 2 px and writes nothing (AC-16)', async ({
   page,
 }) => {
-  // The encoder needs 2 px on each side (spec, Open questions).
   await gotoStart(page);
   await openFile(page, 'thin.png', await solidPng(page, 1, 8, '#ff0000'));
   await drag(page, imageCanvas(page), [0.5, 0.2], [0.5, 0.8]);
@@ -180,9 +182,99 @@ test('a JPEG XL that cannot be written leaves the document unsaved with a notice
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('jxl');
   await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText(/Save failed: /)).toBeVisible();
+  await expect(page.getByText(TOO_SMALL)).toBeVisible();
+  await expect(page.getByText(/Save failed/)).toHaveCount(0);
   expect(downloads).toBe(0);
   await expect(page.getByTitle('thin.png — unsaved changes', { exact: true })).toBeVisible();
+  // Save As can run again, and another format writes.
+  await menu(page, 'File', 'Save As…');
+  await dialog.getByLabel('Format').selectOption('png');
+  const written = await download(page, () => dialog.getByRole('button', { name: 'Save' }).click());
+  expect(written.name).toBe('thin.png');
+});
+
+test('Save of a JPEG XL cut to 1 px tall goes to Save As with the 2 px notice only (AC-16)', async ({
+  page,
+}) => {
+  await openFile(page, 'lossless8.jxl', fixture('lossless8.jxl'));
+  await menu(page, 'Image', 'Resize Canvas…');
+  const resize = page.getByRole('dialog', { name: 'Resize Canvas' });
+  await resize.getByRole('radio', { name: 'By absolute size' }).check();
+  await resize.getByLabel('Maintain aspect ratio').uncheck();
+  await resize.getByLabel('Width').fill('24');
+  await resize.getByLabel('Height').fill('1');
+  await resize.getByRole('button', { name: 'Resize' }).click();
+  await expect(sizeShown(page, 24, 1)).toBeVisible();
+
+  let downloads = 0;
+  page.on('download', () => (downloads += 1));
+  await menu(page, 'File', 'Save');
+  const dialog = saveAsDialog(page);
+  await expect(dialog).toBeVisible();
+  await expect(page.getByText(TOO_SMALL)).toBeVisible();
+  // JPEG XL can be written, just not at this size: no "cannot be written
+  // back", and PNG preselected.
+  await expect(page.getByText(/cannot be written back/)).toHaveCount(0);
+  await expect(dialog.getByLabel('Format')).toHaveValue('png');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  expect(downloads).toBe(0);
+  await expect(page.getByTitle('lossless8.jxl — unsaved changes', { exact: true })).toBeVisible();
+});
+
+test.describe('desktop app', () => {
+  test.use({
+    userAgent:
+      'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/140.0.0.0 Safari/537.36',
+  });
+
+  test.beforeEach(async ({ page }) => {
+    await installTauriMock(page);
+  });
+
+  /** The bytes of `path` on the mocked disk. */
+  const onDisk = (page: Page, path: string) =>
+    page.evaluate((p) => (window as unknown as MockWindow).__mock.disk[p], path);
+
+  test('a JPEG XL whose write fails says so, keeps the file on disk and the document unsaved (AC-14)', async ({
+    page,
+  }) => {
+    const original = fixture('lossless8.jxl');
+    const other = Buffer.from('an older file');
+    await page.goto('./');
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await putFile(page, '/pics/photo.jxl', original);
+    await putFile(page, '/pics/other.jxl', other);
+    await setMock(page, { openPick: '/pics/photo.jxl' });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await waitForEditor(page, 'image');
+    await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
+    const unsaved = page.getByTitle('photo.jxl — unsaved changes', { exact: true });
+    await expect(unsaved).toBeVisible();
+    await setMock(page, { writeMode: 'fail' });
+
+    // Save writes in place, without a dialog: the write fails.
+    await menu(page, 'File', 'Save');
+    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    expect(await onDisk(page, '/pics/photo.jxl')).toEqual([...original]);
+    await expect(unsaved).toBeVisible();
+
+    // Save As ▸ JPEG XL over another file: that file stays as it was.
+    await setMock(page, { savePick: '/pics/other.jxl' });
+    await menu(page, 'File', 'Save As…');
+    const dialog = saveAsDialog(page);
+    await dialog.getByLabel('Format').selectOption('jxl');
+    await dialog.getByRole('button', { name: 'Save' }).click();
+    await expect(dialog).toHaveCount(0);
+    // The native save dialog answered, so the write was tried.
+    await expect
+      .poll(() => page.evaluate(() => (window as unknown as MockWindow).__mock.saveDialogs.length))
+      .toBe(1);
+    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    expect(await onDisk(page, '/pics/other.jxl')).toEqual([...other]);
+    expect(await onDisk(page, '/pics/photo.jxl')).toEqual([...original]);
+    await expect(unsaved).toBeVisible();
+    await expect(page.getByText(TOO_SMALL)).toHaveCount(0);
+  });
 });
 
 test('a dropped JPEG XL lands as one layer in one undo step with the pixels of Open (AC-10, AC-15)', async ({
