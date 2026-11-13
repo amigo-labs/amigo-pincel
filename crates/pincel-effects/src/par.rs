@@ -1,8 +1,8 @@
 //! Row loops for the kernels whose rows are independent: on all cores with
-//! the `parallel` feature (the desktop app's native job backend,
-//! docs/specs/performance-desktop-jobs.md), one after another without it
-//! (the wasm builds). Each row runs the same code either way, so the
-//! results are byte-identical.
+//! the `parallel` feature (built for the desktop app's native job backend,
+//! removed 2026-11-13: docs/specs/performance-desktop-jobs.md), one after
+//! another without it (the wasm builds). Each row runs the same code
+//! either way, so the results are byte-identical.
 
 /// Calls `f(y, row)` for each `row_len`-long row of `out`, top to bottom
 /// (in parallel with the `parallel` feature). A `row_len` of 0 calls
