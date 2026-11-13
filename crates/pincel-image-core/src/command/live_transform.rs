@@ -8,6 +8,9 @@
 //! step, commit folds them into one, cancel removes them, and any other
 //! command commits first. Its settings live on the command bus, never in the
 //! document, so files and autosaves carry only the applied pixels (AC-18).
+//! During a drag the editor previews the transform itself from what
+//! [`CommandBus::with_transform_lifted`] hands it, and the core applies the
+//! final box once when the drag ends (AC-20, AC-23).
 
 use std::any::Any;
 use std::sync::Arc;
@@ -93,6 +96,21 @@ pub struct LiveTransform {
     pub bounds: Rect,
     /// Its current settings.
     pub settings: TransformSettings,
+}
+
+/// The selection's content lifted out of its layer, for an editor that
+/// previews a drag of the transform box itself (AC-20, AC-23).
+#[derive(Debug, Clone)]
+pub struct TransformLift {
+    /// The selection's bounds when the transform began: the patch's place
+    /// at the start, which the settings' box scales and turns.
+    pub bounds: Rect,
+    /// The lifted pixels inside `bounds`, straight RGBA8, alpha scaled by
+    /// the selection's coverage; `None` for Move Selection (outline only).
+    pub patch: Option<EffectImage>,
+    /// The layer's opacity as shown: its own times every enclosing group's,
+    /// `0` when it or a group is hidden.
+    pub opacity: f32,
 }
 
 /// What a transform keeps from its start, shared by all its steps.
@@ -594,10 +612,14 @@ impl Command for TransformCommit {
 /// The merge group of quality-only changes (AC-07).
 const QUALITY_GROUP: u32 = 1 << 30;
 
-/// Lifts the selected pixels of `layer` by coverage: the patch inside
-/// `bounds` and the layer with them taken out.
-fn lift(src: &ImageBuffer, mask: &SelectionMask, bounds: Rect) -> (EffectImage, ImageBuffer) {
-    let mut hole = src.clone();
+/// Lifts the selected pixels of `src` by coverage: the patch inside
+/// `bounds` and what stays of `bounds` with them taken out.
+fn lift(
+    src: &ImageBuffer,
+    mask: &SelectionMask,
+    bounds: Rect,
+) -> Result<(EffectImage, ImageBuffer), DocumentError> {
+    let mut hole = src.copy_region(bounds)?;
     let mut patch = Vec::with_capacity(bounds.w as usize * bounds.h as usize * 4);
     for y in bounds.y..bounds.bottom() {
         for x in bounds.x..bounds.right() {
@@ -618,8 +640,8 @@ fn lift(src: &ImageBuffer, mask: &SelectionMask, bounds: Rect) -> (EffectImage, 
             }
             let left = ((u32::from(c.a) * (255 - cov) + 127) / 255) as u8;
             hole.set_pixel(
-                ux,
-                uy,
+                ux - bounds.x as u32,
+                uy - bounds.y as u32,
                 if left == 0 {
                     crate::color::Color::TRANSPARENT
                 } else {
@@ -629,7 +651,25 @@ fn lift(src: &ImageBuffer, mask: &SelectionMask, bounds: Rect) -> (EffectImage, 
         }
     }
     let patch = EffectImage::from_rgba8(bounds.w, bounds.h, patch).expect("patch size");
-    (patch, hole)
+    Ok((patch, hole))
+}
+
+/// The opacity layer `index` shows with: its own times its groups', `0`
+/// when it or a group is hidden.
+fn shown_opacity(doc: &Document, index: usize) -> f32 {
+    let mut opacity = 1.0;
+    let mut at = Some(index);
+    while let Some(i) = at {
+        let Some(layer) = doc.layers().get(i) else {
+            break;
+        };
+        if !layer.visible {
+            return 0.0;
+        }
+        opacity *= layer.opacity;
+        at = doc.parent_index(i);
+    }
+    opacity
 }
 
 fn mask_patch(mask: &SelectionMask, bounds: Rect) -> EffectImage {
@@ -703,7 +743,9 @@ impl CommandBus {
         };
         let (original, hole, patch) = if pixels {
             let src = self.document.layers[layer].pixels.clone();
-            let (patch, hole) = lift(&src, &mask, bounds);
+            let (patch, lifted) = lift(&src, &mask, bounds)?;
+            let mut hole = src.clone();
+            hole.paste_region(bounds, &lifted)?;
             (Some(src), Some(hole), Some(patch))
         } else {
             (None, None, None)
@@ -779,6 +821,101 @@ impl CommandBus {
         self.history.push(Box::new(step));
         self.live_merge = key;
         Ok(())
+    }
+
+    /// Lifts the selection's content out of `layer` for a drag preview
+    /// (AC-20, AC-23): calls `show` with the document as it looks with the
+    /// content taken out — the hole a transform of the selection leaves,
+    /// a live transform's moved content hidden too — and with the damage
+    /// since the last [`take_damage`](CommandBus::take_damage) plus that
+    /// hole, then puts the layer back exactly as it was and records the
+    /// rect as damage again. History, selection and the live transform
+    /// stay untouched. A live transform's own layer and kind win over
+    /// `layer` / `pixels`. `pixels == false` (Move Selection) lifts nothing
+    /// and shows the document as it is. Returns `None` without a selection
+    /// that selects a pixel (AC-17).
+    ///
+    /// # Errors
+    ///
+    /// A missing layer, and for `pixels` a locked layer or a group
+    /// (`LayerLocked`, AC-16), before anything changes.
+    pub fn with_transform_lifted<R>(
+        &mut self,
+        layer: usize,
+        pixels: bool,
+        show: impl FnOnce(&Document, Damage) -> R,
+    ) -> Result<Option<(TransformLift, R)>, DocumentError> {
+        let live = self
+            .top_transform_step()
+            .map(|t| (Arc::clone(&t.base), t.after.rect));
+        let (layer, pixels) = match &live {
+            Some((base, _)) => (base.layer, base.pixels),
+            None => (layer, pixels),
+        };
+        let len = self.document.layers.len();
+        if layer >= len {
+            return Err(DocumentError::LayerIndexOutOfBounds { index: layer, len });
+        }
+        if live.is_none() && pixels && super::spec::layer_locked(&self.document, layer) {
+            return Err(DocumentError::LayerLocked { index: layer });
+        }
+        let canvas = Rect::new(
+            0,
+            0,
+            self.document.canvas.width(),
+            self.document.canvas.height(),
+        );
+        // What is lifted, and the hole to show in each rect.
+        let (bounds, patch, holes) = match live {
+            Some((base, rect)) => {
+                let mut holes = Vec::new();
+                if let Some(hole) = &base.hole {
+                    for r in [Some(base.bounds), rect].into_iter().flatten() {
+                        if let Some(r) = r.intersect(canvas) {
+                            holes.push((r, hole.copy_region(r)?));
+                        }
+                    }
+                }
+                (base.bounds, base.patch.clone(), holes)
+            }
+            None => {
+                let Some(mask) = self.document.selection.as_ref() else {
+                    return Ok(None);
+                };
+                let Some(bounds) = mask.bounding_box() else {
+                    return Ok(None);
+                };
+                if pixels {
+                    let (patch, hole) = lift(&self.document.layers[layer].pixels, mask, bounds)?;
+                    (bounds, Some(patch), vec![(bounds, hole)])
+                } else {
+                    (bounds, None, Vec::new())
+                }
+            }
+        };
+        let opacity = shown_opacity(&self.document, layer);
+        let mut kept = Vec::with_capacity(holes.len());
+        for (r, hole) in &holes {
+            let px = &mut self.document.layers[layer].pixels;
+            kept.push((*r, px.copy_region(*r)?));
+            px.paste_region(*r, hole)?;
+            self.damage.add(Damage::rect(*r));
+        }
+        let damage = self.take_damage();
+        let shown = show(&self.document, damage);
+        // Back in reverse order, so an overlap gets what was there first.
+        for (r, px) in kept.into_iter().rev() {
+            self.document.layers[layer].pixels.paste_region(r, &px)?;
+            self.damage.add(Damage::rect(r));
+        }
+        Ok(Some((
+            TransformLift {
+                bounds,
+                patch,
+                opacity,
+            },
+            shown,
+        )))
     }
 
     /// Commits the live transform (AC-09): its steps become one step, or

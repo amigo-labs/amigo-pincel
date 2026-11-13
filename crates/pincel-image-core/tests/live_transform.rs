@@ -3,10 +3,10 @@
 //! undo while live, and the result depending only on the final settings.
 
 use pincel_effects::transform::Quality;
-use pincel_image_core::command::{CommandBus, SetLayerLocked, SetSelection};
+use pincel_image_core::command::{CommandBus, SetLayerLocked, SetLayerOpacity, SetSelection};
 use pincel_image_core::geometry::Rect;
 use pincel_image_core::{
-    Color, Document, DocumentError, ImageBuffer, SelectionMask, TransformSettings,
+    Color, Document, DocumentError, ImageBuffer, SelectionMask, TransformSettings, compose,
 };
 
 const W: u32 = 16;
@@ -456,4 +456,90 @@ fn saving_while_live_keeps_the_transform_and_writes_plain_pixels() {
     );
     assert_eq!(back.selection, bus.document.selection);
     assert!(CommandBus::new(back).live_transform().is_none());
+}
+
+/// The composite's pixel at `(x, y)`.
+fn shown(doc: &Document, x: u32, y: u32) -> Color {
+    compose(doc.layers()).get_pixel(x, y).expect("pixel")
+}
+
+// AC-23: a drag's preview gets the lifted patch and the document with the
+// hole the lift leaves; the layer, outline and history stay as they were.
+#[test]
+fn with_transform_lifted_shows_the_hole_and_puts_the_layer_back() {
+    let mut bus = bus();
+    let block = at(&bus, 4, 3);
+    let (px, m) = (pixels(&bus), mask(&bus));
+    bus.take_damage();
+    let (lift, (hole, grey, damage)) = bus
+        .with_transform_lifted(0, true, |doc, damage| {
+            (shown(doc, 4, 3), shown(doc, 0, 0), damage)
+        })
+        .expect("lifts")
+        .expect("a selection");
+    assert_eq!(hole, Color::TRANSPARENT);
+    assert_eq!(grey, Color::rgba(90, 90, 90, 255));
+    assert!(!damage.is_none(), "the hole is damage for the preview");
+    assert_eq!(lift.bounds, Rect::new(4, 3, 4, 4));
+    assert_eq!(lift.opacity, 1.0);
+    let patch = lift.patch.expect("Move Selected Pixels lifts pixels");
+    assert_eq!((patch.width(), patch.height()), (4, 4));
+    assert_eq!(&patch.data()[..4], &[block.r, block.g, block.b, block.a]);
+    assert_eq!((pixels(&bus), mask(&bus)), (px, m));
+    assert_eq!(bus.history.undo_depth(), 0);
+    assert!(bus.live_transform().is_none());
+    assert!(!bus.take_damage().is_none(), "the restored rect is damage");
+}
+
+// AC-23: with a transform live, the preview hides the moved content too and
+// hands over the original patch; the transform stays as it was.
+#[test]
+fn with_transform_lifted_hides_a_live_transforms_content() {
+    let mut bus = bus();
+    let block = at(&bus, 4, 3);
+    let s = moved(start(&bus), 3.0, 2.0);
+    bus.begin_transform(0, true, s, Some(1)).expect("begin");
+    let (px, m) = (pixels(&bus), mask(&bus));
+    let (lift, (moved_away, hole)) = bus
+        .with_transform_lifted(0, true, |doc, _| (shown(doc, 7, 5), shown(doc, 4, 3)))
+        .expect("lifts")
+        .expect("live");
+    assert_eq!((moved_away, hole), (Color::TRANSPARENT, Color::TRANSPARENT));
+    assert_eq!(lift.bounds, Rect::new(4, 3, 4, 4));
+    let patch = lift.patch.expect("pixels");
+    assert_eq!(&patch.data()[..4], &[block.r, block.g, block.b, block.a]);
+    assert_eq!((pixels(&bus), mask(&bus)), (px, m));
+    assert_eq!(bus.history.undo_depth(), 1);
+    assert_eq!(bus.live_transform().map(|t| t.settings), Some(s));
+}
+
+// AC-16, AC-17, AC-23: a locked layer refuses a pixel preview, not an
+// outline one; no selection lifts nothing; the layer's opacity comes along.
+#[test]
+fn with_transform_lifted_refuses_a_locked_layer_and_needs_a_selection() {
+    let mut bus = bus();
+    bus.apply(Box::new(SetLayerOpacity::new(0, 0.5)))
+        .expect("opacity");
+    let lift = bus
+        .with_transform_lifted(0, true, |_, _| ())
+        .expect("lifts")
+        .expect("a selection");
+    assert_eq!(lift.0.opacity, 0.5);
+    bus.apply(Box::new(SetLayerLocked::new(0, true)))
+        .expect("lock");
+    assert!(matches!(
+        bus.with_transform_lifted(0, true, |_, _| ()),
+        Err(DocumentError::LayerLocked { .. })
+    ));
+    let (outline, ()) = bus
+        .with_transform_lifted(0, false, |_, _| ())
+        .expect("outline only")
+        .expect("a selection");
+    assert!(outline.patch.is_none());
+    bus.document.selection = Some(SelectionMask::new_empty(W, H));
+    assert!(
+        bus.with_transform_lifted(0, false, |_, _| ())
+            .expect("nothing")
+            .is_none()
+    );
 }

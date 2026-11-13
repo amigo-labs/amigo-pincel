@@ -34,7 +34,7 @@ pub use live::{
     BoxShape, LIVE_REACH, LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind,
 };
 pub use live_text::{LiveFont, LiveText, text_box};
-pub use live_transform::{LiveTransform, TransformSettings};
+pub use live_transform::{LiveTransform, TransformLift, TransformSettings};
 pub use merge::{FlattenImage, MergeDown, MergeGroup, MergeVisible};
 pub use paste::PasteLayer;
 pub use pixels::SetPixels;

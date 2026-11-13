@@ -31,7 +31,7 @@ pub use command::{
     MergeDown, MergeGroup, MergeVisible, MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer,
     RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
     SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
-    TransformSettings, UndoStack, auto_crop_rect,
+    TransformLift, TransformSettings, UndoStack, auto_crop_rect,
 };
 pub use document::{
     CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,
