@@ -82,7 +82,6 @@ Owner priority; measure first, then the budgets of pincel.md §4.5.
 | G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
 | G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
 | G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
-| G8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 
 ### H — Other planned features
 
@@ -204,6 +203,12 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 No longer built here; kept for their history.
 
 - [website](website.md), [website-comparison](website-comparison.md) and the design spec [website-spec](website-spec.md): the marketing site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from `docs/site/` (the comparison is `comparisons` in `docs/site/project.yml`). `pincel.amigo-labs.dev` serves only the editor at `/app/` and redirects its old pages (`cloudflare/_redirects`); pincel.md §15, 2026-11-09, issue #141.
+
+## Dropped
+
+Not built; kept for their measurements and decisions (`status: dropped`).
+
+- [performance-desktop-jobs](performance-desktop-jobs.md): the native job backend on desktop is removed — measured, the SIMD Web Worker is as fast or faster at every size, so no crossover exists; the worker stays the only backend (owner, pincel.md §15, 2026-11-13).
 
 ## Open items outside specs
 

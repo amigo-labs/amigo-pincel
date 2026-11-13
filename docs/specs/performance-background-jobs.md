@@ -27,7 +27,7 @@ Step 4 of the legacy plan `23-performance` (removed 2026-10-29, see git history)
 
 - Interactive painting, layers and the viewport — because they need the document, which stays on the main thread
 - wasm threads (`SharedArrayBuffer`, COOP/COEP) — because the worker needs no cross-origin isolation; threads are a separate stop-and-ask decision after the other steps are measured
-- The native desktop backend for the same jobs — because `performance-desktop-jobs` adds it behind this interface
+- The native desktop backend for the same jobs — because `performance-desktop-jobs` adds it behind this interface (that spec was dropped 2026-11-13: no crossover, so this Web Worker is the only backend in both builds)
 - Pixel mode's autosave (`.aseprite`), exports and effects — they stay on the main thread until a Pixel budget of pincel.md §4.5 misses, because Pixel sprites are small, their encodes take milliseconds, and a Pixel worker would need a second wasm instance (`pincel-wasm`) and a Pixel document snapshot; a missed Pixel budget reopens this as its own spec (owner, 2026-11-05)
 
 ## Acceptance criteria

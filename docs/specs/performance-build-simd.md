@@ -25,7 +25,7 @@ Step 5 of the legacy plan `23-performance` (removed 2026-10-29, see git history)
 
 ### Out of scope
 
-- AVX / AVX2 for native binaries — because the editor runs the cores as wasm (128-bit SIMD only); native runtime dispatch belongs to `performance-desktop-jobs`, and the plan ranks it the lowest-priority lever
+- AVX / AVX2 for native binaries — because the editor runs the cores as wasm (128-bit SIMD only); native runtime dispatch belonged to `performance-desktop-jobs` (dropped 2026-11-13, no native job backend), and the plan ranks it the lowest-priority lever
 - wasm threads (`SharedArrayBuffer`, COOP/COEP, `wasm-bindgen-rayon`, nightly `build-std`) — because the plan decides on them only if the 4K budgets are still missed after the other steps, and they are a stop-and-ask dependency, toolchain and hosting decision
 - GPU compositing — because it would be a large architecture change (pincel.md §4); stop and ask
 - Changing the color pipeline — because linear-light blending is the existing `compose()` contract
