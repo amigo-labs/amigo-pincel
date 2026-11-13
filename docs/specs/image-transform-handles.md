@@ -3,7 +3,7 @@ status: todo
 created: 2026-11-05
 size: L
 mode: Image
-design: [pincel.md §5.4, pincel.md §6.1, pincel.md §6.2, pincel.md §4.5, pincel.md §15 (2026-10-28 Image paste as a new layer), pincel.md §15 (2026-11-05 MCP tool parity), pincel.md §15 (2026-11-05 History entries carry a kind from the core)]
+design: [pincel.md §5.4, pincel.md §6.1, pincel.md §6.2, pincel.md §4.5, pincel.md §15 (2026-10-28 Image paste as a new layer), pincel.md §15 (2026-11-05 MCP tool parity), pincel.md §15 (2026-11-05 History entries carry a kind from the core), pincel.md §15 (2026-11-13 Transform drag preview)]
 depends_on: [image-live-objects, image-transform-handles-rotate-zoom]
 ---
 
@@ -18,7 +18,7 @@ This spec adds the handles, scaling, rotation, a resampling quality option and a
 Two owner decisions (2026-11-05, see Decisions) shape this spec:
 
 - `pincel.md` §5.4 says "transforming [a selection] is Phase 2 (§13)", and Decision Log 2026-10-28 deferred paint.net's floating paste for the same reason. Selection transforms are lifted into the current phase for Image mode only.
-- A live transform follows the model of `image-live-objects` (shapes, text and gradient stay editable until commit): the core applies the live transform to the layer at every change, the transform's settings live beside the document on the command bus (never in the saved file), each handle drag is a normal undo step, commit folds those steps into one, cancel removes them, and any other command or a change of the active layer commits first. Escape cancels and Enter commits, the same rule for every live object.
+- A live transform follows the model of `image-live-objects` (shapes, text and gradient stay editable until commit): the core applies the live transform to the layer when a drag ends and at every quality change (during a drag the editor previews it without the core; owner decision 2026-11-13, see Decisions), the transform's settings live beside the document on the command bus (never in the saved file), each handle drag is a normal undo step, commit folds those steps into one, cancel removes them, and any other command or a change of the active layer commits first. Escape cancels and Enter commits, the same rule for every live object.
 
 ## Scope
 
@@ -26,7 +26,7 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 
 - A bounding box with four corner and four edge handles and a pivot marker around the selection, for Move Selected Pixels and Move Selection
 - Translate (drag inside), scale (corner / edge handles, Shift keeps the aspect ratio), rotate (right-drag anywhere, or left-drag outside the box; Shift snaps to 15°), moving the pivot
-- A live transform: the core applies it to the layer at every change, each handle drag is an undo step while it is live
+- A live transform: the core applies it to the layer when a drag ends and at every quality change, each handle drag is an undo step while it is live; during a drag the editor previews the lifted content at the dragged box without core work
 - Commit by Enter, by choosing another tool, by a click outside the box, and implicitly before any other command or active-layer change; cancel by Escape
 - One undo step per committed transform (the drag steps folded), for pixels and outline together
 - A resampling quality option (Nearest / Bilinear / Bicubic) in the options bar of both tools
@@ -53,7 +53,7 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 - [ ] AC-04 (option): Where Shift is held (the key or the on-screen Shift toggle) while a corner handle is dragged, the box keeps the width-to-height ratio it had when the transform started.
 - [ ] AC-05 (event): When the user right-drags anywhere on the stage, or left-drags starting outside the box farther than a handle's hit area, then the content turns about the pivot by the angle the pointer sweeps around it, positive clockwise; with Shift held the angle snaps to multiples of 15°.
 - [ ] AC-06 (event): When the user drags the pivot marker, then the pivot moves and no pixel or outline changes; later rotations turn about the new pivot; the pivot drag is an undo step like any other drag.
-- [ ] AC-07 (state): While a transform is live (from the first handle, inside, rotation or pivot drag until commit or cancel), the layer holds the transformed content with transparency where the lifted pixels were, the selection is the transformed outline, the options bar shows the box's position, size and angle, and every finished drag and every quality change has added one undo step, consecutive quality changes with no other step between them forming one.
+- [ ] AC-07 (state): While a transform is live (from the first handle, inside, rotation or pivot drag until commit or cancel), the options bar shows the box's position, size and angle, following the box during a drag; while no drag is in progress the layer holds the transformed content with transparency where the lifted pixels were, the selection is the transformed outline, and every finished drag and every quality change has added one undo step, consecutive quality changes with no other step between them forming one.
 - [ ] AC-08 (event): When the user presses Enter, chooses another tool, clicks outside the box (presses and releases with the pointer moving less than 4 screen pixels), runs any other command (a menu command, a layer property change, Deselect, an effect, an MCP call), begins another live object, or changes the active layer, then the live transform is committed first and the other action runs on the committed result.
 - [ ] AC-09 (event): When a live transform is committed, then its steps are replaced by exactly one undo step, however many drags it took; Undo of that step restores the layer's pixels and the selection outline as they were before the transform, and Redo reapplies the same result.
 - [ ] AC-10 (event): When the user presses Escape while a transform is live, then the transform is cancelled: its steps are removed, and pixels, outline and undo history (undo and redo depth included) are as they were before it started; Escape without a live transform keeps deselecting as before (`image-editing` AC-31).
@@ -66,9 +66,10 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 - [ ] AC-17 (error): If the selection selects no pixel (e.g. after Contract removed everything), then no box is shown and nothing starts; if a transform is committed whose pixels and outline equal those before it started (only the pivot moved, a full 360° turn, or every drag undone), then its steps are removed and no step is added, as `image-live-objects` AC-12 does for a live object.
 - [ ] AC-18 (event): When the user switches to another tab while a transform is live, then the transform is committed in its document before the switch. Saving, exporting, autosave and copying while a transform is live contain the transformed pixels and outline as currently applied, do not commit it and do not change the undo history, and never contain the transform's settings; a project saved while live reopens with plain pixels and no live transform.
 - [ ] AC-19 (always): Each committed transform appears in the history as one step named "Move Selected Pixels" or "Move Selection" in English and German, each live step is named the same, and the committed pixels and outline equal those the core produces for the same box, angle, pivot and quality without the UI.
-- [ ] AC-20 (always): One live update — the core applying a changed box, angle, pivot or quality to the layer — of a 2048×2048 selection on a 3840×2160 document with 10 layers takes no longer than the §4.5 budget row "Live transform update, Image 4K, 2048² selection: ≤ 33 ms" (Decision Log 2026-11-05), measured by the browser performance script.
+- [ ] AC-20 (always): While the user drags a corner handle of a 2048×2048 selection on a 3840×2160 document with 10 layers, the time from a pointer move to the next presented frame takes no longer than the §4.5 budget row "Live selection transform drag preview, Image 4K, 2048² selection: ≤ 33 ms" (p95; Decision Log 2026-11-13), measured by the browser performance script; the core's one apply when the drag ends is outside this budget.
 - [ ] AC-21 (event): When the user presses Undo (Ctrl+Z / ⌘Z) while a transform is live, then only the last step is undone and the transform stays live with the box, angle, pivot and quality from before that step; undoing the first drag leaves the layer and outline as before the transform and no transform live; Redo reapplies a step undone this way.
 - [ ] AC-22 (always): The undo capacity never drops a live transform's steps and Escape still restores the pixels and outline from before the transform, following `image-live-objects` AC-14: while the history is full the oldest steps below the transform are dropped first, and when its own steps exceed the capacity its oldest steps fold into the first one.
+- [ ] AC-23 (event): When the user drags the box (inside, a handle, a rotation or the pivot), then while the drag is in progress the canvas previews the content (Move Selected Pixels) and the outline at the dragged box without changing the document — its pixels, outline and undo history stay as before the drag — and when the pointer is released the core applies the final box once, as one undo step, so the result depends only on where the drag ended, not on how many pointer moves led there.
 
 ## Technical notes
 
@@ -86,8 +87,9 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 **Suggested shape (owner decision 2026-11-05, shared with `image-live-objects`)**
 
 - A live transform on `CommandBus`: the lifted original pixels and outline, the layer, and the current settings (offset, scale, angle, pivot, interpolation). Not part of `Document`, so neither `.ora` nor autosave carries it (AC-18).
-- Each handle drag is a normal command that applies the new settings to the layer, resampling from the lifted original (AC-11), and goes on the undo stack. Commit folds the live steps into one `TransformSelection` / `TransformSelectionMask` step; cancel reverts and removes them; any other command or an active-layer change commits first (AC-08).
-- Cost: every change re-applies the transform to the layer inside the core, including undo of a drag step; AC-20's ≤ 33 ms budget applies to that per-change apply, and undo memory grows per live drag until the fold.
+- Each finished handle drag is one normal command that applies the new settings to the layer, resampling from the lifted original (AC-11), and goes on the undo stack. Commit folds the live steps into one `TransformSelection` / `TransformSelectionMask` step; cancel reverts and removes them; any other command or an active-layer change commits first (AC-08).
+- Drag preview (owner decision 2026-11-13, AC-20, AC-23): when a drag starts, the core hands the editor once, through the wasm adapter, the lifted patch and the visible composite with the hole the lift leaves; the layer is put back at once, history and selection stay untouched. During the drag the editor draws that composite and the patch through the box's affine map with a canvas transform, and the outline through the same map; canvas pixels are never read (§9). On release one `begin_transform` / `edit_transform` applies the final box.
+- Cost: the core re-applies the transform to the layer once per finished drag, once per quality change, and on undo / redo of a drag step, never per pointer move; AC-20's ≤ 33 ms budget covers the editor's preview frames, and undo memory grows per finished drag until the fold.
 - The plain translate is the special case scale 1, angle 0. The commit command is what MCP's tool in `mcp-parity-selection-transform` calls.
 - History kinds `move_selection` / `move_selection_mask` per `history-panel`.
 - The live transform is one more kind of live object in the sense of `image-live-objects` (at most one per document, its AC-03 / AC-04 / AC-08 / AC-12 – AC-14 apply); that spec lists Line, Gradient and box shapes today, so this spec extends its kind set.
@@ -113,6 +115,9 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 | Undo past the first drag, then Redo | The transform is live again with the first drag's settings (AC-21) |
 | Transform live, then autosave fires | The snapshot holds the layer's current (transformed) pixels and outline; recovering it gives plain pixels, no live transform (AC-18) |
 | Switching the active layer while live | Commits to the original layer first, then switches (AC-08) |
+| Undo (Ctrl+Z / ⌘Z) during a drag | Drops that drag: nothing of it is applied, the transform stays as it was before the drag |
+| Active layer below other layers, or with a blend mode other than Normal | During a drag the preview shows the lifted content over the composite at the layer's opacity; on release the core's result shows it under the layers above and with its blend mode |
+| Selection longer than 4096 px on a side | The drag preview draws a downscaled patch; the released result is at full resolution |
 | Tiny selection (1×1) scaled to 400×400 | Works; the content is the single color resampled (Nearest: one flat color) |
 | A live shape or gradient exists, user picks Move Selected Pixels | The tool change commits the live object first (AC-08); then the box appears |
 | 150 handle drags (capacity 100), then Escape | Pixels and outline as before the first drag (AC-22) |
@@ -129,13 +134,12 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 | The quality option is shared by both Move tools and persists per session like other tool options | One option per tool pair keeps the options bar small | Low |
 | Default quality Bilinear | `Interpolation::default()` is Bilinear | Low |
 | The outline of Move Selection is resampled with the same quality | A raster coverage mask has to be resampled; Nearest keeps a hard edge, Bilinear softens it | Medium |
-| A drag is updated during the pointer move, and its undo step is recorded when the pointer is released | A step per pointer move would flood the history; the owner's model makes each drag one step | Low |
+| A drag is previewed by the editor during the pointer moves; the core applies it and records its undo step when the pointer is released | A step per pointer move would flood the history, and a core apply per move misses AC-20's budget (owner decision 2026-11-13) | Low |
 
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
-- AC-20 (budget): a live update of a 2048² selection on the 4K, 10-layer document takes 381 ms (p95, pointer event to the canvas draw) on the reference machine, against ≤ 33 ms. The core alone needs about 147 ms natively for one update after the one-pass Nearest / Bilinear path (Decisions, 2026-11-12) — 4.2 M resampled pixels on one core — and the browser adds the recompose of the changed area and the outline. Re-applying the transform in full resolution on the CPU at every pointer move cannot reach 33 ms. Options: (a) during a drag the editor shows the lifted patch transformed by the GPU / canvas (no core work), and the core applies the transform once per drag on release — which changes the owner decision "the core applies the live transform to the layer at every change"; (b) the core applies a reduced-resolution update during the drag and the full one on release; (c) relax the budget for this row. Recommendation: (a).
 
 ## Evidence
 
@@ -147,7 +151,7 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 | AC-04 | `Shift keeps the starting width-to-height ratio on a corner drag (AC-04)` (ui/e2e/transform-box.spec.ts); the drag reads Shift through `shiftHeld` (key or on-screen toggle) | built |        |
 | AC-05 | `a rotation turns about the pivot, clockwise positive; Shift snaps to 15° (AC-05, AC-06)`, `hit-testing in screen pixels: pivot, handles, inside, outside (AC-05)` (ui/e2e/transform-box.spec.ts); e2e `a corner handle scales and a right-drag turns …` (ui/e2e/transform-handles.spec.ts) | built |        |
 | AC-06 | e2e `moving the pivot changes no pixel (AC-06)` (ui/e2e/transform-handles.spec.ts); `a rotation turns about the pivot …` (ui/e2e/transform-box.spec.ts) | built |        |
-| AC-07 | e2e `dragging inside moves the content during the drag; the readout follows (AC-02, AC-07)` (ui/e2e/transform-handles.spec.ts); `consecutive_quality_changes_merge`, `commit_transform_folds_its_steps_into_one` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-07 |      | open |        |
 | AC-08 | e2e `Enter commits as one undo step; Undo restores the pixels (AC-08, AC-09)`, `a click outside the box commits; another tool commits (AC-08)` (ui/e2e/transform-handles.spec.ts); `another_command_commits_first` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
 | AC-09 | `commit_transform_folds_its_steps_into_one` (crates/pincel-image-core/tests/live_transform.rs); e2e `Enter commits as one undo step; Undo restores the pixels (AC-08, AC-09)` (ui/e2e/transform-handles.spec.ts) | built |        |
 | AC-10 | `cancel_transform_restores_everything` (crates/pincel-image-core/tests/live_transform.rs); e2e `Escape cancels: pixels and the undo state as before (AC-10)` (ui/e2e/transform-handles.spec.ts) | built |        |
@@ -160,9 +164,10 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 | AC-17 | `empty_selection_starts_nothing`, `round_trips_leave_no_loss_and_no_step` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
 | AC-18 | `saving_while_live_keeps_the_transform_and_writes_plain_pixels` (crates/pincel-image-core/tests/live_transform.rs); e2e `saving while live keeps the transform; switching tabs commits it (AC-18)` (ui/e2e/transform-handles.spec.ts) | built |        |
 | AC-19 | `steps_carry_the_move_history_kinds`, `command_spec_drives_the_transform` (crates/pincel-image-core/tests/live_transform.rs); the names come from `history.move_selection` / `history.move_selection_mask` (en, de) | built |        |
-| AC-20 | `ui/e2e-perf/scenarios.perf.ts` › "image 4K, 10 layers: live transform of a 2048² selection" (`browser/image-transform-4k/dab-draw-latency-p95`, budget 33 ms in `budgets.json`): measured 381 ms on the reference machine — not met, see Open questions | open |        |
+| AC-20 |      | open |        |
 | AC-21 | `undo_while_live_steps_back_one_drag` (crates/pincel-image-core/tests/live_transform.rs); e2e `Undo while live steps back one drag and keeps it live (AC-21)` (ui/e2e/transform-handles.spec.ts) | built |        |
 | AC-22 | `capacity_folds_live_steps_and_cancel_still_restores` (crates/pincel-image-core/tests/live_transform.rs) | built |        |
+| AC-23 |      | open |        |
 
 ## Decisions
 
@@ -177,3 +182,4 @@ Two owner decisions (2026-11-05, see Decisions) shape this spec:
 - 2026-11-12 (spec-build): the transform commands are `CommandSpec` variants with flat fields (`begin_transform`, `edit_transform`, `commit_transform`, `cancel_transform`) and the query `live_transform` (`LiveTransformSpec`); the UI mirrors them as `SelectionTransformCommand` (`TransformCommand` was taken by the layer transform). Saving, export and autosave do not commit (AC-18): the save flow's `gestureControl.commitLive` leaves the transform alone, and a separate `gestureControl.commitTransform` runs on a tab switch and before an MCP call.
 - 2026-11-12 (spec-build): live updates take a one-pass path for Nearest and Bilinear (content and coverage from the lifted bytes, written straight into the layer and a canvas-sized mask buffer; integer casts instead of `floor` / `round`, which are library calls on baseline x86-64); Bicubic keeps the shared `pincel_effects::transform::resample`. Measured natively on 3840×2160 with a 2048² selection: 270 ms per update before, 147 ms after; in the browser 742 → 381 ms p95 (AC-20 still open).
 - 2026-11-12 (spec-build): a press with a Move tool while the box shows always goes to the box (`tools/transform-drag.ts`): inside translates, a handle scales, the pivot moves, a right-button drag rotates, a left press outside rotates once it moves 4 screen px and is a click (commit) otherwise. Without a selection Move Selected Pixels keeps moving the whole layer on release as before. Red runs: the core tests failed to compile before `live_transform.rs` existed; the e2e tests ran red against the editor before the box (no `[data-transform-box]`); the core tests for AC-12, AC-14, AC-18 and AC-19 were written after the implementation and green at once (the properties hold by construction).
+- 2026-11-13: During a drag the editor previews the transform itself and the core applies it once when the drag ends — owner's choice of option (a) for AC-20, because a full-resolution core apply per pointer move measured 381 ms p95 against ≤ 33 ms (147 ms natively for the core alone). This changes the 2026-11-05 decision "the core applies the transform to the layer at every change" to "when a drag ends and at every quality change"; the undo model (one step per finished drag, fold on commit, cancel, commit first) is unchanged. AC-07 and AC-20 are reworded, AC-23 is new; §4.5's budget row now measures the drag preview, pointer move to presented frame (Decision Log 2026-11-13). The preview draws the lifted content over the composite at the layer's opacity; the layers above and the layer's blend mode show again on release. Undo during a drag drops that drag, as Undo during a live-object handle drag does (`image-live-objects-ui` AC-11).
