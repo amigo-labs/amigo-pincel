@@ -35,7 +35,6 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | - | ---- | ---- | ---- | ---------- | ---- |
 | B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
 | B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
-| B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
 
 ### C — Editor feedback
 
@@ -160,6 +159,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [image-shapes-curves](image-shapes-curves.md)
 - [image-shapes-curves-shapes](image-shapes-curves-shapes.md)
 - [image-resize-autocrop](image-resize-autocrop.md)
+- [image-transform-handles](image-transform-handles.md)
 - [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
 - [linked-cels-group-compose](linked-cels-group-compose.md)
