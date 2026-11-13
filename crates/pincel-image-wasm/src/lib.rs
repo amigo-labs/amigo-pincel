@@ -31,6 +31,7 @@ mod generate;
 mod history;
 mod ocr;
 mod palette;
+mod transform_preview;
 mod vectorize;
 
 #[cfg(test)]
