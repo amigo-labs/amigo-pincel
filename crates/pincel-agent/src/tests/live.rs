@@ -213,6 +213,38 @@ fn call_image_draws_on_the_lent_bus_as_one_undo_step() {
     assert_eq!(ed.bus.document, before);
 }
 
+/// The Move tools' live transform is committed before a tool call changes
+/// the document (docs/specs/image-transform-handles.md AC-08).
+#[test]
+fn call_image_commits_a_live_selection_transform_first() {
+    use pincel_image_core::geometry::Rect;
+    use pincel_image_core::{SelectionMask, TransformSettings};
+    let mut ed = ImageEditor::new(16, 8);
+    ed.ok(
+        "draw.stroke",
+        json!({ "points": [[2, 2], [6, 5]], "size": 3, "color": "#ff0000" }),
+    );
+    ed.bus.document.selection = Some(SelectionMask::rectangle(16, 8, Rect::new(1, 1, 7, 6)));
+    let depth = ed.bus.history.undo_depth();
+    let s = TransformSettings::for_selection(&ed.bus.document).expect("a selection");
+    let s = TransformSettings {
+        center: (s.center.0 + 5.0, s.center.1),
+        ..s
+    };
+    assert!(ed.bus.begin_transform(0, true, s, Some(1)).expect("begin"));
+    let transformed = ed.bus.document.clone();
+    ed.ok(
+        "draw.stroke",
+        json!({ "points": [[1, 7], [15, 7]], "size": 1, "color": "#0000ff" }),
+    );
+    assert!(ed.bus.live_transform().is_none());
+    assert_eq!(ed.bus.history.undo_depth(), depth + 2);
+    // The call drew on the committed result: undoing it leaves exactly that.
+    assert!(ed.bus.undo().expect("undo"));
+    assert!(ed.bus.live_transform().is_none());
+    assert_eq!(ed.bus.document, transformed);
+}
+
 #[test]
 fn call_image_keeps_agent_layer_ids_across_calls() {
     let mut ed = ImageEditor::new(4, 4);
