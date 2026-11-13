@@ -111,43 +111,39 @@ On the reference machine add `--write` so budgets met for the first time are rec
 
 ### Latest results
 
-Measured 2026-10-29 on the reference machine (the owner accepted this developer laptop as such, see Decisions): AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 156.0.8078.4. Native numbers here are about 2.5× the dev-container figures under Technical notes, so compare only runs from the same machine. Benches: `cargo bench` (native release, criterion median). Browser: `pnpm perf` against the production build with release wasm (`pnpm wasm:build:release`), headless Chromium, no network throttling except the cold-start scenario. Budget mode on these numbers: `cold-start/cold`, `cold-start/warm` and `pixel-pencil-256-z32/frame-p95` met (recorded in `ui/e2e-perf/budgets-met.json`, so they block from now on), everything else `pending`.
+Native benchmarks: criterion medians of the nightly `perf.yml` run 43403911502 on `main` (2026-11-13, `e7d532e8`), on the GitHub runner AMD EPYC 9V74 80-Core Processor, 4 threads, 16 GB, linux 7.0.0-1019-azure (`measurements.md` of its `perf-results` artifact). Runner numbers are checked in baseline mode against the same runner only; they are not comparable with the reference laptop. Browser scenarios: the reference laptop table below. The 2026-10-29 tables (before the Image kernel and the region cache) are in git history.
 
 | Benchmark | Median |
 | --------- | ------ |
-| `bench/compose/compose_256_dirty_hint_4x4` | 0.0003 ms |
-| `bench/compose/compose_256_four_layers_full` | 4.81 ms |
-| `bench/compose/compose_256_single_layer_full` | 0.7988 ms |
-| `bench/compose/compose_4096_single_layer_zoom_1` | 159 ms |
-| `bench/compose/compose_64_tilemap_full` | 0.0232 ms |
-| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0098 ms |
-| `bench/image_compose/full_1024_10layers` | 1509 ms |
-| `bench/image_compose/full_1024_2layers` | 262 ms |
-| `bench/image_compose/full_1024_5layers` | 851 ms |
-| `bench/image_compose/full_2048_10layers` | 5833 ms |
-| `bench/image_compose/full_2048_2layers` | 980 ms |
-| `bench/image_compose/full_2048_5layers` | 2822 ms |
-| `bench/image_compose/full_4096_10layers` | 24416 ms |
-| `bench/image_compose/full_4096_2layers` | 3745 ms |
-| `bench/image_compose/full_4096_5layers` | 11365 ms |
-| `bench/image_effect/gaussian_r10_4k` | 2805 ms |
-| `bench/image_region/fit_4k_10layers` | 16176 ms |
-| `bench/image_region/zoom1_4k_10layers` | 3860 ms |
-| `bench/image_stroke/brush_100_dabs_4k_10layers` | 2.08 ms |
-
-| Browser scenario | Frame p50 / p95 | Longest frame | Dab latency p50 / p95 | Scenario metrics |
-| ---------------- | --------------- | ------------- | --------------------- | ---------------- |
-| `image-brush-4k` | 16.7 ms / 700 ms | 1216 ms | 78.4 ms / 732 ms | — |
-| `image-pan-zoom-4k` | 16.7 ms / 317 ms | 1483 ms | — | — |
-| `image-recompose-4k` | 16.7 ms / 16.8 ms | 317 ms | — | recompose-p50 261 ms, recompose-p95 318 ms |
-| `image-gaussian-4k` | 16.7 ms / 16.8 ms | 1817 ms | — | proxy 1836 ms, full 1444 ms |
-| `image-autosave-export-4k` | 16.7 ms / 33.3 ms | 2066 ms | — | — |
-| `image-memory-4k` | 16.7 ms / 16.8 ms | 300 ms | — | wasm-memory-mb 1001 MiB (2026-11-06) |
-| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 22.9 ms / 31.2 ms | — |
-| `image-open-4k-png` | 16.7 ms / 33.3 ms | 9050 ms | — | first-paint 9240 ms |
-| `cold-start` | 16.7 ms / 16.8 ms | 33.4 ms | — | cold 706 ms, warm 426 ms |
-
-`image-memory-4k` re-measured 2026-11-06 on the same machine with the release wasm (performance-image-undo-memory AC-03; budget 1024 MB met, recorded in `budgets-met.json`).
+| `bench/compose/compose_256_dirty_hint_4x4` | 0.0001 ms |
+| `bench/compose/compose_256_four_layers_full` | 1.50 ms |
+| `bench/compose/compose_256_single_layer_full` | 0.2739 ms |
+| `bench/compose/compose_4096_single_layer_zoom_1` | 93.21 ms |
+| `bench/compose/compose_64_tilemap_full` | 0.0096 ms |
+| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0071 ms |
+| `bench/image_cache/brush_100_dabs_fit_4k_10layers` | 15.51 ms |
+| `bench/image_cache/fit_viewport_4k_10layers` | 13.41 ms |
+| `bench/image_compose/full_1024_10layers` | 66.63 ms |
+| `bench/image_compose/full_1024_2layers` | 8.19 ms |
+| `bench/image_compose/full_1024_5layers` | 30.25 ms |
+| `bench/image_compose/full_2048_10layers` | 269 ms |
+| `bench/image_compose/full_2048_2layers` | 32.91 ms |
+| `bench/image_compose/full_2048_5layers` | 122 ms |
+| `bench/image_compose/full_4096_10layers` | 1108 ms |
+| `bench/image_compose/full_4096_2layers` | 162 ms |
+| `bench/image_compose/full_4096_5layers` | 525 ms |
+| `bench/image_effect/gaussian_r10_4k` | 403 ms |
+| `bench/image_export/jpeg_4k` | 264 ms |
+| `bench/image_export/over_background_4k` | 114 ms |
+| `bench/image_live/ellipse_move_1024_4k_5layers` | 60.03 ms |
+| `bench/image_live/gradient_end_move_2k_5layers` | 242 ms |
+| `bench/image_open/png_4k` | 33.10 ms |
+| `bench/image_region/fit_4k_10layers` | 586 ms |
+| `bench/image_region/zoom1_4k_10layers` | 134 ms |
+| `bench/image_shapes/curve_64pts_w20_dashdot_arrows_4k` | 139 ms |
+| `bench/image_stroke/brush_100_dabs_4k_10layers` | 0.7422 ms |
+| `bench/selection/expand_r20_4k` | 9.66 ms |
+| `bench/selection/feather_r20_4k` | 97.36 ms |
 
 ### Browser results, 2026-11-13
 
@@ -175,8 +171,8 @@ Measured 2026-11-13 on the reference machine (AMD Ryzen 7 PRO 6850H with Radeon 
 | AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`): 5 tests covering the 9 budget scenarios — every scenario records `frame-p50` / `frame-p95` / `frame-max`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95` and (since 2026-11-05, for `performance-input-path` AC-04) `dab-draw-latency-p50` / `-p95`, pointer event received by the page → draw call; output `ui/e2e-perf/results/browser.json` | built |        |
 | AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
 | AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
-| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); a dispatched run on 2026-11-03 (run 41724796417, branch `ccr-5238e405-2i7du2`) ran the benches, the browser script and the budget check and passed — the manual sign-off is still to be entered | built |        |
-| AC-07 | manual: owner accepted the measurements table (dev laptop Ryzen 7 PRO 6850H as reference machine), 2026-10-29 | built |        |
+| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); manual: spec-check checked the real runs, 2026-11-13 — dispatches 41724796417 and 42981905502 and the nightly 43403911502 ran benches, browser script and budget check and passed, the nightly 42466266230 skipped an unchanged `main`, and 41422525935 failed on a red budget check | built |        |
+| AC-07 | manual: `## Measurements` updated 2026-11-13 — every one of the 29 benches with its latest median (nightly 43403911502, machine named) and every browser scenario with p50 / p95 (reference laptop, machine named); the owner accepted the laptop as reference machine on 2026-10-29 | built |        |
 | AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes), `ui/e2e/perf-workflow.spec.ts` › "the runner baseline is kept per CPU model (AC-08)" | built |        |
 
 ## Decisions
