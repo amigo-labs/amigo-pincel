@@ -4,5 +4,9 @@
   "browser/pixel-pencil-256-z32/frame-p95": "2026-10-29",
   "browser/pixel-pencil-256-z32/dab-draw-latency-p95": "2026-11-05",
   "browser/image-brush-4k/dab-draw-latency-p95": "2026-11-06",
-  "browser/image-memory-4k/wasm-memory-mb": "2026-11-06"
+  "browser/image-memory-4k/wasm-memory-mb": "2026-11-06",
+  "browser/image-pan-zoom-4k/frame-p95": "2026-11-13",
+  "browser/image-gaussian-4k/full": "2026-11-13",
+  "browser/image-transform-4k/dab-latency-p95": "2026-11-13",
+  "browser/image-open-4k-png/first-paint": "2026-11-13"
 }
