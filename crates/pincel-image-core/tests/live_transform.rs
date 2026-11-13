@@ -307,6 +307,57 @@ fn another_command_commits_first() {
     assert_eq!(pixels(&bus), moved_px);
 }
 
+// AC-08: a change of the active layer commits the transform on its own
+// layer first; picking the same layer again keeps it live.
+#[test]
+fn set_active_layer_commits_a_live_transform_first() {
+    let mut bus = bus();
+    bus.document.add_layer("Top").expect("layer");
+    bus.set_active_layer(0).expect("active");
+    let depth = bus.history.undo_depth();
+    let top = bus.document.layers()[1].pixels.data().to_vec();
+    let s = start(&bus);
+    bus.begin_transform(0, true, moved(s, 3.0, 0.0), Some(1))
+        .expect("begin");
+    bus.edit_transform(moved(s, 4.0, 1.0), Some(2))
+        .expect("edit");
+    let (moved_px, moved_mask) = (pixels(&bus), mask(&bus));
+    bus.set_active_layer(0).expect("same layer");
+    assert!(bus.live_transform().is_some());
+    bus.set_active_layer(1).expect("other layer");
+    assert!(bus.live_transform().is_none());
+    assert_eq!(bus.document.active_layer_index(), 1);
+    assert_eq!(bus.history.undo_depth(), depth + 1);
+    assert_eq!((pixels(&bus), mask(&bus)), (moved_px, moved_mask));
+    assert_eq!(bus.document.layers()[1].pixels.data(), &top[..]);
+}
+
+// AC-08: beginning another live object commits the transform first, and the
+// object draws on the committed result.
+#[test]
+fn begin_live_commits_a_live_transform_first() {
+    use pincel_image_core::{Gradient, LiveGradient, LiveParams, Point};
+    let mut bus = bus();
+    let depth = bus.history.undo_depth();
+    bus.begin_transform(0, true, moved(start(&bus), 3.0, 2.0), Some(1))
+        .expect("begin");
+    let (moved_px, moved_mask) = (pixels(&bus), mask(&bus));
+    let gradient = LiveParams::Gradient(LiveGradient {
+        gradient: Gradient::default(),
+        a: Point::new(0.0, 0.0),
+        b: Point::new(15.0, 0.0),
+    });
+    assert!(bus.begin_live(0, gradient).expect("live object"));
+    assert!(bus.live_transform().is_none());
+    assert!(bus.live_object().is_some());
+    assert_eq!(bus.history.undo_depth(), depth + 2);
+    // Undoing the object leaves the committed transform, not a live one.
+    assert!(bus.undo().expect("undo"));
+    assert!(bus.live_object().is_none());
+    assert!(bus.live_transform().is_none());
+    assert_eq!((pixels(&bus), mask(&bus)), (moved_px, moved_mask));
+}
+
 // AC-07: consecutive quality changes form one step.
 #[test]
 fn consecutive_quality_changes_merge() {
@@ -456,6 +507,32 @@ fn saving_while_live_keeps_the_transform_and_writes_plain_pixels() {
     );
     assert_eq!(back.selection, bus.document.selection);
     assert!(CommandBus::new(back).live_transform().is_none());
+}
+
+// AC-18: a project saved while live holds the applied pixels, reopens with
+// no live transform, and the save neither commits nor touches the history.
+#[test]
+fn ora_saved_while_live_reopens_with_plain_pixels() {
+    use pincel_image_core::codec::ora::{from_ora_bytes, to_ora_bytes};
+    let mut bus = bus();
+    let s = TransformSettings {
+        angle: 30.0,
+        ..moved(start(&bus), 2.0, 1.0)
+    };
+    bus.begin_transform(0, true, s, Some(1)).expect("begin");
+    let depths = (bus.history.undo_depth(), bus.history.redo_depth());
+    let shown = compose(bus.document.layers());
+    let ora = to_ora_bytes(&bus.document, 1).expect("save");
+    assert!(bus.live_transform().is_some());
+    assert_eq!((bus.history.undo_depth(), bus.history.redo_depth()), depths);
+    let reopened = CommandBus::new(from_ora_bytes(&ora).expect("open"));
+    assert!(reopened.live_transform().is_none());
+    assert_eq!(reopened.history.undo_depth(), 0);
+    assert_eq!(
+        reopened.document.layers()[0].pixels.data(),
+        &pixels(&bus)[..]
+    );
+    assert_eq!(compose(reopened.document.layers()), shown);
 }
 
 /// The composite's pixel at `(x, y)`.
