@@ -94,8 +94,8 @@
       "owner": "image-shapes-curves"
     },
     {
-      "metric": "browser/image-transform-4k/dab-draw-latency-p95",
-      "scenario": "Live selection transform update (scale handle drag), Image 4K 10 layers, 2048² selection (pointer event -> draw)",
+      "metric": "browser/image-transform-4k/dab-latency-p95",
+      "scenario": "Live selection transform drag preview (scale handle drag), Image 4K 10 layers, 2048² selection (pointer move -> presented frame)",
       "max": 33,
       "unit": "ms",
       "owner": "image-transform-handles"

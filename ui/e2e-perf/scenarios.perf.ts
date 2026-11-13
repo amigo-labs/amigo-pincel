@@ -207,9 +207,10 @@ test('image 4K, 10 layers: brush, pan / zoom, recompose, effect, save and export
 });
 
 test('image 4K, 10 layers: live transform of a 2048² selection', async ({ page }) => {
-  // docs/specs/image-transform-handles.md AC-20: every corner-handle move
-  // re-applies the transform in the core; the latency of one update is the
-  // pointer event to the canvas draw.
+  // docs/specs/image-transform-handles.md AC-20: during a corner-handle
+  // drag the editor previews the transform (the core applies it once, on
+  // release); the budget is pointer move → presented frame
+  // (`dab-latency-p95`), the draw latency is recorded beside it.
   const surface = await imageDoc4k(page);
   const b = await surface.boundingBox();
   if (!b) throw new Error('surface not visible');
