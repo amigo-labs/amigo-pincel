@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: Image
@@ -32,13 +32,13 @@ This spec, step 2 of the legacy plan `23-performance` (removed 2026-10-29, see g
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): After any sequence of brush dabs, commands, undo, redo, layer moves and layer property changes (visibility, opacity, blend mode), the composite the editor presents at zoom ≥ 1 is byte-identical to a fresh full compose of the document.
-- [ ] AC-02 (event): When the `pincel-image-core` bench runs a 100-dab brush stroke on a 3840×2160, 10-layer document including the presentation of each dab's changed region at fit zoom, then the median is at most 1.6 s (16 ms per dab).
-- [ ] AC-03 (state, manual: the budget is defined for the reference laptop): While the user paints with the Brush on a 3840×2160, 10-layer document at any zoom, the browser performance script measures a p95 dab latency of at most 16 ms, where dab latency runs from the page receiving the pointer event to the first draw call on the render canvas after it (`image-brush-4k` › `dab-draw-latency-p95`) — not from the event's hardware `timeStamp`, and not to the frame that presents the draw.
-- [ ] AC-04 (state, manual: the budget is defined for the reference laptop): While the user pans or zooms a 3840×2160, 10-layer document, the browser performance script measures a p95 frame time of at most 16.7 ms (60 fps).
-- [ ] AC-05 (always): The cache of a document, including its downscaled levels, takes at most 1.34 × width × height × 4 bytes; downscaled levels are kept for every document size unless the memory scenario of `performance-benchmarks` misses its budget (see Edge cases for the fallback then).
-- [ ] AC-06 (event): When a document is opened, or a command changes the canvas size (resize, scale, crop, rotate), then the next presented image equals a fresh full compose of the new document.
-- [ ] AC-07 (always): After any sequence of brush dabs, commands, undo, redo, layer moves and layer property changes, the image the editor presents at zoom < 1 equals sampling the same downscaled pyramid built from a fresh full compose of the document. It need not equal today's "compose at full resolution, then bilinear downscale" output.
+- [x] AC-01 (always): After any sequence of brush dabs, commands, undo, redo, layer moves and layer property changes (visibility, opacity, blend mode), the composite the editor presents at zoom ≥ 1 is byte-identical to a fresh full compose of the document.
+- [x] AC-02 (event): When the `pincel-image-core` bench runs a 100-dab brush stroke on a 3840×2160, 10-layer document including the presentation of each dab's changed region at fit zoom, then the median is at most 1.6 s (16 ms per dab).
+- [x] AC-03 (state, manual: the budget is defined for the reference laptop): While the user paints with the Brush on a 3840×2160, 10-layer document at any zoom, the browser performance script measures a p95 dab latency of at most 16 ms, where dab latency runs from the page receiving the pointer event to the first draw call on the render canvas after it (`image-brush-4k` › `dab-draw-latency-p95`) — not from the event's hardware `timeStamp`, and not to the frame that presents the draw.
+- [x] AC-04 (state, manual: the budget is defined for the reference laptop): While the user pans or zooms a 3840×2160, 10-layer document, the browser performance script measures a p95 frame time of at most 16.7 ms (60 fps).
+- [x] AC-05 (always): The cache of a document, including its downscaled levels, takes at most 1.34 × width × height × 4 bytes; downscaled levels are kept for every document size unless the memory scenario of `performance-benchmarks` misses its budget (see Edge cases for the fallback then).
+- [x] AC-06 (event): When a document is opened, or a command changes the canvas size (resize, scale, crop, rotate), then the next presented image equals a fresh full compose of the new document.
+- [x] AC-07 (always): After any sequence of brush dabs, commands, undo, redo, layer moves and layer property changes, the image the editor presents at zoom < 1 equals sampling the same downscaled pyramid built from a fresh full compose of the document. It need not equal today's "compose at full resolution, then bilinear downscale" output.
 
 ## Technical notes
 
@@ -69,13 +69,23 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `region_at_zoom_one_matches_a_fresh_compose_after_any_edits` (proptest, `crates/pincel-image-core/src/render/cache.rs`); `composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
-| AC-02 | `cargo bench -p pincel-image-core --bench compose -- image_cache` — `image_cache/brush_100_dabs_fit_4k_10layers` in `crates/pincel-image-core/benches/compose.rs`: median 80.2 ms (dev container, native release, float compose path) against the 1.6 s budget | built |        |
-| AC-03 | manual: measured on the reference laptop 2026-11-13 (release wasm, `pnpm perf` twice back to back on the release bundle): `image-brush-4k` › `dab-draw-latency-p95` 3.8 / 3.7 ms against 16 ms (`pnpm perf:check --mode budget`: met) | built |        |
-| AC-04 | `pnpm perf -g "brush, pan"` in `ui/` (`image-pan-zoom-4k`, `frame-p95`); manual: measured on the reference laptop 2026-11-13 (release wasm, `pnpm perf` twice back to back on the release bundle): 16.7 / 16.7 ms against 16.7 ms, recorded as met in `ui/e2e-perf/budgets-met.json` | built |        |
-| AC-05 | `byte_size_stays_within_the_budget_and_keeps_every_level` (`crates/pincel-image-core/src/render/cache.rs`) | built |        |
-| AC-06 | `region_after_canvas_size_changes_matches_compose`, `region_detects_a_size_change_it_was_not_told_about` (`crates/pincel-image-core/src/render/cache.rs`); the resize step of `composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
-| AC-07 | `region_below_zoom_one_matches_a_fresh_pyramid_after_any_edits` (proptest), `blend4_matches_the_premultiplied_average`, `halve_matches_the_premultiplied_box_average` (`crates/pincel-image-core/src/render/cache.rs`); `composite_region_below_zoom_one_samples_the_pyramid_of_a_fresh_compose` (`crates/pincel-image-wasm/src/lib.rs`) | built |        |
+| AC-01 | `render::cache::tests::region_at_zoom_one_matches_a_fresh_compose_after_any_edits` (proptest: paint, add / remove / move layer, visibility, opacity, blend mode, selection, undo, redo; `crates/pincel-image-core/src/render/cache.rs`); `region_tests::composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) — passed in CI run 43409434867 (`main` 72785ab), 2026-11-13 | verified | 69ecefd |
+| AC-02 | `image_cache/brush_100_dabs_fit_4k_10layers` (`cargo bench -p pincel-image-core --bench compose`, `crates/pincel-image-core/benches/compose.rs`) — median 15.6 ms against 1.6 s in the nightly `perf.yml` run 43403911502 (`main`, CI runner AMD EPYC 9V74), 2026-11-13 | verified | c656e67 |
+| AC-03 | manual: spec-check checked the reference-laptop run of 2026-11-13 (`ui/e2e-perf/results/browser.json`, AMD Ryzen 7 PRO 6850H, Chromium 158, release wasm; `pnpm perf:check --mode budget` exits 0): `image-brush-4k` › `dab-draw-latency-p95` 3.7 ms against 16 ms (first run 3.8 ms; the scenario paints at fit zoom and at 100 %), 2026-11-13 | verified | 4bc8296 |
+| AC-04 | manual: spec-check checked the same reference-laptop run (`ui/e2e-perf/results/browser.json`, `pnpm perf:check --mode budget`): `image-pan-zoom-4k` › `frame-p95` 16.7 ms against 16.7 ms (first run 16.7 ms), recorded as met in `ui/e2e-perf/budgets-met.json`, 2026-11-13 | verified | 4bc8296 |
+| AC-05 | `render::cache::tests::byte_size_stays_within_the_budget_and_keeps_every_level` (`crates/pincel-image-core/src/render/cache.rs`) — passed in CI run 43409434867 | verified | 69ecefd |
+| AC-06 | `render::cache::tests::region_after_canvas_size_changes_matches_compose`, `render::cache::tests::region_detects_a_size_change_it_was_not_told_about` (`crates/pincel-image-core/src/render/cache.rs`); the resize step of `region_tests::composite_region_matches_a_fresh_compose_after_edits_undo_and_redo` (`crates/pincel-image-wasm/src/lib.rs`) — passed in CI run 43409434867 | verified | 69ecefd |
+| AC-07 | `render::cache::tests::region_below_zoom_one_matches_a_fresh_pyramid_after_any_edits` (proptest), `render::cache::tests::blend4_matches_the_premultiplied_average`, `render::cache::tests::halve_matches_the_premultiplied_box_average` (`crates/pincel-image-core/src/render/cache.rs`); `region_tests::composite_region_below_zoom_one_samples_the_pyramid_of_a_fresh_compose` (`crates/pincel-image-wasm/src/lib.rs`) — passed in CI run 43409434867 | verified | 69ecefd |
+
+## Summary
+
+> Completed: 2026-11-13
+
+- `pincel_image_core::RenderCache`: a full-resolution composite per document, updated in the rects commands report through `Command::damage` / `CommandBus::take_damage`, byte-identical to a fresh compose at zoom ≥ 1
+- A tiled, lazily built box-filtered pyramid (premultiplied, integer math) presents zoom < 1, byte-identical to the pyramid of a fresh compose; the cache stays within 1.34 × w × h × 4 bytes with every level kept
+- `pincel-image-wasm` serves `composite_region` from the cache; canvas-size changes rebuild it
+- 100 dabs at fit zoom on 4K × 10 layers: 15.6 ms natively (budget 1.6 s); on the reference laptop dab-draw latency p95 3.7 ms (budget 16 ms) and pan / zoom frame p95 16.7 ms
+- No stroke cache: per-dab recompose of the dab rect meets the budgets and keeps exactness (Decisions, 2026-11-03)
 
 ## Decisions
 
