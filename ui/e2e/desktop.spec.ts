@@ -37,11 +37,29 @@ interface Bridge {
   /** Files `read_file_bytes` can read, by path. */
   files?: Record<string, number[]>;
   /** What `updater_state` answers. */
-  updater?: { supported: boolean; autoUpdate: boolean; ready: string | null };
+  updater?: Partial<UpdaterAnswer>;
   /** Files the OS handed over before the page listened (launch argument);
    *  the first `take_open_files` returns them, later calls nothing. */
   launchFiles?: string[];
 }
+
+/** What `updater_state` answers (src-tauri/src/updater.rs `UpdaterInfo`). */
+interface UpdaterAnswer {
+  supported: boolean;
+  mode: 'auto' | 'notify' | 'off';
+  chosen: boolean;
+  ready: string | null;
+  announce: string | null;
+  checking: boolean;
+  unsupported: 'package' | 'appimage' | null;
+}
+
+/** An answer the stand-in updater gives to a check. */
+type CheckAnswer =
+  | { state: 'upToDate' }
+  | { state: 'available'; version: string }
+  | { state: 'ready'; version: string }
+  | { error: string };
 
 interface Call {
   cmd: string;
@@ -57,11 +75,22 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
     const calls: { cmd: string; args: Record<string, unknown> }[] = [];
     let nextId = 1;
     const state = {
-      updater: cfg.updater ?? { supported: false, autoUpdate: true, ready: null },
-      /** Answers of the next `updater_check` calls: a version, `null`, or an error. */
-      checks: [] as ({ version: string | null } | { error: string })[],
-      /** What `updater_set_auto` stores; `null` stores the requested value. */
-      storeAuto: null as boolean | null,
+      updater: {
+        supported: false,
+        mode: 'auto',
+        chosen: true,
+        ready: null,
+        announce: null,
+        checking: false,
+        unsupported: null,
+        ...cfg.updater,
+      } as UpdaterAnswer,
+      /** Answers of the next `updater_check` calls (default: up to date). */
+      checks: [] as CheckAnswer[],
+      /** Answers of the next `updater_check_on_open` calls (default: up to date). */
+      opens: [] as CheckAnswer[],
+      /** Whether `updater_set_mode` manages to store the choice. */
+      storeMode: true,
       launchFiles: [...(cfg.launchFiles ?? [])],
     };
     const invoke = async (cmd: string, args: Record<string, unknown> = {}): Promise<unknown> => {
@@ -83,15 +112,27 @@ async function desktop(page: Page, bridge: Bridge = {}): Promise<void> {
           return state.launchFiles.splice(0);
         case 'updater_state':
           return { ...state.updater };
-        case 'updater_check': {
-          const next = state.checks.shift() ?? { version: null };
+        case 'updater_check':
+        case 'updater_check_on_open': {
+          if (cmd === 'updater_check_on_open' && state.updater.mode === 'off') return null;
+          const queue = cmd === 'updater_check' ? state.checks : state.opens;
+          const next = queue.shift() ?? { state: 'upToDate' };
           if ('error' in next) throw next.error;
-          return next.version;
+          if (next.state === 'ready') {
+            state.updater = { ...state.updater, ready: next.version, announce: null };
+          }
+          return next;
         }
-        case 'updater_set_auto': {
-          const stored = state.storeAuto ?? (args.enabled as boolean);
-          state.updater.autoUpdate = stored;
-          return stored;
+        case 'updater_mark_announced':
+          state.updater = { ...state.updater, announce: null };
+          return null;
+        case 'updater_arm_restart':
+          if (state.updater.ready === null) throw 'no update is downloaded';
+          return null;
+        case 'updater_set_mode': {
+          const mode = args.mode as UpdaterAnswer['mode'];
+          state.updater = { ...state.updater, mode, chosen: true };
+          return { mode, saved: state.storeMode };
         }
         default:
           return null;
@@ -182,6 +223,45 @@ async function desktopStart(page: Page, bridge: Bridge = {}): Promise<void> {
 
 const unsaved = (page: Page) => page.getByRole('alertdialog', { name: 'Unsaved changes' });
 const docTitle = (page: Page, name: string) => page.getByTitle(name, { exact: true });
+const question = (page: Page) =>
+  page.getByRole('dialog', { name: 'How should Pincel handle updates?' });
+const aboutDialog = (page: Page) => page.getByRole('dialog', { name: 'About Pincel' });
+const notice = (page: Page) => page.getByRole('region', { name: 'Update available' });
+
+/** The three update choices, as the question and the About dialog name them. */
+const CHOICE = {
+  auto: 'Install automatically (recommended)',
+  notify: 'Notify me when an update is available',
+  off: 'Never check for updates',
+} as const;
+
+/** Changes what `updater_state` answers and sends `updater-changed`. */
+async function setUpdater(page: Page, patch: Partial<UpdaterAnswer>): Promise<void> {
+  await page.evaluate((p) => {
+    const mock = (
+      window as unknown as { __desktopMock: { state: { updater: Record<string, unknown> } } }
+    ).__desktopMock;
+    mock.state.updater = { ...mock.state.updater, ...p };
+  }, patch);
+  await emit(page, 'updater-changed', null);
+}
+
+/** Queues the answer of the next `updater_check` (`checks`) or
+ *  `updater_check_on_open` (`opens`). */
+async function pushAnswer(
+  page: Page,
+  queue: 'checks' | 'opens',
+  answer: CheckAnswer,
+): Promise<void> {
+  await page.evaluate(
+    ([q, a]) => {
+      (
+        window as unknown as { __desktopMock: { state: Record<string, unknown[]> } }
+      ).__desktopMock.state[q]?.push(a);
+    },
+    [queue, answer] as const,
+  );
+}
 
 test.describe('desktop on Linux', () => {
   test.use({ userAgent: LINUX_UA });
@@ -266,7 +346,7 @@ test.describe('desktop on Linux', () => {
     await expect(page.getByRole('button', { name: /^Hide / })).toHaveCount(4);
   });
 
-  test('the open dialog offers TGA, DDS and ICO under all supported files and images (image-formats-more AC-14)', async ({
+  test('the open dialog offers TGA, DDS, ICO and JPEG XL under all supported files and images (image-formats-more AC-14, image-formats-more-modern AC-10)', async ({
     page,
   }) => {
     await desktopStart(page);
@@ -276,16 +356,17 @@ test.describe('desktop on Linux', () => {
     const filters = (dialog?.args.options as { filters: { name: string; extensions: string[] }[] })
       .filters;
     const images = filters.find((f) => f.name === 'Images');
-    for (const ext of ['tga', 'dds', 'ico']) {
+    for (const ext of ['tga', 'dds', 'ico', 'jxl']) {
       expect(filters[0]?.extensions).toContain(ext);
       expect(images?.extensions).toContain(ext);
     }
   });
 
-  test('Help ▸ Check for Updates… reports the outcome and the stored auto-update value (AC-16)', async ({
+  test('Help ▸ Check for Updates… checks whatever the update choice and reports the outcome; no auto-update checkbox (AC-16)', async ({
     page,
   }) => {
-    await desktopStart(page, { updater: { supported: true, autoUpdate: true, ready: null } });
+    // "never check" (AC-27): the manual check still checks.
+    await desktopStart(page, { updater: { supported: true, mode: 'off' } });
     await page.getByRole('button', { name: 'New pixel sprite' }).click();
     await page
       .getByRole('form', { name: 'New pixel sprite' })
@@ -298,7 +379,7 @@ test.describe('desktop on Linux', () => {
       return page.getByRole('menu', { name: 'Help', exact: true });
     };
     const about = page.getByRole('dialog', { name: 'About Pincel' });
-    const check = async (answer: { version: string | null } | { error: string }) => {
+    const check = async (answer: CheckAnswer) => {
       await page.evaluate((a) => {
         (
           window as unknown as { __desktopMock: { state: { checks: unknown[] } } }
@@ -312,45 +393,288 @@ test.describe('desktop on Linux', () => {
       await expect(about).toBeHidden();
     };
 
-    await check({ version: null });
+    await check({ state: 'upToDate' });
     await expect(about).toContainText('Pincel is up to date.');
     await close();
     await check({ error: 'network is unreachable' });
     await expect(about).toContainText('Checking for updates failed: network is unreachable');
     await close();
-    await check({ version: '9.9.9' });
+    await check({ state: 'ready', version: '9.9.9' });
     await expect(about).toContainText(
       'Pincel 9.9.9 has been downloaded and is used from the next start.',
     );
     await close();
     expect(await calls(page, 'updater_check')).toHaveLength(3);
+    // Opening About through Check for Updates… starts no second check (AC-31).
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(0);
 
-    // The checkbox shows what was stored, not what was clicked.
-    // Each look opens the Help menu afresh (Escape closes one left open).
-    const auto = async () => {
-      await page.keyboard.press('Escape');
-      return (await openHelp()).getByRole('menuitemcheckbox', {
-        name: 'Install Updates Automatically',
-      });
+    // The update choice replaced the Install Updates Automatically checkbox.
+    await page.keyboard.press('Escape');
+    const help = await openHelp();
+    await expect(help.getByRole('menuitem', { name: 'Check for Updates…' })).toBeVisible();
+    await expect(help.getByRole('menuitemcheckbox')).toHaveCount(0);
+    await expect(help.getByText('Install Updates Automatically')).toHaveCount(0);
+  });
+
+  test('the first-start question follows the file-association hint, stores only a confirmed choice and holds the background check (AC-22, AC-23, AC-24)', async ({
+    page,
+  }) => {
+    await desktop(page, { updater: { supported: true, chosen: false } });
+    const ask = async () => {
+      await gotoStart(page);
+      // The file-association hint comes first; the question waits for it.
+      await expect(assocDialog(page)).toBeVisible();
+      await expect(question(page)).toHaveCount(0);
+      await assocDialog(page).getByRole('button', { name: 'Got it' }).click();
+      await expect(question(page)).toBeVisible();
+      expect(await calls(page, 'updater_release')).toHaveLength(0);
     };
-    await expect(await auto()).toHaveAttribute('aria-checked', 'true');
+
+    await ask();
+    const q = question(page);
+    await expect(q.getByRole('radio', { name: CHOICE.auto })).toBeChecked();
+    await expect(q.getByRole('radio', { name: CHOICE.notify })).not.toBeChecked();
+    await expect(q.getByRole('radio', { name: CHOICE.off })).not.toBeChecked();
+    // Escape stores nothing and releases the background check.
+    await page.keyboard.press('Escape');
+    await expect(q).toBeHidden();
+    await expect.poll(async () => (await calls(page, 'updater_release')).length).toBe(1);
+    expect(await calls(page, 'updater_set_mode')).toHaveLength(0);
+
+    // The next start asks again; the close button stores nothing either.
+    await page.reload();
+    await ask();
+    await q.getByRole('button', { name: 'Close' }).click();
+    await expect(q).toBeHidden();
+    await expect.poll(async () => (await calls(page, 'updater_release')).length).toBe(1);
+    expect(await calls(page, 'updater_set_mode')).toHaveLength(0);
+
+    // Confirm stores the choice made.
+    await page.reload();
+    await ask();
+    await q.getByRole('radio', { name: CHOICE.notify }).check();
+    await q.getByRole('button', { name: 'Confirm' }).click();
+    await expect(q).toBeHidden();
+    await expect
+      .poll(async () => (await calls(page, 'updater_set_mode')).map((c) => c.args))
+      .toEqual([{ mode: 'notify' }]);
+    await expect.poll(async () => (await calls(page, 'updater_release')).length).toBe(1);
+  });
+
+  test('no first-start question once a choice is stored, nor in a copy that cannot update itself (AC-23, AC-25)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, chosen: true } });
+    await expect.poll(async () => (await calls(page, 'updater_release')).length).toBe(1);
+    await expect(question(page)).toHaveCount(0);
+
+    await desktopStart(page, { updater: { supported: false, chosen: false } });
+    await expect(page.getByRole('button', { name: 'About Pincel' })).toBeVisible();
+    await expect(question(page)).toHaveCount(0);
+  });
+
+  test('a version found under "notify" shows a notice; Later, Escape, close and Install settle it (AC-26)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'notify', announce: '2.0.0' } });
+    const card = notice(page);
+    await expect(card).toContainText('Pincel 2.0.0 is available');
+    // A card that takes no focus.
+    expect(
+      await page.evaluate(() => document.activeElement?.closest('[data-update-notice]') ?? null),
+    ).toBeNull();
+    const marked = async () =>
+      (await calls(page, 'updater_mark_announced')).map((c) => c.args.version);
+
+    await card.getByRole('button', { name: 'Later' }).click();
+    await expect(card).toBeHidden();
+    await expect.poll(marked).toEqual(['2.0.0']);
+
+    // Escape with the focus in the notice counts as Later.
+    await setUpdater(page, { announce: '2.1.0' });
+    await expect(card).toContainText('Pincel 2.1.0 is available');
+    await card.getByRole('button', { name: 'Install' }).focus();
+    await page.keyboard.press('Escape');
+    await expect(card).toBeHidden();
+    await expect.poll(marked).toEqual(['2.0.0', '2.1.0']);
+
+    // So does its close button.
+    await setUpdater(page, { announce: '2.2.0' });
+    await card.getByRole('button', { name: 'Close notice' }).click();
+    await expect(card).toBeHidden();
+    await expect.poll(marked).toEqual(['2.0.0', '2.1.0', '2.2.0']);
+
+    // Install reports in the About dialog; a failed one keeps the notice.
+    const about = aboutDialog(page);
+    await setUpdater(page, { announce: '2.3.0' });
+    await pushAnswer(page, 'checks', { error: 'network is unreachable' });
+    await card.getByRole('button', { name: 'Install' }).click();
+    await expect(about).toContainText('Checking for updates failed: network is unreachable');
+    await about.getByRole('button', { name: 'Close' }).click();
+    await expect(card).toContainText('Pincel 2.3.0 is available');
+
+    await pushAnswer(page, 'checks', { state: 'ready', version: '2.3.0' });
+    await card.getByRole('button', { name: 'Install' }).click();
+    await expect(about).toContainText(
+      'Pincel 2.3.0 has been downloaded and is used from the next start.',
+    );
+    await expect(card).toBeHidden();
+    expect(await marked()).toEqual(['2.0.0', '2.1.0', '2.2.0']);
+    expect(await calls(page, 'updater_check')).toHaveLength(2);
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(0);
+  });
+
+  test('the About dialog shows the update choices and a Check for Updates button; a choice applies at once (AC-28)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'auto' } });
+    await page.getByRole('button', { name: 'About Pincel' }).click();
+    const about = aboutDialog(page);
+    await expect(about.getByText(/^Version /)).toBeVisible();
+    const choices = about.getByRole('radiogroup', { name: 'Updates' });
+    await expect(choices.getByRole('radio', { name: CHOICE.auto })).toBeChecked();
+
+    await choices.getByRole('radio', { name: CHOICE.off }).check();
+    await expect
+      .poll(async () => (await calls(page, 'updater_set_mode')).map((c) => c.args))
+      .toEqual([{ mode: 'off' }]);
+    await expect(about).not.toContainText('could not be saved');
+
     await page.evaluate(() => {
       (
-        window as unknown as { __desktopMock: { state: { storeAuto: boolean | null } } }
-      ).__desktopMock.state.storeAuto = true;
+        window as unknown as { __desktopMock: { state: { storeMode: boolean } } }
+      ).__desktopMock.state.storeMode = false;
     });
-    await (await auto()).click();
-    await expect.poll(async () => (await calls(page, 'updater_set_auto')).length).toBe(1);
-    expect((await calls(page, 'updater_set_auto'))[0]?.args).toEqual({ enabled: false });
-    await expect(await auto()).toHaveAttribute('aria-checked', 'true');
-    await page.evaluate(() => {
-      (
-        window as unknown as { __desktopMock: { state: { storeAuto: boolean | null } } }
-      ).__desktopMock.state.storeAuto = null;
-    });
-    await (await auto()).click();
-    await expect.poll(async () => (await calls(page, 'updater_set_auto')).length).toBe(2);
-    await expect(await auto()).toHaveAttribute('aria-checked', 'false');
+    await choices.getByRole('radio', { name: CHOICE.notify }).check();
+    await expect(about).toContainText(
+      'The update choice could not be saved; it applies until Pincel closes.',
+    );
+    await expect(choices.getByRole('radio', { name: CHOICE.notify })).toBeChecked();
+
+    await pushAnswer(page, 'checks', { state: 'upToDate' });
+    await about.getByRole('button', { name: 'Check for Updates' }).click();
+    await expect(about).toContainText('Pincel is up to date.');
+    expect(await calls(page, 'updater_check')).toHaveLength(1);
+  });
+
+  test('a copy that cannot update itself names the reason instead of the choices (AC-28)', async ({
+    page,
+  }) => {
+    for (const [unsupported, text] of [
+      ['package', 'Updates come from your package manager.'],
+      ['appimage', 'Install with --install to receive updates.'],
+    ] as const) {
+      await desktopStart(page, { updater: { supported: false, unsupported } });
+      await page.getByRole('button', { name: 'About Pincel' }).click();
+      const about = aboutDialog(page);
+      await expect(about).toContainText(text);
+      await expect(about.getByRole('radiogroup')).toHaveCount(0);
+      await expect(about.getByRole('button', { name: 'Check for Updates' })).toHaveCount(0);
+    }
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(0);
+  });
+
+  test('opening About checks under "install automatically" and "notify", not under "never check" (AC-31)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'notify' } });
+    const about = aboutDialog(page);
+    const open = async () => {
+      await page.getByRole('button', { name: 'About Pincel' }).click();
+      await expect(about).toBeVisible();
+    };
+    const close = async () => {
+      await about.getByRole('button', { name: 'Close' }).click();
+      await expect(about).toBeHidden();
+    };
+
+    // "notify": the dialog names the version and offers Install.
+    await pushAnswer(page, 'opens', { state: 'available', version: '3.0.0' });
+    await open();
+    await expect(about).toContainText('Pincel 3.0.0 is available.');
+    await close();
+    // Closing it is not Later.
+    expect(await calls(page, 'updater_mark_announced')).toHaveLength(0);
+    await pushAnswer(page, 'opens', { state: 'available', version: '3.0.0' });
+    await open();
+    await pushAnswer(page, 'checks', { state: 'ready', version: '3.0.0' });
+    await about.getByRole('button', { name: 'Install' }).click();
+    await expect(about).toContainText(
+      'Pincel 3.0.0 has been downloaded and is used from the next start.',
+    );
+    await close();
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(2);
+
+    // A downloaded version is reported at once, without a new check.
+    await setUpdater(page, { mode: 'auto' });
+    await open();
+    await expect(about).toContainText(
+      'Pincel 3.0.0 has been downloaded and is used from the next start.',
+    );
+    await close();
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(2);
+
+    // "install automatically" downloads.
+    await setUpdater(page, { ready: null });
+    await pushAnswer(page, 'opens', { state: 'ready', version: '3.1.0' });
+    await open();
+    await expect(about).toContainText(
+      'Pincel 3.1.0 has been downloaded and is used from the next start.',
+    );
+    await close();
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(3);
+
+    // "never check": no check starts; the button still checks.
+    await setUpdater(page, { mode: 'off', ready: null });
+    await open();
+    await expect(about.getByRole('status')).toHaveCount(0);
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(3);
+    await about.getByRole('button', { name: 'Check for Updates' }).click();
+    await expect(about).toContainText('Pincel is up to date.');
+  });
+
+  test('Restart Now restarts at once without unsaved changes (AC-32)', async ({ page }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'off', ready: '4.0.0' } });
+    await page.getByRole('button', { name: 'About Pincel' }).click();
+    const about = aboutDialog(page);
+    await expect(about).toContainText(
+      'Pincel 4.0.0 has been downloaded and is used from the next start.',
+    );
+    await about.getByRole('button', { name: 'Restart Now' }).click();
+    await expect.poll(async () => (await calls(page, 'plugin:window|destroy')).length).toBe(1);
+    expect(await calls(page, 'updater_arm_restart')).toHaveLength(1);
+  });
+
+  test('Restart Now asks about unsaved changes first; Cancel keeps Pincel running (AC-32)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'off', ready: '4.0.0' } });
+    await page.getByRole('button', { name: 'New pixel sprite' }).click();
+    await page
+      .getByRole('form', { name: 'New pixel sprite' })
+      .getByRole('button', { name: 'Create' })
+      .click();
+    await waitForEditor(page, 'pixel');
+    await drag(page, pixelCanvas(page), [0.2, 0.2], [0.8, 0.8]);
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Help', exact: true }).click();
+    await page
+      .getByRole('menu', { name: 'Help', exact: true })
+      .getByRole('menuitem', { name: 'About Pincel' })
+      .click();
+    const about = aboutDialog(page);
+    const restart = about.getByRole('button', { name: 'Restart Now' });
+
+    await restart.click();
+    await expect(unsaved(page)).toBeVisible();
+    await unsaved(page).getByRole('button', { name: 'Cancel' }).click();
+    await expect(unsaved(page)).toBeHidden();
+    expect(await calls(page, 'updater_arm_restart')).toHaveLength(0);
+    expect(await calls(page, 'plugin:window|destroy')).toHaveLength(0);
+
+    await restart.click();
+    await unsaved(page).getByRole('button', { name: "Don't Save" }).click();
+    await expect.poll(async () => (await calls(page, 'plugin:window|destroy')).length).toBe(1);
+    expect(await calls(page, 'updater_arm_restart')).toHaveLength(1);
   });
 
   test('the native Open Recent submenu follows the recents; menu items reach the shell or the editor (AC-19)', async ({
@@ -442,6 +766,16 @@ test.describe('desktop on Linux', () => {
 test.describe('desktop on Windows', () => {
   test.use({ userAgent: WINDOWS_UA });
 
+  test('the About dialog says a downloaded version is installed when Pincel exits (AC-28)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'off', ready: '2.0.0' } });
+    await page.getByRole('button', { name: 'About Pincel' }).click();
+    await expect(aboutDialog(page)).toContainText(
+      'Pincel 2.0.0 has been downloaded and is installed when Pincel exits.',
+    );
+  });
+
   test('the file-association hint gives the Windows steps (AC-21)', async ({ page }) => {
     await desktop(page);
     await gotoStart(page);
@@ -518,6 +852,23 @@ test.describe('desktop rotation keys', () => {
 
 test.describe('desktop on macOS', () => {
   test.use({ userAgent: MAC_UA });
+
+  test('the native menu About and Check for Updates… open the in-app About dialog (AC-17, AC-31)', async ({
+    page,
+  }) => {
+    await desktopStart(page, { updater: { supported: true, mode: 'auto' } });
+    const about = aboutDialog(page);
+    await emit(page, 'menu', 'menu:about');
+    await expect(about).toBeVisible();
+    await expect.poll(async () => (await calls(page, 'updater_check_on_open')).length).toBe(1);
+    await about.getByRole('button', { name: 'Close' }).click();
+    await expect(about).toBeHidden();
+
+    await emit(page, 'menu', 'menu:check-updates');
+    await expect(about).toContainText('Pincel is up to date.');
+    expect(await calls(page, 'updater_check')).toHaveLength(1);
+    expect(await calls(page, 'updater_check_on_open')).toHaveLength(1);
+  });
 
   test('the file-association hint gives the macOS steps (AC-21)', async ({ page }) => {
     await desktop(page);
@@ -619,5 +970,42 @@ test.describe('capability detection', () => {
       else g.window = saved.window;
       if (saved.navigator) Object.defineProperty(g, 'navigator', saved.navigator);
     }
+  });
+});
+
+test.describe('desktop in German', () => {
+  test.use({ userAgent: LINUX_UA, locale: 'de-DE' });
+
+  test('the first-start question, the notice and the About update part speak German (AC-30)', async ({
+    page,
+  }) => {
+    await desktop(page, {
+      updater: { supported: true, chosen: false, mode: 'notify', announce: '2.0.0' },
+    });
+    await gotoStart(page);
+    await page
+      .getByRole('dialog', { name: 'Sprites und Bilder mit Pincel öffnen' })
+      .getByRole('button', { name: 'Verstanden' })
+      .click();
+    const q = page.getByRole('dialog', { name: 'Wie soll Pincel mit Updates umgehen?' });
+    for (const name of [
+      'Automatisch installieren (empfohlen)',
+      'Benachrichtigen, wenn ein Update verfügbar ist',
+      'Nie nach Updates suchen',
+    ]) {
+      await expect(q.getByRole('radio', { name })).toBeVisible();
+    }
+    await expect(q.getByRole('button', { name: 'Schließen' })).toBeVisible();
+    await q.getByRole('button', { name: 'Bestätigen' }).click();
+
+    const card = page.getByRole('region', { name: 'Update verfügbar' });
+    await expect(card).toContainText('Pincel 2.0.0 ist verfügbar');
+    await expect(card.getByRole('button', { name: 'Später' })).toBeVisible();
+    await expect(card.getByRole('button', { name: 'Hinweis schließen' })).toBeVisible();
+
+    await page.getByRole('button', { name: 'Über Pincel' }).click();
+    const about = page.getByRole('dialog', { name: 'Über Pincel' });
+    await expect(about.getByRole('radiogroup', { name: 'Updates' })).toBeVisible();
+    await expect(about.getByRole('button', { name: 'Nach Updates suchen' })).toBeVisible();
   });
 });

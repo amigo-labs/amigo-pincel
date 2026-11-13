@@ -328,7 +328,7 @@ impl End {
 
     /// How much of the stroke survives the cut at `(px, py)` (1 = all).
     fn keep(&self, px: f32, py: f32, aa: bool) -> f32 {
-        if (px - self.tip.x).hypot(py - self.tip.y) > self.reach {
+        if libm::hypotf(px - self.tip.x, py - self.tip.y) > self.reach {
             return 1.0;
         }
         let beyond = (px - self.cut_at.x) * self.dir.x + (py - self.cut_at.y) * self.dir.y;

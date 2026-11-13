@@ -92,8 +92,11 @@ async function newTab(page: Page, mode?: 'pixel' | 'image'): Promise<void> {
     await dialog.getByRole('radio', { name: mode === 'image' ? /^Image/ : /^Pixel sprite/ }).click();
   }
   await dialog.getByRole('button', { name: 'Create' }).click();
-  await expect(tabs(page)).toHaveCount(before + 1);
+  // The first tab of the other mode loads that editor (its module and
+  // wasm) before the tab shows: wait on the editor's start-up budget first,
+  // not on the tab count's short timeout.
   if (mode) await waitForEditor(page, mode);
+  await expect(tabs(page)).toHaveCount(before + 1);
 }
 
 /** Hands `path` over as the OS does and waits until `name`'s tab is the

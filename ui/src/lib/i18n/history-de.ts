@@ -43,6 +43,7 @@ export const historyDe: Record<keyof typeof historyEn, string> = {
   'history.fill_selection': 'Auswahl füllen',
   'history.cut': 'Ausschneiden',
   'history.paste': 'Einfügen',
+  'history.generate': 'Bild generieren',
   'history.draw_pixels': 'Pixel zeichnen',
   'history.tile_pixel': 'Kachel malen',
   'history.place_tile': 'Kachel setzen',
@@ -95,6 +96,7 @@ export const historyDe: Record<keyof typeof historyEn, string> = {
   'history.resize_canvas': 'Arbeitsfläche ändern',
   'history.crop_to_selection': 'Auf Auswahl zuschneiden',
   'history.scale_image': 'Bild skalieren',
+  'history.assistant': 'Assistent',
 
   // Schrittarten, nur Bildmodus
   'history.brush': 'Pinsel',

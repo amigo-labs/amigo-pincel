@@ -9,6 +9,23 @@ rust-version.workspace = true
 
 [dependencies]
 thiserror = { workspace = true }
+# Transcendental float math with the same results on every target: wasm32
+# already runs this code for `std`'s float functions, native builds would
+# use the OS math library (docs/specs/pincel.md §15, 2026-11-11).
+libm = "0.2"
+# Data-parallel kernels behind the `parallel` feature, built for the
+# desktop app's native job backend; the wasm builds never link rayon, and
+# since that backend was removed no build enables the feature
+# (docs/specs/pincel.md §15, 2026-10-29 and 2026-11-13).
+rayon = { version = "1", optional = true }
+# Runtime dispatch of the row kernels to an AVX2 build, with `parallel`
+# only (docs/specs/pincel.md §15, 2026-11-11).
+multiversion = { version = "0.9", optional = true }
+
+[features]
+# Run row-independent kernels on all cores, each row in an AVX2 build
+# where the CPU has it. Results are byte-identical with and without it.
+parallel = ["dep:rayon", "dep:multiversion"]
 
 [lints]
 workspace = true

@@ -27,6 +27,7 @@
     type ToolKind,
   } from './stores/editor.svelte';
   import { cancelLive, commitLive, editLive, liveToolOf } from './core/live';
+  import { cancelTransform, commitTransform } from './core/transform';
   import { printComposite, type PrintPlacement } from './core/print';
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
   import { agentsMenuItems } from '../../lib/agent/access.svelte';
@@ -102,6 +103,9 @@
   import ColorsPanel from './components/panels/ColorsPanel.svelte';
   import { loadImagePalette } from './stores/palette.svelte';
   import LayersPanel from './components/panels/LayersPanel.svelte';
+  import GeneratePanel from '../../lib/comfyui/GeneratePanel.svelte';
+  import { targetBox } from '../../lib/comfyui/generate-params';
+  import { imageTarget } from './generate/target';
   import ExportDialog from './components/dialogs/ExportDialog.svelte';
   import SvgExportDialog from '../../lib/components/SvgExportDialog.svelte';
   import Modal from './components/dialogs/Modal.svelte';
@@ -124,6 +128,8 @@
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
+  import AssistantPanel from '../../lib/assistant/AssistantPanel.svelte';
+  import { assistantBusy, keyBlockedByAssistant } from '../../lib/assistant/chat.svelte';
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
@@ -178,6 +184,11 @@
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
+
+  // The active tab's side of a generation and the target box Generate
+  // would use now (comfyui-generate AC-04).
+  const genTarget = $derived(tabs.active && tabs.active.doc.handle !== null ? imageTarget(tabs.active) : null);
+  const genBox = $derived(targetBox(editor.hasSelection ? live.selectionBox : null, editor.width, editor.height));
 
   // Shell contract (src/App.svelte mounts at most one editor per mode):
   // whether the active tab is this editor's, the shared tab bar, and the
@@ -270,6 +281,7 @@
     mimeFor('tga'),
     mimeFor('dds'),
     mimeFor('ico'),
+    mimeFor('jxl'),
   ]);
 
   /** Runs a pixel edit on the active layer unless it is refused — the layer
@@ -364,9 +376,10 @@
   async function pasteFile(bytes: Uint8Array, mime: string): Promise<void> {
     const handle = editor.handle;
     if (handle === null) return;
-    // TGA / DDS / ICO go through the core's decoder as PNG, so sizing and
-    // the expand prompt work as for the browser's own formats
-    // (docs/specs/image-formats-more.md AC-13).
+    // TGA / DDS / ICO / JPEG XL go through the core's decoder as PNG, so
+    // sizing and the expand prompt work as for the browser's own formats
+    // (docs/specs/image-formats-more.md AC-13,
+    // docs/specs/image-formats-more-modern.md AC-15).
     if (CORE_DECODED.has(mime)) {
       bytes = core.imageToPng(bytes, mime);
       mime = 'image/png';
@@ -439,7 +452,14 @@
 
   function onPaste(e: ClipboardEvent): void {
     const handle = editor.handle;
-    if (handle === null || !active || e.defaultPrevented || ui.modalOpen || helpDialogOpen())
+    if (
+      handle === null ||
+      !active ||
+      e.defaultPrevented ||
+      ui.modalOpen ||
+      helpDialogOpen() ||
+      assistantBusy()
+    )
       return;
     if (isTypingTarget(e.target)) return;
     // The shell's dialogs (New document, unsaved changes, …) don't set
@@ -905,7 +925,7 @@
         !ui.modalOpen &&
         renaming === null &&
         savePrompt.value === null,
-      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico'],
+      layerFormats: ['png', 'jpeg', 'webp', 'bmp', 'gif', 'tiff', 'tga', 'dds', 'ico', 'jxl'],
       addLayer: (opened) => {
         // A dropped file often has no MIME type: the content, else the
         // name, tells the format (TGA needs it as the decoder's hint).
@@ -922,6 +942,7 @@
     if (!active) {
       gestureControl.cancel();
       untrack(commitLive);
+      untrack(commitTransform);
     }
   });
 
@@ -943,6 +964,17 @@
       } else {
         commitLive();
       }
+    });
+  });
+
+  // Another tool commits the Move tools' live transform; so does the other
+  // Move tool, which moves something else (image-transform-handles AC-08).
+  $effect(() => {
+    const kind = tool.kind;
+    untrack(() => {
+      const t = live.transform;
+      if (t === null) return;
+      if (kind !== (t.pixels ? 'move_selection' : 'move_mask')) commitTransform();
     });
   });
 
@@ -975,11 +1007,21 @@
     ) {
       return;
     }
+    // While an Assistant answer runs only zoom and view keys work
+    // (ai-chat-panel AC-10).
+    if (keyBlockedByAssistant(e)) return;
     // Enter commits a live object (image-live-objects-ui AC-09); Image
     // mode has no Play for the key to mean otherwise.
     if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.object !== null) {
       e.preventDefault();
       commitLive();
+      return;
+    }
+    // Enter applies the Move tools' live transform
+    // (image-transform-handles AC-08).
+    if (e.key === 'Enter' && !e.ctrlKey && !e.metaKey && !e.altKey && live.transform !== null) {
+      e.preventDefault();
+      commitTransform();
       return;
     }
     // Enter closes an open polygonal lasso (spec §5.4).
@@ -1009,7 +1051,13 @@
     // object (image-live-objects-ui AC-11), else it deselects
     // (image-editing AC-31).
     if (e.key === 'Escape') {
-      if (!gestureControl.cancel() && !cancelLive() && !closeTextBox() && editor.hasSelection) {
+      if (
+        !gestureControl.cancel() &&
+        !cancelLive() &&
+        !cancelTransform() &&
+        !closeTextBox() &&
+        editor.hasSelection
+      ) {
         deselect();
       }
       return;
@@ -1195,8 +1243,10 @@
   /** Opens `def` at its defaults; an effect already open is cancelled
    *  first, even the same one (effect-panel AC-05). */
   function openEffect(def: EffectDef): void {
-    // The effect previews and applies to the committed pixels (AC-09).
+    // The effect previews and applies to the committed pixels (AC-09;
+    // image-transform-handles AC-08).
     commitLive();
+    commitTransform();
     if (effectOpen) {
       endEffectRun();
       clearEffectPreview();
@@ -1643,6 +1693,11 @@
   {/if}
 {/snippet}
 {#snippet layersBody()}<LayersPanel />{/snippet}
+{#snippet generateBody()}<GeneratePanel target={genTarget} box={genBox} />{/snippet}
+{#snippet assistantBody()}
+  <AssistantPanel {active} />
+{/snippet}
+
 {#snippet historyBody()}
   <HistoryPanel
     history={editor.history}
@@ -1669,6 +1724,27 @@
       body: historyBody,
       defaultCollapsed: true,
     },
+    // Desktop only: Generate (comfyui-generate AC-01) starts collapsed, so
+    // no ComfyUI starts before it is needed (comfyui-connect AC-03); the
+    // Assistant needs a CLI a browser cannot start (ai-chat-panel AC-01, AC-02).
+    ...(isTauri()
+      ? [
+          {
+            id: 'generate',
+            title: t('panel.generate'),
+            icon: 'sparkles' as const,
+            body: generateBody,
+            defaultCollapsed: true,
+          },
+          {
+            id: 'assistant',
+            title: t('panel.assistant'),
+            icon: 'chat' as const,
+            body: assistantBody,
+            grow: true,
+          },
+        ]
+      : []),
   ]}
 >
   {#snippet headerHint()}<TourHint mode="image" {active} />{/snippet}

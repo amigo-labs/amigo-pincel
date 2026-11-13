@@ -29,6 +29,8 @@ import {
 } from '../stores/editor.svelte';
 import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
+import { transformBox } from '../core/transform';
+import { transformDrags } from './transform-drag';
 import {
   cursorOf,
   dragLine,
@@ -197,6 +199,12 @@ export function attachTools(
   // Monotonic id per pointer drag so the core merges a drag's segments into one
   // undo step but keeps separate strokes separate.
   let nextStrokeId = 1;
+  // Drags on the Move tools' transform box (image-transform-handles).
+  const boxDrags = transformDrags(
+    stage,
+    () => nextStrokeId++,
+    () => redraw(),
+  );
   let strokeId = 0;
   // Brush samples wait for the next animation frame: one stroke command and
   // one presentation per frame, however many events arrive
@@ -406,7 +414,7 @@ export function attachTools(
       return;
     }
     // Ignore additional pointers while a gesture is in flight.
-    if (active || liveDrag !== null || textSelect !== null || held.held) {
+    if (active || liveDrag !== null || textSelect !== null || held.held || boxDrags.busy()) {
       return;
     }
     // A touch press waits until no pinch can follow (pointer-input.ts).
@@ -456,6 +464,23 @@ export function attachTools(
 
     const point = toCanvasPoint(canvas, e);
     const inside = onCanvas(point);
+    // A selection shows the Move tools' transform box; every press with
+    // them works on it, beside the canvas too (image-transform-handles).
+    if ((kind === 'move_selection' || kind === 'move_mask') && transformBox() !== null) {
+      const layer = editor.layers[editor.activeLayer];
+      if (
+        kind === 'move_selection' &&
+        live.transform === null &&
+        layer &&
+        editRefused(editor.layers, editor.activeLayer, false)
+      ) {
+        editor.notice = t('layers.locked', { name: layer.name });
+        return;
+      }
+      editor.notice = null;
+      boxDrags.press(e, point, kind === 'move_selection');
+      return;
+    }
     // Beside the canvas only the selection gestures and a text box start
     // (AC-32; image-live-text AC-01).
     if (!inside && !STAGE_TOOLS.has(kind) && kind !== 'text') {
@@ -604,6 +629,10 @@ export function attachTools(
 
   const onMove = (e: PointerEvent): void => {
     if (held.moved(e)) return;
+    if (boxDrags.busy()) {
+      boxDrags.move(e, toCanvasPoint(canvas, e), shiftHeld(e));
+      return;
+    }
     if (liveDrag !== null) {
       if (e.pointerId !== liveDrag.pointer) return;
       const p = toCanvasPoint(canvas, e);
@@ -727,6 +756,7 @@ export function attachTools(
 
   const onUp = (e: PointerEvent): void => {
     held.lifted(e);
+    if (boxDrags.up(e)) return;
     if (liveDrag !== null && e.pointerId === liveDrag.pointer) {
       cancelAnimationFrame(liveDrag.frame);
       flushLive();
@@ -809,6 +839,7 @@ export function attachTools(
   const abort = (): boolean => {
     if (held.drop()) return true;
     if (cancelLiveDrag()) return true;
+    if (boxDrags.abort()) return true;
     if (textSelect !== null) {
       endTextSelect();
       return true;
@@ -874,8 +905,10 @@ export function attachTools(
     commitPolygon();
     return true;
   };
-  gestureControl.cancelLiveDrag = cancelLiveDrag;
-  gestureControl.inProgress = () => active;
+  // Undo during a transform-box drag drops that drag, nothing of it applied
+  // (image-transform-handles, Edge cases).
+  gestureControl.cancelLiveDrag = () => cancelLiveDrag() || boxDrags.drop();
+  gestureControl.inProgress = () => active || boxDrags.busy();
   const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 
   return () => {

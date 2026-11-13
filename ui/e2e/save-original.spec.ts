@@ -370,6 +370,7 @@ test('Save As offers every writable format and writes the chosen one', async ({ 
     'TIFF',
     'TGA',
     'ICO (Windows icon)',
+    'JPEG XL',
   ]);
   // One layer: the document's own format is preselected.
   await expect(format).toHaveValue('png');

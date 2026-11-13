@@ -70,7 +70,7 @@ impl Effect for RadialBlur {
                     let (sx, sy) = match self.kind {
                         RadialKind::Spin => {
                             let theta = frac * strength * SPIN_MAX_RAD;
-                            let (s, c) = theta.sin_cos();
+                            let (s, c) = crate::math::sin_cos(theta);
                             (
                                 self.center_x + vx * c - vy * s,
                                 self.center_y + vx * s + vy * c,

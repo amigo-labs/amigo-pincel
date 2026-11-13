@@ -42,6 +42,18 @@ pub(crate) fn register(data: &[u8], index: u32) -> u32 {
     })
 }
 
+/// The font file and face index of the registered face `id`.
+pub(crate) fn face(id: u32) -> Result<(Vec<u8>, u32), String> {
+    REGISTRY.with(|r| {
+        let r = r.borrow();
+        let &(file, index) = r
+            .faces
+            .get(id as usize)
+            .ok_or_else(|| format!("unknown font id {id}"))?;
+        Ok((r.files[file].clone(), index))
+    })
+}
+
 /// Runs `f` with every registered face, indexed by id.
 pub(crate) fn with_faces<T>(f: impl FnOnce(&[FontFace<'_>]) -> T) -> T {
     REGISTRY.with(|r| {

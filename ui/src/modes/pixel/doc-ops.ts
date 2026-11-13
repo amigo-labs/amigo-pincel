@@ -235,11 +235,12 @@ export function runAgentCall(
   name: string,
   argsJson: string,
   file: { path: string; bytes: Uint8Array } | null,
+  fontsJson: string | null = null,
 ): string {
   const doc = ed.doc;
   if (!doc) return JSON.stringify({ ok: false, error: 'no document is open' });
   const target = doc.paintTargetLayer();
-  const reply = doc.agentCall(docId, name, argsJson, file?.path, file?.bytes);
+  const reply = doc.agentCall(docId, name, argsJson, file?.path, file?.bytes, fontsJson);
   const next = doc.paintTargetLayer();
   if (next !== target && next !== 0xffffffff) ed.activeLayerId = next;
   live.needsRecompose = true;
@@ -249,6 +250,18 @@ export function runAgentCall(
   reconcileActiveSlice();
   reconcileActiveLayerAndStamp();
   return reply;
+}
+
+/** Ends an Assistant answer on the active document: its steps fold into
+ *  one, and the undo buttons and the History panel follow
+ *  (docs/specs/ai-chat-panel.md AC-08, AC-09). */
+export function runAssistantEnd(): boolean {
+  const doc = ed.doc;
+  if (!doc) return false;
+  const added = doc.assistantEnd();
+  syncMeta();
+  ed.docRev += 1;
+  return added;
 }
 
 /** Undoes (`delta < 0`) or redoes `|delta|` steps at once for the History

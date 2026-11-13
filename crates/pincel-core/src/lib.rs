@@ -9,6 +9,7 @@ pub mod codec;
 pub mod command;
 pub mod document;
 pub mod error;
+pub mod generate;
 pub mod geometry;
 pub mod render;
 pub mod selection;
@@ -46,6 +47,7 @@ pub use document::{
     TileImage, TileRef, Tileset, TilesetId, UserData,
 };
 pub use error::DocumentError;
+pub use generate::GenerateError;
 pub use geometry::{Point, Rect};
 pub use render::{
     ComposeRequest, ComposeResult, LayerFilter, OnionSkin, Overlays, RenderError, compose,

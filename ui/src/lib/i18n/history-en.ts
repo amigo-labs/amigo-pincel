@@ -44,6 +44,7 @@ export const historyEn = {
   'history.fill_selection': 'Fill Selection',
   'history.cut': 'Cut',
   'history.paste': 'Paste',
+  'history.generate': 'Generate Image',
   'history.draw_pixels': 'Draw Pixels',
   'history.tile_pixel': 'Paint Tile',
   'history.place_tile': 'Place Tile',
@@ -96,6 +97,7 @@ export const historyEn = {
   'history.resize_canvas': 'Resize Canvas',
   'history.crop_to_selection': 'Crop to Selection',
   'history.scale_image': 'Scale Image',
+  'history.assistant': 'Assistant',
 
   // Step kinds, Image mode only
   'history.brush': 'Brush',

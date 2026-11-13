@@ -3,6 +3,7 @@
 // call targets, and one call on a tab's document.
 import { session, type ShellTab } from '../shell/session.svelte';
 import type { AgentFile } from '../shell/types';
+import type { AgentFonts } from './fonts';
 import { parseWire, type Wire } from './wire';
 
 /** The id a tab has for agents. */
@@ -23,16 +24,17 @@ export function targetTab(args: Record<string, unknown>): ShellTab | string {
   return session.active ?? 'no document is open; call doc.new or doc.open first';
 }
 
-/** Runs `tool` on `tab`'s document; the tab's `dirty` and `path` replace
- *  the ones the tools cannot know. */
+/** Runs `tool` on `tab`'s document with the editor's `fonts`; the tab's
+ *  `dirty` and `path` replace the ones the tools cannot know. */
 export function runOn(
   tab: ShellTab,
   tool: string,
   args: Record<string, unknown>,
   file: AgentFile | null = null,
+  fonts: AgentFonts | null = null,
 ): Wire {
   const id = docIdOf(tab);
-  const wire = parseWire(tab.doc.agentCall(id, tool, JSON.stringify(args), file));
+  const wire = parseWire(tab.doc.agentCall(id, tool, JSON.stringify(args), file, fonts));
   if (wire.ok && typeof wire.json === 'object' && wire.json !== null) {
     const json = wire.json as Record<string, unknown>;
     if (json.doc === id && 'dirty' in json) {

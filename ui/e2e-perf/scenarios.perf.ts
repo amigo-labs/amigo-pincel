@@ -206,6 +206,47 @@ test('image 4K, 10 layers: brush, pan / zoom, recompose, effect, save and export
   });
 });
 
+test('image 4K, 10 layers: live transform of a 2048² selection', async ({ page }) => {
+  // docs/specs/image-transform-handles.md AC-20: during a corner-handle
+  // drag the editor previews the transform (the core applies it once, on
+  // release); the budget is pointer move → presented frame
+  // (`dab-latency-p95`), the draw latency is recorded beside it.
+  const surface = await imageDoc4k(page);
+  const b = await surface.boundingBox();
+  if (!b) throw new Error('surface not visible');
+  const toScreen = (x: number, y: number): [number, number] => [
+    b.x + (x * b.width) / UHD.width,
+    b.y + (y * b.height) / UHD.height,
+  ];
+  // A 2048 × 2048 selection from (896, 56).
+  await page.keyboard.press('m');
+  const [x0, y0] = toScreen(896, 56);
+  const [x1, y1] = toScreen(896 + 2048, 56 + 2048);
+  await page.mouse.move(x0, y0);
+  await page.mouse.down();
+  await sweep(page, [x0, y0], [x1, y1], 10);
+  await page.mouse.up();
+  await page.keyboard.press('v');
+  await page.keyboard.press('v');
+  const corner = page.locator('[data-transform-handle="corner2"]');
+  await expect(corner).toBeVisible();
+  const c = await corner.boundingBox();
+  if (!c) throw new Error('no corner handle');
+  const from: [number, number] = [c.x + c.width / 2, c.y + c.height / 2];
+  await startRecording(page);
+  await page.mouse.move(from[0], from[1]);
+  await page.mouse.down();
+  await sweep(page, from, [from[0] - b.width * 0.15, from[1] - b.height * 0.1], 60);
+  await page.mouse.up();
+  const rec = await stopRecording(page);
+  expect(rec.latencies.length).toBeGreaterThan(0);
+  record('image-transform-4k', 'Live transform of a 2048² selection, Image 4K 10 layers', {
+    ...frameMetrics(rec),
+    ...latencyMetrics(rec),
+  });
+  await page.keyboard.press('Escape');
+});
+
 test('image 4K, 10 layers: memory after 50 undo steps', async ({ page }) => {
   const surface = await imageDoc4k(page);
   await page.keyboard.press('b');

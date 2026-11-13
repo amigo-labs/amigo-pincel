@@ -4,7 +4,7 @@
   // a separate, non-interactive canvas layered exactly over the main canvas, so
   // the document's pixels are never touched (ADR-001).
   import { onMount } from 'svelte';
-  import { editor, selectionPreview, shapePreview, view } from '../../stores/editor.svelte';
+  import { editor, live, selectionPreview, shapePreview, view } from '../../stores/editor.svelte';
   import { core } from '../../core/wasm';
 
   // Marching ants for the committed selection and the in-progress
@@ -14,7 +14,13 @@
   // backing store never exceeds the viewport (spec §8.5).
   import { motion } from '../../../../lib/motion.svelte';
   import { selectionMask } from '../../core/controller';
-  import { devicePath, selectionOutline, type Outline } from './selection-outline';
+  import {
+    devicePath,
+    mappedDevicePath,
+    selectionOutline,
+    type Outline,
+  } from './selection-outline';
+  import { relativeMatrix } from '../../tools/transform-box';
 
   let canvas: HTMLCanvasElement;
   // Boundary of the committed selection, rebuilt only when the selection
@@ -162,8 +168,16 @@
     ctx.clearRect(0, 0, cw, ch);
     const scale = view.zoom * dpr;
     if (selectionLoops) {
+      // A transform-box drag moves the outline with the box before the core
+      // applies it (image-transform-handles AC-23).
+      const drag = live.transformDrag;
+      const moved = drag === null ? null : relativeMatrix(drag.start, drag.box);
       // Device space, one-pixel lines on pixel centres: crisp at any zoom.
-      marchingAnts(ctx, selectionDevicePath(selectionLoops, scale, view.panX * dpr, view.panY * dpr), 1);
+      const path =
+        moved === null
+          ? selectionDevicePath(selectionLoops, scale, view.panX * dpr, view.panY * dpr)
+          : mappedDevicePath(selectionLoops, moved, scale, view.panX * dpr, view.panY * dpr);
+      marchingAnts(ctx, path, 1);
     }
     ctx.setTransform(scale, 0, 0, scale, view.panX * dpr, view.panY * dpr);
     const unit = 1 / scale;
@@ -226,6 +240,7 @@
     void view.zoom;
     void view.panX;
     void view.panY;
+    void live.transformDrag?.box;
     if (!running) draw();
   });
 

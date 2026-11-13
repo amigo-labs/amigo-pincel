@@ -30,10 +30,23 @@ import { t } from '../../../lib/i18n/index.svelte';
 
 /** Largest ICO image edge, px (the core's `ICO_MAX_SIDE`). */
 const ICO_MAX_SIDE = 256;
+/** Smallest JPEG XL image edge, px (the core's `JXL_MIN_SIDE`). */
+const JXL_MIN_SIDE = 2;
 
-/** Whether the document is too large for an ICO (AC-08). */
-const icoTooLarge = (tab: ImageTab): boolean =>
-  tab.doc.width > ICO_MAX_SIDE || tab.doc.height > ICO_MAX_SIDE;
+/** The notice when `format` cannot hold the document at its size, else
+ *  `null`: an ICO holds at most 256 × 256 px
+ *  (docs/specs/image-formats-more.md AC-08), a JPEG XL needs at least
+ *  2 × 2 px (docs/specs/image-formats-more-modern.md AC-16). */
+function sizeNotice(tab: ImageTab, format: DocSaveFormat): string | null {
+  const { width, height } = tab.doc;
+  if (format === 'ico' && (width > ICO_MAX_SIDE || height > ICO_MAX_SIDE)) {
+    return t('save.icoTooLarge');
+  }
+  if (format === 'jxl' && (width < JXL_MIN_SIDE || height < JXL_MIN_SIDE)) {
+    return t('save.jxlTooSmall');
+  }
+  return null;
+}
 
 /** What a Save wrote. */
 export interface SaveResult {
@@ -63,12 +76,13 @@ export async function saveDocument(
   tab: ImageTab | null = tabs.active,
 ): Promise<SaveResult | null> {
   if (tab === null || tab.doc.handle === null) return null;
-  // ICO holds at most 256 × 256 px: Save of a larger ICO document goes to
-  // Save As, with a notice (docs/specs/image-formats-more.md AC-08).
+  // Save of a document its own format cannot hold at this size (an ICO
+  // past 256 px, a JPEG XL under 2 px) goes to Save As, with a notice
+  // (image-formats-more AC-08, image-formats-more-modern AC-16).
   const own = saveFormat(tab);
-  const icoBlocked = !forceAs && own === 'ico' && icoTooLarge(tab);
-  if (icoBlocked) editor.notice = t('save.icoTooLarge');
-  if (forceAs || own === null || icoBlocked) return saveAs(tab, own, icoBlocked);
+  const notice = forceAs || own === null ? null : sizeNotice(tab, own);
+  if (notice !== null) editor.notice = notice;
+  if (forceAs || own === null || notice !== null) return saveAs(tab, own, notice !== null);
   const format = own;
   const flattened = format !== 'ora' && flatteningLoses(tab);
   let quality = format === 'jpeg' ? (rememberedJpegQuality(tab) ?? undefined) : undefined;
@@ -104,15 +118,15 @@ export async function saveDocument(
 async function saveAs(
   tab: ImageTab,
   own: DocSaveFormat | null,
-  icoBlocked = false,
+  sizeBlocked = false,
 ): Promise<SaveResult | null> {
   const layered = tab.doc.layers.length > 1 || fileFormat(tab) === 'psd';
   const loses = flatteningLoses(tab);
-  // An ICO grown past 256 px is writable, just not at this size: no
-  // "cannot be written back", and PNG instead of ICO preselected (AC-08).
+  // A format that only cannot hold this size is writable: no "cannot be
+  // written back", and PNG instead of it preselected (AC-08, AC-16).
   const choice = await ask<SaveAsChoice | null>((resolve) => ({
     kind: 'format',
-    preselect: layered ? 'ora' : icoBlocked ? 'png' : (own ?? 'png'),
+    preselect: layered ? 'ora' : sizeBlocked ? 'png' : (own ?? 'png'),
     unwritable: own === null ? formatLabel(tab) : null,
     quality: rememberedJpegQuality(tab) ?? 90,
     confirmMerge: loses && !flattensWithoutAsking(tab),
@@ -120,9 +134,10 @@ async function saveAs(
   }));
   if (choice === null) return null;
   const { format } = choice;
-  if (format === 'ico' && icoTooLarge(tab)) {
+  const notice = sizeNotice(tab, format);
+  if (notice !== null) {
     // Nothing is written; Save As can run again with another format.
-    editor.notice = t('save.icoTooLarge');
+    editor.notice = notice;
     return null;
   }
   const quality = format === 'jpeg' ? choice.quality : undefined;

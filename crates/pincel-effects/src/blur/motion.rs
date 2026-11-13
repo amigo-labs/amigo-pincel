@@ -47,7 +47,7 @@ impl Effect for MotionBlur {
         }
         let (w, h) = (src.width() as usize, src.height() as usize);
         let rad = self.angle.to_radians();
-        let (dx, dy) = (rad.cos(), rad.sin());
+        let (dx, dy) = (libm::cosf(rad), libm::sinf(rad));
         let half = if self.centered {
             (samples - 1) as f32 / 2.0
         } else {

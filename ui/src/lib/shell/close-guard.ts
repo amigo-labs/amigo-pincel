@@ -6,18 +6,50 @@
 // File ▸ Save waits for it to end.
 import type { UnlistenFn } from '@tauri-apps/api/event';
 import { getCurrentWindow } from '@tauri-apps/api/window';
+import { help } from '../help/state.svelte';
+import { updaterArmRestart } from '../help/updater';
+import { stopAllAnswers } from '../assistant/chat.svelte';
 import { discardDocuments, guardUnsaved, hasUnsaved } from './unsaved.svelte';
 
 /** How long closing waits for the autosave store to drop a discarded
  *  document's snapshot before it closes anyway. */
 const DISCARD_BUDGET_MS = 2_000;
 
-/** Handle a close request: wait for a running save, ask first while any
- *  tab has unsaved changes (document-tabs AC-10, AC-11, AC-17), then close
- *  the app. Ignored while the prompt is open or an earlier request waits
- *  for a save (unsaved-changes-prompt AC-08). */
+/** Handle a close request: stop running Assistant answers and let them
+ *  finish (ai-chat-panel AC-22), wait for a running save, ask first while
+ *  any tab has unsaved changes (document-tabs AC-10, AC-11, AC-17), then
+ *  close the app. Ignored while the prompt is open or an earlier request
+ *  waits for a save (unsaved-changes-prompt AC-08). */
 export async function requestClose(): Promise<void> {
+  await stopAllAnswers();
   await guardUnsaved(() => void closeNow());
+}
+
+/** A restart is under way: further Restart Now clicks do nothing. */
+let restarting = false;
+
+/** Restart Now in the About dialog (docs/specs/desktop-app.md AC-32): the
+ *  same path as a close request, then the desktop shell is asked to start
+ *  Pincel again — the new version — once it has closed. Cancelling the
+ *  prompt, or a Save in it that fails, requests nothing. */
+export async function requestRestart(): Promise<void> {
+  if (restarting) return;
+  await stopAllAnswers();
+  await guardUnsaved(() => void restartNow());
+}
+
+async function restartNow(): Promise<void> {
+  if (restarting) return;
+  restarting = true;
+  try {
+    // Waits for a running check, so the version already downloaded runs.
+    await updaterArmRestart();
+  } catch (err) {
+    restarting = false;
+    help.restartError = String(err);
+    return;
+  }
+  await closeNow();
 }
 
 /** Close the window (the app ends with its last window). After Don't

@@ -90,6 +90,8 @@ history_kinds! {
     FillSelection => "fill_selection",
     /// Edit ▸ Paste.
     Paste => "paste",
+    /// A generated image applied as a new layer (docs/specs/comfyui-generate.md).
+    Generate => "generate",
     /// A selection set without a selection tool.
     Select => "select",
     /// Rectangle select.
@@ -170,6 +172,9 @@ history_kinds! {
     AutoCrop => "auto_crop",
     /// Image ▸ Scale Image.
     ScaleImage => "scale_image",
+    /// Every change of one answer of the Assistant chat
+    /// (docs/specs/ai-chat-panel.md AC-08).
+    Assistant => "assistant",
 }
 
 impl HistoryKind {

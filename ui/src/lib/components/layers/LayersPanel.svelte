@@ -10,7 +10,7 @@
   import Icon from '../icons/Icon.svelte';
   import IconButton from '../layout/IconButton.svelte';
   import Panel from '../layout/Panel.svelte';
-  import { t } from '../../i18n/index.svelte';
+  import { percent, t } from '../../i18n/index.svelte';
   import LayerThumbnail from './LayerThumbnail.svelte';
   import type { BlendOption, DropPlace, LayerRow, Thumb } from './layers';
 
@@ -234,7 +234,10 @@
   {#if rows.length === 0}
     <p class="px-1 text-xs text-pc-faint">{t('layers.none')}</p>
   {:else}
-    <ul class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded bg-pc-bg/50 p-1" aria-label={t('layers.list')}>
+    <ul
+      class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded bg-pc-bg/50 p-1"
+      aria-label={t('layers.list')}
+    >
       {#each shown as row, i (row.key)}
         {@const isActive = row.key === activeKey}
         {@const isOver = drag !== null && drag.over === row.key && drag.key !== row.key}
@@ -357,7 +360,7 @@
           oninput={(e) => onOpacity(active, Number(e.currentTarget.value) / 100, false)}
           onchange={(e) => onOpacity(active, Number(e.currentTarget.value) / 100, true)}
         />
-        <span class="w-9 text-right tabular-nums">{pct(active.opacity)}%</span>
+        <span class="w-9 text-right tabular-nums">{percent(pct(active.opacity))}</span>
       </label>
       <label class="flex items-center gap-2">
         <span class="w-16 shrink-0">{t('layers.blend')}</span>

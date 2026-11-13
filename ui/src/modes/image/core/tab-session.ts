@@ -4,9 +4,12 @@
 // unsaved-changes prompt (AC-08, AC-10, AC-11, AC-13). Closing a tab asks
 // about its unsaved changes first, then frees it; closing the last one
 // releases the editor (AC-09, AC-16).
+import { generateForAgent } from '../../../lib/comfyui/generation.svelte';
+import { imageTarget } from '../generate/target';
 import { AutosaveSession } from '../../../lib/idb/autosave-session.svelte';
 import type { SaveTarget } from '../../../lib/fs';
 import type { AgentFile, EditorDocument } from '../../../lib/shell/types';
+import { agentFontsJson, type AgentFonts } from '../../../lib/agent/fonts';
 import { t } from '../../../lib/i18n/index.svelte';
 import { tabs, type ImageTab } from '../stores/editor.svelte';
 import { fileFormat, fileName, fileTarget } from './document-file';
@@ -98,7 +101,19 @@ export function attachTab(tab: ImageTab, opts: { docId?: string; recovered?: boo
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
     saveAs: () => saveTab(tab, true),
-    agentCall: (docId, name, argsJson, file) => agentCall(tab, docId, name, argsJson, file),
+    agentCall: (docId, name, argsJson, file, fonts) =>
+      agentCall(tab, docId, name, argsJson, file, fonts ?? null),
+    assistantBegin: () => {
+      if (tab.doc.handle !== null) core.assistantBegin(tab.doc.handle);
+    },
+    assistantEnd: () => {
+      if (tab.doc.handle === null) return false;
+      const added = core.assistantEnd(tab.doc.handle);
+      if (tab === tabs.active) syncInfo();
+      return added;
+    },
+    undoKinds: () => (tab.doc.handle === null ? [] : core.history(tab.doc.handle).undo),
+    generateImage: (args, models, signal) => generateForAgent(imageTarget(tab), args, models, signal),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();
@@ -122,13 +137,18 @@ function agentCall(
   name: string,
   argsJson: string,
   file: AgentFile | null,
+  fonts: AgentFonts | null,
 ): string {
   if (tab.doc.handle === null) {
     return JSON.stringify({ ok: false, error: 'no document is open' });
   }
   const active = tab === tabs.active;
-  if (active) gestureControl.commitLive();
-  const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file);
+  if (active) {
+    gestureControl.commitLive();
+    gestureControl.commitTransform();
+  }
+  const fontsJson = fonts ? agentFontsJson(fonts, (b, i) => core.registerFont(b, i)) : null;
+  const reply = core.agentCall(tab.doc.handle, docId, name, argsJson, file, fontsJson);
   if (active) syncInfo();
   return reply;
 }

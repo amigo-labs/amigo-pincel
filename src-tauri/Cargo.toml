@@ -37,6 +37,19 @@ pincel-mcp = { workspace = true }
 # provider, installed once process-wide (Decision Log 2026-11-11).
 reqwest = { version = "0.13", default-features = false, features = ["rustls-no-provider"] }
 rustls = { version = "0.23", default-features = false, features = ["ring"] }
+# ComfyUI's progress WebSocket (docs/specs/comfyui-generate.md, Decision Log
+# 2026-11-06 "ComfyUI", owner approved). Only the handshake feature: the
+# generation threads block, so they use the synchronous tungstenite API it
+# re-exports, over a plain TCP stream.
+tokio-tungstenite = { version = "0.30", default-features = false, features = ["handshake"] }
+# The managed ComfyUI install (docs/specs/comfyui-install.md, Decision Log
+# 2026-11-06 "Managed ComfyUI install"): pinned SHA-256 checks and the uv /
+# ComfyUI archives (zip on Windows, tar.gz elsewhere), all already in the
+# tree through the updater plugin.
+flate2 = { workspace = true }
+sha2 = "0.10"
+tar = "0.4"
+zip = { workspace = true }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –

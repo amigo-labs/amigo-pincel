@@ -4,7 +4,7 @@ import { tidy, type MenuDef, type MenuItem } from '../components/layout/menu';
 import { t } from '../i18n/index.svelte';
 import { hasNativeMenu } from '../platform';
 import { hint } from '../shell/shortcuts';
-import { help, openAbout, openSettings, runUpdateCheck, setAutoUpdate } from './state.svelte';
+import { help, openAbout, openSettings, runUpdateCheck } from './state.svelte';
 import { startTour, type TourContext } from '../tour/tour-state.svelte';
 
 /** The end of both editors' Edit menu: Settings… (docs/specs/settings-dialog.md). */
@@ -30,11 +30,6 @@ export function helpMenus(openShortcuts: () => void, tourContext?: TourContext):
       ? [
           { kind: 'separator' },
           { label: t('menu.checkUpdates'), disabled: help.checking, run: runUpdateCheck },
-          {
-            label: t('menu.autoUpdate'),
-            checked: updater.autoUpdate,
-            run: () => setAutoUpdate(!updater.autoUpdate),
-          },
         ]
       : [];
   return [

@@ -13,6 +13,8 @@ use crate::comfyui::testing::{
 };
 
 struct Env {
+    /// Keeps timing tests from running beside this one's processes.
+    _spawning: crate::test_support::Spawning,
     tmp: TempDir,
     events: Arc<Mutex<Vec<Status>>>,
     manager: Manager,
@@ -24,10 +26,12 @@ impl Env {
     }
 
     fn with(auto_ports: Vec<u16>, start_timeout: Duration) -> Self {
+        let spawning = crate::test_support::spawning();
         let tmp = tempfile::tempdir().unwrap();
         let events = Arc::new(Mutex::new(Vec::new()));
         let manager = Self::manager_in(&tmp, auto_ports, start_timeout, &events);
         Self {
+            _spawning: spawning,
             tmp,
             events,
             manager,
@@ -335,6 +339,27 @@ fn a_start_that_never_answers_stops_with_the_last_50_lines() {
     assert_eq!(log.first().map(String::as_str), Some("fake comfy line 10"));
     // Nothing is left to end, and no record points at a dead process.
     assert!(!env.manager.shared.paths.record.exists());
+}
+
+// Whichever notices the exit first — the start loop or the exit watcher —
+// the start reports the stopped status with the output, never "Starting".
+#[test]
+fn a_process_that_exits_while_starting_always_returns_stopped() {
+    for round in 0..12 {
+        let env = Env::new(vec![]);
+        let fake = FakeComfy {
+            lines: 1,
+            exit: Some(1),
+            ..FakeComfy::default()
+        };
+        env.installation("crashes", &fake, ServerChoice::Existing);
+        let status = env.manager.ensure();
+        assert!(
+            matches!(status, Status::Stopped { .. }),
+            "round {round}: {status:?}"
+        );
+        assert_eq!(env.manager.status(), status, "round {round}");
+    }
 }
 
 #[test]

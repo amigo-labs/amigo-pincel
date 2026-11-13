@@ -96,7 +96,7 @@ pub fn copy_pixels(
 }
 
 /// Full-canvas composite of the layers `filter` admits, no onion skin.
-fn render(
+pub(crate) fn render(
     sprite: &Sprite,
     cels: &CelMap,
     frame: FrameIndex,
@@ -110,7 +110,7 @@ fn render(
 }
 
 /// `root` plus every layer nested in it.
-fn subtree(sprite: &Sprite, root: LayerId) -> Vec<LayerId> {
+pub(crate) fn subtree(sprite: &Sprite, root: LayerId) -> Vec<LayerId> {
     sprite
         .layers
         .iter()
@@ -132,7 +132,12 @@ fn subtree(sprite: &Sprite, root: LayerId) -> Vec<LayerId> {
 
 /// An image layer's cel at `frame` as canvas-sized RGBA8 (a linked cel is
 /// followed one hop); transparent without a cel.
-fn image_layer_rgba(sprite: &Sprite, cels: &CelMap, id: LayerId, frame: FrameIndex) -> Vec<u8> {
+pub(crate) fn image_layer_rgba(
+    sprite: &Sprite,
+    cels: &CelMap,
+    id: LayerId,
+    frame: FrameIndex,
+) -> Vec<u8> {
     let (w, h) = (sprite.width as i64, sprite.height as i64);
     let mut out = vec![0u8; (w * h * 4) as usize];
     let cel = match cels.get(id, frame) {

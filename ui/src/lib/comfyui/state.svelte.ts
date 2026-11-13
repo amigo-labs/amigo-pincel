@@ -85,6 +85,23 @@ export function openImageGeneration(): void {
   })();
 }
 
+/** Reloads the settings after the managed install changed them, and with
+ *  `connect` asks for a server again. */
+export async function reconnect(connect: boolean): Promise<void> {
+  try {
+    comfy.settings = await comfySettings();
+  } catch (err) {
+    fail(err);
+    return;
+  }
+  if (connect) await run(comfyConnect);
+}
+
+/** "Retry start" after the managed server stopped (comfyui-install AC-10). */
+export function retryStart(): void {
+  void run(comfyConnect);
+}
+
 export function closeImageGeneration(): void {
   comfy.open = false;
 }

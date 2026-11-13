@@ -17,10 +17,14 @@
     compact?: boolean;
     /** Only the `liveWithEffect` menus stay usable. */
     restricted?: boolean;
+    /** When set, only the menus with these ids stay usable; the others are
+     *  inert (an Assistant answer runs, ai-chat-panel AC-10). */
+    only?: readonly string[] | null;
   }
-  const { menus, compact = false, restricted = false }: Props = $props();
+  const { menus, compact = false, restricted = false, only = null }: Props = $props();
 
-  const isLive = (m: MenuDef): boolean => !restricted || m.liveWithEffect === true;
+  const isLive = (m: MenuDef): boolean =>
+    (!restricted || m.liveWithEffect === true) && (only === null || only.includes(m.id));
   const liveMenus = $derived(menus.filter(isLive));
 
   // Open top-level menu id (or '☰' for the compact sheet).

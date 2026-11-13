@@ -32,7 +32,7 @@ impl Effect for Relief {
         let (w, h) = (src.width() as usize, src.height() as usize);
         let data = src.data();
         let az = self.angle.to_radians();
-        let (dx, dy) = (az.cos(), az.sin());
+        let (dx, dy) = (libm::cosf(az), libm::sinf(az));
         let mut out = data.to_vec();
         for y in 0..h {
             for x in 0..w {

@@ -194,7 +194,61 @@ font_id?: number, } | { "type": "begin_live_text", layer: number, font_id: numbe
 /**
  * `normal` or `overwrite` (docs/specs/image-edit-extras-tool-options.md).
  */
-blend: string, } | { "type": "commit_live" } | { "type": "cancel_live" } | { "type": "cancel_live_gesture", gesture: number, } | { "type": "draw_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, 
+blend: string, } | { "type": "commit_live" } | { "type": "cancel_live" } | { "type": "cancel_live_gesture", gesture: number, } | { "type": "begin_transform", layer: number, 
+/**
+ * `true`: Move Selected Pixels; `false`: Move Selection.
+ */
+pixels: boolean, 
+/**
+ * Centre of the box on the canvas (pixel-edge coordinates).
+ */
+center_x: number, center_y: number, 
+/**
+ * Width and height of the box (clamped to at least 1 px).
+ */
+width: number, height: number, 
+/**
+ * Turn in degrees, positive clockwise on screen.
+ */
+angle: number, 
+/**
+ * The pivot relative to the box (`0.5, 0.5` = its centre).
+ */
+pivot_x: number, pivot_y: number, 
+/**
+ * `0` Nearest, `1` Bilinear, `2` Bicubic.
+ */
+quality: number, 
+/**
+ * The drag this change belongs to: changes of one gesture form one
+ * undo step.
+ */
+gesture: number | null, } | { "type": "edit_transform", 
+/**
+ * Centre of the box on the canvas (pixel-edge coordinates).
+ */
+center_x: number, center_y: number, 
+/**
+ * Width and height of the box (clamped to at least 1 px).
+ */
+width: number, height: number, 
+/**
+ * Turn in degrees, positive clockwise on screen.
+ */
+angle: number, 
+/**
+ * The pivot relative to the box (`0.5, 0.5` = its centre).
+ */
+pivot_x: number, pivot_y: number, 
+/**
+ * `0` Nearest, `1` Bilinear, `2` Bicubic.
+ */
+quality: number, 
+/**
+ * The drag this change belongs to: changes of one gesture form one
+ * undo step.
+ */
+gesture: number | null, } | { "type": "commit_transform" } | { "type": "cancel_transform" } | { "type": "draw_text", layer: number, font_id: number, text: string, x: number, y: number, size: number, color: [number, number, number, number], bold: boolean, italic: boolean, anti_alias: boolean, align: string, 
 /**
  * A stroke below each line (docs/specs/image-live-text.md AC-10).
  */

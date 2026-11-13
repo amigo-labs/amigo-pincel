@@ -306,7 +306,7 @@ for (const mode of ['pixel', 'image'] as const) {
     ]);
     await expectActive(page, name('b'));
     expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), x.name, name('b')]);
-    await expect(page.getByText('1 dropped file(s) could not be opened')).toBeVisible();
+    await expect(page.getByText('1 dropped file could not be opened')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
     await tab(page, x.name).click();
     await expectActive(page, x.name);

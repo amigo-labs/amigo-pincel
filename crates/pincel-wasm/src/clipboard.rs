@@ -162,7 +162,7 @@ impl Document {
 impl Document {
     /// The layer Copy reads: the selected layer whatever its kind, else
     /// the paint target.
-    fn copy_layer(&self) -> Result<LayerId, String> {
+    pub(crate) fn copy_layer(&self) -> Result<LayerId, String> {
         match self.active_layer {
             Some(id) if self.sprite.layer(id).is_some() => Ok(id),
             _ => self.paint_target_layer(),

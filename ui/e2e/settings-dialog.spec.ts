@@ -31,7 +31,14 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(dialog).toBeVisible();
     await expect(dialog).toHaveAttribute('aria-modal', 'true');
     const language = dialog.getByRole('combobox', { name: 'Language' });
-    await expect(language.locator('option')).toHaveText(['English', 'Deutsch']);
+    await expect(language.locator('option')).toHaveText([
+      'English',
+      'Deutsch',
+      'Español',
+      '日本語',
+      'Français',
+      'Português (Brasil)',
+    ]);
     await expect(language).toHaveValue('en');
     await expect(dialog.getByRole('checkbox', { name: 'Reduce motion' })).not.toBeChecked();
     await expect(dialog.getByRole('checkbox', { name: 'Touch gestures' })).toBeChecked();
@@ -47,7 +54,8 @@ for (const mode of ['pixel', 'image'] as const) {
     const dialog = settings(page);
     await expect(dialog).toBeVisible();
     // A tool key stays in the dialog: the active tool does not change.
-    await page.keyboard.press('e');
+    // (Not 'e': the focused language list would jump to Español.)
+    await page.keyboard.press('m');
     await page.keyboard.press('Escape');
     await expect(dialog).toBeHidden();
     expect(await active.getAttribute('aria-label')).toBe(before);

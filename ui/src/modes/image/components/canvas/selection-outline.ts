@@ -72,3 +72,26 @@ export function devicePath(loops: readonly Outline[], scale: number, ox: number,
   }
   return path;
 }
+
+/** The outlines mapped by `m` (canvas to canvas: a transform-box drag,
+ *  image-transform-handles AC-23), then scaled by `scale` and offset by
+ *  `(ox, oy)` into device space; not snapped, as the map turns and scales. */
+export function mappedDevicePath(
+  loops: readonly Outline[],
+  m: readonly [number, number, number, number, number, number],
+  scale: number,
+  ox: number,
+  oy: number,
+): Path2D {
+  const path = new Path2D();
+  for (const loop of loops) {
+    loop.forEach(([x, y], i) => {
+      const px = ox + (m[0] * x + m[1] * y + m[2]) * scale;
+      const py = oy + (m[3] * x + m[4] * y + m[5]) * scale;
+      if (i === 0) path.moveTo(px, py);
+      else path.lineTo(px, py);
+    });
+    path.closePath();
+  }
+  return path;
+}

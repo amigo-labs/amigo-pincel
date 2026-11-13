@@ -1,6 +1,8 @@
 // Contract between the app shell (src/App.svelte) and the two editors
 // (src/modes/pixel/PixelEditor.svelte, src/modes/image/ImageEditor.svelte).
 // See docs/specs/pincel.md §1.1 "Two modes" and §9.2.
+import type { AgentFonts } from '../agent/fonts';
+import type { GenImageArgs, Models } from '../comfyui/generate-params';
 import type { TabBarProps } from '../components/layout/TabBar.svelte';
 import type { FileFormat, FileLocation, OpenedFile } from '../fs';
 import type { AutosaveSnapshotMeta } from '../idb/autosave';
@@ -52,8 +54,39 @@ export interface EditorDocument {
    *  undo step, under the id `docId`, and refresh the editor like after
    *  any command; returns the JSON reply of `pincel_agent::live`
    *  (docs/specs/mcp-live-desktop.md AC-07). The caller makes the tab
-   *  active first. */
-  agentCall(docId: string, name: string, argsJson: string, file: AgentFile | null): string;
+   *  active first. `fonts` is the editor's font list with the faces read
+   *  for the call (docs/specs/system-fonts-mcp.md AC-11); without it
+   *  `draw.text` knows the bundled face only. */
+  agentCall(
+    docId: string,
+    name: string,
+    argsJson: string,
+    file: AgentFile | null,
+    fonts?: AgentFonts | null,
+  ): string;
+  /** An Assistant answer starts on this document: the changes until
+   *  `assistantEnd` become one undo step (docs/specs/ai-chat-panel.md
+   *  AC-08). */
+  assistantBegin(): void;
+  /** The Assistant answer ended: its changes become one undo step named
+   *  "Assistant", and the editor shows the new history. Returns `false`,
+   *  adding no step, when the answer changed nothing (AC-09). */
+  assistantEnd(): boolean;
+  /** Kind ids of the undo steps, oldest first (AC-15). */
+  undoKinds(): string[];
+  /** `gen.image` on this document: generates one variant and applies it
+   *  as a new layer; `signal` cancels it (docs/specs/comfyui-generate.md
+   *  AC-16, AC-20; comfyui-generate-pixel AC-08). Rejects with a
+   *  `GenError` or an `Error`. */
+  generateImage(args: GenImageArgs, models: Models, signal: AbortSignal): Promise<GeneratedLayer>;
+}
+
+/** What `gen.image` reports (comfyui-generate AC-16). */
+export interface GeneratedLayer {
+  /** The new layer's name. */
+  layer: string;
+  seed: number;
+  model: string;
 }
 
 /** The file the user picked for an agent tool that reads one. */

@@ -5,23 +5,23 @@ use std::collections::HashMap;
 use std::fs;
 use std::path::{Path, PathBuf};
 use std::sync::Mutex;
-use std::sync::atomic::{AtomicBool, Ordering};
 use std::time::Duration;
 
 use serde::Deserialize;
-use tauri::menu::{
-    AboutMetadata, CheckMenuItemBuilder, Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem,
-    Submenu, SubmenuBuilder,
-};
+use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
 use tauri::webview::PageLoadEvent;
 use tauri::{AppHandle, Emitter, Manager, Wry};
 
+mod assistant;
 mod comfyui;
 mod fonts;
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod mcp;
+mod menu_labels;
 mod open_files;
+#[cfg(test)]
+mod test_support;
 mod updater;
 mod webview_data;
 
@@ -93,144 +93,10 @@ async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(
 
 const RECENT_MENU_ID: &str = "open-recent";
 
-/// Native menu labels in one UI language (spec §9.5). The renderer owns
-/// the language choice and pushes it through `set_menu_language`.
-struct Labels {
-    file: &'static str,
-    new: &'static str,
-    open: &'static str,
-    open_recent: &'static str,
-    no_recent: &'static str,
-    save: &'static str,
-    save_as: &'static str,
-    close: &'static str,
-    export_png: &'static str,
-    export_sheet: &'static str,
-    export_animation: &'static str,
-    export_svg: &'static str,
-    print: &'static str,
-    quit: &'static str,
-    edit: &'static str,
-    undo: &'static str,
-    redo: &'static str,
-    cut: &'static str,
-    copy: &'static str,
-    paste: &'static str,
-    /// Edit ▸ Settings… (docs/specs/settings-dialog.md).
-    settings: &'static str,
-    view: &'static str,
-    zoom_in: &'static str,
-    zoom_out: &'static str,
-    reset_zoom: &'static str,
-    help: &'static str,
-    shortcuts: &'static str,
-    tour: &'static str,
-    about: &'static str,
-    check_updates: &'static str,
-    auto_update: &'static str,
-    /// Dialog text after a manual check.
-    update_none: &'static str,
-    /// `{version}` is replaced.
-    update_ready: &'static str,
-    /// `{error}` is replaced.
-    update_failed: &'static str,
-}
-
-const LABELS_EN: Labels = Labels {
-    file: "File",
-    new: "New",
-    open: "Open\u{2026}",
-    open_recent: "Open Recent",
-    no_recent: "(no recent files)",
-    save: "Save",
-    save_as: "Save As\u{2026}",
-    close: "Close",
-    export_png: "Export as PNG\u{2026}",
-    export_sheet: "Export Sprite Sheet\u{2026}",
-    export_animation: "Export Animation\u{2026}",
-    export_svg: "Export as SVG\u{2026}",
-    print: "Print\u{2026}",
-    quit: "Quit",
-    edit: "Edit",
-    undo: "Undo",
-    redo: "Redo",
-    cut: "Cut",
-    copy: "Copy",
-    paste: "Paste",
-    settings: "Settings\u{2026}",
-    view: "View",
-    zoom_in: "Zoom In",
-    zoom_out: "Zoom Out",
-    reset_zoom: "Reset Zoom",
-    help: "Help",
-    shortcuts: "Keyboard Shortcuts",
-    tour: "Tour",
-    about: "About Pincel",
-    check_updates: "Check for Updates\u{2026}",
-    auto_update: "Install Updates Automatically",
-    update_none: "Pincel is up to date.",
-    update_ready: "Pincel {version} has been downloaded and is used from the next start.",
-    update_failed: "Checking for updates failed: {error}",
-};
-
-const LABELS_DE: Labels = Labels {
-    file: "Datei",
-    new: "Neu",
-    open: "\u{d6}ffnen\u{2026}",
-    open_recent: "Zuletzt ge\u{f6}ffnet",
-    no_recent: "(keine zuletzt ge\u{f6}ffneten Dateien)",
-    save: "Speichern",
-    save_as: "Speichern unter\u{2026}",
-    close: "Schlie\u{df}en",
-    export_png: "Als PNG exportieren\u{2026}",
-    export_sheet: "Sprite-Sheet exportieren\u{2026}",
-    export_animation: "Animation exportieren\u{2026}",
-    export_svg: "Als SVG exportieren\u{2026}",
-    print: "Drucken\u{2026}",
-    quit: "Beenden",
-    edit: "Bearbeiten",
-    undo: "R\u{fc}ckg\u{e4}ngig",
-    redo: "Wiederholen",
-    cut: "Ausschneiden",
-    copy: "Kopieren",
-    paste: "Einf\u{fc}gen",
-    settings: "Einstellungen\u{2026}",
-    view: "Ansicht",
-    zoom_in: "Vergr\u{f6}\u{df}ern",
-    zoom_out: "Verkleinern",
-    reset_zoom: "Zoom zur\u{fc}cksetzen",
-    help: "Hilfe",
-    shortcuts: "Tastenk\u{fc}rzel",
-    tour: "Rundgang",
-    about: "\u{dc}ber Pincel",
-    check_updates: "Nach Updates suchen\u{2026}",
-    auto_update: "Updates automatisch installieren",
-    update_none: "Pincel ist auf dem neuesten Stand.",
-    update_ready: "Pincel {version} wurde geladen und wird ab dem n\u{e4}chsten Start verwendet.",
-    update_failed: "Die Suche nach Updates ist fehlgeschlagen: {error}",
-};
-
-/// True while the native menu shows German labels.
-static GERMAN: AtomicBool = AtomicBool::new(false);
-
-/// True when the native menu shows German labels for a renderer language
-/// code; anything but `de` is English.
-fn is_german(lang: &str) -> bool {
-    lang == "de"
-}
-
-fn current_labels() -> &'static Labels {
-    if GERMAN.load(Ordering::Relaxed) {
-        &LABELS_DE
-    } else {
-        &LABELS_EN
-    }
-}
-
 // Rebuild the whole native menu in `lang`.
 #[tauri::command]
 async fn set_menu_language(app: AppHandle, lang: String) -> Result<(), String> {
-    GERMAN.store(is_german(&lang), Ordering::Relaxed);
+    menu_labels::set_language(&lang);
     if !NATIVE_MENU {
         // Nothing to relabel: the in-app menu bar follows the locale itself.
         return Ok(());
@@ -351,9 +217,10 @@ fn rebuild_recent_submenu(
         }
     }
     if items.is_empty() {
-        let placeholder = MenuItemBuilder::with_id("recent:_empty", current_labels().no_recent)
-            .enabled(false)
-            .build(app)?;
+        let placeholder =
+            MenuItemBuilder::with_id("recent:_empty", menu_labels::current().no_recent)
+                .enabled(false)
+                .build(app)?;
         submenu.append(&placeholder)?;
         return Ok(());
     }
@@ -366,7 +233,7 @@ fn rebuild_recent_submenu(
 }
 
 fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
-    let l = current_labels();
+    let l = menu_labels::current();
     // File items
     let new_item = MenuItemBuilder::with_id("menu:new", l.new)
         .accelerator("CmdOrCtrl+N")
@@ -465,23 +332,14 @@ fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
         .item(&shortcuts)
         .item(&tour)
         .separator()
-        .item(&PredefinedMenuItem::about(
-            app,
-            Some(l.about),
-            Some(AboutMetadata {
-                name: Some("Pincel".to_string()),
-                ..Default::default()
-            }),
-        )?)
+        // The in-app About dialog, which also checks for updates (AC-17,
+        // AC-31), rather than the native panel.
+        .item(&MenuItemBuilder::with_id(updater::MENU_ABOUT, l.about).build(app)?)
         .build()?;
     if updater::supported() {
         let check = MenuItemBuilder::with_id(updater::MENU_CHECK, l.check_updates).build(app)?;
-        let auto = CheckMenuItemBuilder::with_id(updater::MENU_AUTO, l.auto_update)
-            .checked(updater::load_settings(app).auto_update)
-            .build(app)?;
         help.append(&PredefinedMenuItem::separator(app)?)?;
         help.append(&check)?;
-        help.append(&auto)?;
     }
 
     Menu::with_items(app, &[&file, &edit, &view, &help])
@@ -546,7 +404,11 @@ fn main() {
             fonts::system_font_file,
             updater::updater_state,
             updater::updater_check,
-            updater::updater_set_auto,
+            updater::updater_set_mode,
+            updater::updater_check_on_open,
+            updater::updater_mark_announced,
+            updater::updater_arm_restart,
+            updater::updater_release,
             comfyui::comfyui_settings,
             comfyui::comfyui_set_server,
             comfyui::comfyui_choose_folder,
@@ -554,6 +416,23 @@ fn main() {
             comfyui::comfyui_connect,
             comfyui::comfyui_status,
             comfyui::comfyui_usable,
+            comfyui::comfyui_install_info,
+            comfyui::comfyui_check_location,
+            comfyui::comfyui_accept_licenses,
+            comfyui::comfyui_install,
+            comfyui::comfyui_install_resume,
+            comfyui::comfyui_install_cancel,
+            comfyui::comfyui_managed,
+            comfyui::comfyui_use_installation,
+            comfyui::comfyui_change_packages,
+            comfyui::comfyui_update,
+            comfyui::comfyui_uninstall,
+            comfyui::comfyui_set_generating,
+            comfyui::comfyui_generation_models,
+            comfyui::comfyui_generate,
+            comfyui::comfyui_generation_cancel,
+            comfyui::comfyui_variant,
+            comfyui::comfyui_generation_release,
             mcp::mcp_status,
             mcp::mcp_enable,
             mcp::mcp_disable,
@@ -564,7 +443,12 @@ fn main() {
             mcp::mcp_chat_start,
             mcp::mcp_chat_end,
             mcp::mcp_chat_answering,
-            mcp::mcp_chat_image_access
+            mcp::mcp_chat_image_access,
+            assistant::assistant_clis,
+            assistant::assistant_models,
+            assistant::assistant_send,
+            assistant::assistant_stop,
+            assistant::assistant_end
         ])
         .on_page_load(|webview, payload| match payload.event() {
             PageLoadEvent::Started => open_files::reset(webview.app_handle()),
@@ -577,11 +461,13 @@ fn main() {
             // Stopped until the user allows AI agents or a chat starts it
             // (mcp-live-desktop AC-01).
             app.manage(mcp::create(handle));
+            // The Assistant chat's CLIs (ai-chat-panel); clears chat
+            // folders a crashed run left behind (AC-22).
+            app.manage(assistant::create(handle));
             if NATIVE_MENU {
                 let menu = build_menu(handle)?;
                 app.set_menu(menu)?;
             }
-            updater::spawn_background_check(handle);
             comfyui::setup(handle);
             let deadline = handle.clone();
             std::thread::spawn(move || {
@@ -599,15 +485,8 @@ fn main() {
         })
         .on_menu_event(|app, event| {
             // The id field carries our `menu:<action>` / `recent:<docId>`
-            // string. The renderer parses the prefix to dispatch; the
-            // `updater:` entries stay native.
-            match event.id().0.as_str() {
-                updater::MENU_CHECK => updater::check_now(app),
-                updater::MENU_AUTO => updater::toggle_auto(app),
-                id => {
-                    let _ = app.emit("menu", id.to_string());
-                }
-            }
+            // string. The renderer parses the prefix to dispatch.
+            let _ = app.emit("menu", event.id().0.clone());
         })
         .build(tauri::generate_context!())
         .expect("error while building Pincel")
@@ -620,6 +499,7 @@ fn main() {
 // held for it (Windows) is installed.
 fn handle_run_event(app: &AppHandle, event: tauri::RunEvent) {
     if let tauri::RunEvent::Exit = event {
+        assistant::shutdown(app);
         comfyui::shutdown(app);
         if let Some(endpoint) = app.try_state::<mcp::Endpoint>() {
             endpoint.shutdown();
@@ -698,15 +578,6 @@ mod tests {
     fn first_file_arg_none_when_only_binary() {
         let argv = vec!["/usr/bin/pincel".to_string()];
         assert_eq!(first_file_arg(&argv), None);
-    }
-
-    #[test]
-    fn is_german_only_for_de_with_english_fallback() {
-        assert!(is_german("de"));
-        assert!(!is_german("en"));
-        assert!(!is_german("fr"));
-        assert_eq!(LABELS_DE.file, "Datei");
-        assert_eq!(LABELS_EN.file, "File");
     }
 
     /// IHDR colour type of a PNG, `None` if `bytes` is no PNG.

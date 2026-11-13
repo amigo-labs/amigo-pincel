@@ -24,6 +24,7 @@ mod animation;
 mod clipboard;
 mod effects;
 mod events;
+mod generate;
 mod gradient;
 mod grid;
 mod history;

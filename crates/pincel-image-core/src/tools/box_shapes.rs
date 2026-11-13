@@ -62,7 +62,10 @@ pub(super) fn outline(shape: &Shape) -> Option<BoxOutline> {
                     let r = if k % 2 == 0 { radius } else { inner };
                     let ang = rotation - std::f32::consts::FRAC_PI_2
                         + std::f32::consts::PI * k as f32 / n as f32;
-                    p(center.x + r * ang.cos(), center.y + r * ang.sin())
+                    p(
+                        center.x + r * libm::cosf(ang),
+                        center.y + r * libm::sinf(ang),
+                    )
                 })
                 .collect();
             Some(BoxOutline {
@@ -229,7 +232,7 @@ fn callout(start: Point, end: Point) -> Option<BoxOutline> {
         let n = steps_for(r.max(1.0)).max(4);
         for i in 0..=n {
             let t = from + std::f32::consts::FRAC_PI_2 * i as f32 / n as f32;
-            out.push(p(cx + r * t.cos(), cy + r * t.sin()));
+            out.push(p(cx + r * libm::cosf(t), cy + r * libm::sinf(t)));
         }
     };
     let mut c = Vec::new();

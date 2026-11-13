@@ -88,7 +88,7 @@ pub(crate) fn srgb_to_linear(c: f64) -> f64 {
     if c <= 0.04045 {
         c / 12.92
     } else {
-        ((c + 0.055) / 1.055).powf(2.4)
+        libm::pow((c + 0.055) / 1.055, 2.4)
     }
 }
 
@@ -97,7 +97,7 @@ pub(crate) fn linear_to_srgb(l: f64) -> f64 {
     if l <= 0.003_130_8 {
         l * 12.92
     } else {
-        1.055 * l.powf(1.0 / 2.4) - 0.055
+        1.055 * libm::pow(l, 1.0 / 2.4) - 0.055
     }
 }
 

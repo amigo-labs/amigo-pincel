@@ -172,6 +172,12 @@ history_kinds! {
     CropToSelection => "crop_to_selection",
     /// Image ▸ Scale Image.
     ScaleImage => "scale_image",
+    /// Every change of one answer of the Assistant chat
+    /// (`docs/specs/ai-chat-panel.md` AC-08).
+    Assistant => "assistant",
+    /// Apply of a generated image (`docs/specs/comfyui-generate-pixel.md`
+    /// AC-06).
+    Generate => "generate",
 }
 
 impl HistoryKind {

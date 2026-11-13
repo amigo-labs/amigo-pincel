@@ -10,8 +10,12 @@
   // While an effect is open (`effectPanel`), its panel is a small dialog
   // over the canvas area (docked to the bottom edge on phones) and the
   // regions around the canvas area are dimmed and inert (effect-panel spec).
+  // While an Assistant answer runs, the tool rail, options bar, tab bar,
+  // quick actions and every menu but View are inert (ai-chat-panel AC-10);
+  // the canvas still zooms and pans, the panels stay usable.
   import { onMount, tick, type Snippet } from 'svelte';
   import AgentIndicator from '../../agent/AgentIndicator.svelte';
+  import { assistantBusy } from '../../assistant/chat.svelte';
   import Icon from '../icons/Icon.svelte';
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
@@ -90,6 +94,11 @@
   const size = $derived(viewport.size);
   const sheetPanel = $derived(panels.find((p) => p.id === sheetTab) ?? null);
   const effectOpen = $derived(effectPanel !== null);
+  const answering = $derived(assistantBusy());
+  /** The panel that stays usable while an answer runs (AC-10). */
+  const ASSISTANT_PANEL = 'assistant';
+  /** Menus that stay usable while an answer runs (AC-10). */
+  const liveMenus = $derived(answering ? ['view'] : null);
 
   // The effect panel's place (AC-18 – AC-20): the stored offset from the
   // canvas area's top-right corner, clamped so the panel stays wholly
@@ -220,13 +229,17 @@
 <!-- A panel inside the sidebar, bottom dock or sheet; PanelHost hands
      it its slot (title, host, collapse state) through context. -->
 {#snippet hosted(p: PanelDef, host: 'side' | 'bottom' | 'sheet')}
-  <PanelHost
-    title={p.title}
-    {host}
-    collapsed={isCollapsed(p)}
-    onToggle={() => toggleCollapsed(p)}
-    body={p.body}
-  />
+  <!-- While an answer runs only the Assistant panel takes input; the
+       others would change the document (AC-10). -->
+  <div class="contents" inert={answering && p.id !== ASSISTANT_PANEL}>
+    <PanelHost
+      title={p.title}
+      {host}
+      collapsed={isCollapsed(p)}
+      onToggle={() => toggleCollapsed(p)}
+      body={p.body}
+    />
+  </div>
 {/snippet}
 
 {#snippet sidebarBody()}
@@ -258,7 +271,7 @@
     data-dimmed={dim}
   >
     {#if size === 'narrow'}
-      <MenuBar {menus} compact restricted={effectOpen} />
+      <MenuBar {menus} compact restricted={effectOpen} only={liveMenus} />
     {:else if size === 'wide'}
       <span class="mr-1 text-sm font-semibold tracking-wide" inert={effectOpen}>Pincel</span>
     {/if}
@@ -269,7 +282,7 @@
       {t(`mode.${mode}`)}
     </span>
     {#if size !== 'narrow'}
-      <MenuBar {menus} restricted={effectOpen} />
+      <MenuBar {menus} restricted={effectOpen} only={liveMenus} />
     {/if}
     <span class="flex min-w-0 flex-1 justify-center overflow-hidden" inert={effectOpen}>
       {@render headerHint?.()}
@@ -283,7 +296,7 @@
       {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
     </span>
     <span class="ml-1 flex items-center" inert={effectOpen} data-tour="quick">
-      {@render quick?.()}
+      <span class="flex items-center" inert={answering}>{@render quick?.()}</span>
       <IconButton
         icon={size === 'narrow' ? 'layers' : 'sidebar'}
         label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
@@ -296,14 +309,14 @@
 
   <div class="relative flex min-h-0 flex-1">
     {#if size !== 'narrow' && !chrome.hidden}
-      <div class="relative flex shrink-0" inert={effectOpen} data-dimmed={dim}>
+      <div class="relative flex shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
         {@render tools('vertical')}
       </div>
     {/if}
 
     <div class="flex min-w-0 flex-1 flex-col">
       {#if options && !chrome.hidden}
-        <div class="relative shrink-0" inert={effectOpen} data-dimmed={dim}>
+        <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
           <div
             class:scroll-fade-x={size === 'narrow'}
             class="flex h-11 items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
@@ -315,7 +328,7 @@
         </div>
       {/if}
       {#if tabs}
-        <div class="relative shrink-0" inert={effectOpen} data-dimmed={dim}>
+        <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
           <TabBar {...tabs} />
         </div>
       {/if}
@@ -439,7 +452,7 @@
   </div>
 
   {#if size === 'narrow' && !chrome.hidden}
-    <div class="relative shrink-0" inert={effectOpen} data-dimmed={dim}>
+    <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
       {@render tools('horizontal')}
     </div>
   {/if}

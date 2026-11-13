@@ -247,10 +247,10 @@ export async function installTauriMock(page: Page): Promise<void> {
 
 /** Emits a Tauri event to the UI's listeners. */
 export async function emit(page: Page, event: string, payload: unknown = null): Promise<void> {
-  await page.evaluate(([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p), [
-    event,
-    payload,
-  ]);
+  await page.evaluate(
+    ([e, p]) => (window as unknown as MockWindow).__mock.emit(e as string, p),
+    [event, payload],
+  );
 }
 
 /** The window's close button (title-bar ×, Alt+F4, the taskbar). */

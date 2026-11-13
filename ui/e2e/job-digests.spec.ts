@@ -11,8 +11,6 @@ import { defaultValues, EFFECTS, forMode, toParams } from '../src/lib/effects/ca
 // is meant to be byte-identical (a faster kernel, a refactored codec) keeps
 // every digest. The input is `doc.snapshot` next to it, which
 // `crates/pincel-image-core/tests/job_fixture.rs` ties to its recipe.
-// Shared with the desktop app's native job backend, which compares its
-// results with the same digests (docs/specs/performance-desktop-jobs.md AC-01).
 //
 // PINCEL_RECORD_JOB_DIGESTS=1 records the digests (and the case list) from
 // the worker instead, after a change to the fixture document or the jobs,
@@ -75,6 +73,7 @@ function allJobs(): Job[] {
     encode('tiff'),
     encode('tga'),
     encode('ico'),
+    encode('jxl'),
   ];
 }
 

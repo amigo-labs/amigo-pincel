@@ -351,3 +351,120 @@ export async function pixelReference(r: RefText): Promise<number[]> {
     doc.free();
   }
 }
+
+// --- The desktop shell's font commands (mocked Tauri bridge) -------------
+
+/** One face as the desktop shell lists it (`system_font_faces`). */
+export interface ShellFace {
+  file: number;
+  index: number;
+  family: string;
+  style: string;
+  weight: number;
+  italic: boolean;
+  stretch: number;
+  postscript: string;
+}
+
+/** The system faces the mocked shell lists: Pincel Test Serif (Regular and
+ *  Bold in one collection, Italic in its own file) and "Desk Sans". */
+export const SHELL_FACES: ShellFace[] = [
+  {
+    file: 0,
+    index: 0,
+    family: 'Pincel Test Serif',
+    style: 'Regular',
+    weight: 400,
+    italic: false,
+    stretch: 5,
+    postscript: 'PincelTestSerif-Regular',
+  },
+  {
+    file: 0,
+    index: 1,
+    family: 'Pincel Test Serif',
+    style: 'Bold',
+    weight: 700,
+    italic: false,
+    stretch: 5,
+    postscript: 'PincelTestSerif-Bold',
+  },
+  {
+    file: 1,
+    index: 0,
+    family: 'Pincel Test Serif',
+    style: 'Italic',
+    weight: 400,
+    italic: true,
+    stretch: 5,
+    postscript: 'PincelTestSerif-Italic',
+  },
+  {
+    file: 2,
+    index: 0,
+    family: 'Desk Sans',
+    style: 'Regular',
+    weight: 400,
+    italic: false,
+    stretch: 5,
+    postscript: 'DeskSans',
+  },
+];
+const SHELL_FILES = [
+  'PincelTestSerif.ttc',
+  'PincelTestSerif-Italic.ttf',
+  'LiberationSans-Regular.ttf',
+];
+
+/**
+ * Answers the font commands of the mocked desktop shell (install after
+ * `installTauriMock`) and counts the calls; the files numbered in
+ * `missing` fail to read, as after an uninstall.
+ */
+export async function installShellFonts(
+  page: Page,
+  opts: { missing?: number[] } = {},
+): Promise<void> {
+  const files = await Promise.all(
+    SHELL_FILES.map(async (f) => Buffer.from(await fixtureBytes(f)).toString('base64')),
+  );
+  await page.addInitScript(
+    ({ faces, files, missing }) => {
+      const internals = (
+        window as unknown as {
+          __TAURI_INTERNALS__: {
+            invoke: (c: string, a: Record<string, unknown>) => Promise<unknown>;
+          };
+        }
+      ).__TAURI_INTERNALS__;
+      const log = { lists: 0, reads: [] as number[] };
+      (window as unknown as { __shellFonts: typeof log }).__shellFonts = log;
+      const inner = internals.invoke;
+      internals.invoke = async (cmd, args) => {
+        if (cmd === 'system_font_faces') {
+          log.lists += 1;
+          return faces;
+        }
+        if (cmd === 'system_font_file') {
+          const file = Number(args.file);
+          log.reads.push(file);
+          const b64 = files[file];
+          if (b64 === undefined || missing.includes(file)) {
+            // Tauri rejects with the command's error string.
+            throw 'the font file is gone';
+          }
+          return Uint8Array.from(atob(b64), (c) => c.charCodeAt(0)).buffer;
+        }
+        return inner(cmd, args);
+      };
+    },
+    { faces: SHELL_FACES, files, missing: opts.missing ?? [] },
+  );
+}
+
+/** How often the UI listed the shell's fonts and which files it read. */
+export async function shellLog(page: Page): Promise<{ lists: number; reads: number[] }> {
+  return page.evaluate(
+    () => (window as unknown as { __shellFonts: { lists: number; reads: number[] } }).__shellFonts,
+  );
+}

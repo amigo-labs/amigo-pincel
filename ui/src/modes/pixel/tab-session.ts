@@ -13,7 +13,11 @@ import { listPresentRecents } from '../../lib/fs/recents';
 import { hasFsAccess } from '../../lib/fs';
 import { isTauri } from '../../lib/platform';
 import type { EditorDocument } from '../../lib/shell/types';
-import { runAgentCall } from './doc-ops';
+import { agentFontsJson } from '../../lib/agent/fonts';
+import { registerFont } from '../../lib/core';
+import { generateForAgent } from '../../lib/comfyui/generation.svelte';
+import { runAgentCall, runAssistantEnd } from './doc-ops';
+import { pixelTarget } from './generate-target';
 import { ed, file, tabs, type PixelTab } from './stores/editor.svelte';
 import { activateTab, closeAllTabs, closeTab } from './tabs.svelte';
 
@@ -90,15 +94,23 @@ export function attachTab(tab: PixelTab, opts: { docId?: string; recovered?: boo
     activate: () => activateTab(tab),
     close: () => requestCloseTab(tab),
     saveAs: () => saveTab(tab, true),
-    agentCall: (docId, name, argsJson, file) => {
+    agentCall: (docId, name, argsJson, file, fonts) => {
+      const fontsJson = fonts ? agentFontsJson(fonts, (b, i) => registerFont(b, i)) : null;
       // The shell activates the tab before a call that may change it;
       // `doc.list` reads background tabs in place, without switching the
       // editor behind the shell's back. Their view refreshes when shown.
-      if (tabs.active === tab) return runAgentCall(docId, name, argsJson, file);
+      if (tabs.active === tab) return runAgentCall(docId, name, argsJson, file, fontsJson);
       const d = tab.doc.doc;
       if (d === null) return JSON.stringify({ ok: false, error: 'no document is open' });
-      return d.agentCall(docId, name, argsJson, file?.path, file?.bytes);
+      return d.agentCall(docId, name, argsJson, file?.path, file?.bytes, fontsJson);
     },
+    assistantBegin: () => tab.doc.doc?.assistantBegin(),
+    assistantEnd: () => {
+      if (tabs.active === tab) return runAssistantEnd();
+      return tab.doc.doc?.assistantEnd() ?? false;
+    },
+    undoKinds: () => tab.doc.doc?.undoKinds() ?? [],
+    generateImage: (args, models, signal) => generateForAgent(pixelTarget(tab), args, models, signal),
   };
   extras.set(tab.id, { doc, autosave, running: null, unregister: hooks.registerDocument(doc) });
   autosave.start();

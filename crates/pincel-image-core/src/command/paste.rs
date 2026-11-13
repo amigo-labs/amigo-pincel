@@ -28,6 +28,9 @@ pub struct PasteLayer {
     /// active layer changed in between, so later commands' indices hold.
     index: Option<usize>,
     prev: Option<PasteUndo>,
+    /// The new layer's name; "Layer N" without one.
+    name: Option<String>,
+    kind: HistoryKind,
 }
 
 /// What undoing a paste needs: a whole-document snapshot when the paste
@@ -55,7 +58,17 @@ impl PasteLayer {
             layer: None,
             index: None,
             prev: None,
+            name: None,
+            kind: HistoryKind::Paste,
         }
+    }
+
+    /// Names the new layer `name` and records the step as `kind` — a
+    /// generated image (docs/specs/comfyui-generate.md AC-12).
+    pub fn labelled(mut self, name: impl Into<String>, kind: HistoryKind) -> Self {
+        self.name = Some(name.into());
+        self.kind = kind;
+        self
     }
 }
 
@@ -104,7 +117,9 @@ impl Command for PasteLayer {
         let layer = match (self.layer.take(), self.pixels.take()) {
             (Some(layer), _) => layer,
             (None, Some(px)) => Layer::from_pixels(
-                format!("Layer {}", doc.layers.len() + 1),
+                self.name
+                    .clone()
+                    .unwrap_or_else(|| format!("Layer {}", doc.layers.len() + 1)),
                 px.offset_copy(w, h, self.x, self.y),
             )
             .with_parent(doc.active_layer().parent),
@@ -154,7 +169,7 @@ impl Command for PasteLayer {
     }
 
     fn kind(&self) -> HistoryKind {
-        HistoryKind::Paste
+        self.kind
     }
 
     fn as_any(&self) -> &dyn Any {
@@ -232,6 +247,25 @@ mod tests {
         assert_eq!(
             doc.layers[1].pixels.get_pixel(3, 3),
             Some(Color::TRANSPARENT)
+        );
+    }
+
+    #[test]
+    fn labelled_paste_names_the_layer_and_records_its_kind() {
+        let mut doc = Document::new(8, 8).unwrap();
+        let mut cmd = PasteLayer::at(image(2, 2), 3, 4, false)
+            .labelled("Generated: apple", HistoryKind::Generate);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].name, "Generated: apple");
+        assert_eq!(doc.layers[1].pixels.get_pixel(3, 4), Some(Color::WHITE));
+        assert_eq!(
+            doc.layers[1].pixels.get_pixel(0, 0),
+            Some(Color::TRANSPARENT)
+        );
+        assert_eq!(cmd.kind(), HistoryKind::Generate);
+        assert_eq!(
+            PasteLayer::new(image(1, 1), false).kind(),
+            HistoryKind::Paste
         );
     }
 

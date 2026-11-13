@@ -21,11 +21,18 @@
     closeSettings,
     closeShortcuts,
     help,
+    confirmQuestion,
+    dismissQuestion,
     helpDialogOpen,
-    loadUpdaterState,
+    initUpdater,
+    laterUpdate,
+    openAbout,
     openSettings,
+    runUpdateCheck,
   } from './lib/help/state.svelte';
   import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
+  import UpdateNotice from './lib/components/UpdateNotice.svelte';
+  import UpdateQuestion from './lib/components/UpdateQuestion.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -96,9 +103,15 @@
   import { getPref, setPref } from './lib/idb/prefs';
   import { listRecents, onRecentsChanged, type RecentFile } from './lib/idb/recent-files';
   import { forgetRecent, listPresentRecents, recentIsGone } from './lib/fs/recents';
-  import { syncMenuAccelerators, syncRecentMenu, wireNativeMenu } from './lib/menu';
+  import {
+    syncMenuAccelerators,
+    syncRecentMenu,
+    wireNativeMenu,
+    type EditorMenuHandlers,
+  } from './lib/menu';
   import { hasNativeMenu, isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
+  import { assistantBusy, startAssistant } from './lib/assistant/chat.svelte';
   import AgentsDialog from './lib/agent/AgentsDialog.svelte';
   import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
   import { t } from './lib/i18n/index.svelte';
@@ -147,6 +160,9 @@
   let picking = $state(false);
   let shellError = $state<string | null>(null);
   let fileAssocOpen = $state(false);
+  // True once it is known whether the file-association hint shows: the
+  // update question waits for it (desktop-app AC-22).
+  let fileAssocSettled = $state(false);
   // True until the "open like this on startup" pref is read, so the start
   // screen doesn't flash before an autostarted document replaces it.
   let booting = $state(true);
@@ -393,7 +409,13 @@
           }
           const file = await r.handle.getFile();
           const bytes = new Uint8Array(await file.arrayBuffer());
-          await routeFile({ name: file.name, bytes, mime: file.type, handle: r.handle, path: null });
+          await routeFile({
+            name: file.name,
+            bytes,
+            mime: file.type,
+            handle: r.handle,
+            path: null,
+          });
         } else {
           shellError = t('shell.noHandle', { name: r.name });
         }
@@ -546,6 +568,9 @@
   // own mode, in drop order (document-tabs AC-19, file-access AC-24).
   // Raster images dropped on an editor ask first (file-access AC-20).
   function onDropFiles(files: DroppedFile[]): void {
+    // No document opens or changes while an Assistant answer runs
+    // (ai-chat-panel AC-10).
+    if (assistantBusy()) return;
     const target = activeMode === null ? null : dropTargets[activeMode];
     // `routeFile` names each file the open prompt keeps from opening.
     if (target === null || promptBusy()) {
@@ -691,6 +716,18 @@
     });
   });
 
+  /** The native menu's zoom and view items of `handlers`. */
+  function viewItems(handlers: EditorMenuHandlers | null): EditorMenuHandlers | null {
+    if (handlers === null) return null;
+    const ids = ['menu:zoomIn', 'menu:zoomOut', 'menu:resetZoom', 'menu:shortcuts'] as const;
+    const out: EditorMenuHandlers = {};
+    for (const id of ids) {
+      const handler = handlers[id];
+      if (handler) out[id] = handler;
+    }
+    return out;
+  }
+
   onMount(() => {
     void initLocale();
     void initMotion();
@@ -738,6 +775,7 @@
     let unlistenMenu: UnlistenFn | null = null;
     let unlistenClose: UnlistenFn | null = null;
     let unlistenFocus: UnlistenFn | null = null;
+    let unlistenUpdater: UnlistenFn | null = null;
     // MCP clients' tool calls on the open documents (mcp-live-desktop).
     const stopAgentAccess = startAgentAccess();
     const stopLiveHost = tauriHost
@@ -748,6 +786,8 @@
             }),
         })
       : null;
+    // The Assistant chats (ai-chat-panel).
+    const stopAssistant = tauriHost ? startAssistant() : null;
     if (tauriHost) {
       // `getCurrentWindow()` throws at once without the window's metadata
       // (a Tauri 1 or partial bridge); starting it inside a promise turns
@@ -766,7 +806,14 @@
         .catch((err: unknown) => {
           console.error('focus listen failed', err);
         });
-      void loadUpdaterState();
+      initUpdater()
+        .then((fn) => {
+          if (cancelled) fn?.();
+          else unlistenUpdater = fn;
+        })
+        .catch((err: unknown) => {
+          console.error('updater start failed', err);
+        });
       Promise.resolve()
         .then(wireCloseGuard)
         .then((fn) => {
@@ -777,9 +824,17 @@
           console.error('close guard failed', err);
         });
       wireNativeMenu({
-        'menu:new': () => requestNew(activeMode ?? 'pixel'),
-        'menu:open': () => void openFromPicker(),
+        'menu:new': () => {
+          if (!assistantBusy()) requestNew(activeMode ?? 'pixel');
+        },
+        'menu:open': () => {
+          if (!assistantBusy()) void openFromPicker();
+        },
         'menu:quit': () => requestClose(),
+        'menu:about': () => {
+          if (!helpDialogOpen()) openAbout();
+        },
+        'menu:check-updates': () => runUpdateCheck(),
         'menu:tour': () => startTour(activeMode ?? 'start'),
         'menu:settings': () => {
           if (!helpDialogOpen()) openSettings();
@@ -794,7 +849,13 @@
         // Only the active tab's editor serves the native menu (AC-21); while
         // the unsaved-changes prompt or the Recovery dialog is open its
         // accelerators (macOS Cmd+Z, Cmd+S, …) reach no editor.
-        editor: () => (promptBusy() || recoveryOpen ? null : menuHandlers(activeMode)),
+        // While an Assistant answer runs only its zoom and view items
+        // (ai-chat-panel AC-10).
+        editor: () => {
+          if (promptBusy() || recoveryOpen) return null;
+          const handlers = menuHandlers(activeMode);
+          return assistantBusy() ? viewItems(handlers) : handlers;
+        },
       })
         .then((fn) => {
           if (cancelled) fn();
@@ -812,13 +873,17 @@
           })
           .catch((err: unknown) => {
             console.error('getPref fileAssoc failed', err);
-          });
+          })
+          .finally(() => (fileAssocSettled = true));
+      } else {
+        fileAssocSettled = true;
       }
     }
     return () => {
       cancelled = true;
       stopRecents();
       stopLiveHost?.();
+      stopAssistant?.();
       stopAgentAccess();
       recovery.stop();
       stopDrops();
@@ -826,15 +891,12 @@
       if (unlistenOpenFile) unlistenOpenFile();
       if (unlistenClose) unlistenClose();
       if (unlistenFocus) unlistenFocus();
+      if (unlistenUpdater) unlistenUpdater();
     };
   });
 </script>
 
-<svelte:window
-  onpaste={onShellPaste}
-  onkeydown={onShellKeydown}
-  onbeforeunload={onBeforeUnload}
-/>
+<svelte:window onpaste={onShellPaste} onkeydown={onShellKeydown} onbeforeunload={onBeforeUnload} />
 
 {#if booting && showStart}
   <div class="h-full bg-pc-bg"></div>
@@ -901,9 +963,7 @@
     {/if}
   {/each}
   {#if activeMode === null && editors.loading !== null}
-    <div
-      class="absolute inset-0 flex items-center justify-center bg-pc-bg text-sm text-pc-muted"
-    >
+    <div class="absolute inset-0 flex items-center justify-center bg-pc-bg text-sm text-pc-muted">
       {t('shell.loadingEditor', { mode: t(`mode.${editors.loading}`) })}
     </div>
   {/if}
@@ -957,8 +1017,17 @@
   <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
 {/if}
 
+{#if help.question && fileAssocSettled && !fileAssocOpen}
+  <UpdateQuestion onConfirm={confirmQuestion} onDismiss={dismissQuestion} />
+{/if}
+
 {#if help.about}
   <AboutDialog onClose={closeAbout} />
+{/if}
+
+{#if help.updater?.announce && !help.question}
+  {@const version = help.updater.announce}
+  <UpdateNotice {version} onInstall={runUpdateCheck} onLater={() => laterUpdate(version)} />
 {/if}
 {#if help.settings}
   <SettingsDialog onClose={closeSettings} />

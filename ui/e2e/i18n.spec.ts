@@ -102,15 +102,15 @@ async function expectNoReload(page: Page): Promise<void> {
   expect(await page.evaluate(() => (window as { i18nMark?: boolean }).i18nMark)).toBe(true);
 }
 
-test.describe('French browser', () => {
-  test.use({ locale: 'fr-FR' });
+test.describe('Italian browser', () => {
+  test.use({ locale: 'it-IT' });
 
-  test('starts in English when the browser asks for neither German nor English (AC-02)', async ({
+  test('starts in English when the browser asks for no supported language (AC-02)', async ({
     page,
   }) => {
     await page.goto('./');
     const langs = await page.evaluate(() => [...navigator.languages]);
-    expect(langs.some((l) => /^(de|en)\b/i.test(l))).toBe(false);
+    expect(langs.some((l) => /^(de|en|es|ja|fr|pt)\b/i.test(l))).toBe(false);
     await expect(page.getByRole('button', { name: 'New pixel sprite' })).toBeVisible();
     await expect(page.locator('html')).toHaveAttribute('lang', 'en');
   });
@@ -284,14 +284,35 @@ test('image: file, layer and format names stay untranslated in German (AC-08)', 
 
 /** The Settings dialog's languages, in order, by their labels. */
 async function expectLanguageItems(field: Locator): Promise<void> {
-  await expect(field.locator('option')).toHaveText(['English', 'Deutsch']);
+  await expect(field.locator('option')).toHaveText([
+    'English',
+    'Deutsch',
+    'Español',
+    '日本語',
+    'Français',
+    'Português (Brasil)',
+  ]);
 }
 
 test('both pickers label each language in its own language (AC-09)', async ({ page }) => {
   await gotoStart(page);
-  await expect(page.getByLabel('Language').locator('option')).toHaveText(['English', 'Deutsch']);
+  await expect(page.getByLabel('Language').locator('option')).toHaveText([
+    'English',
+    'Deutsch',
+    'Español',
+    '日本語',
+    'Français',
+    'Português (Brasil)',
+  ]);
   await page.getByLabel('Language').selectOption('de');
-  await expect(page.getByLabel('Sprache').locator('option')).toHaveText(['English', 'Deutsch']);
+  await expect(page.getByLabel('Sprache').locator('option')).toHaveText([
+    'English',
+    'Deutsch',
+    'Español',
+    '日本語',
+    'Français',
+    'Português (Brasil)',
+  ]);
   await page.getByLabel('Sprache').selectOption('en');
 
   await createDocument(page, 'pixel', { width: 16, height: 16 });

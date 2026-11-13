@@ -116,28 +116,28 @@ Pincel uses built-in workflow templates made of ComfyUI core nodes only, so any 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
-| AC-20 |      | open   |        |
-| AC-21 |      | open   |        |
-| AC-22 |      | open   |        |
+| AC-01 | e2e `the PWA has no Generate panel (AC-01)`, `the desktop app has a collapsed Generate panel (AC-01)` (ui/e2e/comfyui-generate.spec.ts) | built |  |
+| AC-02 | e2e `without a usable server the panel shows the status and Set up… (AC-02)` (ui/e2e/comfyui-generate.spec.ts); `seed, model family and status (AC-02, AC-03)` (ui/e2e/comfyui-generate-params.spec.ts) | built |  |
+| AC-03 | e2e `the panel offers models, LoRA, strength, variants and seed, and keeps them (AC-03)` (ui/e2e/comfyui-generate.spec.ts); `seed, model family and status (AC-02, AC-03)` (ui/e2e/comfyui-generate-params.spec.ts); `catalog_checkpoints_know_their_family`, `lora_feeds_model_and_clip_and_flux_drops_the_negative_prompt` (src-tauri/src/comfyui/generate/tests.rs) | built |  |
+| AC-04 | e2e `Generate needs a prompt (AC-04)` (ui/e2e/comfyui-generate.spec.ts); `the target box is the selection clipped to the canvas, empty outside it (AC-04)` (ui/e2e/comfyui-generate-params.spec.ts) | built |  |
+| AC-05 | e2e `text to image, image to image and inpainting send what the state says (AC-05 – AC-07)` (ui/e2e/comfyui-generate.spec.ts); `text_to_image_has_one_sampler_branch_per_variant_with_consecutive_seeds`, `a_job_uploads_queues_follows_and_keeps_the_variants` (src-tauri/src/comfyui/generate/tests.rs); `generation_size_keeps_the_pixel_count_and_the_ratio_limit`, `fit_covers_and_crops_evenly_without_distortion` (crates/pincel-image-core/src/generate.rs) | built |  |
+| AC-06 | e2e `text to image, image to image and inpainting send what the state says (AC-05 – AC-07)` (ui/e2e/comfyui-generate.spec.ts); `image_to_image_encodes_the_input_and_denoises_by_the_strength` (src-tauri/src/comfyui/generate/tests.rs); `mask_and_input_come_from_the_selection_and_the_active_layer` (crates/pincel-image-core/src/generate.rs); `generation_inputs_come_from_the_active_layer_and_the_selection` (crates/pincel-image-wasm/src/generate.rs) | built |  |
+| AC-07 | e2e `text to image, image to image and inpainting send what the state says (AC-05 – AC-07)`, `Apply adds one named layer over the target box, masked, as one undo step (AC-07, AC-12)` (ui/e2e/comfyui-generate.spec.ts); `inpainting_uses_vae_encode_for_inpaint_at_full_strength_and_a_noise_mask_below` (src-tauri/src/comfyui/generate/tests.rs); `fit_mask_and_apply_mask_blend_by_coverage` (crates/pincel-image-core/src/generate.rs); `a_fitted_variant_lands_as_one_named_layer_that_undo_removes` (crates/pincel-image-wasm/src/generate.rs) | built |  |
+| AC-08 | e2e `a waiting or running generation shows its place and progress; the editor stays usable (AC-08)` (ui/e2e/comfyui-generate.spec.ts); `a_waiting_job_reports_how_many_are_ahead`, `a_job_uploads_queues_follows_and_keeps_the_variants`, `without_the_socket_a_job_is_polled_to_its_end` (src-tauri/src/comfyui/generate/tests.rs); `event_reads_only_this_prompts_events`, `preview_reads_both_frame_types` (src-tauri/src/comfyui/generate/job.rs) | built |  |
+| AC-09 | e2e `Cancel removes the job and adds nothing (AC-09)` (ui/e2e/comfyui-generate.spec.ts); `cancel_deletes_a_waiting_job_and_leaves_other_jobs_alone`, `cancel_interrupts_a_running_job_by_its_own_id` (src-tauri/src/comfyui/generate/tests.rs) | built |  |
+| AC-10 | e2e `finished variants show in the strip and on the canvas; the document stays (AC-10, AC-11)` (ui/e2e/comfyui-generate.spec.ts) | built |  |
+| AC-11 | e2e `finished variants show in the strip and on the canvas; the document stays (AC-10, AC-11)` (ui/e2e/comfyui-generate.spec.ts) | built |  |
+| AC-12 | e2e `Apply adds one named layer over the target box, masked, as one undo step (AC-07, AC-12)` (ui/e2e/comfyui-generate.spec.ts); `the layer name is "Generated: " and 30 characters of the prompt (AC-12)` (ui/e2e/comfyui-generate-params.spec.ts); `labelled_paste_names_the_layer_and_records_its_kind` (crates/pincel-image-core/src/command/paste.rs); `a_fitted_variant_lands_as_one_named_layer_that_undo_removes` (crates/pincel-image-wasm/src/generate.rs) | built |  |
+| AC-13 | e2e `Discard and Generate again drop the variants (AC-13)` (ui/e2e/comfyui-generate.spec.ts); `releasing_a_running_job_cancels_it` (src-tauri/src/comfyui/generate/tests.rs) | built |  |
+| AC-14 | e2e `a generation and its variants stay with their tab (AC-14)` (ui/e2e/comfyui-generate.spec.ts) | built |  |
+| AC-15 | e2e `errors show in the panel; variants that arrived stay usable (AC-15)` (ui/e2e/comfyui-generate.spec.ts); `out_of_memory_keeps_the_variants_that_arrived`, `fewer_images_than_requested_finish_short_and_none_fail`, `a_model_the_server_refuses_is_reported_missing`, `a_server_that_stops_mid_generation_is_unreachable` (src-tauri/src/comfyui/generate/tests.rs); `failed_recognises_out_of_memory` (src-tauri/src/comfyui/generate/job.rs) | built |  |
+| AC-16 | e2e `gen.image generates one variant and applies it; the panel keeps its variants (AC-16)`, `a generation error fails the call in English (AC-16, AC-19)` (ui/e2e/comfyui-generate-tools.spec.ts); `gen.image defaults to the panel model, else the first checkpoint (AC-16, AC-17)` (ui/e2e/comfyui-generate-params.spec.ts); `generation_tools_go_to_the_editor_and_an_expired_one_is_cancelled_there` (src-tauri/src/mcp/tests.rs) | built |  |
+| AC-17 | e2e `bad names and values fail before anything is sent (AC-17)` (ui/e2e/comfyui-generate-tools.spec.ts); `gen.image defaults to the panel model, else the first checkpoint (AC-16, AC-17)` (ui/e2e/comfyui-generate-params.spec.ts); `bad_values_and_unknown_models_are_refused_before_anything_is_sent` (src-tauri/src/comfyui/generate/tests.rs) | built |  |
+| AC-18 | e2e `gen.models lists the names gen.image accepts (AC-18)` (ui/e2e/comfyui-generate-tools.spec.ts) | built |  |
+| AC-19 | e2e `without a usable server gen.* fail with the status (AC-19)` (ui/e2e/comfyui-generate-tools.spec.ts); `tools_list_matches_the_headless_server` (lists `gen.image`, `gen.models` after the document tools), `generation_tools_go_to_the_editor_and_an_expired_one_is_cancelled_there` (src-tauri/src/mcp/tests.rs) | built |  |
+| AC-20 | e2e `an expired call or a closed tab cancels the job and adds nothing (AC-20)` (ui/e2e/comfyui-generate-tools.spec.ts); `generation_tools_go_to_the_editor_and_an_expired_one_is_cancelled_there` (src-tauri/src/mcp/tests.rs) | built |  |
+| AC-21 | e2e `closing a tab cancels its generation (AC-21)` (ui/e2e/comfyui-generate.spec.ts) | built |  |
+| AC-22 | e2e `the panel and its messages are German in the German UI (AC-22)` (ui/e2e/comfyui-generate.spec.ts); key parity of all six dictionaries in `pnpm check` (`Record<MessageKey, string>`) and `scripts/ui-lint.mjs` | built |  |
 | AC-23 |      | open   |        |
 
 ## Decisions
@@ -148,3 +148,17 @@ Pincel uses built-in workflow templates made of ComfyUI core nodes only, so any 
 - 2026-11-06: A dedicated Generate panel; the editor stays usable during generation (owner).
 - 2026-11-06: Live progress over ComfyUI's WebSocket with `tokio-tungstenite` (owner approved the dependency).
 - 2026-11-06 (clarification pass): A variant whose aspect ratio differs from the target box is scaled to cover it and cropped evenly, never distorted (owner). Cancel touches only its own job, because the agent's and other tabs' jobs share the server queue.
+- 2026-11-12 (spec-build): Each variant is its own sampler branch (`KSampler` → `VAEDecode` → `SaveImage`) with seed `seed + i`, not one latent batch: image to image and inpainting encode a single image, and repeating a latent needs `RepeatLatentBatch`, which is not among the required core nodes (comfyui-connect); a branch per variant also makes every variant reproducible from its seed, so `gen.image` with that seed gives the same picture.
+- 2026-11-12 (spec-build): The mask is uploaded through `POST /upload/image` and read with `LoadImageMask` (red channel), not through `/upload/mask`, which writes a mask into the alpha of an already uploaded image.
+- 2026-11-12 (spec-build): The progress socket uses the synchronous tungstenite API that `tokio-tungstenite` re-exports, with only its `handshake` feature: the generation jobs run on blocking threads like the rest of the ComfyUI backend, so no `tokio` or `futures` dependency is added. Servers behind `https` get no socket (it would need a TLS stream crate); their jobs are followed by polling `/queue` and `/history`, without live preview.
+- 2026-11-12 (spec-build): A finished job's images stay in the backend until the editor fetches them as raw bytes (`comfyui_variant`, binary IPC response) and releases the job; the editor keeps them at generation size and fits the selected one when it previews or applies it (Technical notes). Generation size, fitting (supersampling when shrinking, bicubic when growing) and masking live in `pincel-image-core::generate`, called through `pincel-image-wasm`; input and mask come from the core, never from the canvas.
+- 2026-11-12 (spec-build): The new layer's name starts with the English "Generated: " in every language: a layer name is document content, which the UI never translates (AGENTS.md §5.4). The step is a new history kind `generate` ("Generate Image").
+- 2026-11-12 (spec-build): A stored LoRA the server no longer has falls back to "None", the first entry of the LoRA list (AC-03); a stored model falls back to the first checkpoint. Both show "<name> is no longer installed".
+- 2026-11-12 (spec-build): Prompt and seed are panel fields shared by the tabs and not stored (AC-03 lists what persists); the panel settings are the IndexedDB pref `comfyGenerate`, the Model type choices per checkpoint included. The panel starts collapsed, so no ComfyUI starts before the user expands it (comfyui-connect AC-03, Decisions).
+- 2026-11-12 (spec-build): A layer that is fully transparent in the target box generates as at 100 % (edge cases) — with a selection that is text to image whose result is then masked, since there is no context to inpaint around.
+- 2026-11-12 (spec-build): The live preview image shows in the panel next to the progress; the canvas overlay shows the selected finished variant (AC-10). The overlay lies above all layers, so a layer above the active one is previewed under the variant; the applied layer sits directly above the active layer (AC-12).
+- 2026-11-12 (spec-build): The backend counts its running jobs and sets the managed install's guard (`Service::set_generating`, comfyui-install AC-14) itself; the `comfyui_set_generating` command stays, unused by the editor.
+- 2026-11-12 (spec-build): `gen.*` calls are forwarded to the webview like every call (the endpoint only lists them, mcp-live-desktop AC-06) and run there beside the queue of calls, so a generation of minutes does not hold up other calls; the endpoint tells the webview when a call timed out (`mcp-call-expired`), which cancels its job (AC-20). `gen.image` on a Pixel tab fails with "gen.image works on Image documents only" until `comfyui-generate-pixel`.
+- 2026-11-13 (fix): An Assistant chat's `gen.*` call targets the chat's tab (AC-16 "the chat's tab"; a foreign `doc` fails as in ai-chat-panel AC-26), counts towards the chat's answer and its one undo step, and is cancelled by the chat's Stop like a timed-out call (AC-20); see ai-chat-panel, Decisions 2026-11-13.
+- 2026-11-12 (spec-build): Red runs. Rust jobs: the generation tests failed with the job runner stubbed (`Failed { BadAnswer }`); the workflow-template tests were written with the templates and green at once. Core: every `generate::` test and the labelled paste failed with the helpers stubbed. E2e: `comfyui-generate.spec.ts` failed 14 of 15 against the build before the UI block (the PWA test of AC-01 was green, as the PWA had no panel before either); `comfyui-generate-tools.spec.ts` failed 7 of 7 against the build before the `gen.*` block; the Node-side `comfyui-generate-params.spec.ts` was written after its code and green at once. The wasm binding tests were green at once on top of the red-then-green core.
+- 2026-11-12 (spec-build): AC-04's empty target box cannot be reached in the editor — a selection lives on the canvas, so its bounds always overlap it; the rule is tested on `targetBox` (Node-side spec).

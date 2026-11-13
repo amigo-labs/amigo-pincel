@@ -75,15 +75,36 @@ pub(crate) fn convolve_axis(
     if w == 0 {
         return out;
     }
-    for (y, row) in out.chunks_exact_mut(w * 4).enumerate() {
+    crate::par::for_each_row(&mut out, w * 4, |y, row| {
         axis_row(src, w, h, kernel, horizontal, y, row);
-    }
+    });
     out
 }
 
 /// Computes output row `y` of [`convolve_axis`] into `row`
-/// (`out[y * w * 4..(y + 1) * w * 4]`, all zeros on entry).
+/// (`out[y * w * 4..(y + 1) * w * 4]`, all zeros on entry). With the
+/// `parallel` feature it runs in an AVX2 build where the CPU has one
+/// (docs/specs/performance-desktop-jobs.md AC-02); [`axis_row_body`] is the
+/// same code for the build's own target.
+#[cfg_attr(
+    feature = "parallel",
+    multiversion::multiversion(targets("x86_64+avx2+fma"))
+)]
 fn axis_row(
+    src: &[f32],
+    w: usize,
+    h: usize,
+    kernel: &[f32],
+    horizontal: bool,
+    y: usize,
+    row: &mut [f32],
+) {
+    axis_row_body(src, w, h, kernel, horizontal, y, row);
+}
+
+/// The loop of [`axis_row`], inlined into each of its builds.
+#[inline(always)]
+fn axis_row_body(
     src: &[f32],
     w: usize,
     h: usize,
@@ -258,6 +279,37 @@ mod tests {
                     &convolve_axis(&src, 1, 1, &kernel, horizontal),
                     &convolve_axis_reference(&src, 1, 1, &kernel, horizontal),
                     &format!("1x1, len {len}, horizontal {horizontal}"),
+                );
+            }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "parallel"))]
+mod dispatch_tests {
+    use super::*;
+
+    #[test]
+    fn axis_row_gives_the_same_bits_in_the_avx2_build() {
+        // The test proves something only where the dispatch picks AVX2.
+        #[cfg(target_arch = "x86_64")]
+        eprintln!("avx2: {}", std::is_x86_feature_detected!("avx2"));
+        let (w, h) = (37usize, 23usize);
+        let src: Vec<f32> = (0..w * h * 4)
+            .map(|i| ((i * 2_654_435_761usize) % 10_007) as f32 / 10_007.0)
+            .collect();
+        let kernel = crate::blur::gaussian_kernel(2.7);
+        for horizontal in [true, false] {
+            for y in 0..h {
+                let mut dispatched = vec![0.0f32; w * 4];
+                let mut baseline = vec![0.0f32; w * 4];
+                axis_row(&src, w, h, &kernel, horizontal, y, &mut dispatched);
+                axis_row_body(&src, w, h, &kernel, horizontal, y, &mut baseline);
+                let bits = |v: &[f32]| v.iter().map(|f| f.to_bits()).collect::<Vec<_>>();
+                assert_eq!(
+                    bits(&dispatched),
+                    bits(&baseline),
+                    "row {y}, horizontal {horizontal}"
                 );
             }
         }

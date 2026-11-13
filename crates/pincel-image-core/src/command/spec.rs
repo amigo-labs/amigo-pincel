@@ -928,6 +928,58 @@ pub enum CommandSpec {
     /// redo step (Escape during the drag); nothing when the top step is not
     /// that drag's.
     CancelLiveGesture { gesture: u64 },
+    /// Begin the Move tools' live transform of the selection on `layer`
+    /// (docs/specs/image-transform-handles.md): its pixels (`pixels`, Move
+    /// Selected Pixels) or its outline only (Move Selection), shown with
+    /// the box below. Commits any other live object first; nothing without
+    /// a selection that selects a pixel.
+    BeginTransform {
+        layer: usize,
+        /// `true`: Move Selected Pixels; `false`: Move Selection.
+        pixels: bool,
+        /// Centre of the box on the canvas (pixel-edge coordinates).
+        center_x: f64,
+        center_y: f64,
+        /// Width and height of the box (clamped to at least 1 px).
+        width: f64,
+        height: f64,
+        /// Turn in degrees, positive clockwise on screen.
+        angle: f64,
+        /// The pivot relative to the box (`0.5, 0.5` = its centre).
+        pivot_x: f64,
+        pivot_y: f64,
+        /// `0` Nearest, `1` Bilinear, `2` Bicubic.
+        quality: u32,
+        /// The drag this change belongs to: changes of one gesture form one
+        /// undo step.
+        #[serde(default)]
+        gesture: Option<u64>,
+    },
+    /// Change the live transform's box, angle, pivot or quality.
+    EditTransform {
+        /// Centre of the box on the canvas (pixel-edge coordinates).
+        center_x: f64,
+        center_y: f64,
+        /// Width and height of the box (clamped to at least 1 px).
+        width: f64,
+        height: f64,
+        /// Turn in degrees, positive clockwise on screen.
+        angle: f64,
+        /// The pivot relative to the box (`0.5, 0.5` = its centre).
+        pivot_x: f64,
+        pivot_y: f64,
+        /// `0` Nearest, `1` Bilinear, `2` Bicubic.
+        quality: u32,
+        /// The drag this change belongs to: changes of one gesture form one
+        /// undo step.
+        #[serde(default)]
+        gesture: Option<u64>,
+    },
+    /// Commit the live transform: its steps become one (or none, if nothing
+    /// changed).
+    CommitTransform,
+    /// Cancel the live transform: pixels and outline as before it.
+    CancelTransform,
     /// Rasterize `text` onto `layer` at `(x, y)` using a `register_font` id
     /// (spec §9.2 Text; ADR-012). A no-op if the font id or geometry is invalid.
     DrawText {
@@ -983,6 +1035,11 @@ impl CommandSpec {
             | Self::BeginLiveShape { layer, .. }
             | Self::BeginLiveGradient { layer, .. }
             | Self::BeginLiveText { layer, .. }
+            | Self::BeginTransform {
+                layer,
+                pixels: true,
+                ..
+            }
             | Self::DrawText { layer, .. } => Some(*layer),
             _ => None,
         }
@@ -1877,6 +1934,50 @@ pub fn run_command(
         CommandSpec::CommitLive => bus.commit_live(),
         CommandSpec::CancelLive => bus.cancel_live(),
         CommandSpec::CancelLiveGesture { gesture } => bus.cancel_live_gesture(gesture).map(|_| ()),
+        CommandSpec::BeginTransform {
+            layer,
+            pixels,
+            center_x,
+            center_y,
+            width,
+            height,
+            angle,
+            pivot_x,
+            pivot_y,
+            quality,
+            gesture,
+        } => {
+            let s = transform_settings(
+                (center_x, center_y),
+                (width, height),
+                angle,
+                (pivot_x, pivot_y),
+                quality,
+            );
+            bus.begin_transform(layer, pixels, s, gesture).map(|_| ())
+        }
+        CommandSpec::EditTransform {
+            center_x,
+            center_y,
+            width,
+            height,
+            angle,
+            pivot_x,
+            pivot_y,
+            quality,
+            gesture,
+        } => {
+            let s = transform_settings(
+                (center_x, center_y),
+                (width, height),
+                angle,
+                (pivot_x, pivot_y),
+                quality,
+            );
+            bus.edit_transform(s, gesture)
+        }
+        CommandSpec::CommitTransform => bus.commit_transform(),
+        CommandSpec::CancelTransform => bus.cancel_transform(),
         CommandSpec::DrawText {
             layer,
             font_id,
@@ -1953,6 +2054,25 @@ pub fn layer_locked(doc: &Document, index: usize) -> bool {
     doc.layers()
         .get(index)
         .is_some_and(|l| l.is_group() || doc.effectively_locked(index))
+}
+
+/// The settings of a transform command; non-finite numbers fall back to
+/// the identity's (a centred pivot, no turn, 1 px).
+fn transform_settings(
+    center: (f64, f64),
+    size: (f64, f64),
+    angle: f64,
+    pivot: (f64, f64),
+    quality: u32,
+) -> super::TransformSettings {
+    let or = |v: f64, d: f64| if v.is_finite() { v } else { d };
+    super::TransformSettings {
+        center: (or(center.0, 0.0), or(center.1, 0.0)),
+        size: (or(size.0, 1.0), or(size.1, 1.0)),
+        angle: or(angle, 0.0),
+        pivot: (or(pivot.0, 0.5), or(pivot.1, 0.5)),
+        quality: pincel_effects::transform::Quality::from_index(quality),
+    }
 }
 
 #[cfg(test)]

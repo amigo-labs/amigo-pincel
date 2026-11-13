@@ -275,6 +275,10 @@ export const ICONS = {
   ],
   download: [{ d: 'M12 3.5v11M7.5 10L12 14.5 16.5 10' }, { d: 'M4 16v4h16v-4' }],
   history: [{ d: 'M4 12a8 8 0 1 0 1.07-4' }, { d: 'M3.5 4v4h4' }, { d: 'M12 8v4.5l3 1.5' }],
+  sparkles: [
+    { d: 'M10 3.5l1.7 4.8 4.8 1.7-4.8 1.7L10 16.5l-1.7-4.8L3.5 10l4.8-1.7z', tone: true },
+    { d: 'M17.5 14l.9 2.6 2.6.9-2.6.9-.9 2.6-.9-2.6-2.6-.9 2.6-.9z' },
+  ],
   rewind: [
     { d: 'M11 5.5L4.5 12l6.5 6.5z', fill: true },
     { d: 'M19.5 5.5L13 12l6.5 6.5z', fill: true },
@@ -283,6 +287,18 @@ export const ICONS = {
     { d: 'M4.5 5.5L11 12l-6.5 6.5z', fill: true },
     { d: 'M13 5.5l6.5 6.5-6.5 6.5z', fill: true },
   ],
+  // Assistant chat (docs/specs/ai-chat-panel.md)
+  chat: [
+    { d: 'M4 5.5h16v10.5H10l-4.5 3.5V16H4z', tone: true },
+    { d: 'M4 5.5h16v10.5H10l-4.5 3.5V16H4z' },
+    { d: 'M8 9.5h8M8 12.5h5' },
+  ],
+  send: [
+    { d: 'M3.5 11.5L20.5 4l-6 16.5-3-7z', tone: true },
+    { d: 'M3.5 11.5L20.5 4l-6 16.5-3-7z' },
+    { d: 'M11.5 13.5L20.5 4' },
+  ],
+  stop: [{ d: 'M6 6h12v12H6z', fill: true }],
   // Document modes (tab bar marker)
   // A pixel staircase (a checker sat too close to colors).
   'mode-pixel': [

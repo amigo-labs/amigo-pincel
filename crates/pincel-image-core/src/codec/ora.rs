@@ -126,13 +126,22 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
          <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\">\n<stack>\n"
     );
     let layers = doc.layers();
+    // Every layer PNG is encoded up front (on all cores with the `parallel`
+    // feature), then stored in the archive's order.
+    let pngs = crate::par::map(layers, |layer| {
+        (!layer.is_group())
+            .then(|| to_png_bytes(&layer.pixels, compression))
+            .transpose()
+    })
+    .into_iter()
+    .collect::<Result<Vec<_>, _>>()?;
     write_run(
         &mut zip,
         &mut xml,
         layers,
+        &pngs,
         0..layers.len(),
         doc.active_layer_index(),
-        compression,
         1,
     )?;
     xml.push_str("</stack>\n</image>\n");
@@ -140,19 +149,20 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
     zip.write_all(xml.as_bytes())?;
 
     let merged = compose(layers);
-    zip.start_file("mergedimage.png", stored)?;
-    zip.write_all(&to_png_bytes(&merged, compression)?)?;
-
     let longest = w.max(h);
-    let thumb = if longest > 256 {
+    let thumb = (longest > 256).then(|| {
         let tw = (u64::from(w) * 256 / u64::from(longest)).max(1) as u32;
         let th = (u64::from(h) * 256 / u64::from(longest)).max(1) as u32;
         scale(&merged, tw, th, Interpolation::Bilinear)
-    } else {
-        merged
-    };
+    });
+    let images = [&merged, thumb.as_ref().unwrap_or(&merged)];
+    let mut encoded = crate::par::map(&images, |image| to_png_bytes(image, compression));
+    let thumb_png = encoded.pop().expect("two images in, two PNGs out")?;
+    let merged_png = encoded.pop().expect("two images in, two PNGs out")?;
+    zip.start_file("mergedimage.png", stored)?;
+    zip.write_all(&merged_png)?;
     zip.start_file("Thumbnails/thumbnail.png", stored)?;
-    zip.write_all(&to_png_bytes(&thumb, compression)?)?;
+    zip.write_all(&thumb_png)?;
 
     Ok(zip.finish()?.into_inner())
 }
@@ -160,13 +170,14 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
 /// Writes the whole subtrees in `run` of `layers` top-most first: a raster
 /// layer as `<layer>` with its PNG, a group as a nested, isolated `<stack>`
 /// around its children (docs/specs/image-layer-groups-ora.md AC-03).
+/// `pngs[i]` is raster layer `i`'s encoded PNG.
 fn write_run<W: Write + std::io::Seek>(
     zip: &mut ZipWriter<W>,
     xml: &mut String,
     layers: &[Layer],
+    pngs: &[Option<Vec<u8>>],
     run: std::ops::Range<usize>,
     active: usize,
-    compression: u8,
     depth: usize,
 ) -> Result<(), OraError> {
     let mut roots = Vec::new();
@@ -205,19 +216,14 @@ fn write_run<W: Write + std::io::Seek>(
         );
         if layer.is_group() {
             xml.push_str(&format!("{indent}<stack {attrs} isolation=\"isolate\">\n"));
-            write_run(
-                zip,
-                xml,
-                layers,
-                index + 1..end,
-                active,
-                compression,
-                depth + 1,
-            )?;
+            write_run(zip, xml, layers, pngs, index + 1..end, active, depth + 1)?;
             xml.push_str(&format!("{indent}</stack>\n"));
         } else {
+            let png = pngs[index]
+                .as_ref()
+                .expect("every raster layer has an encoded PNG");
             zip.start_file(format!("data/layer{index}.png"), stored)?;
-            zip.write_all(&to_png_bytes(&layer.pixels, compression)?)?;
+            zip.write_all(png)?;
             xml.push_str(&format!("{indent}<layer {attrs} />\n"));
         }
     }

@@ -62,7 +62,7 @@ impl Levels {
         let mut lut = [0u8; 256];
         for (i, v) in lut.iter_mut().enumerate() {
             let t = (((i as f32 / 255.0) - self.in_black) / span).clamp(0.0, 1.0);
-            let g = t.powf(inv_gamma);
+            let g = libm::powf(t, inv_gamma);
             let out = self.out_black + g * (self.out_white - self.out_black);
             *v = (out.clamp(0.0, 1.0) * 255.0).round() as u8;
         }

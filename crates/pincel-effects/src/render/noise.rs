@@ -52,7 +52,7 @@ fn gradient(seed: u32, octave: u32, size: f64, x: i64, y: i64) -> f32 {
     let (ix, iy) = (x0 as i64, y0 as i64);
     let dot = |dx: i64, dy: i64| {
         let a = f64::from(lattice(seed, octave, ix + dx, iy + dy)) * std::f64::consts::TAU;
-        let (s, c) = a.sin_cos();
+        let (s, c) = (libm::sin(a), libm::cos(a));
         (c * (fx - dx as f64) + s * (fy - dy as f64)) as f32
     };
     let (tx, ty) = (fade(fx), fade(fy));

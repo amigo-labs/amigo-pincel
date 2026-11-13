@@ -5,7 +5,7 @@
 import { core } from '../core/wasm';
 
 /** What a document can be written as. */
-export type EncodeFormat = 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico';
+export type EncodeFormat = 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico' | 'jxl';
 
 /** One encoding job: a document snapshot and how to write it. */
 export interface EncodeJob {
@@ -16,6 +16,11 @@ export interface EncodeJob {
   readonly level: number;
   /** JPEG quality 1–100. */
   readonly quality: number;
+}
+
+/** The 1–100 JPEG quality the encoder gets for `quality`. */
+export function jpegQuality(quality: number): number {
+  return Math.min(100, Math.max(1, Math.round(quality)));
 }
 
 /** Encodes the open document `handle` as `format`. */
@@ -31,7 +36,7 @@ export function encodeHandle(
     case 'png':
       return core.exportPng(handle, level);
     case 'jpeg':
-      return core.exportJpeg(handle, Math.min(100, Math.max(1, Math.round(quality))));
+      return core.exportJpeg(handle, jpegQuality(quality));
     case 'webp':
       return core.exportWebp(handle);
     case 'bmp':
@@ -42,6 +47,8 @@ export function encodeHandle(
       return core.exportTga(handle);
     case 'ico':
       return core.exportIco(handle);
+    case 'jxl':
+      return core.exportJxl(handle);
   }
 }
 

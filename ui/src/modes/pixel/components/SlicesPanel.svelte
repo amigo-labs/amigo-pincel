@@ -275,7 +275,13 @@
 <Panel>
   {#snippet actions()}
     {#if !formOpen}
-      <IconButton icon="plus" label={t('slices.add')} size="sm" onclick={openForm} disabled={!doc} />
+      <IconButton
+        icon="plus"
+        label={t('slices.add')}
+        size="sm"
+        onclick={openForm}
+        disabled={!doc}
+      />
     {/if}
   {/snippet}
 
@@ -348,9 +354,7 @@
             </button>
           </div>
           <span class="text-xs text-pc-faint">
-            {s.keyCount === 1
-              ? t('slices.keyInfoOne', { id: s.id })
-              : t('slices.keyInfo', { id: s.id, count: s.keyCount })}
+            {t('slices.keyInfo', { id: s.id, count: s.keyCount })}
           </span>
 
           <fieldset class="flex flex-col gap-1">
@@ -363,8 +367,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.x}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'x', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'x', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -375,8 +378,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.y}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'y', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'y', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -390,8 +392,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.w}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'w', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'w', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -403,8 +404,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.h}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'h', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'h', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -415,8 +415,7 @@
             <input
               type="checkbox"
               checked={s.hasCenter}
-              onchange={(e) =>
-                toggleCenter(s, (e.target as HTMLInputElement).checked)}
+              onchange={(e) => toggleCenter(s, (e.target as HTMLInputElement).checked)}
             />
             <span>{t('slices.ninePatch')}</span>
           </label>
@@ -431,8 +430,7 @@
                     step="1"
                     inputmode="numeric"
                     value={s.cx}
-                    onchange={(e) =>
-                      onNumberCommit(s, 'cx', e.target as HTMLInputElement)}
+                    onchange={(e) => onNumberCommit(s, 'cx', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -443,8 +441,7 @@
                     step="1"
                     inputmode="numeric"
                     value={s.cy}
-                    onchange={(e) =>
-                      onNumberCommit(s, 'cy', e.target as HTMLInputElement)}
+                    onchange={(e) => onNumberCommit(s, 'cy', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -458,8 +455,7 @@
                     step="1"
                     inputmode="numeric"
                     value={s.cw}
-                    onchange={(e) =>
-                      onNumberCommit(s, 'cw', e.target as HTMLInputElement)}
+                    onchange={(e) => onNumberCommit(s, 'cw', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -471,8 +467,7 @@
                     step="1"
                     inputmode="numeric"
                     value={s.ch}
-                    onchange={(e) =>
-                      onNumberCommit(s, 'ch', e.target as HTMLInputElement)}
+                    onchange={(e) => onNumberCommit(s, 'ch', e.target as HTMLInputElement)}
                     class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                   />
                 </label>
@@ -484,8 +479,7 @@
             <input
               type="checkbox"
               checked={s.hasPivot}
-              onchange={(e) =>
-                togglePivot(s, (e.target as HTMLInputElement).checked)}
+              onchange={(e) => togglePivot(s, (e.target as HTMLInputElement).checked)}
             />
             <span>{t('slices.pivot')}</span>
           </label>
@@ -498,8 +492,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.px}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'px', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'px', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>
@@ -510,8 +503,7 @@
                   step="1"
                   inputmode="numeric"
                   value={s.py}
-                  onchange={(e) =>
-                    onNumberCommit(s, 'py', e.target as HTMLInputElement)}
+                  onchange={(e) => onNumberCommit(s, 'py', e.target as HTMLInputElement)}
                   class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
                 />
               </label>

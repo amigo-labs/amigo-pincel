@@ -91,6 +91,10 @@ const ICO_TYPES: FilePickerAcceptType[] = [
 const DDS_TYPES: FilePickerAcceptType[] = [
   { description: 'DirectDraw surface', accept: { 'image/vnd-ms.dds': ['.dds'] } },
 ];
+// docs/specs/image-formats-more-modern.md: JPEG XL opens and saves (lossless).
+const JXL_TYPES: FilePickerAcceptType[] = [
+  { description: 'JPEG XL image', accept: { 'image/jxl': ['.jxl'] } },
+];
 
 // Every raster format the Image mode decodes (pincel-image-core codec).
 const IMAGE_TYPES: FilePickerAcceptType[] = [
@@ -103,6 +107,7 @@ const IMAGE_TYPES: FilePickerAcceptType[] = [
   ...TGA_TYPES,
   ...DDS_TYPES,
   ...ICO_TYPES,
+  ...JXL_TYPES,
 ];
 
 // Photoshop files, opened (never written) in Image mode
@@ -134,6 +139,7 @@ const IMAGE_EXTENSIONS = [
   'tga',
   'dds',
   'ico',
+  'jxl',
 ];
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS, 'psd'];
 
@@ -205,13 +211,14 @@ export type FileFormat =
   | 'tga'
   | 'dds'
   | 'ico'
+  | 'jxl'
   | 'psd';
 
 /** Project formats: one per editor mode. */
 export type ProjectFormat = 'aseprite' | 'ora';
 
 /** Raster formats an Image-mode document is saved back to (no GIF encoder). */
-export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico';
+export type ImageSaveFormat = 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico' | 'jxl';
 
 /** Everything `writeTarget` writes: the project formats and, for Image-mode
  *  Save back to the opened file, its raster formats. */
@@ -227,6 +234,7 @@ const SAVE_TYPES: Record<SaveFormat, FilePickerAcceptType[]> = {
   tiff: TIFF_TYPES,
   tga: TGA_TYPES,
   ico: ICO_TYPES,
+  jxl: JXL_TYPES,
 };
 
 const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> = {
@@ -239,6 +247,7 @@ const SAVE_FILTERS: Record<SaveFormat, { name: string; extensions: string[] }> =
   tiff: { name: 'TIFF image', extensions: ['tif', 'tiff'] },
   tga: { name: 'TGA image', extensions: ['tga'] },
   ico: { name: 'Windows icon', extensions: ['ico'] },
+  jxl: { name: 'JPEG XL image', extensions: ['jxl'] },
 };
 
 /** Encoded-export formats of the Image mode (WebP is lossless). */
@@ -308,6 +317,11 @@ export function sniffFormat(bytes: Uint8Array): FileFormat | null {
   if (startsWith(bytes, [0x38, 0x42, 0x50, 0x53])) return 'psd'; // `8BPS`
   if (startsWith(bytes, [0x44, 0x44, 0x53, 0x20])) return 'dds'; // `DDS `
   if (startsWith(bytes, [0x00, 0x00, 0x01, 0x00])) return 'ico';
+  // JPEG XL: bare codestream, or the ISOBMFF container's `JXL ` box.
+  if (startsWith(bytes, [0xff, 0x0a])) return 'jxl';
+  if (startsWith(bytes, [0x00, 0x00, 0x00, 0x0c, 0x4a, 0x58, 0x4c, 0x20, 0x0d, 0x0a, 0x87, 0x0a])) {
+    return 'jxl';
+  }
   // TGA has no signature: only its name tells (`formatFromName`).
   return null;
 }
@@ -343,6 +357,8 @@ export function formatFromName(name: string): FileFormat | null {
       return 'dds';
     case 'ico':
       return 'ico';
+    case 'jxl':
+      return 'jxl';
     default:
       return null;
   }
@@ -374,6 +390,8 @@ export function mimeFor(format: FileFormat): string {
       return 'image/vnd-ms.dds';
     case 'ico':
       return 'image/x-icon';
+    case 'jxl':
+      return 'image/jxl';
     default:
       return `image/${format}`;
   }

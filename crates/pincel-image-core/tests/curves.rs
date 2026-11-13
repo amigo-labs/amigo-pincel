@@ -115,7 +115,7 @@ fn reference(pts: &[Point]) -> Vec<Point> {
             get(i as isize + 1),
             get(i as isize + 2),
         );
-        let k = |a: Point, b: Point| ((a.x - b.x).hypot(a.y - b.y)).sqrt();
+        let k = |a: Point, b: Point| libm::hypotf(a.x - b.x, a.y - b.y).sqrt();
         let (t0, t1) = (0.0, k(p0, p1));
         let t2 = t1 + k(p1, p2);
         let t3 = t2 + k(p2, p3);
@@ -136,7 +136,7 @@ fn reference(pts: &[Point]) -> Vec<Point> {
 fn dist_to(samples: &[Point], x: f32, y: f32) -> f32 {
     samples
         .iter()
-        .map(|q| (q.x - x).hypot(q.y - y))
+        .map(|q| libm::hypotf(q.x - x, q.y - y))
         .fold(f32::MAX, f32::min)
 }
 
@@ -145,7 +145,7 @@ fn sd_triangle(x: f32, y: f32, t: [Point; 3]) -> f32 {
     let seg = |a: Point, b: Point| {
         let (ex, ey, wx, wy) = (b.x - a.x, b.y - a.y, x - a.x, y - a.y);
         let u = ((wx * ex + wy * ey) / (ex * ex + ey * ey)).clamp(0.0, 1.0);
-        (wx - ex * u).hypot(wy - ey * u)
+        libm::hypotf(wx - ex * u, wy - ey * u)
     };
     let d = seg(t[0], t[1]).min(seg(t[1], t[2])).min(seg(t[2], t[0]));
     let cross = |a: Point, b: Point| (b.x - a.x) * (y - a.y) - (b.y - a.y) * (x - a.x);
@@ -172,7 +172,7 @@ fn tangent(samples: &[Point], end: bool) -> (f32, f32) {
     } else {
         (samples[0], samples[1])
     };
-    let l = (a.x - b.x).hypot(a.y - b.y);
+    let l = libm::hypotf(a.x - b.x, a.y - b.y);
     ((a.x - b.x) / l, (a.y - b.y) / l)
 }
 
@@ -261,7 +261,7 @@ fn a_curve_paints_only_its_band_and_heads_and_fills_its_core() {
                     // length of an arrow head, which tapers to its tip.
                     let near_end = [(BENT[0], start), (BENT[3], end)].iter().any(|(e, cap)| {
                         let reach = half + 0.5 + if *cap == LineCap::Arrow { len } else { 0.0 };
-                        *cap != LineCap::Round && (e.x - x).hypot(e.y - y) <= reach
+                        *cap != LineCap::Round && libm::hypotf(e.x - x, e.y - y) <= reach
                     });
                     if dash == DashPattern::Solid && d < half - 0.5 - 0.05 && !near_end {
                         assert_eq!(c[3], 255, "{start:?} {end:?}: core ({x}, {y}) at {d}");
@@ -334,7 +334,7 @@ fn beyond(px: &[[u8; 4]], tip: Point, dir: (f32, f32), near: f32) -> Vec<(f32, f
         .enumerate()
         .filter(|(_, c)| c[3] > 0)
         .map(|(i, _)| centre(i))
-        .filter(|&(x, y)| (x - tip.x).hypot(y - tip.y) <= near)
+        .filter(|&(x, y)| libm::hypotf(x - tip.x, y - tip.y) <= near)
         .filter(|&(x, y)| (x - tip.x) * dir.0 + (y - tip.y) * dir.1 > 1.0)
         .collect()
 }
@@ -385,7 +385,7 @@ fn flat_ends_stop_at_the_end_and_round_ends_are_half_discs() {
     for (i, c) in round.iter().enumerate() {
         let (x, y) = centre(i);
         if x > b.x {
-            let r = (x - b.x).hypot(y - b.y);
+            let r = libm::hypotf(x - b.x, y - b.y);
             if r < 4.5 {
                 assert_eq!(c[3], 255, "inside the half disc ({x}, {y})");
             }
@@ -620,7 +620,7 @@ fn the_dash_phase_does_not_depend_on_the_caps() {
                 let (x, y) = centre(i);
                 let near_end = [BENT[0], BENT[3]]
                     .iter()
-                    .any(|e| (e.x - x).hypot(e.y - y) <= reach);
+                    .any(|e| libm::hypotf(e.x - x, e.y - y) <= reach);
                 if !near_end {
                     assert_eq!(a, b, "{dash:?} {cap:?}: ({x}, {y})");
                     compared += usize::from(a[3] > 0);

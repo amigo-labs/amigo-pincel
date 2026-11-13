@@ -32,6 +32,7 @@
     { id: 'tiff', label: () => 'TIFF' },
     { id: 'tga', label: () => 'TGA' },
     { id: 'ico', label: () => t('save.fmtIco') },
+    { id: 'jxl', label: () => 'JPEG XL' },
   ];
 
   // The user's picks; until then the preselected format and quality.

@@ -256,6 +256,24 @@ impl Manager {
         Ok(settings.clone())
     }
 
+    /// Changes the stored settings (the managed install records its folder).
+    pub fn update_settings(&self, change: impl FnOnce(&mut Settings)) -> Result<Settings, String> {
+        let mut settings = self.settings();
+        change(&mut settings);
+        self.store(&settings)
+    }
+
+    /// Ends the server this app started, before its installation changes
+    /// (comfyui-install AC-14), and forgets the status.
+    pub fn stop(&self) {
+        let _guard = self
+            .start_lock
+            .lock()
+            .unwrap_or_else(PoisonError::into_inner);
+        self.end_owned();
+        self.shared.set_status(Status::Idle);
+    }
+
     /// Stores the server choice.
     pub fn set_server(&self, server: ServerChoice) -> Result<Settings, String> {
         let mut settings = self.settings();
@@ -455,11 +473,17 @@ impl Manager {
         };
         watch_exit(Arc::clone(&self.shared), Arc::clone(&process), generation);
 
+        // The exit watcher may notice the end first and still be collecting
+        // the output when this loop does; the stopped status is built here
+        // from the same process, so it never reads "Starting".
+        let stopped = |process: &Process| Status::Stopped {
+            log: process.final_log(),
+        };
         let deadline = Instant::now() + config.start_timeout;
         loop {
             if process.exited() {
                 self.shared.process_ended(generation);
-                return self.status();
+                return stopped(&process);
             }
             if api::identify(&Url::local(port), config.timeouts.probe).is_ok()
                 && let Some(status) = self.connected_on(port)
@@ -469,7 +493,7 @@ impl Manager {
             if Instant::now() >= deadline {
                 process.kill();
                 self.shared.process_ended(generation);
-                return self.status();
+                return stopped(&process);
             }
             thread::sleep(config.poll);
         }

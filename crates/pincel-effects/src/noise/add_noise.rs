@@ -80,7 +80,7 @@ impl Rng {
     fn next_gaussian(&mut self) -> f32 {
         let u1 = self.next_f32().max(1e-7);
         let u2 = self.next_f32();
-        (-2.0 * u1.ln()).sqrt() * (TAU * u2).cos()
+        (-2.0 * libm::logf(u1)).sqrt() * libm::cosf(TAU * u2)
     }
 }
 

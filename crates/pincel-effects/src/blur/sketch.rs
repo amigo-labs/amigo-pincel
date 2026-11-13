@@ -42,7 +42,7 @@ impl Effect for SketchBlur {
                 let bits = hash(self.seed, x, y);
                 let theta = unit(bits) * TAU;
                 let len = unit(bits >> 24) * self.radius as f32;
-                let (dy, dx) = theta.sin_cos();
+                let (dy, dx) = crate::math::sin_cos(theta);
                 let n = len.ceil() as usize + 1;
                 let mut acc = [0.0f32; 4];
                 for i in 0..n {

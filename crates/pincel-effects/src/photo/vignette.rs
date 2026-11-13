@@ -60,13 +60,13 @@ impl Effect for Vignette {
         }
         let (w, h) = (src.width(), src.height());
         let (cx, cy) = (centre(self.center_x, w), centre(self.center_y, h));
-        let half_diagonal = (w as f32).hypot(h as f32) / 2.0;
+        let half_diagonal = libm::hypotf(w as f32, h as f32) / 2.0;
         let r0 = (self.radius / 100.0 * half_diagonal).max(f32::EPSILON);
         let strength = self.density / 100.0;
         let mut out = src.data().to_vec();
         for (i, px) in out.as_chunks_mut::<4>().0.iter_mut().enumerate() {
             let (x, y) = ((i as u32 % w) as f32, (i as u32 / w) as f32);
-            let t = (((x - cx).hypot(y - cy) - r0) / r0).clamp(0.0, 1.0);
+            let t = ((libm::hypotf(x - cx, y - cy) - r0) / r0).clamp(0.0, 1.0);
             let k = strength * t * t * (3.0 - 2.0 * t);
             if k == 0.0 {
                 continue;

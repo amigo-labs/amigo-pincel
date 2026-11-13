@@ -246,6 +246,20 @@ export function filterFamilies(families: readonly string[], query: string): stri
 }
 
 /**
+ * The family an agent tool's `font` names (docs/specs/system-fonts-mcp.md
+ * AC-06, AC-07, AC-13): the exact name, else the one family matching it
+ * ignoring case; `null` when none or several match. The same rule as
+ * `match_family` in crates/pincel-agent/src/fonts.rs.
+ */
+export function matchFamily(families: readonly string[], font: string): string | null {
+  if (font === '') return null;
+  if (families.includes(font)) return font;
+  const lower = font.toLowerCase();
+  const matches = families.filter((f) => f.toLowerCase() === lower);
+  return matches.length === 1 ? (matches[0] ?? null) : null;
+}
+
+/**
  * Merges newly added faces into the stored ones (AC-24): a face with the
  * same family and style name as an earlier one replaces it.
  */

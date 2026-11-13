@@ -24,6 +24,7 @@ const MIME_TYPES: &[&str] = &[
     "image/x-tga",
     "image/x-dds",
     "image/vnd.microsoft.icon",
+    "image/jxl",
     "image/vnd.adobe.photoshop",
 ];
 

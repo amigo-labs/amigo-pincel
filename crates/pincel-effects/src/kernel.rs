@@ -16,15 +16,27 @@ pub(crate) fn convolve_3x3(src: &[f32], w: usize, h: usize, kernel: &[f32; 9]) -
     if w == 0 {
         return out;
     }
-    for (y, row) in out.chunks_exact_mut(w * 4).enumerate() {
+    crate::par::for_each_row(&mut out, w * 4, |y, row| {
         conv3x3_row(src, w, h, kernel, y, row);
-    }
+    });
     out
 }
 
 /// Computes output row `y` of [`convolve_3x3`] into `row`
-/// (`out[y * w * 4..(y + 1) * w * 4]`).
+/// (`out[y * w * 4..(y + 1) * w * 4]`). With the `parallel` feature it runs
+/// in an AVX2 build where the CPU has one
+/// (docs/specs/performance-desktop-jobs.md AC-02).
+#[cfg_attr(
+    feature = "parallel",
+    multiversion::multiversion(targets("x86_64+avx2+fma"))
+)]
 fn conv3x3_row(src: &[f32], w: usize, h: usize, kernel: &[f32; 9], y: usize, row: &mut [f32]) {
+    conv3x3_row_body(src, w, h, kernel, y, row);
+}
+
+/// The loop of [`conv3x3_row`], inlined into each of its builds.
+#[inline(always)]
+fn conv3x3_row_body(src: &[f32], w: usize, h: usize, kernel: &[f32; 9], y: usize, row: &mut [f32]) {
     let stride = w * 4;
     // Source rows y - 1, y and y + 1, clamped to the image.
     let rows: [&[f32]; 3] = std::array::from_fn(|ky| {
@@ -63,6 +75,8 @@ const TILE: usize = 32;
 
 /// Sets `out[i]` to the sum of `source[i] * weight` over `taps` in order,
 /// starting from 0.0. Every source is at least `out.len()` floats long.
+/// Inlined, so the row kernels' AVX2 builds vectorize it too.
+#[inline(always)]
 pub(crate) fn accumulate_taps(out: &mut [f32], taps: &[(&[f32], f32)]) {
     let (full, rest) = out.as_chunks_mut::<TILE>();
     for (t, out_tile) in full.iter_mut().enumerate() {
@@ -150,6 +164,28 @@ mod tests {
                     "case {case}: {w}x{h}, element {i}"
                 );
             }
+        }
+    }
+}
+
+#[cfg(all(test, feature = "parallel"))]
+mod dispatch_tests {
+    use super::*;
+
+    #[test]
+    fn conv3x3_row_gives_the_same_bits_in_the_avx2_build() {
+        let (w, h) = (29usize, 17usize);
+        let src: Vec<f32> = (0..w * h * 4)
+            .map(|i| ((i * 2_654_435_761usize) % 9_973) as f32 / 9_973.0)
+            .collect();
+        let kernel = [-0.3, -1.1, 0.2, -1.0, 5.4, -1.0, 0.1, -1.2, -0.1];
+        for y in 0..h {
+            let mut dispatched = vec![0.0f32; w * 4];
+            let mut baseline = vec![0.0f32; w * 4];
+            conv3x3_row(&src, w, h, &kernel, y, &mut dispatched);
+            conv3x3_row_body(&src, w, h, &kernel, y, &mut baseline);
+            let bits = |v: &[f32]| v.iter().map(|f| f.to_bits()).collect::<Vec<_>>();
+            assert_eq!(bits(&dispatched), bits(&baseline), "row {y}");
         }
     }
 }

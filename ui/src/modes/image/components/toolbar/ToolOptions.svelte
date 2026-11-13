@@ -1,7 +1,7 @@
 <script lang="ts">
   // Tool options bar (spec §16.3, §9.2). Controls shown depend on the active
   // tool. Bindings write straight into the tool store.
-  import { tool, editor, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
+  import { tool, editor, live, isShapeTool, type ToolKind } from '../../stores/editor.svelte';
 
   // Size, tip, hardness and the pressure toggles are the same four tools'
   // business; each adds its own control below them.
@@ -19,11 +19,12 @@
     contractSelection,
     featherSelection,
   } from '../../core/controller';
-  import { t } from '../../../../lib/i18n/index.svelte';
+  import { percent, t } from '../../../../lib/i18n/index.svelte';
   import { commitText, textBoxOpen } from '../../core/live-text.svelte';
   import { imageFont } from '../../core/text-font';
   import FontPicker from '../../../../lib/components/fonts/FontPicker.svelte';
   import CloneOptions from './CloneOptions.svelte';
+  import { setTransformQuality, transformBox } from '../../core/transform';
 
   // Hardness only matters for soft/flat tips.
   const showHardness = $derived(tool.shape !== 'hard_round');
@@ -40,9 +41,16 @@
   // The tools that draw an edge Antialiasing can smooth; one shared setting
   // (docs/specs/image-edit-extras-tool-options.md AC-01).
   const showAntiAlias = $derived(
-    ['pencil', 'eraser', 'recolor', 'smudge', 'text', 'ellipse_select', 'lasso', 'polygon_lasso'].includes(
-      tool.kind,
-    ) || isShapeTool(tool.kind),
+    [
+      'pencil',
+      'eraser',
+      'recolor',
+      'smudge',
+      'text',
+      'ellipse_select',
+      'lasso',
+      'polygon_lasso',
+    ].includes(tool.kind) || isShapeTool(tool.kind),
   );
 
   // The tools that composite a paint color; the Gradient only on its Color
@@ -52,6 +60,22 @@
       isShapeTool(tool.kind) ||
       (tool.kind === 'gradient' && tool.gradientChannel === 'color'),
   );
+
+  // Position (top-left corner of the unturned box), size and angle of the
+  // live transform, following a drag (AC-07); nothing before the first drag.
+  const transformReadout = $derived.by(() => {
+    if (live.transform === null && live.transformDrag === null) return null;
+    const b = transformBox();
+    if (b === null) return null;
+    const round = (v: number): number => Math.round(v * 10) / 10;
+    return t('opt.transformReadout', {
+      x: round(b.center[0] - b.size[0] / 2),
+      y: round(b.center[1] - b.size[1] / 2),
+      w: round(b.size[0]),
+      h: round(b.size[1]),
+      angle: round(b.angle),
+    });
+  });
 </script>
 
 <div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
@@ -65,7 +89,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-28" />
-      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <label class="flex items-center gap-2">
@@ -81,7 +105,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.hardness')}</span>
         <input type="range" min="0" max="100" bind:value={tool.hardness} class="w-28" />
-        <span class="w-10 tabular-nums text-pc-text">{tool.hardness}%</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.hardness)}</span>
       </label>
     {/if}
 
@@ -130,7 +154,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.strength')}</span>
         <input type="range" min="1" max="100" bind:value={tool.smudgeStrength} class="w-24" />
-        <span class="w-10 tabular-nums text-pc-text">{tool.smudgeStrength}%</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.smudgeStrength)}</span>
       </label>
     {:else if tool.kind === 'clone'}
       <CloneOptions />
@@ -145,7 +169,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-28" />
-      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <label class="flex items-center gap-2">
@@ -179,6 +203,25 @@
         <option value={31}>31×31</option>
       </select>
     </label>
+  {:else if tool.kind === 'move_selection' || tool.kind === 'move_mask'}
+    <!-- The transform box's quality and readout
+         (docs/specs/image-transform-handles.md AC-07, AC-12). -->
+    <label class="flex items-center gap-2">
+      <span class="text-pc-muted">{t('opt.transformQuality')}</span>
+      <select
+        class="opt-field"
+        value={tool.moveQuality}
+        onchange={(e) => setTransformQuality(Number(e.currentTarget.value))}
+      >
+        <option value={0}>{t('fx.Nearest')}</option>
+        <option value={1}>{t('fx.Bilinear')}</option>
+        <option value={2}>{t('fx.Bicubic')}</option>
+      </select>
+    </label>
+    {#if transformReadout !== null}
+      <span class="tabular-nums text-pc-text" data-transform-readout>{transformReadout}</span>
+    {/if}
+    <span class="text-pc-faint">{t('opt.transformHint')}</span>
   {:else if tool.kind === 'move'}
     <span class="text-pc-faint">{t('opt.moveHint')}</span>
   {:else if isShapeSelect}
@@ -230,7 +273,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
-      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
     <span class="text-pc-faint">{t('opt.gradientHint')}</span>
   {:else if isShapeTool(tool.kind)}
@@ -292,7 +335,7 @@
       <label class="flex items-center gap-2">
         <span class="text-pc-muted">{t('opt.innerRadius')}</span>
         <input type="range" min="10" max="90" bind:value={tool.starInner} class="w-24" />
-        <span class="w-10 tabular-nums text-pc-text">{tool.starInner}%</span>
+        <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.starInner)}</span>
       </label>
     {/if}
 
@@ -307,7 +350,7 @@
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.opacity')}</span>
       <input type="range" min="1" max="100" bind:value={tool.opacity} class="w-24" />
-      <span class="w-10 tabular-nums text-pc-text">{tool.opacity}%</span>
+      <span class="min-w-12 whitespace-nowrap tabular-nums text-pc-text">{percent(tool.opacity)}</span>
     </label>
 
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>

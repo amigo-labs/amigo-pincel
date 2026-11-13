@@ -5,6 +5,7 @@
 // (docs/specs/image-resize-autocrop.md AC-01 – AC-08, AC-22).
 
 import { clampCanvasSize } from './canvas-limits';
+import { usesDecimalComma, type Locale } from '../../lib/i18n/locales';
 
 /** Units of the absolute size. */
 export type SizeUnit = 'px' | 'percent' | 'in' | 'cm';
@@ -16,7 +17,7 @@ export type SizeMode = 'percent' | 'absolute';
 export type SizeField = 'percent' | 'width' | 'height' | 'resolution';
 
 /** The UI language, for the decimal separator. */
-export type SizeLocale = 'en' | 'de';
+export type SizeLocale = Locale;
 
 /** A text field; `exact` holds the unrounded value a unit change set while
  *  the text still shows it, so switching units does not accumulate
@@ -67,13 +68,13 @@ export function parseDecimal(text: string): number | null {
 /** `v` with `decimals` places and the language's decimal separator. */
 export function formatDecimal(v: number, decimals: number, locale: SizeLocale): string {
   const s = v.toFixed(decimals);
-  return locale === 'de' ? s.replace('.', ',') : s;
+  return usesDecimalComma(locale) ? s.replace('.', ',') : s;
 }
 
 /** `v` with at most two decimals, trailing zeros dropped. */
 function formatTrimmed(v: number, locale: SizeLocale): string {
   const s = String(Math.round(v * 100) / 100);
-  return locale === 'de' ? s.replace('.', ',') : s;
+  return usesDecimalComma(locale) ? s.replace('.', ',') : s;
 }
 
 /** An edge length in `unit` as shown: whole pixels, otherwise two decimals. */

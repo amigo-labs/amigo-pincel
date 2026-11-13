@@ -86,14 +86,8 @@
   const summary = $derived(
     svgResult
       ? t('svg.summary', {
-          layers:
-            svgResult.layers === 1
-              ? t('svg.layersOne')
-              : t('svg.layersMany', { n: svgResult.layers }),
-          outlines:
-            svgResult.outlines === 1
-              ? t('svg.outlinesOne')
-              : t('svg.outlinesMany', { n: svgResult.outlines }),
+          layers: t('svg.layers', { n: svgResult.layers }),
+          outlines: t('svg.outlines', { n: svgResult.outlines }),
           size: formatSize(new TextEncoder().encode(svgResult.svg).length),
         })
       : null,

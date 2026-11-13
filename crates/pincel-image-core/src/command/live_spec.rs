@@ -404,3 +404,46 @@ mod tests {
         assert_eq!(kind(&bus), "spiral_ccw");
     }
 }
+
+/// The Move tools' live transform as the editor sees it
+/// (docs/specs/image-transform-handles.md), to draw and hit-test the box.
+#[derive(Debug, Clone, PartialEq, Serialize)]
+#[cfg_attr(feature = "ts", derive(ts_rs::TS))]
+pub struct LiveTransformSpec {
+    /// The layer it lifted from or sits on.
+    pub layer: usize,
+    /// `true`: Move Selected Pixels; `false`: Move Selection.
+    pub pixels: bool,
+    /// The selection's bounds when it began: `[x, y, width, height]`.
+    pub bounds: [i32; 4],
+    /// Centre of the box.
+    pub center: [f64; 2],
+    /// Width and height of the box.
+    pub size: [f64; 2],
+    /// Turn in degrees, clockwise.
+    pub angle: f64,
+    /// Pivot relative to the box.
+    pub pivot: [f64; 2],
+    /// `0` Nearest, `1` Bilinear, `2` Bicubic.
+    pub quality: u32,
+}
+
+/// The live transform of `bus` in wire form, or `None`.
+pub fn live_transform_spec(bus: &CommandBus) -> Option<LiveTransformSpec> {
+    let t = bus.live_transform()?;
+    let s = t.settings;
+    Some(LiveTransformSpec {
+        layer: t.layer,
+        pixels: t.pixels,
+        bounds: [t.bounds.x, t.bounds.y, t.bounds.w as i32, t.bounds.h as i32],
+        center: [s.center.0, s.center.1],
+        size: [s.size.0, s.size.1],
+        angle: s.angle,
+        pivot: [s.pivot.0, s.pivot.1],
+        quality: match s.quality {
+            pincel_effects::transform::Quality::Nearest => 0,
+            pincel_effects::transform::Quality::Bilinear => 1,
+            pincel_effects::transform::Quality::Bicubic => 2,
+        },
+    })
+}

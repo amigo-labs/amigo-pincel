@@ -24,7 +24,7 @@ impl Exposure {
     }
 
     fn lut(&self) -> [u8; 256] {
-        let gain = 2f64.powf(f64::from(self.ev));
+        let gain = libm::pow(2.0, f64::from(self.ev));
         let mut lut = [0u8; 256];
         for (i, v) in lut.iter_mut().enumerate() {
             let lin = srgb_to_linear(i as f64 / 255.0) * gain;

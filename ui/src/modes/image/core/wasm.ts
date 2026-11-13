@@ -2,6 +2,12 @@
 // other module imports the generated bindings directly (CLAUDE.md §5.4). Document state lives in Rust;
 // JS only receives composited pixels and exported bytes (ADR-001).
 import initWasm, {
+  add_generated_layer,
+  fit_variant,
+  generation_input,
+  generation_mask,
+  generation_mask_png,
+  generation_size,
   create_document,
   open_image,
   open_project,
@@ -29,6 +35,8 @@ import initWasm, {
   undo,
   redo,
   agent_call,
+  assistantBegin as assistant_begin,
+  assistantEnd as assistant_end,
   undo_kinds,
   redo_kinds,
   history_dropped,
@@ -41,11 +49,14 @@ import initWasm, {
   export_tiff,
   export_tga,
   export_ico,
+  export_jxl,
   image_to_png,
   get_document_info,
   document_dpi,
   get_selection_mask,
   live_object,
+  live_transform,
+  transform_preview,
   text_layout,
   register_font,
   read_palette_file,
@@ -61,10 +72,11 @@ import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { countCall, publishDocumentCount } from '../../../lib/diagnostics';
 import type { AgentFile } from '../../../lib/shell/types';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
+import type { LiveTransformSpec } from './generated/LiveTransformSpec';
 import type { TextLayout } from './generated/TextLayout';
 import type { TextLayoutRequest } from './generated/TextLayoutRequest';
 
-export type { LiveObjectSpec, TextLayout, TextLayoutRequest };
+export type { LiveObjectSpec, LiveTransformSpec, TextLayout, TextLayoutRequest };
 
 export type { OcrModel, OcrSession, Vectorizer };
 
@@ -627,6 +639,45 @@ export type LiveCommand =
   | { type: 'cancel_live' }
   | { type: 'cancel_live_gesture'; gesture: number };
 
+/** The box, angle, pivot and quality of the Move tools' live transform
+ *  (docs/specs/image-transform-handles.md); `gesture` merges one drag. */
+export interface TransformFields {
+  center_x: number;
+  center_y: number;
+  width: number;
+  height: number;
+  angle: number;
+  pivot_x: number;
+  pivot_y: number;
+  /** 0 Nearest, 1 Bilinear, 2 Bicubic. */
+  quality: number;
+  gesture?: number | null;
+}
+
+/** What a drag preview of the Move tools' transform box gets from the core
+ *  once per drag (docs/specs/image-transform-handles.md AC-20, AC-23). */
+export interface TransformPreviewData {
+  /** The selection's bounds when the transform began, `[x, y, w, h]`. */
+  bounds: [number, number, number, number];
+  /** The layer's opacity as shown (its groups and visibility included). */
+  opacity: number;
+  /** The lifted pixels, straight RGBA8 of `patchSize`; `null` for Move
+   *  Selection. */
+  patch: Uint8ClampedArray<ArrayBuffer> | null;
+  /** The patch's size: the bounds', or less when downscaled. */
+  patchSize: [number, number];
+  /** The requested view rect with the content lifted out, RGBA8 of the
+   *  requested output size. */
+  hole: Uint8ClampedArray<ArrayBuffer>;
+}
+
+/** Begin, change, commit or cancel the Move tools' live transform. */
+export type SelectionTransformCommand =
+  | ({ type: 'begin_transform'; layer: number; pixels: boolean } & TransformFields)
+  | ({ type: 'edit_transform' } & TransformFields)
+  | { type: 'commit_transform' }
+  | { type: 'cancel_transform' };
+
 /** Any command emitted to the core. */
 export type ToolCommand =
   | PencilStrokeCommand
@@ -646,7 +697,8 @@ export type ToolCommand =
   | DrawShapeCommand
   | DrawGradientCommand
   | DrawTextCommand
-  | LiveCommand;
+  | LiveCommand
+  | SelectionTransformCommand;
 
 let initialized: Promise<unknown> | null = null;
 let compiled: WebAssembly.Module | null = null;
@@ -702,6 +754,45 @@ export const core = {
    *  `expand` grows the canvas to cover it there (spec §5.4). */
   pasteLayer: (handle: number, data: Uint8Array, x: number, y: number, expand: boolean): void =>
     paste_layer(handle, data, x, y, expand),
+  /** Width and height for `native` pixels at the aspect ratio of a `w × h`
+   *  target box (docs/specs/comfyui-generate.md, Terms). */
+  generationSize: (native: number, w: number, h: number): [number, number] => {
+    const [gw = 64, gh = 64] = generation_size(native, w, h);
+    return [gw, gh];
+  },
+  /** The selection's coverage inside the target box, one byte per pixel;
+   *  empty without a selection. */
+  generationMask: (handle: number, x: number, y: number, w: number, h: number): Uint8Array =>
+    generation_mask(handle, x, y, w, h),
+  /** The active layer inside the target box fitted to the generation size,
+   *  PNG bytes; empty when it is fully transparent there. */
+  generationInput: (
+    handle: number,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    genW: number,
+    genH: number,
+  ): Uint8Array => generation_input(handle, x, y, w, h, genW, genH),
+  /** A `w × h` mask fitted to the generation size, as a grey PNG. */
+  generationMaskPng: (mask: Uint8Array, w: number, h: number, genW: number, genH: number): Uint8Array =>
+    generation_mask_png(mask, w, h, genW, genH),
+  /** A variant fitted to the `w × h` target box with its alpha multiplied
+   *  by `mask` (empty: none), straight RGBA. */
+  fitVariant: (data: Uint8Array, w: number, h: number, mask: Uint8Array): Uint8ClampedArray =>
+    fit_variant(data, w, h, mask),
+  /** Adds the `w × h` RGBA as a new layer `name` above the active layer at
+   *  `x, y`, as one undo step (AC-12). */
+  addGeneratedLayer: (
+    handle: number,
+    rgba: Uint8ClampedArray,
+    x: number,
+    y: number,
+    w: number,
+    h: number,
+    name: string,
+  ): void => add_generated_layer(handle, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.length), x, y, w, h, name),
   /** PNG of the active layer (`merged`: the visible composite) inside the selection (spec §5.4). */
   copySelection: (handle: number, merged: boolean): Uint8Array => copy_selection(handle, merged),
   /** `copySelection` of the active layer, then clears it, as one undo step. */
@@ -816,15 +907,23 @@ export const core = {
   undo: (handle: number): boolean => undo(handle),
   /** Runs a `pincel-agent` tool on the document as one undo step and
    *  returns its JSON reply (docs/specs/mcp-live-desktop.md); `file` is
-   *  the file the user picked for a reading tool. */
+   *  the file the user picked for a reading tool, `fontsJson` the
+   *  editor's fonts for the call (docs/specs/system-fonts-mcp.md AC-11). */
   agentCall: (
     handle: number,
     docId: string,
     name: string,
     argsJson: string,
     file: AgentFile | null,
-  ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes),
+    fontsJson: string | null = null,
+  ): string => agent_call(handle, docId, name, argsJson, file?.path, file?.bytes, fontsJson),
   redo: (handle: number): boolean => redo(handle),
+  /** An Assistant answer starts on `handle`: the steps until
+   *  `assistantEnd` become one undo step (docs/specs/ai-chat-panel.md AC-08). */
+  assistantBegin: (handle: number): void => assistant_begin(handle),
+  /** The answer ended: its steps become one `assistant` step; `false`,
+   *  adding none, when it changed nothing (AC-09). */
+  assistantEnd: (handle: number): boolean => assistant_end(handle),
   /** Kind ids of the undo steps (oldest first) and the redo steps (next
    *  redo first), and whether a step was dropped (history-panel AC-02). */
   history: (handle: number): { undo: string[]; redo: string[]; dropped: boolean } => ({
@@ -844,8 +943,12 @@ export const core = {
   exportTga: (handle: number): Uint8Array => export_tga(handle),
   /** A one-image ICO of the composite; throws above 256 × 256 px. */
   exportIco: (handle: number): Uint8Array => export_ico(handle),
+  /** Lossless JPEG XL of the composite; throws when a side is 1 px
+   *  (image-formats-more-modern AC-14). */
+  exportJxl: (handle: number): Uint8Array => export_jxl(handle),
   /** Decodes `data` (MIME type or name as the TGA hint) and re-encodes it
-   *  as PNG, so a dropped TGA / DDS / ICO pastes like a browser format. */
+   *  as PNG, so a dropped TGA / DDS / ICO / JPEG XL pastes like a browser
+   *  format. */
   imageToPng: (data: Uint8Array, hint: string): Uint8Array => image_to_png(data, hint),
   documentInfo: (handle: number): DocumentInfo => get_document_info(handle) as DocumentInfo,
   /** Line boxes and caret positions of a text as a live text draws it
@@ -857,6 +960,19 @@ export const core = {
   /** The live object (docs/specs/image-live-objects.md), or `null`. */
   liveObject: (handle: number): LiveObjectSpec | null =>
     live_object(handle) as LiveObjectSpec | null,
+  /** The Move tools' live transform, or `null`. */
+  liveTransform: (handle: number): LiveTransformSpec | null =>
+    live_transform(handle) as LiveTransformSpec | null,
+  /** The selection's content lifted out of `layer` for a transform drag
+   *  preview, with the view rect `[x, y, w, h, outW, outH]` composed
+   *  without it; `null` without a selection. Changes nothing. */
+  transformPreview: (
+    handle: number,
+    layer: number,
+    pixels: boolean,
+    view: readonly number[],
+  ): TransformPreviewData | null =>
+    transform_preview(handle, layer, pixels, Uint32Array.from(view)) as TransformPreviewData | null,
   /** The outline polygon of a box shape over a drag, as the core draws it
    *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
    *  kinds or a box without area. */

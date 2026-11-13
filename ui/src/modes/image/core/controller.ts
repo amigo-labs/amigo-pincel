@@ -136,6 +136,9 @@ export function penFields(
   };
 }
 
+/** The document and selection generation `live.selectionBox` was read at. */
+let selectionBoxFor: string | null = null;
+
 /** Refreshes the active tab's derived document state from the core after a
  *  mutation (and when a tab becomes active). */
 export function syncInfo(): void {
@@ -162,6 +165,13 @@ export function syncInfo(): void {
   editor.hasSelection = info.has_selection;
   editor.selectionGeneration = info.selection_generation;
   live.object = core.liveObject(editor.handle);
+  live.transform = core.liveTransform(editor.handle);
+  // The bounds only change with the selection.
+  const selectionKey = `${editor.handle}:${info.selection_generation}`;
+  if (selectionBoxFor !== selectionKey) {
+    selectionBoxFor = selectionKey;
+    live.selectionBox = info.has_selection ? core.selectionBounds(editor.handle) : null;
+  }
   editor.revision += 1;
 }
 

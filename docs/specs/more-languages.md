@@ -96,19 +96,19 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
+| AC-01 | e2e `the picker lists six languages in their own names; each switches at once and survives a reload (AC-01, AC-02, AC-04)` (ui/e2e/more-languages.spec.ts); `both pickers label each language in its own language (AC-09)` (ui/e2e/i18n.spec.ts, start screen and Settings) | built |        |
+| AC-02 | e2e `the picker lists six languages in their own names; each switches at once and survives a reload …` (ui/e2e/more-languages.spec.ts); `Settings ▸ Language switches menus, panels, tools and buttons at once …` (ui/e2e/i18n.spec.ts) | built |        |
+| AC-03 | `the browser language picks a locale: full tag, base language, Portuguese as pt-BR (AC-03)` and the four browser tests `a es-MX / ja-JP / fr-CA / pt-PT browser starts in … (AC-03, AC-04)` (ui/e2e/more-languages.spec.ts); `Italian browser › starts in English …` (ui/e2e/i18n.spec.ts) | built |        |
+| AC-04 | the four browser tests and the picker test check `<html lang>` (ui/e2e/more-languages.spec.ts) | built |        |
+| AC-05 | every dictionary is typed `Record<MessageKey, string>` against `en.ts` (`pnpm check`); `every translation has exactly the placeholders of its English source (AC-06)` walks every English key in every locale (ui/e2e/i18n-format.spec.ts) | built |        |
+| AC-06 | `every translation has exactly the placeholders of its English source (AC-06)` (ui/e2e/i18n-format.spec.ts) | built |        |
+| AC-07 | `count messages follow the locale plural rules (AC-07, AC-08)`, `no shown message uses a "(s)"-style fallback (AC-07)` (ui/e2e/i18n-format.spec.ts) | built |        |
+| AC-08 | `count messages follow the locale plural rules (AC-07, AC-08)` (ui/e2e/i18n-format.spec.ts); every plural block in `ja.ts` has only its `other` form | built |        |
+| AC-09 | `numbers, percentages and dates follow the locale (AC-09)` (ui/e2e/i18n-format.spec.ts); e2e `French writes the brush opacity as a French percentage (AC-09)` (ui/e2e/more-languages.spec.ts) | built |        |
+| AC-10 | e2e `at 1280 px <locale> fits or shows its full text as a tooltip (AC-10)` and `at 390 px …`, twelve tests over the start screen, New dialog, menu bar, options bar (five tools) and paste dialog (ui/e2e/more-languages.spec.ts) | built |        |
+| AC-11 | `labels_for_each_language_with_english_fallback`, `set_language_switches_the_current_labels`, `every_label_set_is_complete` (src-tauri/src/menu_labels.rs); the updater's messages are in-app now (About dialog, `t()`), so they follow the UI language with every other string | built |        |
+| AC-12 | e2e `layer names stay as stored in every language (AC-12)` (ui/e2e/more-languages.spec.ts); `… stay untranslated in German (AC-08)` (ui/e2e/i18n.spec.ts) | built |        |
+| AC-13 | manual: a native reader checks the core terms per language (Decisions, 2026-11-12, lists the choices to review) | open |        |
 
 ## Decisions
 
@@ -123,3 +123,7 @@ Hints from the legacy plan and a 2026-10-29 code check; paths and line numbers d
 - 2026-10-29: Every user-visible percentage, decimal and date anywhere in the UI goes through one `formatNumber` / `formatPercent` / `formatDate` helper; technical sizes stay unformatted (AC-09) — mixed separators on one screen look broken, and one helper costs less than deciding per call site (owner accepted the recommendation).
 - 2026-10-29: Ships machine-assisted; one review issue per locale. All four new locales ship marked "machine-assisted, review pending" (header note plus glossary), with one tracking issue per locale for a native review, and the owner names any reviewer they have — the plan says not to block on reviewers, and AC-13 is a manual check anyway (owner accepted the recommendation).
 - 2026-11-12: The entry moved from the View menu into the Settings dialog (Edit ▸ Settings…, Ctrl+, / ⌘,; `settings-dialog`) — the owner wanted View to hold only what the canvas shows. Its behavior is unchanged.
+- 2026-11-12 (spec-build): count messages use a small ICU subset in the dictionaries, `{n, plural, one {# file} other {# files}}`, resolved by `ui/src/lib/i18n/format.ts` with `Intl.PluralRules` (no dependency; Decision Log 2026-11-12); the `(s)` fallbacks and the code-chosen `…One` / `…Many` key pairs (SVG export, keymap import) became single plural keys, so French takes "one" for 0. `percent()`, `decimal()` and `dateTime()` format the options bar, the Layers panel opacity, the Image zoom label and the Recovery dialog; the Image-mode size input and rulers write a decimal comma for de, es, fr and pt-BR (`usesDecimalComma`). Pixel mode's zoom label is a factor ("4×"), a technical value.
+- 2026-11-12 (spec-build): locale detection lives in rune-free `ui/src/lib/i18n/locales.ts` (`pickLocale`), so a Node-side spec tests it. The French percent separator is whatever the runtime's CLDR writes (U+00A0 in Node 26 / CLDR 48, U+202F in older data); the test accepts either no-break space, which is what AC-09 asks for.
+- 2026-11-12 (spec-build): the four dictionaries were translated by one agent each against `en.ts`, with Photoshop / Aseprite / paint.net terms; each checked key count, order and placeholders. Choices for the AC-13 review: es — frame "Fotograma", slice "Sector", marquee "Marco", feather "Calar", smudge "Dedo"; ja — Photoshop JP names (選択範囲, なげなわ, 自動選択, ぼかし, 2 階調化), image mode "イメージ"; fr — frame "image" (the Frame menu "Animation" beside Pixel mode's "Image" menu), inch "po", RGB "RVB", "{action} : échec ({error})"; pt-BR — marquee "Letreiro", tag "Etiqueta", glow "Luminescência", inch "pol". Width / height abbreviations follow each language (es An/Al, fr L/H, pt-BR L/A).
+- 2026-11-12 (spec-build): `i18n` AC-02 and AC-09 were reworded for six locales (see that spec). The layout check (AC-10) found nothing to fix at 1280 px or 390 px. Red runs: the formatting and placeholder tests failed to load before `format.ts` and the dictionaries existed; the picker, detection and layout tests ran red against the two-locale build (five-language list missing, Spanish browser English); the menu-label tests failed to compile before `menu_labels.rs`.

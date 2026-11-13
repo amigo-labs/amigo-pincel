@@ -165,13 +165,20 @@ mod tests {
             .collect()
     }
 
-    /// Every kind the Pixel core reports has an English and a German name
+    /// Every kind the Pixel core reports has a name in every UI language
     /// (`docs/specs/history-panel.md` AC-04, AC-16, AC-17): `history.<id>`
     /// in the history dictionaries, the effect menu's `effect.<name>` for
     /// an effect.
     #[test]
-    fn every_history_kind_has_an_english_and_a_german_name() {
-        for (history, main) in [("history-en.ts", "en.ts"), ("history-de.ts", "de.ts")] {
+    fn every_history_kind_has_a_name_in_every_language() {
+        for (history, main) in [
+            ("history-en.ts", "en.ts"),
+            ("history-de.ts", "de.ts"),
+            ("history-es.ts", "es.ts"),
+            ("history-ja.ts", "ja.ts"),
+            ("history-fr.ts", "fr.ts"),
+            ("history-pt-br.ts", "pt-br.ts"),
+        ] {
             let history_keys = keys_in(history);
             let main_keys = keys_in(main);
             for id in history_kind_ids() {

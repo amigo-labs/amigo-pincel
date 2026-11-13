@@ -14,7 +14,7 @@ Reverse-engineered from the code on 2026-10-29 (`/spec-extract`). They describe 
 | Area | Specs |
 | ---- | ----- |
 | Pixel mode | [aseprite-round-trip](aseprite-round-trip.md) |
-| Both modes | [i18n](i18n.md), [autosave-recovery](autosave-recovery.md) (AC-15 reworded 2026-11-11: the web editor at the root) |
+| Both modes | [i18n](i18n.md) |
 | Shell and platform | [file-access](file-access.md), [desktop-app](desktop-app.md) |
 
 ## Planned features — order
@@ -35,7 +35,6 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | - | ---- | ---- | ---- | ---------- | ---- |
 | B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
 | B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
-| B7 | [image-transform-handles](image-transform-handles.md) | Image | L | image-transform-handles-rotate-zoom, image-live-objects | Scale / rotate selected pixels and the selection with handles |
 
 ### C — Editor feedback
 
@@ -59,7 +58,6 @@ Installed fonts in both Text tools; the MCP part after `mcp-parity-drawing`.
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | E1 | [system-fonts](system-fonts.md) | both | L | — | Installed fonts in both Text tools (fontdb, Local Font Access, font files) |
-| E2 | [system-fonts-mcp](system-fonts-mcp.md) | both | M | system-fonts, mcp-parity-drawing | MCP draw.text font argument and font.list |
 
 ### F — Image size, view and files
 
@@ -83,7 +81,6 @@ Owner priority; measure first, then the budgets of pincel.md §4.5.
 | G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
 | G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
 | G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
-| G8 | [performance-desktop-jobs](performance-desktop-jobs.md) | both | M | performance-background-jobs | Desktop only |
 
 ### H — Other planned features
 
@@ -134,6 +131,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [adjustments-paintnet](adjustments-paintnet.md)
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
+- [autosave-recovery](autosave-recovery.md)
 - [clone-stamp](clone-stamp.md)
 - [color-picker](color-picker.md)
 - [comfyui-connect](comfyui-connect.md)
@@ -161,6 +159,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [image-shapes-curves](image-shapes-curves.md)
 - [image-shapes-curves-shapes](image-shapes-curves-shapes.md)
 - [image-resize-autocrop](image-resize-autocrop.md)
+- [image-transform-handles](image-transform-handles.md)
 - [image-transform-handles-rotate-zoom](image-transform-handles-rotate-zoom.md)
 - [indexed-grayscale-compose](indexed-grayscale-compose.md)
 - [linked-cels-group-compose](linked-cels-group-compose.md)
@@ -194,6 +193,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
+- [system-fonts-mcp](system-fonts-mcp.md)
 - [tilemaps](tilemaps.md)
 - [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
@@ -203,6 +203,12 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 No longer built here; kept for their history.
 
 - [website](website.md), [website-comparison](website-comparison.md) and the design spec [website-spec](website-spec.md): the marketing site moved to [amigo-labs.dev/pincel](https://amigo-labs.dev/pincel/), built by `amigo-labs/website` from `docs/site/` (the comparison is `comparisons` in `docs/site/project.yml`). `pincel.amigo-labs.dev` serves only the editor at `/app/` and redirects its old pages (`cloudflare/_redirects`); pincel.md §15, 2026-11-09, issue #141.
+
+## Dropped
+
+Not built; kept for their measurements and decisions (`status: dropped`).
+
+- [performance-desktop-jobs](performance-desktop-jobs.md): the native job backend on desktop is removed — measured, the SIMD Web Worker is as fast or faster at every size, so no crossover exists; the worker stays the only backend (owner, pincel.md §15, 2026-11-13).
 
 ## Open items outside specs
 

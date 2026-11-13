@@ -14,8 +14,10 @@ pub mod color;
 pub mod command;
 pub mod document;
 pub mod error;
+pub mod generate;
 pub mod geometry;
 pub mod jobs;
+mod par;
 pub mod render;
 pub mod selection;
 pub mod tools;
@@ -25,11 +27,11 @@ pub use color::{BlendMode, Color};
 pub use command::{
     AddGroup, AddLayer, Anchor, AutoCrop, BoxShape, CanvasRotation, Command, CommandBus,
     CropToSelection, DuplicateLayer, FlattenImage, FlipCanvas, LIVE_REACH, LayerTransform,
-    LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind, MergeDown,
-    MergeGroup, MergeVisible, MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer, RenameLayer,
-    ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode, SetLayerLocked,
-    SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer, UndoStack,
-    auto_crop_rect,
+    LiveEdit, LiveGradient, LiveObject, LiveParams, LiveShape, LiveShapeKind, LiveTransform,
+    MergeDown, MergeGroup, MergeVisible, MoveLayer, MoveLayerTo, PasteLayer, RemoveLayer,
+    RenameLayer, ResizeCanvas, RotateCanvas, RotateLayer90, ScaleImage, SetLayerBlendMode,
+    SetLayerLocked, SetLayerOpacity, SetLayerVisible, SetPixels, SetSelection, TransformLayer,
+    TransformLift, TransformSettings, UndoStack, auto_crop_rect,
 };
 pub use document::{
     CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,

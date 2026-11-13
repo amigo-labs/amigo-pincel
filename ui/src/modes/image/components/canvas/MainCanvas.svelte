@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { t } from '../../../../lib/i18n/index.svelte';
+  import { percent, t } from '../../../../lib/i18n/index.svelte';
   import { onMount } from 'svelte';
   import {
     editor,
@@ -12,6 +12,7 @@
     MAX_ZOOM,
   } from '../../stores/editor.svelte';
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
+  import { assistantBusy } from '../../../../lib/assistant/chat.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
   import { readCompositeRegion, redo, undo } from '../../core/controller';
@@ -19,13 +20,17 @@
   import { touchGestures } from '../../../../lib/shell/touch-gestures.svelte';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
+  import { drawDragPreview } from '../../render/transform-preview';
   import { attachTools, gestureControl } from '../../tools/pointer';
+  import { boxPreview } from '../../tools/transform-drag';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
   import CloneCrosshair from './CloneCrosshair.svelte';
   import PixelGrid from './PixelGrid.svelte';
   import LiveHandles from './LiveHandles.svelte';
+  import TransformBox from './TransformBox.svelte';
   import TextBox from './TextBox.svelte';
+  import GeneratePreview from './GeneratePreview.svelte';
 
   // `canvas` is the viewport-sized render target; `surface` is a backing-
   // store-free element covering the document inside the transformed stage
@@ -55,6 +60,9 @@
       canvas.clientWidth,
       canvas.clientHeight,
       window.devicePixelRatio,
+      // A transform-box drag in flight is drawn by the editor, not the core
+      // (image-transform-handles AC-20, AC-23).
+      boxPreview.current === null ? '' : JSON.stringify(live.transformDrag?.box ?? null),
     ].join(':');
   }
 
@@ -76,9 +84,13 @@
     // An open effect dialog overrides the canvas with its live preview.
     const preview = editor.previewComposite;
     drawnPreview = preview;
-    const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
-    drawViewport(canvas, editor.width, editor.height, view, sample);
+    const drag = preview ? null : boxPreview.current;
+    if (drag === null || !drawDragPreview(canvas, editor.width, editor.height, view, drag)) {
+      const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
+      drawViewport(canvas, editor.width, editor.height, view, sample);
+    }
     ready = true;
+    previewDrawn = preview !== null;
   }
 
   /** Draws in the next animation frame, once however often it is asked. */
@@ -228,8 +240,9 @@
     }
     // While an effect (or another editor dialog) is open the canvas only
     // zooms and pans: the press never reaches the tool dispatcher; the
-    // middle-button pan below still gets it (effect-panel AC-03).
-    if (ui.modalOpen && e.button !== 1 && !onInteractiveTarget(e)) {
+    // middle-button pan below still gets it (effect-panel AC-03). The same
+    // holds while an Assistant answer runs (ai-chat-panel AC-10).
+    if ((ui.modalOpen || assistantBusy()) && e.button !== 1 && !onInteractiveTarget(e)) {
       e.stopPropagation();
       e.preventDefault();
       return;
@@ -476,6 +489,9 @@
   // A document is open, fitted and drawn — the canvas takes input.
   // Published as `data-ready` on the surface.
   let ready = $state(false);
+  // Whether the last drawing shows an effect preview; published as
+  // `data-preview`, so a test waits for the preview to be on screen.
+  let previewDrawn = $state(false);
   $effect(() => {
     const handle = editor.handle;
     if (handle !== lastHandle) {
@@ -538,14 +554,17 @@
       role="img"
       aria-label="Image canvas"
       data-ready={ready}
+      data-preview={previewDrawn}
       style="width: {editor.width}px; height: {editor.height}px; cursor: {cursor};"
     ></div>
+    <GeneratePreview />
   </div>
 
   <PixelGrid />
   <CanvasOverlay />
   <CloneCrosshair />
   <LiveHandles />
+  <TransformBox />
   <TextBox />
 
   {#if zoomRect}
@@ -558,7 +577,7 @@
   <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
   {#if editor.handle !== null}
     <ZoomControl
-      label={`${Math.round(view.zoom * 100)}%`}
+      label={percent(Math.round(view.zoom * 100))}
       onZoomIn={() => setZoom(view.zoom * 1.25)}
       onZoomOut={() => setZoom(view.zoom / 1.25)}
       onFit={fitView}

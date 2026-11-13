@@ -1,7 +1,7 @@
 <script lang="ts">
   import Button from './Button.svelte';
   import type { AutosaveSnapshotMeta } from '../idb/autosave';
-  import { t } from '../i18n/index.svelte';
+  import { dateTime, decimal, t } from '../i18n/index.svelte';
 
   // Modal shown on app boot when the IDB autosave store holds
   // snapshots from a prior session. The parent owns the snapshot
@@ -32,15 +32,15 @@
     onDismiss: () => void;
   } = $props();
 
+  // In the UI language, not the browser's (docs/specs/more-languages.md AC-09).
   function formatTimestamp(ts: number): string {
-    const d = new Date(ts);
-    return d.toLocaleString();
+    return dateTime(ts);
   }
 
   function formatBytes(n: number): string {
     if (n < 1024) return `${n} B`;
-    if (n < 1024 * 1024) return `${(n / 1024).toFixed(1)} KB`;
-    return `${(n / (1024 * 1024)).toFixed(2)} MB`;
+    if (n < 1024 * 1024) return `${decimal(n / 1024, 1)} KB`;
+    return `${decimal(n / (1024 * 1024), 2)} MB`;
   }
 </script>
 
@@ -62,16 +62,16 @@
     <p class="text-xs text-pc-muted">{t('recovery.body')}</p>
     <ul class="flex flex-col gap-2">
       {#each snapshots as snap (snap.docId)}
-        <li
-          class="flex flex-col gap-1 rounded border border-pc-border bg-pc-bg px-3 py-2"
-        >
+        <li class="flex flex-col gap-1 rounded border border-pc-border bg-pc-bg px-3 py-2">
           <div class="flex items-center justify-between gap-3">
             <div class="flex min-w-0 flex-col">
               <span class="truncate font-medium" title={snap.name}>
                 {snap.name}
               </span>
               <span class="text-xs text-pc-faint">
-                {t(`mode.${snap.mode ?? 'pixel'}`)} · {formatTimestamp(snap.ts)} · {formatBytes(snap.byteLength)}
+                {t(`mode.${snap.mode ?? 'pixel'}`)} · {formatTimestamp(snap.ts)} · {formatBytes(
+                  snap.byteLength,
+                )}
               </span>
             </div>
             <div class="flex shrink-0 gap-1">

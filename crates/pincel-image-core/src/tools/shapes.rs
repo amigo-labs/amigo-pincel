@@ -395,7 +395,7 @@ impl Shape {
                 let verts = (0..steps)
                     .map(|i| {
                         let t = std::f32::consts::TAU * i as f32 / steps as f32;
-                        Point::new(cx + hx * t.cos(), cy + hy * t.sin())
+                        Point::new(cx + hx * libm::cosf(t), cy + hy * libm::sinf(t))
                     })
                     .collect();
                 (verts, true)
@@ -411,7 +411,10 @@ impl Shape {
                     .map(|i| {
                         let ang = rotation - std::f32::consts::FRAC_PI_2
                             + std::f32::consts::TAU * i as f32 / n as f32;
-                        Point::new(center.x + radius * ang.cos(), center.y + radius * ang.sin())
+                        Point::new(
+                            center.x + radius * libm::cosf(ang),
+                            center.y + radius * libm::sinf(ang),
+                        )
                     })
                     .collect();
                 (verts, true)
@@ -467,7 +470,7 @@ fn rounded_rect_polyline(cx: f32, cy: f32, hx: f32, hy: f32, r: f32) -> (Vec<Poi
     for (ax, ay, start) in centers {
         for i in 0..=arc_steps {
             let t = start + std::f32::consts::FRAC_PI_2 * i as f32 / arc_steps as f32;
-            verts.push(Point::new(ax + r * t.cos(), ay + r * t.sin()));
+            verts.push(Point::new(ax + r * libm::cosf(t), ay + r * libm::sinf(t)));
         }
     }
     (verts, true)
@@ -608,8 +611,8 @@ impl ShapeGeom {
                     let ang = rotation - std::f32::consts::FRAC_PI_2
                         + std::f32::consts::TAU * i as f32 / n as f32;
                     verts.push(Point::new(
-                        center.x + radius * ang.cos(),
-                        center.y + radius * ang.sin(),
+                        center.x + radius * libm::cosf(ang),
+                        center.y + radius * libm::sinf(ang),
                     ));
                 }
                 ShapeGeom::Polygon {

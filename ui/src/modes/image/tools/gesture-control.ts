@@ -19,6 +19,10 @@ export const gestureControl = {
   /** Commits the active document's live object, if any (tab switch, save;
    *  docs/specs/image-live-objects-ui.md AC-09, AC-15). Set by `core/live`. */
   commitLive: (): void => {},
+  /** Commits the Move tools' live transform, if any (tab switch, an MCP
+   *  call; docs/specs/image-transform-handles.md AC-08, AC-18). Saving does
+   *  not: the file holds the transform as applied. Set by `core/transform`. */
+  commitTransform: (): void => {},
   /** Undo or Redo is about to run: the live text puts its caret at the end
    *  and closes an empty box (docs/specs/image-live-text.md AC-01, AC-13).
    *  Set by `core/live-text`. */
