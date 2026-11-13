@@ -1293,6 +1293,7 @@ export const de: Record<MessageKey, string> = {
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.fmtIco': 'ICO (Windows-Symbol)',
   'save.icoTooLarge': 'ICO fasst höchstens 256 × 256 px. Wähle ein anderes Format.',
+  'save.jxlTooSmall': 'JPEG XL braucht mindestens 2 × 2 px. Wähle ein anderes Format.',
   'save.noEncoder':
     '{format}-Dateien können nicht zurückgeschrieben werden. Wähle ein Format zum Speichern.',
   'psd.notice': 'Mit Änderungen geöffnet: {items}',

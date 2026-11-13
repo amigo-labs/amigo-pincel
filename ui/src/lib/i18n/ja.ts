@@ -1292,6 +1292,7 @@ export const ja: Record<MessageKey, string> = {
   'save.fmtOra': 'OpenRaster（.ora）',
   'save.fmtIco': 'ICO（Windows アイコン）',
   'save.icoTooLarge': 'ICO は最大 256 × 256 px までです。別の形式を選んでください。',
+  'save.jxlTooSmall': 'JPEG XL は最小 2 × 2 px 必要です。別の形式を選んでください。',
   'save.noEncoder': '{format} ファイルには書き戻せません。保存する形式を選んでください。',
   // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)
   'psd.notice': '変更を加えて開きました: {items}',

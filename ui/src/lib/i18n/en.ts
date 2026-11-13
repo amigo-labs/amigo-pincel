@@ -1284,6 +1284,7 @@ export const en = {
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.fmtIco': 'ICO (Windows icon)',
   'save.icoTooLarge': 'ICO holds at most 256 × 256 px. Choose another format.',
+  'save.jxlTooSmall': 'JPEG XL needs at least 2 × 2 px. Choose another format.',
   'save.noEncoder': '{format} files cannot be written back. Choose a format to save in.',
   // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)
   'psd.notice': 'Opened with changes: {items}',

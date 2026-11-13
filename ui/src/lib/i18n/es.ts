@@ -1294,6 +1294,7 @@ export const es: Record<MessageKey, string> = {
   'save.fmtOra': 'OpenRaster (.ora)',
   'save.fmtIco': 'ICO (icono de Windows)',
   'save.icoTooLarge': 'ICO admite como máximo 256 × 256 px. Elija otro formato.',
+  'save.jxlTooSmall': 'JPEG XL necesita al menos 2 × 2 px. Elija otro formato.',
   'save.noEncoder':
     'Los archivos {format} no se pueden volver a escribir. Elija un formato para guardar.',
   // PSD import notice (docs/specs/psd-import.md AC-04, AC-06, AC-07, AC-14)
