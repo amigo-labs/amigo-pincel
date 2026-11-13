@@ -20,7 +20,9 @@
   import { touchGestures } from '../../../../lib/shell/touch-gestures.svelte';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
+  import { drawDragPreview } from '../../render/transform-preview';
   import { attachTools, gestureControl } from '../../tools/pointer';
+  import { boxPreview } from '../../tools/transform-drag';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
   import CanvasOverlay from './CanvasOverlay.svelte';
   import CloneCrosshair from './CloneCrosshair.svelte';
@@ -58,6 +60,9 @@
       canvas.clientWidth,
       canvas.clientHeight,
       window.devicePixelRatio,
+      // A transform-box drag in flight is drawn by the editor, not the core
+      // (image-transform-handles AC-20, AC-23).
+      boxPreview.current === null ? '' : JSON.stringify(live.transformDrag?.box ?? null),
     ].join(':');
   }
 
@@ -79,8 +84,11 @@
     // An open effect dialog overrides the canvas with its live preview.
     const preview = editor.previewComposite;
     drawnPreview = preview;
-    const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
-    drawViewport(canvas, editor.width, editor.height, view, sample);
+    const drag = preview ? null : boxPreview.current;
+    if (drag === null || !drawDragPreview(canvas, editor.width, editor.height, view, drag)) {
+      const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
+      drawViewport(canvas, editor.width, editor.height, view, sample);
+    }
     ready = true;
     previewDrawn = preview !== null;
   }

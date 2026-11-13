@@ -905,7 +905,9 @@ export function attachTools(
     commitPolygon();
     return true;
   };
-  gestureControl.cancelLiveDrag = cancelLiveDrag;
+  // Undo during a transform-box drag drops that drag, nothing of it applied
+  // (image-transform-handles, Edge cases).
+  gestureControl.cancelLiveDrag = () => cancelLiveDrag() || boxDrags.drop();
   gestureControl.inProgress = () => active || boxDrags.busy();
   const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 

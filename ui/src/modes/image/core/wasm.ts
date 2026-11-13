@@ -56,6 +56,7 @@ import initWasm, {
   get_selection_mask,
   live_object,
   live_transform,
+  transform_preview,
   text_layout,
   register_font,
   read_palette_file,
@@ -653,6 +654,23 @@ export interface TransformFields {
   gesture?: number | null;
 }
 
+/** What a drag preview of the Move tools' transform box gets from the core
+ *  once per drag (docs/specs/image-transform-handles.md AC-20, AC-23). */
+export interface TransformPreviewData {
+  /** The selection's bounds when the transform began, `[x, y, w, h]`. */
+  bounds: [number, number, number, number];
+  /** The layer's opacity as shown (its groups and visibility included). */
+  opacity: number;
+  /** The lifted pixels, straight RGBA8 of `patchSize`; `null` for Move
+   *  Selection. */
+  patch: Uint8ClampedArray<ArrayBuffer> | null;
+  /** The patch's size: the bounds', or less when downscaled. */
+  patchSize: [number, number];
+  /** The requested view rect with the content lifted out, RGBA8 of the
+   *  requested output size. */
+  hole: Uint8ClampedArray<ArrayBuffer>;
+}
+
 /** Begin, change, commit or cancel the Move tools' live transform. */
 export type SelectionTransformCommand =
   | ({ type: 'begin_transform'; layer: number; pixels: boolean } & TransformFields)
@@ -945,6 +963,16 @@ export const core = {
   /** The Move tools' live transform, or `null`. */
   liveTransform: (handle: number): LiveTransformSpec | null =>
     live_transform(handle) as LiveTransformSpec | null,
+  /** The selection's content lifted out of `layer` for a transform drag
+   *  preview, with the view rect `[x, y, w, h, outW, outH]` composed
+   *  without it; `null` without a selection. Changes nothing. */
+  transformPreview: (
+    handle: number,
+    layer: number,
+    pixels: boolean,
+    view: readonly number[],
+  ): TransformPreviewData | null =>
+    transform_preview(handle, layer, pixels, Uint32Array.from(view)) as TransformPreviewData | null,
   /** The outline polygon of a box shape over a drag, as the core draws it
    *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
    *  kinds or a box without area. */

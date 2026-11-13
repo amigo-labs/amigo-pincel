@@ -62,9 +62,9 @@
   );
 
   // Position (top-left corner of the unturned box), size and angle of the
-  // live transform (AC-07); nothing before the first drag.
+  // live transform, following a drag (AC-07); nothing before the first drag.
   const transformReadout = $derived.by(() => {
-    if (live.transform === null) return null;
+    if (live.transform === null && live.transformDrag === null) return null;
     const b = transformBox();
     if (b === null) return null;
     const round = (v: number): number => Math.round(v * 10) / 10;

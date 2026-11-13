@@ -1,8 +1,8 @@
 // Geometry of the Move tools' transform box (docs/specs/image-transform-handles.md):
 // the box, its eight handles and pivot, hit-testing in screen pixels and
-// what a drag of each part does to the box. Pure and rune-free, so a
-// Node-side Playwright spec can drive it; the core applies the result
-// (`begin_transform` / `edit_transform`).
+// what a drag of each part does to the box, and the maps the drag preview
+// draws with. Pure and rune-free, so a Node-side Playwright spec can drive
+// it; the core applies the result (`begin_transform` / `edit_transform`).
 
 type Pt = readonly [number, number];
 
@@ -193,4 +193,64 @@ export function normalizeAngle(angle: number): number {
 export function movePivot(b: BoxState, p: Pt): BoxState {
   const [lx, ly] = toLocal(b, p);
   return { ...b, pivot: [lx / b.size[0] + 0.5, ly / b.size[1] + 0.5] };
+}
+
+/** A 2-D affine map `[a, b, c, d, e, f]`: `x' = a·x + b·y + c`,
+ *  `y' = d·x + e·y + f`. */
+export type Matrix = readonly [number, number, number, number, number, number];
+
+/** `m` after `n`: the map that applies `n` first. */
+function compose(m: Matrix, n: Matrix): Matrix {
+  return [
+    m[0] * n[0] + m[1] * n[3],
+    m[0] * n[1] + m[1] * n[4],
+    m[0] * n[2] + m[1] * n[5] + m[2],
+    m[3] * n[0] + m[4] * n[3],
+    m[3] * n[1] + m[4] * n[4],
+    m[3] * n[2] + m[4] * n[5] + m[5],
+  ];
+}
+
+/** The map from the box's unit square (`[-0.5, 0.5]²`) to the canvas. */
+function frame(b: BoxState): Matrix {
+  const { u, v } = axes(b.angle);
+  return [
+    u[0] * b.size[0],
+    v[0] * b.size[1],
+    b.center[0],
+    u[1] * b.size[0],
+    v[1] * b.size[1],
+    b.center[1],
+  ];
+}
+
+/** The inverse of `m`; `null` when it collapses the plane. */
+function invert(m: Matrix): Matrix | null {
+  const det = m[0] * m[4] - m[1] * m[3];
+  if (!Number.isFinite(det) || det === 0) return null;
+  const [a, b, d, e] = [m[4] / det, -m[1] / det, -m[3] / det, m[0] / det];
+  return [a, b, -(a * m[2] + b * m[5]), d, e, -(d * m[2] + e * m[5])];
+}
+
+/** The map from patch pixels (`(0, 0)` = the corner of `bounds`, the
+ *  selection's `[x, y, w, h]` when the transform began) to the canvas for
+ *  box `b` — the map the core applies (`Base::forward` in
+ *  `live_transform.rs`), which the drag preview draws with (AC-20). */
+export function patchMatrix(
+  b: BoxState,
+  bounds: readonly [number, number, number, number],
+): Matrix {
+  return compose(frame(b), [1 / bounds[2], 0, -0.5, 0, 1 / bounds[3], -0.5]);
+}
+
+/** The map that takes box `from` onto box `to`: how the outline moves
+ *  during a drag (AC-23); `null` for a degenerate `from`. */
+export function relativeMatrix(from: BoxState, to: BoxState): Matrix | null {
+  const inv = invert(frame(from));
+  return inv === null ? null : compose(frame(to), inv);
+}
+
+/** Point `p` under map `m`. */
+export function applyMatrix(m: Matrix, p: Pt): [number, number] {
+  return [m[0] * p[0] + m[1] * p[1] + m[2], m[3] * p[0] + m[4] * p[1] + m[5]];
 }

@@ -1,5 +1,6 @@
 import { expect, test } from '@playwright/test';
 import {
+  applyMatrix,
   boxOfBounds,
   corners,
   dragCorner,
@@ -7,7 +8,9 @@ import {
   handles,
   hitBox,
   movePivot,
+  patchMatrix,
   pivotPoint,
+  relativeMatrix,
   rotateBox,
   translateBox,
   type BoxState,
@@ -99,4 +102,26 @@ test('hit-testing in screen pixels: pivot, handles, inside, outside (AC-05)', ()
   expect(hitBox(box, [40, 55], 1).kind).toBe('outside');
   expect(hitBox(box, [40, 45], 4).kind).toBe('outside');
   expect(handles(box)).toHaveLength(8);
+});
+
+test('the preview maps: the patch onto the box, one box onto another (AC-20, AC-23)', () => {
+  const bounds = [10, 20, 40, 20] as const;
+  // Scaled, turned and moved: the patch's corners land on the box's.
+  const b = rotateBox(dragCorner(box, 2, [90, 50], false), [70, 20], [60, 70], false);
+  const m = patchMatrix(b, bounds);
+  const patchCorners: [number, number][] = [
+    [0, 0],
+    [40, 0],
+    [40, 20],
+    [0, 20],
+  ];
+  patchCorners.forEach((p, i) => close(applyMatrix(m, p), corners(b)[i] ?? []));
+  // The untouched box maps patch pixels to where they are.
+  close(applyMatrix(patchMatrix(box, bounds), [5, 7]), [15, 27]);
+  // From the box at the start of a drag to the box now.
+  const r = relativeMatrix(box, b);
+  expect(r).not.toBeNull();
+  corners(box).forEach((p, i) =>
+    close(applyMatrix(r ?? [1, 0, 0, 0, 1, 0], p), corners(b)[i] ?? []),
+  );
 });

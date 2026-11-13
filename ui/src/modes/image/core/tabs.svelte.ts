@@ -69,6 +69,7 @@ export function activateTab(tab: ImageTab): void {
   // Only the active tab can have a live object, and switching committed it.
   live.object = null;
   live.transform = null;
+  live.transformDrag = null;
   // The box of the Move tools shows this tab's selection
   // (image-transform-handles AC-01).
   const handle = tab.doc.handle;

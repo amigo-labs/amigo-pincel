@@ -58,6 +58,110 @@ function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   return checker;
 }
 
+/** The visible document rect of a viewport-sized canvas and its output
+ *  size (see `RegionSampler`), in whole document pixels. */
+export interface ViewportRegion {
+  readonly x0: number;
+  readonly y0: number;
+  readonly rw: number;
+  readonly rh: number;
+  readonly ow: number;
+  readonly oh: number;
+  readonly dpr: number;
+}
+
+/**
+ * Sizes the viewport-sized `canvas` to its CSS box at the device pixel
+ * ratio, clears it and returns its 2D context with the visible rect of a
+ * `docW × docH` document at `view`; `region` is `null` when no document
+ * pixel shows.
+ */
+export function prepareViewport(
+  canvas: HTMLCanvasElement,
+  docW: number,
+  docH: number,
+  view: ViewTransform,
+): { ctx: CanvasRenderingContext2D; region: ViewportRegion | null } | null {
+  const dpr = window.devicePixelRatio || 1;
+  const cssW = canvas.clientWidth;
+  const cssH = canvas.clientHeight;
+  const cw = Math.max(1, Math.round(cssW * dpr));
+  const ch = Math.max(1, Math.round(cssH * dpr));
+  if (canvas.width !== cw || canvas.height !== ch) {
+    canvas.width = cw;
+    canvas.height = ch;
+  }
+  const ctx = canvas.getContext('2d');
+  if (!ctx) {
+    return null;
+  }
+  ctx.setTransform(1, 0, 0, 1, 0, 0);
+  ctx.clearRect(0, 0, cw, ch);
+
+  // Visible document rect, in whole document pixels.
+  const x0 = Math.max(0, Math.floor(-view.panX / view.zoom));
+  const y0 = Math.max(0, Math.floor(-view.panY / view.zoom));
+  const x1 = Math.min(docW, Math.ceil((cssW - view.panX) / view.zoom));
+  const y1 = Math.min(docH, Math.ceil((cssH - view.panY) / view.zoom));
+  if (x1 <= x0 || y1 <= y0) {
+    return { ctx, region: null };
+  }
+  const rw = x1 - x0;
+  const rh = y1 - y0;
+  // Zoomed out, the core downsamples to (about) device resolution so the
+  // buffer stays viewport-sized; zoomed in, it returns 1:1 pixels that are
+  // upscaled here without smoothing.
+  const deviceScale = view.zoom * dpr;
+  const ow = Math.min(rw, Math.max(1, Math.ceil(rw * deviceScale)));
+  const oh = Math.min(rh, Math.max(1, Math.ceil(rh * deviceScale)));
+  return { ctx, region: { x0, y0, rw, rh, ow, oh, dpr } };
+}
+
+/** Draws `image` — the pixels of `region` at its output size — over the
+ *  checkerboard at the view transform. */
+export function presentRegion(
+  ctx: CanvasRenderingContext2D,
+  region: ViewportRegion,
+  view: ViewTransform,
+  image: CanvasImageSource,
+): void {
+  const { x0, y0, rw, rh, ow, oh, dpr } = region;
+  const dx = (view.panX + x0 * view.zoom) * dpr;
+  const dy = (view.panY + y0 * view.zoom) * dpr;
+  const dw = rw * view.zoom * dpr;
+  const dh = rh * view.zoom * dpr;
+  const pattern = checkerPattern(ctx);
+  if (pattern) {
+    ctx.fillStyle = pattern;
+    ctx.fillRect(dx, dy, dw, dh);
+  }
+  ctx.imageSmoothingEnabled = ow < rw || oh < rh;
+  ctx.drawImage(image, dx, dy, dw, dh);
+}
+
+/** A canvas holding the RGBA8 `rgba` of `w × h`, drawable with the
+ *  checkerboard showing through; `null` without a 2D context. */
+export function imageCanvas(
+  rgba: Uint8ClampedArray<ArrayBuffer>,
+  w: number,
+  h: number,
+  into?: HTMLCanvasElement,
+): HTMLCanvasElement | null {
+  const c = into ?? document.createElement('canvas');
+  if (c.width !== w || c.height !== h) {
+    c.width = w;
+    c.height = h;
+  }
+  const ctx = c.getContext('2d');
+  if (!ctx || rgba.length !== w * h * 4) {
+    return null;
+  }
+  // `rgba` is already an ArrayBuffer-backed copy (the wasm adapter narrows
+  // the type), so ImageData takes it directly — no per-frame copy.
+  ctx.putImageData(new ImageData(rgba, w, h), 0, 0);
+  return c;
+}
+
 /**
  * Renders the visible part of a `docW × docH` document into the
  * viewport-sized `canvas` at view transform `view`. `sample` supplies the
@@ -70,62 +174,21 @@ export function drawViewport(
   view: ViewTransform,
   sample: RegionSampler,
 ): void {
-  const dpr = window.devicePixelRatio || 1;
-  const cssW = canvas.clientWidth;
-  const cssH = canvas.clientHeight;
-  const cw = Math.max(1, Math.round(cssW * dpr));
-  const ch = Math.max(1, Math.round(cssH * dpr));
-  if (canvas.width !== cw || canvas.height !== ch) {
-    canvas.width = cw;
-    canvas.height = ch;
-  }
-  const ctx = canvas.getContext('2d');
-  if (!ctx) {
+  const prepared = prepareViewport(canvas, docW, docH, view);
+  const region = prepared?.region;
+  if (!prepared || !region) {
     return;
   }
-  ctx.setTransform(1, 0, 0, 1, 0, 0);
-  ctx.clearRect(0, 0, cw, ch);
-
-  // Visible document rect, in whole document pixels.
-  const x0 = Math.max(0, Math.floor(-view.panX / view.zoom));
-  const y0 = Math.max(0, Math.floor(-view.panY / view.zoom));
-  const x1 = Math.min(docW, Math.ceil((cssW - view.panX) / view.zoom));
-  const y1 = Math.min(docH, Math.ceil((cssH - view.panY) / view.zoom));
-  if (x1 <= x0 || y1 <= y0) {
-    return;
-  }
-  const rw = x1 - x0;
-  const rh = y1 - y0;
-  // Zoomed out, the core downsamples to (about) device resolution so the
-  // buffer stays viewport-sized; zoomed in, it returns 1:1 pixels that are
-  // upscaled here without smoothing.
-  const deviceScale = view.zoom * dpr;
-  const ow = Math.min(rw, Math.max(1, Math.ceil(rw * deviceScale)));
-  const oh = Math.min(rh, Math.max(1, Math.ceil(rh * deviceScale)));
+  const { x0, y0, rw, rh, ow, oh } = region;
   const rgba = sample(x0, y0, rw, rh, ow, oh);
-  if (!rgba || rgba.length !== ow * oh * 4) {
+  if (!rgba) {
     return;
   }
-  const off = scratchCanvas(ow, oh);
-  const offCtx = off.getContext('2d');
-  if (!offCtx) {
+  const off = imageCanvas(rgba, ow, oh, scratchCanvas(ow, oh));
+  if (!off) {
     return;
   }
-  // `rgba` is already an ArrayBuffer-backed copy (the wasm adapter narrows the
-  // type), so ImageData takes it directly — no per-frame copy.
-  offCtx.putImageData(new ImageData(rgba, ow, oh), 0, 0);
-
-  const dx = (view.panX + x0 * view.zoom) * dpr;
-  const dy = (view.panY + y0 * view.zoom) * dpr;
-  const dw = rw * view.zoom * dpr;
-  const dh = rh * view.zoom * dpr;
-  const pattern = checkerPattern(ctx);
-  if (pattern) {
-    ctx.fillStyle = pattern;
-    ctx.fillRect(dx, dy, dw, dh);
-  }
-  ctx.imageSmoothingEnabled = ow < rw || oh < rh;
-  ctx.drawImage(off, dx, dy, dw, dh);
+  presentRegion(prepared.ctx, region, view, off);
 }
 
 /**

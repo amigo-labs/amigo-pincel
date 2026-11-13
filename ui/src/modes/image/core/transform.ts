@@ -1,15 +1,27 @@
 // The Move tools' live transform in the editor
 // (docs/specs/image-transform-handles.md): the core keeps the transform and
-// its undo steps; this module sends the box the handles produce and reads
-// the core's report (`live.transform`, refreshed by every `syncInfo`).
-import { core, type SelectionTransformCommand, type TransformFields } from './wasm';
+// its undo steps; this module sends the box a finished drag produced and
+// reads the core's report (`live.transform`, refreshed by every
+// `syncInfo`). During a drag the editor previews the box itself
+// (`render/transform-preview.ts`), from what `previewLift` fetches once.
+import {
+  core,
+  type SelectionTransformCommand,
+  type TransformFields,
+  type TransformPreviewData,
+} from './wasm';
 import { syncInfo } from './controller';
+import { countCall } from '../../../lib/diagnostics';
 import { editor, live, tool } from '../stores/editor.svelte';
 import { gestureControl } from '../tools/gesture-control';
 import { boxOfBounds, type BoxState } from '../tools/transform-box';
 
 function send(cmd: SelectionTransformCommand): boolean {
   if (editor.handle === null) return false;
+  // e2e specs pin how often the core applies a transform (AC-23).
+  if (cmd.type === 'begin_transform' || cmd.type === 'edit_transform') {
+    countCall('image.applyTransform');
+  }
   try {
     core.applyCommand(editor.handle, cmd);
     return true;
@@ -20,9 +32,12 @@ function send(cmd: SelectionTransformCommand): boolean {
   }
 }
 
-/** The box the handles show: the live transform's, else the selection's
- *  bounds; `null` without a selection that selects a pixel (AC-01, AC-17). */
+/** The box the handles show: a drag's, else the live transform's, else
+ *  the selection's bounds; `null` without a selection that selects a pixel
+ *  (AC-01, AC-17). */
 export function transformBox(): BoxState | null {
+  const drag = live.transformDrag;
+  if (drag !== null) return drag.box;
   const t = live.transform;
   if (t !== null) {
     return {
@@ -53,14 +68,36 @@ function fields(b: BoxState, gesture: number | null, quality: number): Transform
 /**
  * Shows the selection's pixels (`pixels`, Move Selected Pixels) or outline
  * (Move Selection) in box `b`: begins the transform on the active layer
- * when none is live, else changes it. A drag passes one `gesture` for all
- * its updates, so it becomes one undo step (AC-07).
+ * when none is live, else changes it. A drag sends its final box once,
+ * when it ends, as one undo step (AC-07, AC-23).
  */
 export function applyTransform(b: BoxState, pixels: boolean, gesture: number | null): boolean {
   const f = fields(b, gesture, tool.moveQuality);
   return live.transform === null
     ? send({ type: 'begin_transform', layer: editor.activeLayer, pixels, ...f })
     : send({ type: 'edit_transform', ...f });
+}
+
+/**
+ * The lift a drag preview draws from (AC-20, AC-23): asks the core for a
+ * view rect with the selection's content of the active layer — or the
+ * live transform's — lifted out, and the patch. Changes nothing in the
+ * document; `null` when the core cannot.
+ */
+export function previewLift(
+  pixels: boolean,
+): (view: readonly number[]) => TransformPreviewData | null {
+  const handle = editor.handle;
+  const layer = live.transform?.layer ?? editor.activeLayer;
+  return (view) => {
+    if (handle === null) return null;
+    countCall('image.transformPreview');
+    try {
+      return core.transformPreview(handle, layer, pixels, view);
+    } catch {
+      return null;
+    }
+  };
 }
 
 /** The quality option (AC-12): a live transform is re-applied with it. */

@@ -24,6 +24,7 @@ import type {
   ToolBlend,
 } from '../core/wasm';
 import type { DocSaveFormat, DocumentFile } from '../core/document-file';
+import type { BoxState } from '../tools/transform-box';
 
 /** A tab's document state: what the editor mirrors from its core handle. */
 export function docInit() {
@@ -273,6 +274,9 @@ export const live = $state({
   /** The Move tools' live transform (docs/specs/image-transform-handles.md),
    *  `null` when none is live. */
   transform: null as LiveTransformSpec | null,
+  /** A drag of the transform box in flight: the box when it began and the
+   *  box it shows now; the core has not seen it yet (AC-20, AC-23). */
+  transformDrag: null as { start: BoxState; box: BoxState } | null,
   /** The selection's bounds `[x, y, w, h]`, `null` without a selection that
    *  selects a pixel: where the transform box shows before a drag. */
   selectionBox: null as [number, number, number, number] | null,

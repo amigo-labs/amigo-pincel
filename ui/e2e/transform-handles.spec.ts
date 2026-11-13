@@ -9,6 +9,7 @@ import {
   menu,
   setColor,
 } from './helpers';
+import { openHistory, rowNames } from './history-helpers';
 import { tabs } from './tab-helpers';
 
 // The Move tools' transform handles in the editor
@@ -60,6 +61,16 @@ async function dragBy(
     await page.mouse.move(from[0] + (dx * i) / 6, from[1] + (dy * i) / 6);
   await page.mouse.up({ button });
 }
+
+type DiagnosticsWindow = Window & {
+  __pincelDiagnostics?: { calls?: Record<string, number> };
+};
+
+/** How often the editor has sent a transform's box to the core. */
+const applied = (page: Page): Promise<number> =>
+  page.evaluate(
+    () => (window as DiagnosticsWindow).__pincelDiagnostics?.calls?.['image.applyTransform'] ?? 0,
+  );
 
 /** The canvas pixels: an element screenshot also captures what floats over
  *  it, so the selection's marching ants and the box are hidden for it. */
@@ -231,4 +242,61 @@ test('saving while live keeps the transform; switching tabs commits it (AC-18)',
   await expect(tabs(page)).toHaveCount(2);
   await tabs(page).first().click();
   await expect(box(page)).toHaveAttribute('data-transform-box', 'idle');
+});
+
+test('a drag is previewed without the core and applied once on release (AC-23)', async ({
+  page,
+}) => {
+  await scene(page);
+  await openHistory(page);
+  const rows = await rowNames(page);
+  const before = await shot(page);
+  const sent = await applied(page);
+  const at = await centre(pivot(page));
+  const from: [number, number] = [at[0] + 15, at[1] + 15];
+  // A drag with a detour that ends 30 px to the right.
+  await page.mouse.move(from[0], from[1]);
+  await page.mouse.down();
+  for (const [dx, dy] of [
+    [10, 20],
+    [40, -15],
+    [-20, 30],
+    [25, 5],
+    [30, 0],
+  ] as const) {
+    await page.mouse.move(from[0] + dx, from[1] + dy);
+  }
+  // Mid-drag the canvas shows the move, but the document is untouched.
+  await expect.poll(async () => (await shot(page)).equals(before)).toBe(false);
+  expect(await applied(page)).toBe(sent);
+  expect(await rowNames(page)).toEqual(rows);
+  await page.mouse.up();
+  await expect.poll(() => applied(page)).toBe(sent + 1);
+  await expect.poll(async () => (await rowNames(page)).length).toBe(rows.length + 1);
+  const detour = await shot(page);
+  // The same end reached in one move gives the same result.
+  await page.keyboard.press('Escape');
+  await expect.poll(async () => (await shot(page)).equals(before)).toBe(true);
+  await page.mouse.move(from[0], from[1]);
+  await page.mouse.down();
+  await page.mouse.move(from[0] + 30, from[1]);
+  await page.mouse.up();
+  await expect.poll(() => applied(page)).toBe(sent + 2);
+  await expect.poll(async () => (await shot(page)).equals(detour)).toBe(true);
+});
+
+test('Undo during a drag drops that drag (Edge cases)', async ({ page }) => {
+  await scene(page);
+  const before = await shot(page);
+  const sent = await applied(page);
+  const at = await centre(pivot(page));
+  await page.mouse.move(at[0] + 15, at[1] + 15);
+  await page.mouse.down();
+  for (let i = 1; i <= 4; i++) await page.mouse.move(at[0] + 15 + 8 * i, at[1] + 15);
+  await expect(box(page)).toHaveAttribute('data-transform-box', 'live');
+  await page.keyboard.press('Control+z');
+  await page.mouse.up();
+  await expect(box(page)).toHaveAttribute('data-transform-box', 'idle');
+  await expect.poll(async () => (await shot(page)).equals(before)).toBe(true);
+  expect(await applied(page)).toBe(sent);
 });
