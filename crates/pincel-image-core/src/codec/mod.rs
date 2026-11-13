@@ -25,7 +25,7 @@ pub mod ora;
 pub mod psd;
 pub mod snapshot;
 
-pub use jxl::{is_jxl, to_jxl_bytes};
+pub use jxl::{JXL_MIN_SIDE, is_jxl, to_jxl_bytes};
 pub use ora::{OraError, from_ora_bytes, to_ora_bytes};
 
 use thiserror::Error;
@@ -67,6 +67,11 @@ pub enum CodecError {
     /// (docs/specs/image-formats-more-modern.md AC-08).
     #[error("JPEG XL: {0}")]
     Jxl(String),
+
+    /// The JPEG XL encoder needs at least [`JXL_MIN_SIDE`] px on each
+    /// side (docs/specs/image-formats-more-modern.md AC-16).
+    #[error("JPEG XL needs at least 2 × 2 px")]
+    JxlTooSmall,
 }
 
 /// Largest ICO image edge, px.

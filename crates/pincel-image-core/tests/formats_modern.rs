@@ -3,7 +3,7 @@
 //! `make_fixtures.py`), lossless encoding round trips, and the size and
 //! damage errors.
 
-use pincel_image_core::codec::{CodecError, decode, is_jxl, to_jxl_bytes};
+use pincel_image_core::codec::{CodecError, JXL_MIN_SIDE, decode, is_jxl, to_jxl_bytes};
 use pincel_image_core::{DocumentError, ImageBuffer};
 
 fn fixture(name: &str) -> Vec<u8> {
@@ -110,6 +110,30 @@ fn jxl_written_files_decode_back_exactly() {
         let back = decode(&bytes).expect("decodes");
         assert_eq!(back.data(), buf.data(), "{w}x{h}");
     }
+}
+
+// AC-16: the encoder needs 2 px on each side; a 1-px side fails with its
+// own error, not a generic encoder failure.
+#[test]
+fn to_jxl_bytes_with_a_1_px_side_returns_the_size_error() {
+    for (w, h) in [(1, 1), (1, 8), (8, 1)] {
+        let err = to_jxl_bytes(&ImageBuffer::new_transparent(w, h)).expect_err("1-px side");
+        assert!(matches!(err, CodecError::JxlTooSmall), "{w}x{h}: {err:?}");
+        assert_eq!(
+            err.to_string(),
+            "JPEG XL needs at least 2 × 2 px",
+            "{w}x{h}"
+        );
+    }
+    // The smallest size the encoder writes still round-trips (AC-05).
+    let edge = JXL_MIN_SIDE;
+    let buf = ImageBuffer::new_transparent(edge, edge + 5);
+    assert_eq!(
+        decode(&to_jxl_bytes(&buf).expect("2 px"))
+            .expect("decodes")
+            .data(),
+        buf.data()
+    );
 }
 
 // AC-04: JPEG XL is recognised by content; an AVIF file is not JPEG XL and

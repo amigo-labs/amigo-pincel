@@ -72,9 +72,16 @@ fn expand(samples: &[u8], channels: usize, px: impl Fn(&[u8]) -> [u8; 4]) -> Vec
     out
 }
 
-/// Encodes `buf` as lossless JPEG XL (AC-05, AC-06). The encoder needs at
-/// least 2 px on each side.
+/// Smallest width and height, px, the JPEG XL encoder writes (AC-16).
+pub const JXL_MIN_SIDE: u32 = 2;
+
+/// Encodes `buf` as lossless JPEG XL (AC-05, AC-06);
+/// [`CodecError::JxlTooSmall`] below [`JXL_MIN_SIDE`] px on either side
+/// (AC-16).
 pub fn to_jxl_bytes(buf: &ImageBuffer) -> Result<Vec<u8>, CodecError> {
+    if buf.width() < JXL_MIN_SIDE || buf.height() < JXL_MIN_SIDE {
+        return Err(CodecError::JxlTooSmall);
+    }
     let options = EncoderOptions::new(
         buf.width() as usize,
         buf.height() as usize,
