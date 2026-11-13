@@ -77,7 +77,6 @@ Owner priority; measure first, then the budgets of pincel.md §4.5.
 | - | ---- | ---- | ---- | ---------- | ---- |
 | G1 | [performance-benchmarks](performance-benchmarks.md) | both | L | — | Measure first; budgets every later step proves against |
 | G2 | [performance-image-kernel](performance-image-kernel.md) | Image | M | performance-benchmarks | Biggest single win (LUT ≈ 7×); no open questions |
-| G4 | [performance-input-path](performance-input-path.md) | both | M | performance-benchmarks | Pixel part waits on pixel-pencil |
 | G5 | [performance-background-jobs](performance-background-jobs.md) | both | L | performance-benchmarks | Autosave / effect jank off the main thread |
 | G6 | [performance-build-simd](performance-build-simd.md) | both | M | performance-image-kernel | Recompose and cold-start budgets |
 
@@ -179,6 +178,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [performance-image-cache](performance-image-cache.md)
 - [performance-image-kernel](performance-image-kernel.md)
 - [performance-image-undo-memory](performance-image-undo-memory.md)
+- [performance-input-path](performance-input-path.md)
 - [pixel-compose](pixel-compose.md)
 - [pixel-drawing-tools](pixel-drawing-tools.md)
 - [pixel-export](pixel-export.md)
