@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: M
 mode: both
@@ -32,10 +32,10 @@ This spec owns the Pixel budget from `performance-benchmarks`: a pencil drag on 
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): A stroke yields the same document pixels whether its pointer samples reach the core one at a time or batched per animation frame, in both modes.
-- [ ] AC-02 (event): When the browser delivers several coalesced pointer samples in one event during a Pixel pencil drag, then the stroke passes through every sample's pixel.
-- [ ] AC-03 (always): A touch or pen drag that starts on the canvas of either editor never scrolls, zooms or reloads the page.
-- [ ] AC-04 (state, manual: the budget is defined for the reference laptop): While the user drags the Pixel pencil on a 256×256 sprite at zoom 32, the browser performance script measures a p95 frame time of at most 16.7 ms and a p95 dab latency of at most 8 ms, where dab latency runs from the page receiving the pointer event to the first draw call on the render canvas after it (`pixel-pencil-256-z32` › `dab-draw-latency-p95`) — not from the event's hardware `timeStamp`, and not to the frame that presents the draw.
+- [x] AC-01 (always): A stroke yields the same document pixels whether its pointer samples reach the core one at a time or batched per animation frame, in both modes.
+- [x] AC-02 (event): When the browser delivers several coalesced pointer samples in one event during a Pixel pencil drag, then the stroke passes through every sample's pixel.
+- [x] AC-03 (always): A touch or pen drag that starts on the canvas of either editor never scrolls, zooms or reloads the page.
+- [x] AC-04 (state, manual: the budget is defined for the reference laptop): While the user drags the Pixel pencil on a 256×256 sprite at zoom 32, the browser performance script measures a p95 frame time of at most 16.7 ms and a p95 dab latency of at most 8 ms, where dab latency runs from the page receiving the pointer event to the first draw call on the render canvas after it (`pixel-pencil-256-z32` › `dab-draw-latency-p95`) — not from the event's hardware `timeStamp`, and not to the frame that presents the draw.
 
 ## Technical notes
 
@@ -63,10 +63,19 @@ Hints from the legacy plan (2026-10-28); paths drift.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | Pixel: `crates/pincel-wasm/src/stroke.rs` › `stroke_to_batch_matches_per_sample_stroke_to` (uneven batches of 1–9 points vs one `strokeTo` per point; sizes, shapes, pixel-perfect, pressure, eraser). Image: `crates/pincel-image-core/tests/stroke_batching.rs` › `stroke_batched_per_frame_paints_like_one_sample_per_event` (pencil, eraser, recolor, smudge; soft brush, opacity, pressure) | built |        |
-| AC-02 | `crates/pincel-wasm/src/stroke.rs` › `stroke_to_batch_passes_through_every_sample`; `ui/e2e/input-path.spec.ts` › "pixel: a move event with several coalesced samples paints through every sample (AC-02)" | built |        |
-| AC-03 | `ui/e2e/input-path.spec.ts` › "pixel: a touch drag on the canvas paints and never scrolls, zooms or reloads (AC-03)", "image: … (AC-03)" | built |        |
-| AC-04 | manual — `pnpm perf -g pixel` then `pnpm perf:check --browser e2e-perf/results/browser.json` (`pixel-pencil-256-z32` › `frame-p95`, `dab-draw-latency-p95`); measured 2026-11-05 under Decisions | open   |        |
+| AC-01 | Pixel: `stroke::tests::stroke_to_batch_matches_per_sample_stroke_to` (`crates/pincel-wasm/src/stroke.rs`; uneven batches of 1–9 points vs one `strokeTo` per point; sizes, shapes, pixel-perfect, pressure, eraser). Image: `stroke_batched_per_frame_paints_like_one_sample_per_event` (`crates/pincel-image-core/tests/stroke_batching.rs`; pencil, eraser, recolor, smudge; soft brush, opacity, pressure) — passed in CI run 43409434867 (`main` 72785ab), 2026-11-13 | verified | c4de827 |
+| AC-02 | `stroke::tests::stroke_to_batch_passes_through_every_sample` (`crates/pincel-wasm/src/stroke.rs`); `ui/e2e/input-path.spec.ts` › "pixel: a move event with several coalesced samples paints through every sample (AC-02)" — passed in CI run 43409434867 | verified | c4de827 |
+| AC-03 | `ui/e2e/input-path.spec.ts` › "pixel: a touch drag on the canvas paints and never scrolls, zooms or reloads (AC-03)", "image: a touch drag on the canvas paints and never scrolls, zooms or reloads (AC-03)" — passed in CI run 43409434867 | verified | 2601ddc |
+| AC-04 | manual: spec-check checked the reference-laptop run of 2026-11-13 (`ui/e2e-perf/results/browser.json`, AMD Ryzen 7 PRO 6850H, Chromium 158, release wasm; `pnpm perf:check --mode budget` exits 0): `pixel-pencil-256-z32` › `frame-p95` 16.8 ms (first run 16.7 ms; one 60 Hz vsync interval, checked against 17 ms as every frame-rate budget, performance-benchmarks Decisions 2026-10-29), `dab-draw-latency-p95` 0.5 ms against 8 ms (first run 0.6 ms), 2026-11-13 | verified | 3a711a8 |
+
+## Summary
+
+> Completed: 2026-11-13
+
+- New wasm API `Document.strokeToBatch(xy, pressure)`: one call and one dirty rect per animation frame, painting exactly what one `strokeTo` per sample paints
+- Pixel mode queues coalesced pointer samples and flushes them once per render tick and before `endStroke`; Image mode batches brush samples per frame the same way, the press dab staying its own command
+- Both canvas stages keep `touch-action: none`, pinned by touch-drag e2e tests that check no scroll, zoom or reload
+- On the reference laptop the Pixel pencil at zoom 32 holds 60 fps (frame p95 one vsync) with a dab-draw latency p95 of 0.5 ms against the 8 ms budget
 
 ## Decisions
 

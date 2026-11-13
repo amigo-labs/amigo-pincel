@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-28
 size: L
 mode: both
@@ -34,14 +34,14 @@ The legacy plan `23-performance` (removed 2026-10-29, see git history) sets **bu
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When `cargo bench -p pincel-image-core --bench compose` runs, then it reports a median for each of: full compose of 1024×1024, 2048×2048 and 4096×4096 with 2, 5 and 10 layers; region compose of a 3840×2160, 10-layer document at zoom 1 and at fit zoom; a 100-dab brush stroke on a 3840×2160, 10-layer document; and a Gaussian blur with radius 10 on a 3840×2160 layer.
-- [ ] AC-02 (event): When `cargo bench -p pincel-core --bench compose` runs, then it reports, in addition to the existing scenarios, a median for composing a 4096×4096 sprite at zoom 1.
-- [ ] AC-03 (event): When the browser performance script runs against the built app, then for each budget scenario under Technical notes it reports p50 and p95 frame time, and for the painting scenarios also p50 and p95 dab latency (pointer event → pixels presented).
-- [ ] AC-04 (error): If, in budget mode (on the reference machine), a measured value exceeds a budget that was met before by more than 10 %, then the budget check exits non-zero and names the scenario, the budget and the measured value; within 10 % it exits zero. A budget that has never been met is reported as `pending` with its measured value, and does not fail the check; it blocks from the first run that meets it.
-- [ ] AC-05 (always): The PR CI gate runs neither the criterion benchmarks nor the browser performance script.
-- [ ] AC-06 (event, manual: the workflow runs only on its schedule or on manual dispatch): When the performance workflow runs — triggered by manual dispatch (`workflow_dispatch`) or by a nightly schedule on `main` — then it runs the criterion benchmarks, the browser performance script and the budget check, and fails when the budget check fails; the nightly run is skipped when `main` has no new commit since the last run.
-- [ ] AC-07 (always, manual: documentation): This spec's `## Measurements` section holds a table with the latest median per benchmark and the p50/p95 per browser scenario, with the date and the machine they were measured on.
-- [ ] AC-08 (error): If, in baseline mode (on a CI runner), a measured value is more than 10 % worse than the last recorded value for that runner, then the budget check exits non-zero and names the scenario, the baseline and the measured value; in baseline mode the budgets themselves are not checked.
+- [x] AC-01 (event): When `cargo bench -p pincel-image-core --bench compose` runs, then it reports a median for each of: full compose of 1024×1024, 2048×2048 and 4096×4096 with 2, 5 and 10 layers; region compose of a 3840×2160, 10-layer document at zoom 1 and at fit zoom; a 100-dab brush stroke on a 3840×2160, 10-layer document; and a Gaussian blur with radius 10 on a 3840×2160 layer.
+- [x] AC-02 (event): When `cargo bench -p pincel-core --bench compose` runs, then it reports, in addition to the existing scenarios, a median for composing a 4096×4096 sprite at zoom 1.
+- [x] AC-03 (event): When the browser performance script runs against the built app, then for each budget scenario under Technical notes it reports p50 and p95 frame time, and for the painting scenarios also p50 and p95 dab latency (pointer event → pixels presented).
+- [x] AC-04 (error): If, in budget mode (on the reference machine), a measured value exceeds a budget that was met before by more than 10 %, then the budget check exits non-zero and names the scenario, the budget and the measured value; within 10 % it exits zero. A budget that has never been met is reported as `pending` with its measured value, and does not fail the check; it blocks from the first run that meets it.
+- [x] AC-05 (always): The PR CI gate runs neither the criterion benchmarks nor the browser performance script.
+- [x] AC-06 (event, manual: the workflow runs only on its schedule or on manual dispatch): When the performance workflow runs — triggered by manual dispatch (`workflow_dispatch`) or by a nightly schedule on `main` — then it runs the criterion benchmarks, the browser performance script and the budget check, and fails when the budget check fails; the nightly run is skipped when `main` has no new commit since the last run.
+- [x] AC-07 (always, manual: documentation): This spec's `## Measurements` section holds a table with the latest median per benchmark and the p50/p95 per browser scenario, with the date and the machine they were measured on.
+- [x] AC-08 (error): If, in baseline mode (on a CI runner), a measured value is more than 10 % worse than the last recorded value for that runner, then the budget check exits non-zero and names the scenario, the baseline and the measured value; in baseline mode the budgets themselves are not checked.
 
 ## Technical notes
 
@@ -111,56 +111,79 @@ On the reference machine add `--write` so budgets met for the first time are rec
 
 ### Latest results
 
-Measured 2026-10-29 on the reference machine (the owner accepted this developer laptop as such, see Decisions): AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 156.0.8078.4. Native numbers here are about 2.5× the dev-container figures under Technical notes, so compare only runs from the same machine. Benches: `cargo bench` (native release, criterion median). Browser: `pnpm perf` against the production build with release wasm (`pnpm wasm:build:release`), headless Chromium, no network throttling except the cold-start scenario. Budget mode on these numbers: `cold-start/cold`, `cold-start/warm` and `pixel-pencil-256-z32/frame-p95` met (recorded in `ui/e2e-perf/budgets-met.json`, so they block from now on), everything else `pending`.
+Native benchmarks: criterion medians of the nightly `perf.yml` run 43403911502 on `main` (2026-11-13, `e7d532e8`), on the GitHub runner AMD EPYC 9V74 80-Core Processor, 4 threads, 16 GB, linux 7.0.0-1019-azure (`measurements.md` of its `perf-results` artifact). Runner numbers are checked in baseline mode against the same runner only; they are not comparable with the reference laptop. Browser scenarios: the reference laptop table below. The 2026-10-29 tables (before the Image kernel and the region cache) are in git history.
 
 | Benchmark | Median |
 | --------- | ------ |
-| `bench/compose/compose_256_dirty_hint_4x4` | 0.0003 ms |
-| `bench/compose/compose_256_four_layers_full` | 4.81 ms |
-| `bench/compose/compose_256_single_layer_full` | 0.7988 ms |
-| `bench/compose/compose_4096_single_layer_zoom_1` | 159 ms |
-| `bench/compose/compose_64_tilemap_full` | 0.0232 ms |
-| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0098 ms |
-| `bench/image_compose/full_1024_10layers` | 1509 ms |
-| `bench/image_compose/full_1024_2layers` | 262 ms |
-| `bench/image_compose/full_1024_5layers` | 851 ms |
-| `bench/image_compose/full_2048_10layers` | 5833 ms |
-| `bench/image_compose/full_2048_2layers` | 980 ms |
-| `bench/image_compose/full_2048_5layers` | 2822 ms |
-| `bench/image_compose/full_4096_10layers` | 24416 ms |
-| `bench/image_compose/full_4096_2layers` | 3745 ms |
-| `bench/image_compose/full_4096_5layers` | 11365 ms |
-| `bench/image_effect/gaussian_r10_4k` | 2805 ms |
-| `bench/image_region/fit_4k_10layers` | 16176 ms |
-| `bench/image_region/zoom1_4k_10layers` | 3860 ms |
-| `bench/image_stroke/brush_100_dabs_4k_10layers` | 2.08 ms |
+| `bench/compose/compose_256_dirty_hint_4x4` | 0.0001 ms |
+| `bench/compose/compose_256_four_layers_full` | 1.50 ms |
+| `bench/compose/compose_256_single_layer_full` | 0.2739 ms |
+| `bench/compose/compose_4096_single_layer_zoom_1` | 93.21 ms |
+| `bench/compose/compose_64_tilemap_full` | 0.0096 ms |
+| `bench/compose/compose_zoom_32_upscale_8x8_to_256x256` | 0.0071 ms |
+| `bench/image_cache/brush_100_dabs_fit_4k_10layers` | 15.51 ms |
+| `bench/image_cache/fit_viewport_4k_10layers` | 13.41 ms |
+| `bench/image_compose/full_1024_10layers` | 66.63 ms |
+| `bench/image_compose/full_1024_2layers` | 8.19 ms |
+| `bench/image_compose/full_1024_5layers` | 30.25 ms |
+| `bench/image_compose/full_2048_10layers` | 269 ms |
+| `bench/image_compose/full_2048_2layers` | 32.91 ms |
+| `bench/image_compose/full_2048_5layers` | 122 ms |
+| `bench/image_compose/full_4096_10layers` | 1108 ms |
+| `bench/image_compose/full_4096_2layers` | 162 ms |
+| `bench/image_compose/full_4096_5layers` | 525 ms |
+| `bench/image_effect/gaussian_r10_4k` | 403 ms |
+| `bench/image_export/jpeg_4k` | 264 ms |
+| `bench/image_export/over_background_4k` | 114 ms |
+| `bench/image_live/ellipse_move_1024_4k_5layers` | 60.03 ms |
+| `bench/image_live/gradient_end_move_2k_5layers` | 242 ms |
+| `bench/image_open/png_4k` | 33.10 ms |
+| `bench/image_region/fit_4k_10layers` | 586 ms |
+| `bench/image_region/zoom1_4k_10layers` | 134 ms |
+| `bench/image_shapes/curve_64pts_w20_dashdot_arrows_4k` | 139 ms |
+| `bench/image_stroke/brush_100_dabs_4k_10layers` | 0.7422 ms |
+| `bench/selection/expand_r20_4k` | 9.66 ms |
+| `bench/selection/feather_r20_4k` | 97.36 ms |
+
+### Browser results, 2026-11-13
+
+Measured 2026-11-13 on the reference machine (AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 158.0.8127.18), release wasm, second of two back-to-back `pnpm perf` runs; `pnpm perf:check --mode budget --write` recorded the budgets met for the first time in `ui/e2e-perf/budgets-met.json`. The native criterion medians are not re-measured here; the nightly `perf.yml` run 43403911502 (2026-11-13, `main`) ran them in baseline mode.
 
 | Browser scenario | Frame p50 / p95 | Longest frame | Dab latency p50 / p95 | Scenario metrics |
 | ---------------- | --------------- | ------------- | --------------------- | ---------------- |
-| `image-brush-4k` | 16.7 ms / 700 ms | 1216 ms | 78.4 ms / 732 ms | — |
-| `image-pan-zoom-4k` | 16.7 ms / 317 ms | 1483 ms | — | — |
-| `image-recompose-4k` | 16.7 ms / 16.8 ms | 317 ms | — | recompose-p50 261 ms, recompose-p95 318 ms |
-| `image-gaussian-4k` | 16.7 ms / 16.8 ms | 1817 ms | — | proxy 1836 ms, full 1444 ms |
-| `image-autosave-export-4k` | 16.7 ms / 33.3 ms | 2066 ms | — | — |
-| `image-memory-4k` | 16.7 ms / 16.8 ms | 300 ms | — | wasm-memory-mb 1001 MiB (2026-11-06) |
-| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 22.9 ms / 31.2 ms | — |
-| `image-open-4k-png` | 16.7 ms / 33.3 ms | 9050 ms | — | first-paint 9240 ms |
-| `cold-start` | 16.7 ms / 16.8 ms | 33.4 ms | — | cold 706 ms, warm 426 ms |
-
-`image-memory-4k` re-measured 2026-11-06 on the same machine with the release wasm (performance-image-undo-memory AC-03; budget 1024 MB met, recorded in `budgets-met.json`).
+| `image-brush-4k` | 16.7 ms / 16.7 ms | 16.8 ms | 22.8 ms / 31.1 ms | dab-draw-latency-p50 3 ms, dab-draw-latency-p95 3.7 ms |
+| `image-pan-zoom-4k` | 16.7 ms / 16.7 ms | 16.8 ms | — | — |
+| `image-recompose-4k` | 16.7 ms / 116.6 ms | 150 ms | — | recompose-p50 134.9 ms, recompose-p95 164.8 ms |
+| `image-gaussian-4k` | 16.7 ms / 16.7 ms | 133.3 ms | — | proxy 1061.6 ms, full 494.1 ms |
+| `image-autosave-export-4k` | 16.7 ms / 16.8 ms | 300 ms | — | — |
+| `image-transform-4k` | 16.7 ms / 16.8 ms | 350 ms | 22.7 ms / 31.8 ms | dab-draw-latency-p50 0.7 ms, dab-draw-latency-p95 0.9 ms |
+| `image-memory-4k` | 16.7 ms / 16.8 ms | 333.3 ms | — | wasm-memory-mb 1001.38 MiB |
+| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 23.8 ms / 31.1 ms | dab-draw-latency-p50 0.3 ms, dab-draw-latency-p95 0.5 ms |
+| `image-open-4k-png` | 16.7 ms / 33.3 ms | 916.5 ms | — | first-paint 292.1 ms |
+| `cold-start` | 16.7 ms / 16.7 ms | 33.3 ms | — | cold 1591 ms, warm 396 ms |
 
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `cargo bench -p pincel-image-core --bench compose` — groups `image_compose` (`full_{1024,2048,4096}_{2,5,10}layers`), `image_region` (`zoom1_4k_10layers`, `fit_4k_10layers`), `image_stroke/brush_100_dabs_4k_10layers`, `image_effect/gaussian_r10_4k` in `crates/pincel-image-core/benches/compose.rs` | built |        |
-| AC-02 | `cargo bench -p pincel-core --bench compose` — `compose/compose_4096_single_layer_zoom_1` in `crates/pincel-core/benches/compose.rs` | built |        |
-| AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`): 5 tests covering the 9 budget scenarios — every scenario records `frame-p50` / `frame-p95` / `frame-max`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95` and (since 2026-11-05, for `performance-input-path` AC-04) `dab-draw-latency-p50` / `-p95`, pointer event received by the page → draw call; output `ui/e2e-perf/results/browser.json` | built |        |
-| AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests: over-budget fails naming scenario / budget / value, ≤ 10 % incl. exactly 10 % passes, pending until first met then blocking, CLI `--write` records met, no-budget skipped) | built |        |
-| AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" | built |        |
-| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" (static check of `.github/workflows/perf.yml`); a dispatched run on 2026-11-03 (run 41724796417, branch `ccr-5238e405-2i7du2`) ran the benches, the browser script and the budget check and passed — the manual sign-off is still to be entered | built |        |
-| AC-07 | manual: owner accepted the measurements table (dev laptop Ryzen 7 PRO 6850H as reference machine), 2026-10-29 | built |        |
-| AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests: > 10 % worse fails naming scenario / baseline / value, exactly 10 % passes and becomes the baseline, budgets not checked, first run on a new runner records and passes), `ui/e2e/perf-workflow.spec.ts` › "the runner baseline is kept per CPU model (AC-08)" | built |        |
+| AC-01 | `cargo bench -p pincel-image-core --bench compose` (`crates/pincel-image-core/benches/compose.rs`) — the nightly `perf.yml` run 43403911502 (`main`, 2026-11-13) reported a median for `image_compose/full_{1024,2048,4096}_{2,5,10}layers`, `image_region/zoom1_4k_10layers`, `image_region/fit_4k_10layers`, `image_stroke/brush_100_dabs_4k_10layers` and `image_effect/gaussian_r10_4k` | verified | f22cbe8 |
+| AC-02 | `cargo bench -p pincel-core --bench compose` (`crates/pincel-core/benches/compose.rs`) — run 43403911502 reported `compose/compose_4096_single_layer_zoom_1` beside the five existing scenarios | verified | 8212564 |
+| AC-03 | `pnpm perf` (`ui/playwright.perf.config.ts`, `ui/e2e-perf/scenarios.perf.ts`) — 5 of 5 passed in run 43403911502; every browser scenario reports `frame-p50` / `frame-p95`, `image-brush-4k` and `pixel-pencil-256-z32` also `dab-latency-p50` / `-p95` (and `dab-draw-latency-p50` / `-p95`); output `ui/e2e-perf/results/browser.json` | verified | 100ff27 |
+| AC-04 | `ui/e2e/perf-budget-check.spec.ts` › "budget mode (AC-04)" (5 tests) — passed in CI run 43409434867 (`main` 72785ab), 2026-11-13 | verified | e3a9690 |
+| AC-05 | `ui/e2e/perf-workflow.spec.ts` › "the PR gate runs neither the benchmarks nor the browser performance script (AC-05)" — passed in CI run 43409434867 | verified | 808365a |
+| AC-06 | `ui/e2e/perf-workflow.spec.ts` › "the performance workflow runs benches, browser script and budget check on dispatch and nightly (AC-06)" — passed in CI run 43409434867; manual: spec-check checked the real runs, 2026-11-13 — dispatches 41724796417 and 42981905502 and the nightly 43403911502 ran benches, browser script and budget check and passed, the nightly 42466266230 skipped an unchanged `main`, and 41422525935 failed on a red budget check | verified | 808365a |
+| AC-07 | manual: spec-check checked `## Measurements` against the sources, 2026-11-13 — all 29 bench medians equal the baseline check output of run 43403911502 (runner AMD EPYC 9V74 as in its `perf-results` artifact), every browser scenario has p50 / p95 from the reference laptop run (`ui/e2e-perf/results/browser.json`), both with date and machine; the owner accepted the laptop as reference machine on 2026-10-29 | verified | 531d82d |
+| AC-08 | `ui/e2e/perf-budget-check.spec.ts` › "baseline mode (AC-08)" (4 tests), `ui/e2e/perf-workflow.spec.ts` › "the runner baseline is kept per CPU model (AC-08)" — passed in CI run 43409434867; run 43403911502 ran the check in baseline mode ("all 72 metric(s) pass", first run on its runner recorded the baseline) | verified | e3a9690 |
+
+## Summary
+
+> Completed: 2026-11-13
+
+- Criterion benches for `pincel-image-core` (compose, region, stroke, blur and the later cache, live, shapes, export, selection, open groups) and a 4096² Pixel compose bench
+- A browser performance script (`pnpm perf`, `ui/e2e-perf/`) measuring every budget scenario of pincel.md §4.5 against the release bundle, outside the PR gate
+- A budget check (`pnpm perf:check`) with budget mode for the reference machine (`pending` until first met, then blocking beyond +10 %) and baseline mode per CI runner CPU model
+- `.github/workflows/perf.yml`: manual dispatch and nightly on `main`, skipping unchanged nights, failing on a red check
+- The measurements table holds the latest medians and browser results with date and machine
 
 ## Decisions
 

@@ -39,6 +39,7 @@ Step 5 of the legacy plan `23-performance` (removed 2026-10-29, see git history)
 - [ ] AC-05 (state, manual: the budget is defined for the reference laptop): While the reference laptop runs the production build, a full recompose of a 3840×2160, 10-layer Image document takes at most 100 ms in the browser performance script.
 - [ ] AC-06 (event, manual: the budget is defined for the reference laptop and network profile): When the production build is loaded without cache, then the start screen is interactive within 1.5 s; with a warm cache, within 0.5 s.
 - [ ] AC-07 (error): If the browser does not support wasm SIMD, then the start screen shows a translated notice "This browser is too old for Pincel (needs Chrome/Edge 91+, Firefox 89+, Safari 16.4+)" and New and Open are disabled; no editor is loaded.
+- 2026-11-13 (measurement): Reference laptop (Chromium 158), release wasm, `pnpm perf` twice back to back on the release bundle. AC-05: `image-recompose-4k` recompose p50 135 / 135 ms, p95 142 / 165 ms (budget 100 ms), not met. AC-06: `cold-start` cold 1551 / 1591 ms (budget 1.5 s, 3–6 % over), warm 383 / 396 ms (budget 0.5 s, met). Both ACs stay open.
 
 ## Technical notes
 
