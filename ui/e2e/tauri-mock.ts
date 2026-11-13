@@ -19,14 +19,6 @@ export interface ClipImage {
 /** The mocked system clipboard: an image, no image, or a refused read. */
 export type ClipContent = ClipImage | null | 'error';
 
-/** The desktop app's loopback job endpoint as `job_endpoint` answers it
- *  (docs/specs/performance-desktop-jobs.md); `null` is a build without the
- *  command. */
-export interface JobEndpoint {
-  url: string;
-  token: string;
-}
-
 export interface TauriMock {
   emit(event: string, payload: unknown): void;
   destroyed: number;
@@ -70,7 +62,6 @@ export interface TauriMock {
    *  the next start reports as changed. */
   mcpCommands: string[];
   mcp: { enabled: boolean; token: string | null; port: number; portChanged: boolean; sessions: number };
-  jobEndpoint: JobEndpoint | null;
 }
 
 export type MockWindow = Window & { __mock: TauriMock };
@@ -109,7 +100,6 @@ export async function installTauriMock(page: Page): Promise<void> {
       openDialogs: [],
       mcpCommands: [],
       mcp: { enabled: false, token: null, port: 39217, portChanged: false, sessions: 0 },
-      jobEndpoint: null,
     };
     let tokens = 0;
     const mcpStatus = () => {
@@ -131,10 +121,6 @@ export async function installTauriMock(page: Page): Promise<void> {
     let nextRid = 1;
     const invoke = async (cmd: string, args: Record<string, unknown>): Promise<unknown> => {
       switch (cmd) {
-        case 'job_endpoint':
-          // Tauri rejects with a plain string.
-          if (!mock.jobEndpoint) throw 'Command job_endpoint not found';
-          return mock.jobEndpoint;
         case 'plugin:event|listen': {
           const event = String(args.event);
           const handler = Number(args.handler);
@@ -280,10 +266,7 @@ export async function destroyed(page: Page): Promise<number> {
 export async function setMock(
   page: Page,
   patch: Partial<
-    Pick<
-      TauriMock,
-      'writeMode' | 'savePick' | 'openPick' | 'saveQueue' | 'writeQueue' | 'jobEndpoint'
-    >
+    Pick<TauriMock, 'writeMode' | 'savePick' | 'openPick' | 'saveQueue' | 'writeQueue'>
   >,
 ): Promise<void> {
   await page.evaluate((p) => Object.assign((window as unknown as MockWindow).__mock, p), patch);
