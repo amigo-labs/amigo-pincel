@@ -59,7 +59,7 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - ~~AC-02 (event): When the user opens an AVIF image sequence, then the document opens from its first frame.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
 - [ ] AC-03 (event): When the user opens a JPEG XL file (bare codestream or ISOBMFF container, lossy or lossless, with or without alpha), then an Image document opens with one layer at the image's width and height; a lossless file with 8 bits per channel opens with exactly its pixels; a lossy file, or a lossless one with more than 8 bits per channel (down-converted), opens within a mean absolute error below 2 of 255 in each of the four channels of a reference PNG rendering; an animated file opens from its first frame.
 - [ ] AC-04 (always): JPEG XL files are recognised by their content whatever their extension; a file named `.jxl` whose content is not JPEG XL is not opened as JPEG XL, and an AVIF file fails to open like any undecodable image (`image-files` AC-13).
-- [ ] AC-05 (always): JPEG XL files written by Image mode decode back to exactly the pixels that were written, for any pixel content including fully transparent pixels and a 1 × 1 image.
+- [ ] AC-05 (always): JPEG XL files written by Image mode decode back to exactly the pixels that were written, for any pixel content including fully transparent pixels and for any width and height of at least 2 px (smaller canvases: AC-16).
 - [ ] AC-06 (event): When the user saves a document opened from a JPEG XL file, then the file is written back in place as lossless JPEG XL without a quality dialog, following the flatten prompt and saved-state rules of the other writable formats (`save-original-format` AC-01 – AC-06, AC-08).
 - ~~AC-07 (event): When the user saves a document opened from an AVIF file, then Save As opens with the notice that this format cannot be written back, as for GIF (`save-original-format` AC-09), and AVIF is not among its formats.~~ dropped: the AVIF spike failed (see "AVIF spike gate" and Decisions, 2026-11-12)
 - [ ] AC-08 (error): If a JPEG XL file is truncated, corrupt, or uses a feature the decoder does not support, then opening fails as for any undecodable image (`image-files` AC-13), no document is created, and an already open document stays as it was.
@@ -68,8 +68,9 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - [ ] AC-11 (always): The release Image-mode wasm module (after `wasm-opt`) is at most 2.0 MB larger than the same build at the commit before this spec's first commit (which already contains `image-formats-more`'s codecs); both sizes are recorded under `## Decisions`.
 - [ ] AC-12 (error): If a JPEG XL file declares a width or height of 0 or above 32767 px, then opening fails with the size message of `image-files` AC-14 — not the undecodable-image message, also when its pixel data is missing or cut off — and no document is created.
 - [ ] AC-13 (event): When the user chooses Save As…, then JPEG XL (`.jxl`) is offered next to the existing formats, and the suggested file name is the document's name with `.jxl`.
-- [ ] AC-14 (error): If writing a JPEG XL file fails (Save or Save As), then an error notice says the file could not be written, an existing file at the target is left unchanged, and the document stays marked unsaved.
+- [ ] AC-14 (error): If writing a JPEG XL file fails (Save or Save As) for another reason than AC-16's size limit, then an error notice says the file could not be written, an existing file at the target is left unchanged, and the document stays marked unsaved.
 - [ ] AC-15 (event): When the user drops a JPEG XL file onto an open Image document and chooses "Add as layer", then it lands as a new layer above the active one in one undo step, with the same pixels Open produces.
+- [ ] AC-16 (error): If the user saves a document as JPEG XL while its canvas is 1 px wide or 1 px tall, then no file is written, a notice says that JPEG XL needs at least 2 × 2 px (not AC-14's write failure), the document stays marked unsaved and its save target is unchanged; on Save of a JPEG XL-opened document, Save As then opens with PNG preselected and without the notice that the format cannot be written back; when JPEG XL was chosen in Save As, the user can choose Save As again.
 
 ## Technical notes
 
@@ -89,6 +90,8 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 | 16-bit lossless JPEG XL | Opens down-converted to 8 bit per channel; not pixel-exact, but within AC-03's lossy bound |
 | JPEG XL that is a recompressed JPEG (JPEG bitstream reconstruction box) | Opens as its decoded pixels; Save writes lossless JPEG XL, not the original JPEG |
 | JPEG XL declaring 40000 × 10 px with no pixel data | AC-12: size message |
+| JPEG XL opened, canvas then resized to 1 × 16, Save | AC-16: Save As with the 2 px notice |
+| 1 × 1 document, Save As ▸ PNG | Writes PNG; only JPEG XL has the 2 px limit |
 
 ## Assumptions
 
@@ -99,8 +102,6 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 
 ## Open questions
 
-- AC-05 asks that a 1 × 1 image round-trips. `zune-jpegxl` 0.5.2, the approved encoder, refuses any side of 1 px (its `ZeroDimension` guard is `<= 1`), and with that guard removed its frame-size writer asserts `size > 1` (tried 2026-11-12), so it cannot write such a file. Until settled, saving a document with a 1-px side as JPEG XL fails per AC-14. Choices: reword AC-05 to sides of at least 2 px and keep the AC-14 failure (perhaps with its own notice); another encoder (no pure-Rust one is known); or a patched / vendored `zune-jpegxl`.
-
 ## Evidence
 
 | AC    | Test | Status | Commit |
@@ -109,7 +110,7 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 | AC-02 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
 | AC-03 | `jxl_lossless_8_bit_opens_exactly`, `jxl_lossy_and_deep_open_within_the_bound`, `jxl_animation_opens_its_first_frame` (crates/pincel-image-core/tests/formats_modern.rs); e2e `a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
 | AC-04 | `jxl_is_recognised_by_content_and_avif_fails` (formats_modern.rs); e2e `JPEG XL is told by content: a PNG named .jxl opens as PNG, an AVIF fails (AC-04)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
-| AC-05 | `jxl_written_files_decode_back_exactly` (formats_modern.rs, 2×2, 3×7, 64×33 with transparent pixels); the 1 × 1 case is an open question | open |        |
+| AC-05 | `jxl_written_files_decode_back_exactly` (formats_modern.rs, 2×2, 3×7, 64×33 with transparent pixels) | open |        |
 | AC-06 | e2e `a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)` (ui/e2e/image-formats-modern.spec.ts); `jobs::tests::encode_jxl_decodes_back_to_the_composite` (pincel-image-core), `export_tests::export_jxl_and_image_to_png_round_trip` (pincel-image-wasm); the `jxl` line of both job `cases.json`, checked by `ui/e2e/job-digests.spec.ts`, `ui/e2e/desktop-jobs.spec.ts` and `native_jobs::tests::run_matches_the_web_worker_backend_for_every_job_kind` (pincel-tauri) | built |        |
 | AC-07 | AVIF spike failed (Decisions, 2026-11-12) | dropped |        |
 | AC-08 | `jxl_truncated_fails` (formats_modern.rs); e2e `a truncated JPEG XL fails as undecodable, a huge one with the size message (AC-08, AC-12)` (ui/e2e/image-formats-modern.spec.ts), which also keeps an open document unchanged | built |        |
@@ -118,8 +119,9 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 | AC-11 | measured before `wasm-opt` only (Decisions, 2026-11-12); the after-`wasm-opt` sizes are open | open |        |
 | AC-12 | `jxl_oversized_header_fails_with_the_size_error` (formats_modern.rs); e2e `a truncated JPEG XL fails as undecodable, a huge one with the size message (AC-08, AC-12)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
 | AC-13 | e2e `Save As offers JPEG XL with the name <name>.jxl (AC-13)` (ui/e2e/image-formats-modern.spec.ts); `Save As offers every writable format …` (ui/e2e/save-original.spec.ts) | built |        |
-| AC-14 | e2e `a JPEG XL that cannot be written leaves the document unsaved with a notice (AC-14)` (ui/e2e/image-formats-modern.spec.ts) — a 1-px-wide document the encoder refuses, through Save As | built |        |
+| AC-14 |  | open |        |
 | AC-15 | e2e `a dropped JPEG XL lands as one layer in one undo step with the pixels of Open (AC-10, AC-15)` (ui/e2e/image-formats-modern.spec.ts) | built |        |
+| AC-16 |  | open |        |
 
 ## Decisions
 
@@ -134,3 +136,4 @@ If the spike fails, AVIF decoding is dropped from this spec — no fallback to l
 - 2026-11-12 (spec-build): AC-10's example "a PNG named `.jxl`" (written in the revision above) contradicted AC-04, under which such a file opens as PNG; the example is removed — a PNG dropped under a `.jxl` name lands as a PNG layer.
 - 2026-11-12 (spec-build): `.jxl` maps to the format `jxl` by name as well (like ICO and DDS), so a damaged `.jxl` fails as undecodable rather than "not a supported file"; content still wins. The Save As label is the plain string "JPEG XL" like "TGA"; the only new translation is "/ JPEG XL" in `shell.unsupported`. The desktop association is role Editor, "JPEG XL Image", `image/jxl`.
 - 2026-11-12 (spec-build): AC-11 sizes of the release Image-mode wasm (`wasm-pack build --release`, before `wasm-opt`, which the crate turns off and only `release.yml` runs): 6 101 625 bytes at 6210c2ce (the commit before this spec's implementation) and 7 774 689 bytes with JPEG XL, +1 673 064 bytes (1.60 MiB). The sizes after `wasm-opt -O3 --enable-simd` (binaryen 133, as `release.yml`) still have to be taken; binaryen is not installed here and was not fetched in this session.
+- 2026-11-13 (revision, owner's choice): `zune-jpegxl` 0.5.2, the approved encoder, cannot write a side of 1 px (its `ZeroDimension` guard is `<= 1`, and its frame-size writer asserts `size > 1`). AC-05 now covers widths and heights of at least 2 px, and saving a smaller canvas as JPEG XL ends with its own notice (new AC-16, modelled on ICO's size limit in `image-formats-more` AC-08) instead of the generic write failure; AC-14 is the failure of any other write. No new dependency and no patched or vendored encoder.
