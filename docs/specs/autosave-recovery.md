@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-10-29
 size: M
 mode: both
@@ -47,7 +47,7 @@ IndexedDB also holds the user's preferences (language, panel layout, startup doc
 - [x] AC-12 (event): When the user changes the foreground or background color in Pixel mode and reloads, then a new Pixel document starts with those colors.
 - [x] AC-13 (error): If IndexedDB is unavailable, then the app still starts and both editors create, edit and save documents; autosave, recovery, recent files and stored preferences are silently skipped.
 - [x] AC-14 (event): When the web app has been loaded once and the network then goes offline, then reloading it shows the start screen and both editors open new documents.
-- [ ] AC-15 (always): The web build serves a web app manifest named "Pincel" with `display: standalone`, whose start URL and scope are the app's base path (`/` on the web, since 2026-11-11) and whose id is `/app/`, the id of copies installed while the editor lived at `/app/`.
+- [x] AC-15 (always): The web build serves a web app manifest named "Pincel" with `display: standalone`, whose start URL and scope are the app's base path (`/` on the web, since 2026-11-11) and whose id is `/app/`, the id of copies installed while the editor lived at `/app/`.
 
 ## Technical notes
 
@@ -74,13 +74,13 @@ Hints, not contracts — paths drift; grep for the names.
 
 ## Summary
 
-> Completed: 2026-11-05 (first accepted 2026-11-03; reopened for `document-tabs`)
+> Completed: 2026-11-13 (first accepted 2026-11-03; reopened for `document-tabs`, accepted 2026-11-05; reopened for the root base path, 2026-11-11)
 
 - Unsaved documents of both modes are snapshotted to IndexedDB; clean documents are not, and saving deletes the snapshot
 - The recovery dialog lists each document's latest snapshot of both modes at the first editor start, newest first, with Recover, Discard and Not now; each Recover opens a new active, unsaved tab of its mode while the dialog stays for the rest; a tab closed with Don't Save is never offered again
 - A snapshot that cannot be recovered shows its error, a failed write is reported and editing continues
 - Preferences persist in the IndexedDB `prefs` store (the last Pixel colours start the next session); without IndexedDB both editors work and storage is skipped silently
-- The installed web app loads offline once cached and serves a standalone manifest scoped to the app
+- The installed web app loads offline once cached and serves a standalone manifest scoped to the app's base path `/`, keeping the id `/app/` so copies installed from `/app/` stay the same app
 
 ## Open questions
 
@@ -93,7 +93,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-01 | `ui/e2e/recovery.spec.ts › pixel: an autosaved edit is offered and recovered after a reload`; `ui/e2e/recovery.spec.ts › image: an autosaved edit is offered and recovered after a reload` | verified | ba53299 |
 | AC-02 | `ui/e2e/recovery.spec.ts › pixel: a clean or unchanged document is not snapshotted`; `ui/e2e/recovery.spec.ts › image: a clean or unchanged document is not snapshotted` | verified | ba53299 |
 | AC-03 | `ui/e2e/recovery.spec.ts › pixel: saving deletes the snapshot and it is not offered again`; `ui/e2e/recovery.spec.ts › image: saving deletes the snapshot and it is not offered again` | verified | 6aed618 |
-| AC-04 | `ui/e2e/recovery.spec.ts › the dialog lists each document’s latest snapshot of both modes, newest first (AC-04)`; `ui/e2e/document-tabs-mixed.spec.ts › the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)` | verified | |
+| AC-04 | `ui/e2e/recovery.spec.ts › the dialog lists each document’s latest snapshot of both modes, newest first (AC-04)`; `ui/e2e/document-tabs-mixed.spec.ts › the recovery dialog lists both modes; Recover opens each as a tab of its mode (AC-15)` | verified | 48b5d53 |
 | AC-05 | `ui/e2e/recovery.spec.ts › pixel: each Recover opens its document as a new active, unsaved tab; the dialog stays for the rest (AC-05)`; `ui/e2e/recovery.spec.ts › image: each Recover opens its document as a new active, unsaved tab; the dialog stays for the rest (AC-05)`; `ui/e2e/recovery.spec.ts › a discarded snapshot is gone for good; discarding the last one closes the dialog` | verified | 1c6051c |
 | AC-06 | `ui/e2e/recovery.spec.ts › pixel: a recovered document keeps its snapshot until it is saved`; `ui/e2e/recovery.spec.ts › image: a recovered document keeps its snapshot until it is saved` | verified | 6aed618 |
 | AC-07 | `ui/e2e/recovery.spec.ts › a discarded snapshot is gone for good; discarding the last one closes the dialog` | verified | 35f631c |
@@ -104,7 +104,7 @@ Hints, not contracts — paths drift; grep for the names.
 | AC-12 | `ui/e2e/recovery.spec.ts › the last Pixel colors start the next session’s new documents` | verified | 22f5a52 |
 | AC-13 | `ui/e2e/recovery.spec.ts › without IndexedDB › both editors create, edit and save; storage is skipped silently` | verified | 3678aba |
 | AC-14 | `ui/e2e/recovery.spec.ts › installed web app › loads offline once cached and opens both editors` | verified | 48b5d53 |
-| AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` (start URL, scope and id) | built |        |
+| AC-15 | `ui/e2e/recovery.spec.ts › installed web app › serves a standalone web app manifest scoped to the app` (start URL, scope and id) | verified | 6cc3d24 |
 
 
 ## Decisions
