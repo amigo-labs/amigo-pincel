@@ -74,7 +74,7 @@ pub fn launch(answer: &Answer, dir: &Path) -> Launch {
             (CONFIG, config(answer, dir)),
             (SYSTEM_PROMPT, answer.system_prompt.clone()),
         ],
-        secret: vec![CONFIG],
+        transient: vec![CONFIG],
     }
 }
 

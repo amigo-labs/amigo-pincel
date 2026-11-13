@@ -80,7 +80,7 @@ pub fn launch(answer: &Answer, dir: &Path) -> Launch {
             (MCP_CONFIG, mcp_config(answer)),
             (SYSTEM_PROMPT, answer.system_prompt.clone()),
         ],
-        secret: vec![MCP_CONFIG],
+        transient: vec![MCP_CONFIG],
     }
 }
 

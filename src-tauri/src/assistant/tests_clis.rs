@@ -170,7 +170,7 @@ fn gemini_launch_offers_only_pincel_and_web_search_and_resumes_the_session() {
         file(&launch, gemini::CONTEXT),
         "Du bist „PixelAssist“.\nZeile 2"
     );
-    assert_eq!(launch.secret, [gemini::SETTINGS]);
+    assert_eq!(launch.transient, [gemini::SETTINGS]);
 }
 
 #[test]
@@ -224,7 +224,7 @@ fn opencode_launch_offers_only_pincel_and_web_search_and_resumes_the_session() {
         file(&launch, opencode::SYSTEM_PROMPT),
         "Du bist „PixelAssist“.\nZeile 2"
     );
-    assert_eq!(launch.secret, [opencode::CONFIG]);
+    assert_eq!(launch.transient, [opencode::CONFIG]);
     let fresh = Answer {
         session: None,
         model: None,
@@ -504,7 +504,7 @@ fn every_cli_runs_an_answer_with_its_launch_and_streams_it() {
                 "{kind:?} {name}"
             );
         }
-        for name in &launch.secret {
+        for name in &launch.transient {
             assert!(
                 !assistant.chat_dir(&chat).join(name).exists(),
                 "{kind:?}: {name} outlived the answer"

@@ -95,7 +95,7 @@ pub fn launch(answer: &Answer, dir: &Path) -> Launch {
             (SETTINGS, settings(answer)),
             (CONTEXT, answer.system_prompt.clone()),
         ],
-        secret: vec![SETTINGS],
+        transient: vec![SETTINGS],
     }
 }
 

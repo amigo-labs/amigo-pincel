@@ -170,7 +170,7 @@ impl Assistant {
             .spawn(move || {
                 let done = supervise(&mut child, &answer, &*sink, &stopped);
                 // The token stays on disk only while an answer runs.
-                for name in &launch.secret {
+                for name in &launch.transient {
                     let _ = std::fs::remove_file(dir.join(name));
                 }
                 lock(&runs).remove(&answer.chat);

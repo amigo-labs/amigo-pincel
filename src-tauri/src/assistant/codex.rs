@@ -112,7 +112,7 @@ pub fn launch(answer: &Answer, _dir: &Path) -> Launch {
         args,
         env: vec![(TOKEN_ENV.to_owned(), answer.mcp_token.clone())],
         files: Vec::new(),
-        secret: Vec::new(),
+        transient: Vec::new(),
     }
 }
 

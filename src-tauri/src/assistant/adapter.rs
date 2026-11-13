@@ -35,9 +35,9 @@ pub struct Launch {
     pub env: Vec<(String, String)>,
     /// Files written owner-only into the chat folder: name and text.
     pub files: Vec<(&'static str, String)>,
-    /// The files among them that carry the chat's token: removed when the
-    /// answer ends, so the token stays on disk only while it runs.
-    pub secret: Vec<&'static str>,
+    /// Names of the files among them that carry the chat's token: removed
+    /// when the answer ends, so the token stays on disk only while it runs.
+    pub transient: Vec<&'static str>,
 }
 
 /// The launch of `answer` for its CLI, run in the chat folder `dir`.
