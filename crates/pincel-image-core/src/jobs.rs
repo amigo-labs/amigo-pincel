@@ -1,10 +1,8 @@
 //! Heavy one-shot jobs on a document — encoding for export and autosave,
 //! effect regions and full-resolution effect previews — shared by every
 //! backend that runs them: the wasm job worker and the main-thread
-//! fallback (`pincel-image-wasm`) and the desktop app's native job backend
-//! (`pincel-tauri`). One function per job keeps their results
-//! byte-identical (docs/specs/performance-background-jobs.md,
-//! docs/specs/performance-desktop-jobs.md AC-01).
+//! fallback (`pincel-image-wasm`). One function per job keeps their results
+//! byte-identical (docs/specs/performance-background-jobs.md).
 
 use crate::codec::{
     CodecError, OraError, to_bmp_bytes, to_ico_bytes, to_jpeg_bytes, to_jxl_bytes, to_ora_bytes,

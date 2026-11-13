@@ -1,8 +1,9 @@
 //! Maps over independent items — the layer PNGs of an OpenRaster file — on
-//! all cores with the `parallel` feature (the desktop app's native job
-//! backend, docs/specs/performance-desktop-jobs.md), one after another
-//! without it (the wasm builds). Each item runs the same code either way
-//! and the results keep their order, so the output is byte-identical.
+//! all cores with the `parallel` feature (built for the desktop app's native
+//! job backend, removed 2026-11-13: docs/specs/performance-desktop-jobs.md),
+//! one after another without it (the wasm builds). Each item runs the same
+//! code either way and the results keep their order, so the output is
+//! byte-identical.
 
 /// `f` applied to every item of `items`, in order.
 pub(crate) fn map<T: Sync, R: Send>(items: &[T], f: impl Fn(&T) -> R + Sync + Send) -> Vec<R> {
