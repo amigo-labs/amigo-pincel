@@ -1,84 +1,25 @@
-import { expect, test, type Locator, type Page } from '@playwright/test';
-import {
-  createDocument,
-  drag,
-  fakeFileHandles,
-  fakeFs,
-  fakeFsLog,
-  imageCanvas,
-  menu,
-  setColor,
-} from './helpers';
+import { expect, test } from '@playwright/test';
+import { fakeFileHandles, fakeFs, fakeFsLog, imageCanvas, menu } from './helpers';
 import { openHistory, rowNames } from './history-helpers';
 import { tabs } from './tab-helpers';
+import {
+  applied,
+  box,
+  centre,
+  dragBy,
+  handle,
+  pivot,
+  readout,
+  scene,
+  shot,
+  undo,
+} from './transform-helpers';
 
 // The Move tools' transform handles in the editor
 // (docs/specs/image-transform-handles.md). The core side (results depend
 // only on the final box, cancel, undo) is tested in
 // crates/pincel-image-core/tests/live_transform.rs; the box geometry in
 // transform-box.spec.ts.
-
-const box = (page: Page): Locator => page.locator('[data-transform-box]');
-const handle = (page: Page, id: string): Locator => page.locator(`[data-transform-handle="${id}"]`);
-const pivot = (page: Page): Locator => page.locator('[data-transform-pivot]');
-const readout = (page: Page): Locator => page.locator('[data-transform-readout]');
-const undo = (page: Page): Locator => page.getByRole('button', { name: 'Undo', exact: true });
-
-/** A 64 × 64 image with a black stroke, its middle selected, and Move
- *  Selected Pixels picked. */
-async function scene(page: Page): Promise<void> {
-  await createDocument(page, 'image', { width: 64, height: 64 });
-  await setColor(page, 'fg', '#000000');
-  await page.keyboard.press('b');
-  await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
-  await page.keyboard.press('m');
-  await drag(page, imageCanvas(page), [0.3, 0.3], [0.7, 0.7]);
-  await page.keyboard.press('v');
-  await page.keyboard.press('v');
-  await expect(page.getByRole('button', { name: 'Move: Move Selected Pixels' })).toHaveAttribute(
-    'aria-pressed',
-    'true',
-  );
-}
-
-async function centre(l: Locator): Promise<[number, number]> {
-  const b = await l.boundingBox();
-  if (!b) throw new Error('not visible');
-  return [b.x + b.width / 2, b.y + b.height / 2];
-}
-
-/** Drags from `from` by `(dx, dy)` screen px with `button`, in steps. */
-async function dragBy(
-  page: Page,
-  from: [number, number],
-  dx: number,
-  dy: number,
-  button: 'left' | 'right' = 'left',
-): Promise<void> {
-  await page.mouse.move(from[0], from[1]);
-  await page.mouse.down({ button });
-  for (let i = 1; i <= 6; i++)
-    await page.mouse.move(from[0] + (dx * i) / 6, from[1] + (dy * i) / 6);
-  await page.mouse.up({ button });
-}
-
-type DiagnosticsWindow = Window & {
-  __pincelDiagnostics?: { calls?: Record<string, number> };
-};
-
-/** How often the editor has sent a transform's box to the core. */
-const applied = (page: Page): Promise<number> =>
-  page.evaluate(
-    () => (window as DiagnosticsWindow).__pincelDiagnostics?.calls?.['image.applyTransform'] ?? 0,
-  );
-
-/** The canvas pixels: an element screenshot also captures what floats over
- *  it, so the selection's marching ants and the box are hidden for it. */
-const shot = (page: Page): Promise<Buffer> =>
-  imageCanvas(page).screenshot({
-    style:
-      '[data-testid="selection-overlay"], [data-transform-box], [data-transform-handle], [data-transform-pivot] { visibility: hidden !important; }',
-  });
 
 test('a selection shows the box with eight handles and a pivot for both Move tools only (AC-01)', async ({
   page,
