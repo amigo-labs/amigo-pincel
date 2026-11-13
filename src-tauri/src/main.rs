@@ -15,12 +15,10 @@ use tauri::{AppHandle, Emitter, Manager, Wry};
 mod assistant;
 mod comfyui;
 mod fonts;
-mod job_server;
 #[cfg(target_os = "linux")]
 mod linux_install;
 mod mcp;
 mod menu_labels;
-mod native_jobs;
 mod open_files;
 #[cfg(test)]
 mod test_support;
@@ -394,7 +392,6 @@ fn main() {
         .manage(updater::UpdaterState::default())
         .manage(open_files::OpenFiles::default())
         .manage(fonts::SystemFonts::default())
-        .manage(native_jobs::NativeJobs::default())
         .invoke_handler(tauri::generate_handler![
             read_file_bytes,
             files_exist,
@@ -405,7 +402,6 @@ fn main() {
             open_files::take_open_files,
             fonts::system_font_faces,
             fonts::system_font_file,
-            job_server::job_endpoint,
             updater::updater_state,
             updater::updater_check,
             updater::updater_set_mode,
@@ -468,14 +464,6 @@ fn main() {
             // The Assistant chat's CLIs (ai-chat-panel); clears chat
             // folders a crashed run left behind (AC-22).
             app.manage(assistant::create(handle));
-            // The native job backend's endpoint; without it the UI keeps
-            // every job in the Web Worker.
-            let jobs = app.state::<native_jobs::NativeJobs>().inner().clone();
-            let endpoint = job_server::start(jobs).map_err(|e| e.to_string());
-            if let Err(e) = &endpoint {
-                eprintln!("native job endpoint unavailable: {e}");
-            }
-            app.manage(job_server::JobEndpointState(endpoint));
             if NATIVE_MENU {
                 let menu = build_menu(handle)?;
                 app.set_menu(menu)?;

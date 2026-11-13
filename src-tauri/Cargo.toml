@@ -50,10 +50,6 @@ flate2 = { workspace = true }
 sha2 = "0.10"
 tar = "0.4"
 zip = { workspace = true }
-# The native job backend (docs/specs/performance-desktop-jobs.md) runs the
-# Image-mode job functions the wasm job worker runs, on all cores.
-pincel-effects = { workspace = true }
-pincel-image-core = { workspace = true, features = ["parallel"] }
 serde = { version = "1", features = ["derive"] }
 tauri = { version = "2", features = [] }
 # Native clipboard read for the start-screen offer (copy-cut-paste AC-27 –

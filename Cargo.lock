@@ -3558,8 +3558,6 @@ dependencies = [
  "fontdb",
  "pincel-agent",
  "pincel-core",
- "pincel-effects",
- "pincel-image-core",
  "pincel-mcp",
  "reqwest",
  "rustls",
