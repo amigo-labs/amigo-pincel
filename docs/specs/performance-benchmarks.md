@@ -149,6 +149,23 @@ Measured 2026-10-29 on the reference machine (the owner accepted this developer 
 
 `image-memory-4k` re-measured 2026-11-06 on the same machine with the release wasm (performance-image-undo-memory AC-03; budget 1024 MB met, recorded in `budgets-met.json`).
 
+### Browser results, 2026-11-13
+
+Measured 2026-11-13 on the reference machine (AMD Ryzen 7 PRO 6850H with Radeon Graphics, 16 threads, 31 GB, win32 10.0.26100, Chromium 158.0.8127.18), release wasm, second of two back-to-back `pnpm perf` runs; `pnpm perf:check --mode budget --write` recorded the budgets met for the first time in `ui/e2e-perf/budgets-met.json`. The native criterion medians are not re-measured here; the nightly `perf.yml` run 43403911502 (2026-11-13, `main`) ran them in baseline mode.
+
+| Browser scenario | Frame p50 / p95 | Longest frame | Dab latency p50 / p95 | Scenario metrics |
+| ---------------- | --------------- | ------------- | --------------------- | ---------------- |
+| `image-brush-4k` | 16.7 ms / 16.7 ms | 16.8 ms | 22.8 ms / 31.1 ms | dab-draw-latency-p50 3 ms, dab-draw-latency-p95 3.7 ms |
+| `image-pan-zoom-4k` | 16.7 ms / 16.7 ms | 16.8 ms | — | — |
+| `image-recompose-4k` | 16.7 ms / 116.6 ms | 150 ms | — | recompose-p50 134.9 ms, recompose-p95 164.8 ms |
+| `image-gaussian-4k` | 16.7 ms / 16.7 ms | 133.3 ms | — | proxy 1061.6 ms, full 494.1 ms |
+| `image-autosave-export-4k` | 16.7 ms / 16.8 ms | 300 ms | — | — |
+| `image-transform-4k` | 16.7 ms / 16.8 ms | 350 ms | 22.7 ms / 31.8 ms | dab-draw-latency-p50 0.7 ms, dab-draw-latency-p95 0.9 ms |
+| `image-memory-4k` | 16.7 ms / 16.8 ms | 333.3 ms | — | wasm-memory-mb 1001.38 MiB |
+| `pixel-pencil-256-z32` | 16.7 ms / 16.8 ms | 16.8 ms | 23.8 ms / 31.1 ms | dab-draw-latency-p50 0.3 ms, dab-draw-latency-p95 0.5 ms |
+| `image-open-4k-png` | 16.7 ms / 33.3 ms | 916.5 ms | — | first-paint 292.1 ms |
+| `cold-start` | 16.7 ms / 16.7 ms | 33.3 ms | — | cold 1591 ms, warm 396 ms |
+
 ## Evidence
 
 | AC    | Test | Status | Commit |

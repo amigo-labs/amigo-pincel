@@ -66,7 +66,7 @@ Hints from the legacy plan (2026-10-28); paths drift.
 | AC-01 | Pixel: `crates/pincel-wasm/src/stroke.rs` › `stroke_to_batch_matches_per_sample_stroke_to` (uneven batches of 1–9 points vs one `strokeTo` per point; sizes, shapes, pixel-perfect, pressure, eraser). Image: `crates/pincel-image-core/tests/stroke_batching.rs` › `stroke_batched_per_frame_paints_like_one_sample_per_event` (pencil, eraser, recolor, smudge; soft brush, opacity, pressure) | built |        |
 | AC-02 | `crates/pincel-wasm/src/stroke.rs` › `stroke_to_batch_passes_through_every_sample`; `ui/e2e/input-path.spec.ts` › "pixel: a move event with several coalesced samples paints through every sample (AC-02)" | built |        |
 | AC-03 | `ui/e2e/input-path.spec.ts` › "pixel: a touch drag on the canvas paints and never scrolls, zooms or reloads (AC-03)", "image: … (AC-03)" | built |        |
-| AC-04 | manual — `pnpm perf -g pixel` then `pnpm perf:check --browser e2e-perf/results/browser.json` (`pixel-pencil-256-z32` › `frame-p95`, `dab-draw-latency-p95`); measured 2026-11-05 under Decisions | open   |        |
+| AC-04 | manual: measured on the reference laptop 2026-11-13 (release wasm, `pnpm perf` twice back to back on the release bundle): `pixel-pencil-256-z32` › `frame-p95` 16.7 / 16.8 ms (one vsync interval; the budget check allows 17 ms for rAF jitter, as on 2026-11-05), `dab-draw-latency-p95` 0.6 / 0.5 ms against 8 ms | built |        |
 
 ## Decisions
 
