@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-05
 size: M
 mode: both
@@ -36,19 +36,19 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): `tools/list` contains `font.list`, meeting `mcp-headless-pixel` AC-02, with an optional string argument `query`; the `draw.text` schema has an optional string argument `font`.
-- [ ] AC-02 (event): When the client calls `font.list`, then the result is `{ "families": [ { "name": <family>, "styles": [<style name>, …] }, … ] }` with every family available to the host exactly once, sorted case-insensitively by name, each with the style names of its faces as the host reports them, sorted by weight then upright before slanted; "Liberation Sans" is always listed.
-- [ ] AC-03 (option): Where `font.list` gets a non-empty `query`, only families whose name contains it (case-insensitive) are listed; an empty `query` lists all families.
-- [ ] AC-04 (event): When `draw.text` is called without `font`, or with `font` "Liberation Sans" and neither Bold nor Italic, then the result equals the result of the same call before this spec: the editor's text with the bundled face.
-- [ ] AC-05 (event): When `draw.text` is called with `font` naming a listed family, then the document's pixels equal the editor's after placing the same text with that family, size, color, alignment, anti-alias, Bold and Italic in a document of the same mode, including the face choice and synthesis of `system-fonts` AC-07.
-- [ ] AC-06 (event): When `font` matches no family exactly but exactly one family case-insensitively, then that family is used.
-- [ ] AC-13 (error): If `font` matches no family exactly and several families case-insensitively, then the call fails with `isError: true` and the message `font "<value>" is ambiguous: <name>, <name>; pass the exact name`, listing every matching name, and the document is unchanged.
-- [ ] AC-07 (error): If `font` matches no family, or is an empty string, then the call fails with `isError: true`, the message names the value and points to `font.list`, and the document is unchanged.
-- [ ] AC-08 (error): If the chosen face cannot be read or parsed, then the call fails with `isError: true` naming the family and the reason, and the document is unchanged.
-- [ ] AC-09 (state): While the headless `pincel-mcp` server runs, `font.list` reports the bundled family plus every family with a TrueType / OpenType face that `fontdb` finds on the system, found without any user interaction.
-- [ ] AC-10 (always): `font.list` reads no face; a face is read only by a `draw.text` call that uses it, and at most once per host run.
-- [ ] AC-11 (state): While the desktop app hosts the agent tools in live mode, `font.list` reports the same families as the app's own font list, and `draw.text` with `font` produces the pixels the editor produces with that family.
-- [ ] AC-12 (always): `pincel://guide` describes `font.list`, the `font` argument of `draw.text` and the matching rules of AC-06, AC-13 and AC-07.
+- [x] AC-01 (always): `tools/list` contains `font.list`, meeting `mcp-headless-pixel` AC-02, with an optional string argument `query`; the `draw.text` schema has an optional string argument `font`.
+- [x] AC-02 (event): When the client calls `font.list`, then the result is `{ "families": [ { "name": <family>, "styles": [<style name>, …] }, … ] }` with every family available to the host exactly once, sorted case-insensitively by name, each with the style names of its faces as the host reports them, sorted by weight then upright before slanted; "Liberation Sans" is always listed.
+- [x] AC-03 (option): Where `font.list` gets a non-empty `query`, only families whose name contains it (case-insensitive) are listed; an empty `query` lists all families.
+- [x] AC-04 (event): When `draw.text` is called without `font`, or with `font` "Liberation Sans" and neither Bold nor Italic, then the result equals the result of the same call before this spec: the editor's text with the bundled face.
+- [x] AC-05 (event): When `draw.text` is called with `font` naming a listed family, then the document's pixels equal the editor's after placing the same text with that family, size, color, alignment, anti-alias, Bold and Italic in a document of the same mode, including the face choice and synthesis of `system-fonts` AC-07.
+- [x] AC-06 (event): When `font` matches no family exactly but exactly one family case-insensitively, then that family is used.
+- [x] AC-13 (error): If `font` matches no family exactly and several families case-insensitively, then the call fails with `isError: true` and the message `font "<value>" is ambiguous: <name>, <name>; pass the exact name`, listing every matching name, and the document is unchanged.
+- [x] AC-07 (error): If `font` matches no family, or is an empty string, then the call fails with `isError: true`, the message names the value and points to `font.list`, and the document is unchanged.
+- [x] AC-08 (error): If the chosen face cannot be read or parsed, then the call fails with `isError: true` naming the family and the reason, and the document is unchanged.
+- [x] AC-09 (state): While the headless `pincel-mcp` server runs, `font.list` reports the bundled family plus every family with a TrueType / OpenType face that `fontdb` finds on the system, found without any user interaction.
+- [x] AC-10 (always): `font.list` reads no face; a face is read only by a `draw.text` call that uses it, and at most once per host run.
+- [x] AC-11 (state): While the desktop app hosts the agent tools in live mode, `font.list` reports the same families as the app's own font list, and `draw.text` with `font` produces the pixels the editor produces with that family.
+- [x] AC-12 (always): `pincel://guide` describes `font.list`, the `font` argument of `draw.text` and the matching rules of AC-06, AC-13 and AC-07.
 
 ## Technical notes
 
@@ -83,23 +83,33 @@ This spec extends `draw.text` as `mcp-headless-image` and `mcp-parity-drawing` d
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+## Summary
+
+> Completed: 2026-11-13
+
+- `font.list` lists the bundled Liberation Sans plus the host's font families, sorted case-insensitively, with their style names and an optional `query` filter; it reads no face.
+- `draw.text` takes an optional `font` family on Image and Pixel documents: exact name first, then a unique case-insensitive match; unknown, empty, ambiguous and unreadable fonts fail without changing the document.
+- `pincel-agent` gets fonts through the `FontProvider` trait and chooses faces with the `system-fonts` rules, checked against one case table shared with the editor's `faces.ts`; each face is read at most once per host run.
+- The headless `pincel-mcp` server offers the system's fonts through `fontdb`; in live desktop mode the webview answers `font.list` from the app's font list and hands `draw.text` the face the editor reads and registers.
+- `pincel://guide` documents `font.list`, the `font` argument and its matching rules.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `list_tools_has_font_list_and_the_font_argument` (`crates/pincel-agent/src/tests/fonts.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | built | |
-| AC-02 | `font_list_lists_each_family_once_sorted_with_its_styles`, `font_list_without_host_fonts_lists_liberation_sans` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-03 | `font_list_query_filters_by_name_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-04 | `draw_text_without_font_or_with_regular_liberation_sans_uses_the_bundled_face` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-05 | `draw_text_with_a_family_matches_the_editor_on_image_documents`, `draw_text_with_a_family_matches_the_editor_on_pixel_documents`, `face_choice_cases_match_the_shared_table` (`crates/pincel-agent/src/tests/fonts.rs`); `the editor chooses the faces of the shared face-choice table` (`ui/e2e/system-fonts-mcp.spec.ts`) | built | |
-| AC-06 | `draw_text_font_matches_one_family_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-07 | `draw_text_unknown_or_empty_font_fails_and_points_to_font_list` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-08 | `draw_text_unreadable_face_fails_naming_family_and_reason` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-09 | `font_list_reports_the_bundled_and_the_system_families` (`crates/pincel-mcp/tests/stdio.rs`); `faces_lists_each_face_with_family_style_and_attributes`, `read_returns_the_file_and_face_index_of_a_listed_face`, `read_of_a_removed_file_fails_with_the_reason` (`crates/pincel-mcp/src/fonts.rs`) | built | |
-| AC-10 | `font_list_reads_no_face_and_draw_text_reads_each_face_once` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
-| AC-11 | `call_image_wire_draws_text_with_the_face_the_editor_read`, `call_pixel_wire_draws_text_with_the_face_the_editor_read`, `call_wire_fonts_report_a_face_the_editor_could_not_read`, `call_wire_fonts_feed_font_list_and_matching` (`crates/pincel-agent/src/tests/live.rs`); `agent_call_draws_text_with_a_face_the_editor_registered` (`crates/pincel-wasm/src/agent.rs`, `crates/pincel-image-wasm/src/agent.rs`); "AC-11 font.list reports the families of the app font list, reading no face", "AC-11 draw.text with font on an Image document draws what the editor draws", "AC-11 draw.text with font on a Pixel document draws what the editor draws", "AC-11 draw.text with a face the shell cannot read fails and changes nothing" (`ui/e2e/system-fonts-mcp-live.spec.ts`) | built | |
-| AC-12 | `guide_describes_font_list_and_the_font_matching_rules` (`crates/pincel-agent/src/resources.rs`) | built | |
-| AC-13 | `draw_text_ambiguous_font_fails_listing_every_match` (`crates/pincel-agent/src/tests/fonts.rs`) | built | |
+| AC-01 | `list_tools_has_font_list_and_the_font_argument` (`crates/pincel-agent/src/tests/fonts.rs`), `tool_schemas_are_valid` (`crates/pincel-agent/src/tests/doc.rs`) | verified | 7f061a25 |
+| AC-02 | `font_list_lists_each_family_once_sorted_with_its_styles`, `font_list_without_host_fonts_lists_liberation_sans` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-03 | `font_list_query_filters_by_name_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-04 | `draw_text_without_font_or_with_regular_liberation_sans_uses_the_bundled_face` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-05 | `draw_text_with_a_family_matches_the_editor_on_image_documents`, `draw_text_with_a_family_matches_the_editor_on_pixel_documents`, `face_choice_cases_match_the_shared_table` (`crates/pincel-agent/src/tests/fonts.rs`); `the editor chooses the faces of the shared face-choice table` (`ui/e2e/system-fonts-mcp.spec.ts`) | verified | 7f061a25 |
+| AC-06 | `draw_text_font_matches_one_family_ignoring_case` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-07 | `draw_text_unknown_or_empty_font_fails_and_points_to_font_list` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-08 | `draw_text_unreadable_face_fails_naming_family_and_reason` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-09 | `font_list_reports_the_bundled_and_the_system_families` (`crates/pincel-mcp/tests/stdio.rs`); `faces_lists_each_face_with_family_style_and_attributes`, `read_returns_the_file_and_face_index_of_a_listed_face`, `read_of_a_removed_file_fails_with_the_reason` (`crates/pincel-mcp/src/fonts.rs`) | verified | 74260004 |
+| AC-10 | `font_list_reads_no_face_and_draw_text_reads_each_face_once` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
+| AC-11 | `call_image_wire_draws_text_with_the_face_the_editor_read`, `call_pixel_wire_draws_text_with_the_face_the_editor_read`, `call_wire_fonts_report_a_face_the_editor_could_not_read`, `call_wire_fonts_feed_font_list_and_matching` (`crates/pincel-agent/src/tests/live.rs`); `agent_call_draws_text_with_a_face_the_editor_registered` (`crates/pincel-wasm/src/agent.rs`, `crates/pincel-image-wasm/src/agent.rs`); "AC-11 font.list reports the families of the app font list, reading no face", "AC-11 draw.text with font on an Image document draws what the editor draws", "AC-11 draw.text with font on a Pixel document draws what the editor draws", "AC-11 draw.text with a face the shell cannot read fails and changes nothing" (`ui/e2e/system-fonts-mcp-live.spec.ts`) | verified | 8683022f |
+| AC-12 | `guide_describes_font_list_and_the_font_matching_rules` (`crates/pincel-agent/src/resources.rs`) | verified | 4ca94629 |
+| AC-13 | `draw_text_ambiguous_font_fails_listing_every_match` (`crates/pincel-agent/src/tests/fonts.rs`) | verified | 7f061a25 |
 
 ## Decisions
 

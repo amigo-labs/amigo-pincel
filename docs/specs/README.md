@@ -59,7 +59,6 @@ Installed fonts in both Text tools; the MCP part after `mcp-parity-drawing`.
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | E1 | [system-fonts](system-fonts.md) | both | L | — | Installed fonts in both Text tools (fontdb, Local Font Access, font files) |
-| E2 | [system-fonts-mcp](system-fonts-mcp.md) | both | M | system-fonts, mcp-parity-drawing | MCP draw.text font argument and font.list |
 
 ### F — Image size, view and files
 
@@ -194,6 +193,7 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
+- [system-fonts-mcp](system-fonts-mcp.md)
 - [tilemaps](tilemaps.md)
 - [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
