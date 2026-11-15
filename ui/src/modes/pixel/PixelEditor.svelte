@@ -47,7 +47,7 @@
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { toggleUi } from '../../lib/components/layout/chrome.svelte';
-  import { pixelMenus } from './menus';
+  import { pixelMenus, probeItem } from './menus';
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
   import {
@@ -356,6 +356,8 @@
   function openCommandPalette(): void {
     openPalette({
       menus: () => menus,
+      // Where the OS draws Help, the probe has no menu entry (menu-structure AC-06).
+      extras: () => (nativeMenuHost ? [probeItem({ probeOn: probe.on, toggleProbe })] : []),
       groups: () => railGroups,
       selectTool: (id) => {
         if (groupOf(railGroups, id as typeof toolState.tool))

@@ -80,7 +80,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(search(page)).toBeFocused();
     await expect(option(page, 'Layer ▸ Merge Down')).toHaveCount(1);
     await expect(option(page, 'Image ▸ Flip Horizontal')).toHaveCount(1);
-    await expect(option(page, 'Layer ▸ Flip Horizontal')).toHaveCount(1);
+    await expect(option(page, 'Layer ▸ Transform ▸ Flip Horizontal')).toHaveCount(1);
     await expect(option(page, 'Tool: Magic Wand')).toHaveCount(1);
     await expect(option(page, 'Go to frame…')).toHaveCount(mode === 'pixel' ? 1 : 0);
 

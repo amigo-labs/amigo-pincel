@@ -124,6 +124,16 @@ Owner request 2026-11-08: recognize text in an image and copy it. A Rust port of
 | J2 | [ocr-page](ocr-page.md) | Image | L | ocr-recognizer | Binarization, skew, lines and blocks, page text; accuracy on a page corpus |
 | J3 | [ocr-dialog](ocr-dialog.md) | Image | L | ocr-page | Tools ▸ Recognize Text…, model download on first use, copy to clipboard |
 
+### K — Menus and side panels
+
+Owner request 2026-11-15: a better menu and side panel structure. Built top to bottom; all three touch the editor frame and both editors' menus, so not in parallel with each other or with a spec that adds a menu entry or a panel.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| K1 | [menu-structure](menu-structure.md) | both | M | settings-dialog | Tools menu for the AI setup (desktop), OCR into Image, probe into Help, Layer ▸ Transform, one order in both modes; replaces the planned `ai-panel` |
+| K2 | [sidebar-tab-groups](sidebar-tab-groups.md) | both | L | — | Fixed groups: Layers \| History, Preview \| Tilesets \| Slices, Generate \| Assistant; Colors and Palette stay single |
+| K3 | [panel-visibility](panel-visibility.md) | both | M | menu-structure, sidebar-tab-groups | View ▸ Panels with a check mark per panel, Reset Panels |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)

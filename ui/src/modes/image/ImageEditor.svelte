@@ -30,8 +30,6 @@
   import { cancelTransform, commitTransform } from './core/transform';
   import { printComposite, type PrintPlacement } from './core/print';
   import PrintDialog from './components/dialogs/PrintDialog.svelte';
-  import { agentsMenuItems } from '../../lib/agent/access.svelte';
-  import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
   import { installLiveSync } from './core/live-sync.svelte';
   import { imageFont } from './core/text-font';
   import { initFontSource } from '../../lib/fonts/source.svelte';
@@ -124,7 +122,6 @@
   import ResizeDialog from './components/dialogs/ResizeDialog.svelte';
   import ScaleDialog from './components/dialogs/ScaleDialog.svelte';
   import OcrDialog from './components/dialogs/OcrDialog.svelte';
-  import { toolsMenu } from './ocr/menu';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
@@ -133,9 +130,9 @@
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
-  import { tidy, type MenuDef } from '../../lib/components/layout/menu';
+  import type { MenuDef } from '../../lib/components/layout/menu';
+  import { imageMenus } from './menus';
   import { cycleGroup, groupOf, type ToolGroup } from '../../lib/components/layout/tools';
-  import { effectMenus } from '../../lib/effects/menu';
   import { effectById, forMode, rgbaOf, type EffectDef } from '../../lib/effects/catalog';
   import { EffectSession, activeEffect } from '../../lib/effects/session.svelte';
   import { effectRun, type EffectRun } from './jobs';
@@ -168,7 +165,6 @@
   import type { AutosaveSnapshotMeta } from '../../lib/idb/autosave';
   import type { NewDocParams } from '../../lib/shell/types';
   import type { SaveTarget } from '../../lib/fs';
-  import { helpMenus, settingsMenuItems } from '../../lib/help/menu';
   import {
     closeShortcuts,
     helpDialogOpen,
@@ -176,8 +172,6 @@
     openSettings,
     openShortcuts,
   } from '../../lib/help/state.svelte';
-  import { recentMenuItems } from '../../lib/components/layout/recent-menu';
-  import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
   import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
   import { locale, t, type MessageKey } from '../../lib/i18n/index.svelte';
@@ -667,11 +661,6 @@
   ];
 
   // View ▸ Units and the status bar (docs/specs/image-view-aids.md AC-11, AC-12).
-  const UNIT_ITEMS: readonly (readonly [ViewUnit, MessageKey])[] = [
-    ['px', 'menu.unitPixels'],
-    ['in', 'menu.unitInches'],
-    ['cm', 'menu.unitCentimeters'],
-  ];
   const UNIT_SUFFIX: Record<ViewUnit, MessageKey> = {
     px: 'units.px',
     in: 'units.in',
@@ -1365,306 +1354,78 @@
 
   // Menu bar (spec §9.2): the same menus, order and labels as Pixel mode;
   // entries Image mode lacks are simply absent.
-  const menus: MenuDef[] = $derived([
-    {
-      id: 'file',
-      label: t('menu.file'),
-      items: tidy([
-        { label: t('menu.new'), shortcut: hint('newDocument'), run: onRequestNew },
-        { label: t('menu.open'), shortcut: hint('open'), run: onRequestOpen },
-        ...recentMenuItems(recentsAvailable ? recents : null, onOpenRecent),
-        droppedImagesMenu(),
-        { kind: 'separator' },
-        {
-          label: t('menu.close'),
-          shortcut: hint('closeTab'),
-          disabled: !hasDoc || runningSave() !== null,
-          run: () => requestCloseTab(),
-        },
-        { kind: 'separator' },
-        {
-          label: t('menu.save'),
-          shortcut: hint('save'),
-          disabled: !hasDoc,
-          run: () => void save(),
-        },
-        {
-          label: t('menu.saveAs'),
-          shortcut: hint('saveAs'),
-          disabled: !hasDoc,
-          run: () => void save(true),
-        },
-        { kind: 'separator' },
-        {
-          kind: 'submenu',
-          label: t('menu.export'),
-          disabled: !hasDoc,
-          items: [
-            { label: t('menu.exportPng'), shortcut: hint('export'), run: () => runExport('png') },
-            { label: t('menu.exportJpeg'), run: () => runExport('jpeg') },
-            // Lossless only: no pure-Rust lossy encoder (ADR-007).
-            { label: t('menu.exportWebp'), run: () => runExport('webp') },
-            { label: t('menu.exportSvg'), run: openSvgExport },
-          ],
-        },
-        {
-          label: t('menu.print'),
-          shortcut: hint('print'),
-          disabled: !hasDoc || ui.modalOpen,
-          run: () => void openPrint(),
-        },
-      ]),
-    },
-    {
-      id: 'edit',
-      label: t('menu.edit'),
-      items: [
-        { label: t('menu.undo'), shortcut: hint('undo'), disabled: !editor.canUndo, run: undo },
-        { label: t('menu.redo'), shortcut: hint('redo'), disabled: !editor.canRedo, run: redo },
-        { kind: 'separator' },
-        {
-          label: t('menu.cut'),
-          shortcut: hint('cut'),
-          disabled: !hasDoc,
-          run: () => runCopy('cut'),
-        },
-        {
-          label: t('menu.copy'),
-          shortcut: hint('copy'),
-          disabled: !hasDoc,
-          run: () => runCopy('copy'),
-        },
-        { label: t('menu.copyMerged'), disabled: !hasDoc, run: () => runCopy('merged') },
-        {
-          label: t('menu.paste'),
-          shortcut: hint('paste'),
-          disabled: !hasDoc,
-          run: () => void pasteFromClipboard(),
-        },
-        {
-          label: t('menu.pasteNewImage'),
-          shortcut: hint('pasteNewImage'),
-          run: () => void pasteAsNewImage(),
-        },
-        {
-          label: t('menu.deleteSelection'),
-          shortcut: hint('deleteSelection'),
-          disabled: !editor.hasSelection,
-          run: () => layerEdit(false, deleteSelection),
-        },
-        {
-          label: t('menu.fillSelection'),
-          shortcut: hint('fillSelection'),
-          disabled: !hasDoc,
-          run: () => layerEdit(false, fillSelection),
-        },
-        { kind: 'separator' },
-        { label: t('menu.swapColors'), shortcut: hint('swapColors'), run: swapColors },
-        { label: t('menu.defaultColors'), shortcut: hint('resetColors'), run: resetColors },
-        ...settingsMenuItems(),
-      ],
-    },
-    {
-      id: 'select',
-      label: t('menu.select'),
-      items: [
-        {
-          label: t('menu.selectAll'),
-          shortcut: hint('selectAll'),
-          disabled: !hasDoc,
-          run: selectAll,
-        },
-        {
-          label: t('menu.deselect'),
-          shortcut: hint('deselect'),
-          disabled: !editor.hasSelection,
-          run: deselect,
-        },
-        {
-          label: t('menu.expand'),
-          disabled: !editor.hasSelection,
-          run: () => openRadius('expand'),
-        },
-        {
-          label: t('menu.contract'),
-          disabled: !editor.hasSelection,
-          run: () => openRadius('contract'),
-        },
-        {
-          label: t('menu.feather'),
-          disabled: !editor.hasSelection,
-          run: () => openRadius('feather'),
-        },
-        {
-          label: t('menu.invertSelection'),
-          shortcut: hint('invertSelection'),
-          disabled: !hasDoc,
-          run: invertSelection,
-        },
-      ],
-    },
-    {
-      id: 'image',
-      label: t('menu.image'),
-      items: [
-        { label: t('menu.flipH'), disabled: !hasDoc, run: () => flipCanvas(true) },
-        { label: t('menu.flipV'), disabled: !hasDoc, run: () => flipCanvas(false) },
-        { kind: 'separator' },
-        {
-          label: t('menu.rotateCw'),
-          shortcut: hint('rotateCw'),
-          disabled: !hasDoc,
-          run: () => rotateCanvas('cw90'),
-        },
-        {
-          label: t('menu.rotateCcw'),
-          shortcut: hint('rotateCcw'),
-          disabled: !hasDoc,
-          run: () => rotateCanvas('ccw90'),
-        },
-        { label: t('menu.rotate180'), disabled: !hasDoc, run: () => rotateCanvas('rotate_180') },
-        { kind: 'separator' },
-        {
-          label: t('menu.resizeCanvas'),
-          disabled: !hasDoc,
-          run: () => (transformDialog = 'resize'),
-        },
-        { label: t('menu.scaleImage'), disabled: !hasDoc, run: () => (transformDialog = 'scale') },
-        { label: t('menu.crop'), disabled: !editor.hasSelection, run: cropToSelection },
-        { label: t('menu.autoCrop'), disabled: !hasDoc, run: runAutoCrop },
-      ],
-    },
-    {
-      id: 'layer',
-      label: t('menu.layer'),
-      items: [
-        { label: t('menu.newLayer'), shortcut: hint('newLayer'), disabled: !hasDoc, run: addLayer },
-        { label: t('menu.newGroup'), disabled: !hasDoc, run: addGroup },
-        {
-          label: t('menu.duplicateLayer'),
-          shortcut: hint('duplicateLayer'),
-          disabled: !hasDoc,
-          run: () => duplicateLayer(editor.activeLayer),
-        },
-        {
-          label: t('menu.renameLayer'),
-          disabled: !hasDoc,
-          run: () => {
-            const layer = editor.layers[editor.activeLayer];
-            if (layer) renaming = { index: editor.activeLayer, name: layer.name };
-          },
-        },
-        {
-          label: t('menu.deleteLayer'),
-          shortcut: hint('deleteLayer'),
-          disabled: !canDeleteLayer(editor.layers, editor.activeLayer),
-          run: () => deleteLayer(editor.activeLayer),
-        },
-        { kind: 'separator' },
-        {
-          label: t('menu.mergeDown'),
-          shortcut: hint('mergeDown'),
-          disabled: !canMergeDown(editor.layers, editor.activeLayer),
-          run: () => mergeDown(editor.activeLayer),
-        },
-        {
-          label: t('menu.mergeGroup'),
-          disabled: editor.layers[editor.activeLayer]?.kind !== 'group',
-          run: () => mergeGroup(editor.activeLayer),
-        },
-        { label: t('menu.mergeVisible'), disabled: !hasDoc, run: mergeVisible },
-        { label: t('menu.flatten'), disabled: !hasDoc, run: flattenImage },
-        { kind: 'separator' },
-        {
-          label: t('menu.flipH'),
-          shortcut: hint('flipLayerH'),
-          disabled: !hasDoc,
-          run: () => layerEdit(true, () => transformLayer('flip_h')),
-        },
-        {
-          label: t('menu.flipV'),
-          shortcut: hint('flipLayerV'),
-          disabled: !hasDoc,
-          run: () => layerEdit(true, () => transformLayer('flip_v')),
-        },
-        {
-          label: t('menu.rotateCw'),
-          disabled: !hasDoc,
-          run: () => layerEdit(true, () => rotateLayer90(false)),
-        },
-        {
-          label: t('menu.rotateCcw'),
-          disabled: !hasDoc,
-          run: () => layerEdit(true, () => rotateLayer90(true)),
-        },
-        {
-          label: t('menu.rotate180'),
-          disabled: !hasDoc,
-          run: () => layerEdit(true, () => transformLayer('rotate_180')),
-        },
-        { label: t('menu.rotateZoom'), disabled: !hasDoc, run: openRotateZoom },
-      ],
-    },
-    ...effectMenus(openEffect, !hasDoc, 'image'),
-    {
-      id: 'view',
-      label: t('menu.view'),
-      items: [
-        {
-          label: t('menu.zoomIn'),
-          shortcut: hint('zoomIn'),
-          disabled: !hasDoc,
-          run: () => viewCommands.zoomIn(),
-        },
-        {
-          label: t('menu.zoomOut'),
-          shortcut: hint('zoomOut'),
-          disabled: !hasDoc,
-          run: () => viewCommands.zoomOut(),
-        },
-        {
-          label: t('menu.zoomFit'),
-          shortcut: hint('zoomFit'),
-          disabled: !hasDoc,
-          run: () => viewCommands.fit(),
-        },
-        {
-          label: t('menu.zoomActual'),
-          shortcut: hint('zoomActual'),
-          disabled: !hasDoc,
-          run: () => viewCommands.actual(),
-        },
-        { kind: 'separator' },
-        {
-          label: t('menu.rulers'),
-          shortcut: hint('toggleRulers'),
-          checked: viewAids.showRulers,
-          run: () => setViewAids({ showRulers: !viewAids.showRulers }),
-        },
-        {
-          label: t('menu.pixelGrid'),
-          shortcut: hint('togglePixelGrid'),
-          checked: viewAids.showPixelGrid,
-          run: () => setViewAids({ showPixelGrid: !viewAids.showPixelGrid }),
-        },
-        {
-          kind: 'submenu',
-          label: t('menu.units'),
-          items: UNIT_ITEMS.map(([units, label]) => ({
-            label: t(label),
-            checked: viewAids.units === units,
-            run: () => setViewAids({ units }),
-          })),
-        },
-        { kind: 'separator' },
-        { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: toggleUi },
-        ...agentsMenuItems(),
-        ...imageGenerationItems(),
-      ],
-    },
-    toolsMenu(openOcr, !hasDoc),
-    ...helpMenus(openOverview, 'image'),
-  ]);
+  const menus: MenuDef[] = $derived(
+    imageMenus({
+      hasDoc,
+      saving: runningSave() !== null,
+      modalOpen: ui.modalOpen,
+      recents: recentsAvailable ? recents : null,
+      canUndo: editor.canUndo,
+      canRedo: editor.canRedo,
+      hasSelection: editor.hasSelection,
+      canDeleteLayer: canDeleteLayer(editor.layers, editor.activeLayer),
+      canMergeDown: canMergeDown(editor.layers, editor.activeLayer),
+      groupActive: editor.layers[editor.activeLayer]?.kind === 'group',
+      showRulers: viewAids.showRulers,
+      showPixelGrid: viewAids.showPixelGrid,
+      units: viewAids.units,
+      newDoc: onRequestNew,
+      open: onRequestOpen,
+      openRecent: onOpenRecent,
+      close: () => requestCloseTab(),
+      save: (asNew) => void save(asNew),
+      exportAs: (format) => runExport(format),
+      exportSvg: openSvgExport,
+      print: () => void openPrint(),
+      undo,
+      redo,
+      copy: runCopy,
+      paste: () => void pasteFromClipboard(),
+      pasteNewImage: () => void pasteAsNewImage(),
+      deleteSelection: () => layerEdit(false, deleteSelection),
+      fillSelection: () => layerEdit(false, fillSelection),
+      swapColors,
+      resetColors,
+      selectAll,
+      deselect,
+      invertSelection,
+      growSelection: openRadius,
+      flipCanvas,
+      rotateCanvas,
+      resizeCanvas: () => (transformDialog = 'resize'),
+      scaleImage: () => (transformDialog = 'scale'),
+      crop: cropToSelection,
+      autoCrop: runAutoCrop,
+      addLayer,
+      addGroup,
+      duplicateLayer: () => duplicateLayer(editor.activeLayer),
+      renameLayer: () => {
+        const layer = editor.layers[editor.activeLayer];
+        if (layer) renaming = { index: editor.activeLayer, name: layer.name };
+      },
+      deleteLayer: () => deleteLayer(editor.activeLayer),
+      mergeDown: () => mergeDown(editor.activeLayer),
+      mergeGroup: () => mergeGroup(editor.activeLayer),
+      mergeVisible,
+      flatten: flattenImage,
+      flipLayer: (horizontal) =>
+        layerEdit(true, () => transformLayer(horizontal ? 'flip_h' : 'flip_v')),
+      rotateLayer90: (ccw) => layerEdit(true, () => rotateLayer90(ccw)),
+      rotateLayer180: () => layerEdit(true, () => transformLayer('rotate_180')),
+      rotateZoom: openRotateZoom,
+      openEffect,
+      zoomIn: () => viewCommands.zoomIn(),
+      zoomOut: () => viewCommands.zoomOut(),
+      zoomFit: () => viewCommands.fit(),
+      zoomActual: () => viewCommands.actual(),
+      toggleRulers: () => setViewAids({ showRulers: !viewAids.showRulers }),
+      togglePixelGrid: () => setViewAids({ showPixelGrid: !viewAids.showPixelGrid }),
+      setUnits: (units) => setViewAids({ units }),
+      toggleUi,
+      recognizeText: openOcr,
+      openShortcuts: openOverview,
+    }),
+  );
 </script>
 
 <svelte:window onkeydown={onKeydown} onpaste={onPaste} />

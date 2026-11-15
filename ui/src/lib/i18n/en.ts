@@ -527,6 +527,7 @@ export const en = {
   'menu.rotateCcw': 'Rotate 90° CCW',
   'menu.rotate180': 'Rotate 180°',
   'menu.rotateZoom': 'Rotate / Zoom…',
+  'menu.transform': 'Transform',
   'menu.resizeCanvas': 'Resize Canvas…',
   'menu.scaleImage': 'Scale Image…',
   'menu.crop': 'Crop to Selection',

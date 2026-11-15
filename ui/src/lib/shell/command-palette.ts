@@ -4,7 +4,7 @@
 // command the menus don't have; queries match the label in the UI
 // language and in English.
 
-import type { MenuDef, MenuItem } from '../components/layout/menu';
+import type { MenuAction, MenuDef, MenuItem } from '../components/layout/menu';
 import type { ToolGroup } from '../components/layout/tools';
 import { isIdbAvailable } from '../idb/db';
 import { getPref, setPref } from '../idb/prefs';
@@ -14,6 +14,9 @@ import { englishLabel, t } from '../i18n/index.svelte';
 export interface PaletteSource {
   /** The editor's menu bar, read when the palette opens. */
   menus: () => MenuDef[];
+  /** Commands no menu of the menu bar holds, listed without a path
+   *  (menu-structure AC-06: the probe where the OS draws Help). */
+  extras?: () => MenuAction[];
   /** The editor's tool rail. */
   groups: () => readonly ToolGroup[];
   /** Activates a tool, as a click on the tool rail does. */
@@ -73,6 +76,18 @@ export function paletteEntries(source: PaletteSource): PaletteEntry[] {
   const out: PaletteEntry[] = [];
   for (const menu of source.menus()) {
     flatten(menu.items, [menu.label], [englishLabel(menu.label)], false, out);
+  }
+  for (const extra of source.extras?.() ?? []) {
+    const en = englishLabel(extra.label);
+    out.push({
+      id: en ?? extra.label,
+      label: extra.label,
+      english: en,
+      shortcut: extra.shortcut ?? '',
+      disabled: Boolean(extra.disabled),
+      kind: 'command',
+      run: extra.run,
+    });
   }
   for (const group of source.groups()) {
     for (const tool of group.tools) {

@@ -155,9 +155,9 @@ export function ocrField(page: Page): Locator {
   return page.getByRole('textbox', { name: 'Recognized text' });
 }
 
-/** Opens Tools ▸ Recognize Text…. */
+/** Opens Image ▸ Recognize Text…. */
 export async function openOcr(page: Page): Promise<void> {
-  await menu(page, 'Tools', 'Recognize Text…');
+  await menu(page, 'Image', 'Recognize Text…');
   await expect(ocrDialog(page)).toBeVisible();
 }
 

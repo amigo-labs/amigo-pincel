@@ -31,7 +31,7 @@ async function shot(page: Page, canvas: Locator): Promise<Buffer> {
 }
 
 async function openRotate(page: Page): Promise<void> {
-  await menu(page, 'Layer', 'Rotate…');
+  await menu(page, 'Layer', 'Transform', 'Rotate…');
   await expect(dialog(page)).toBeVisible();
 }
 
@@ -128,7 +128,7 @@ test('RotSprite over 512 px shows a notice and rotates nothing (AC-09)', async (
 
 test('a locked layer or an empty one rotates nothing (AC-10)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await menu(page, 'Layer', 'Rotate…');
+  await menu(page, 'Layer', 'Transform', 'Rotate…');
   await expect(page.getByText('rotate: nothing to rotate')).toBeVisible();
   await expect(dialog(page)).toBeHidden();
   await expect(undoButton(page)).toBeDisabled();
@@ -136,7 +136,7 @@ test('a locked layer or an empty one rotates nothing (AC-10)', async ({ page }) 
   const canvas = await barSprite(page);
   const original = await shot(page, canvas);
   await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
-  await menu(page, 'Layer', 'Rotate…');
+  await menu(page, 'Layer', 'Transform', 'Rotate…');
   await expect(page.getByText('Layer “Layer 1” is locked')).toBeVisible();
   await expect(dialog(page)).toBeHidden();
   expect((await shot(page, canvas)).equals(original)).toBe(true);

@@ -531,6 +531,7 @@ export const es: Record<MessageKey, string> = {
   'menu.rotateCcw': 'Rotar 90° a la izquierda',
   'menu.rotate180': 'Rotar 180°',
   'menu.rotateZoom': 'Rotar / Zoom…',
+  'menu.transform': 'Transformar',
   'menu.resizeCanvas': 'Tamaño del lienzo…',
   'menu.scaleImage': 'Escalar imagen…',
   'menu.crop': 'Recortar a la selección',
