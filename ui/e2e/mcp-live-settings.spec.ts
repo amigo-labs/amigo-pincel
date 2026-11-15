@@ -2,7 +2,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { createDocument, storedPref, switchLanguage, waitForEditor } from './helpers';
 import { emit, installTauriMock, type MockWindow } from './tauri-mock';
 
-// View ▸ AI agents… and the "AI connected" indicator
+// Tools ▸ AI agents… and the "AI connected" indicator
 // (docs/specs/mcp-live-desktop.md), against the mocked Tauri bridge, whose
 // `mcp_*` commands stand in for the endpoint in src-tauri/src/mcp.
 
@@ -14,8 +14,9 @@ function dialog(page: Page, title = 'AI Agents'): Locator {
   return page.getByRole('dialog', { name: title });
 }
 
-async function viewMenu(page: Page, view = 'View'): Promise<void> {
-  await page.getByRole('menubar').getByRole('menuitem', { name: view, exact: true }).click();
+/** Opens the Tools menu, where AI Agents… lives (menu-structure AC-01). */
+async function toolsMenu(page: Page, tools = 'Tools'): Promise<void> {
+  await page.getByRole('menubar').getByRole('menuitem', { name: tools, exact: true }).click();
 }
 
 /** The desktop app (past the first-launch note) with a 16×16 document. */
@@ -31,7 +32,7 @@ async function start(page: Page, mode: 'pixel' | 'image' = 'pixel'): Promise<voi
 }
 
 async function openAgents(page: Page): Promise<Locator> {
-  await viewMenu(page);
+  await toolsMenu(page);
   await page.getByRole('menuitem', { name: 'AI Agents…' }).click();
   const d = dialog(page);
   await expect(d).toBeVisible();
@@ -123,7 +124,7 @@ test.describe('desktop app', () => {
   test('AC-14 the dialog and the indicator are German in the German UI', async ({ page }) => {
     await start(page);
     await switchLanguage(page, 'Deutsch');
-    await viewMenu(page, 'Ansicht');
+    await toolsMenu(page, 'Extras');
     await page.getByRole('menuitem', { name: 'KI-Agenten…' }).click();
     const d = dialog(page, 'KI-Agenten');
     await expect(d).toBeVisible();
@@ -139,7 +140,10 @@ test.describe('desktop app', () => {
 
 test('AC-13 the web app shows neither the setting nor the indicator', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await viewMenu(page);
+  const bar = page.getByRole('menubar');
+  await expect(bar.getByRole('menuitem', { name: 'View', exact: true })).toBeVisible();
+  await expect(bar.getByRole('menuitem', { name: 'Tools', exact: true })).toHaveCount(0);
+  await bar.getByRole('menuitem', { name: 'View', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Zoom In' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'AI Agents…' })).toHaveCount(0);
   await expect(page.getByText('AI connected')).toHaveCount(0);

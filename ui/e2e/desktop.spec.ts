@@ -412,7 +412,10 @@ test.describe('desktop on Linux', () => {
     await page.keyboard.press('Escape');
     const help = await openHelp();
     await expect(help.getByRole('menuitem', { name: 'Check for Updates…' })).toBeVisible();
-    await expect(help.getByRole('menuitemcheckbox')).toHaveCount(0);
+    // Pixel mode's Frame-Time Probe is Help's one check-mark entry (menu-structure AC-05).
+    await expect(
+      help.getByRole('menuitemcheckbox').filter({ hasNotText: 'Frame-Time Probe' }),
+    ).toHaveCount(0);
     await expect(help.getByText('Install Updates Automatically')).toHaveCount(0);
   });
 

@@ -3,9 +3,12 @@
 // ImageEditor passes its state and actions in, so the editor keeps no
 // menu markup.
 
-import { agentsMenuItems } from '../../lib/agent/access.svelte';
-import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
 import { tidy, type MenuDef } from '../../lib/components/layout/menu';
+import {
+  layerTransformItems,
+  selectMenu,
+  toolsMenus,
+} from '../../lib/components/layout/shared-menus';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { effectMenus } from '../../lib/effects/menu';
@@ -14,7 +17,6 @@ import { t, type MessageKey } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
 import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import { hint } from '../../lib/shell/shortcuts';
-import { toolsMenu } from './ocr/menu';
 import type { ViewUnit } from './view-units';
 
 /** View ▸ Units entries (docs/specs/image-view-aids.md AC-11). */
@@ -96,7 +98,7 @@ export interface ImageMenuContext {
   setUnits(units: ViewUnit): void;
   /** View ▸ Toggle UI (power-user-shortcuts-coverage AC-17). */
   toggleUi(): void;
-  /** Tools ▸ Recognize Text… (ocr-dialog). */
+  /** Image ▸ Recognize Text… (ocr-dialog). */
   recognizeText(): void;
   /** Help ▸ Keyboard Shortcuts. */
   openShortcuts(): void;
@@ -165,23 +167,16 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         ...settingsMenuItems(),
       ],
     },
-    {
-      id: 'select',
-      label: t('menu.select'),
-      items: [
-        { label: t('menu.selectAll'), shortcut: hint('selectAll'), disabled: noDoc, run: c.selectAll },
-        { label: t('menu.deselect'), shortcut: hint('deselect'), disabled: !c.hasSelection, run: c.deselect },
-        { label: t('menu.expand'), disabled: !c.hasSelection, run: () => c.growSelection('expand') },
-        { label: t('menu.contract'), disabled: !c.hasSelection, run: () => c.growSelection('contract') },
-        { label: t('menu.feather'), disabled: !c.hasSelection, run: () => c.growSelection('feather') },
-        {
-          label: t('menu.invertSelection'),
-          shortcut: hint('invertSelection'),
-          disabled: noDoc,
-          run: c.invertSelection,
-        },
-      ],
-    },
+    selectMenu({
+      noDoc,
+      hasSelection: c.hasSelection,
+      selectAll: c.selectAll,
+      deselect: c.deselect,
+      invertSelection: c.invertSelection,
+      expand: () => c.growSelection('expand'),
+      contract: () => c.growSelection('contract'),
+      feather: () => c.growSelection('feather'),
+    }),
     {
       id: 'image',
       label: t('menu.image'),
@@ -207,6 +202,8 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         { label: t('menu.scaleImage'), disabled: noDoc, run: c.scaleImage },
         { label: t('menu.crop'), disabled: !c.hasSelection, run: c.crop },
         { label: t('menu.autoCrop'), disabled: noDoc, run: c.autoCrop },
+        { kind: 'separator' },
+        { label: t('menu.recognizeText'), disabled: noDoc, run: c.recognizeText },
       ],
     },
     {
@@ -233,13 +230,15 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         { label: t('menu.mergeGroup'), disabled: !c.groupActive, run: c.mergeGroup },
         { label: t('menu.mergeVisible'), disabled: noDoc, run: c.mergeVisible },
         { label: t('menu.flatten'), disabled: noDoc, run: c.flatten },
-        { kind: 'separator' },
-        { label: t('menu.flipH'), shortcut: hint('flipLayerH'), disabled: noDoc, run: () => c.flipLayer(true) },
-        { label: t('menu.flipV'), shortcut: hint('flipLayerV'), disabled: noDoc, run: () => c.flipLayer(false) },
-        { label: t('menu.rotateCw'), disabled: noDoc, run: () => c.rotateLayer90(false) },
-        { label: t('menu.rotateCcw'), disabled: noDoc, run: () => c.rotateLayer90(true) },
-        { label: t('menu.rotate180'), disabled: noDoc, run: c.rotateLayer180 },
-        { label: t('menu.rotateZoom'), disabled: noDoc, run: c.rotateZoom },
+        ...layerTransformItems({
+          noDoc,
+          flipH: () => c.flipLayer(true),
+          flipV: () => c.flipLayer(false),
+          rotateCw: () => c.rotateLayer90(false),
+          rotateCcw: () => c.rotateLayer90(true),
+          rotate180: c.rotateLayer180,
+          dialog: { label: t('menu.rotateZoom'), run: c.rotateZoom },
+        }),
       ],
     },
     ...effectMenus(c.openEffect, noDoc, 'image'),
@@ -270,11 +269,9 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         },
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
-        ...agentsMenuItems(),
-        ...imageGenerationItems(),
       ],
     },
-    toolsMenu(c.recognizeText, noDoc),
+    ...toolsMenus(),
     ...helpMenus(c.openShortcuts, 'image'),
   ];
 }

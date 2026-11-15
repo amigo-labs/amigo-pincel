@@ -39,6 +39,8 @@ test('AC-10 while an answer runs only zoom, pan and the chat stay usable', async
   expect(await isInert(page.locator('[data-menu-trigger="edit"]'))).toBe(true);
   expect(await isInert(page.locator('[data-menu-trigger="file"]'))).toBe(true);
   expect(await isInert(page.locator('[data-menu-trigger="view"]'))).toBe(false);
+  // Tools (the AI setup) is not View: inert like the rest (menu-structure AC-15).
+  expect(await isInert(page.locator('[data-menu-trigger="tools"]'))).toBe(true);
   expect(await isInert(page.getByRole('region', { name: 'Layers' }))).toBe(true);
   // The chat's own controls.
   await expect(panel(page).getByRole('button', { name: 'New chat' })).toBeDisabled();

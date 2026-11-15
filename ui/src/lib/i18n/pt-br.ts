@@ -525,6 +525,7 @@ export const ptBr: Record<MessageKey, string> = {
   'menu.rotateCcw': 'Girar 90° anti-horário',
   'menu.rotate180': 'Girar 180°',
   'menu.rotateZoom': 'Girar / Zoom…',
+  'menu.transform': 'Transformar',
   'menu.resizeCanvas': 'Redimensionar tela…',
   'menu.scaleImage': 'Redimensionar imagem…',
   'menu.crop': 'Cortar para a seleção',

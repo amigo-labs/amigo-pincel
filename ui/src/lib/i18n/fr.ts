@@ -531,6 +531,7 @@ export const fr: Record<MessageKey, string> = {
   'menu.rotateCcw': 'Rotation 90° antihoraire',
   'menu.rotate180': 'Rotation 180°',
   'menu.rotateZoom': 'Rotation / Zoom…',
+  'menu.transform': 'Transformer',
   'menu.resizeCanvas': 'Taille du canevas…',
   'menu.scaleImage': 'Redimensionner l’image…',
   'menu.crop': 'Recadrer sur la sélection',

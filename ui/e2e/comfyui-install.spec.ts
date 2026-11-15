@@ -100,14 +100,14 @@ interface Answers {
   connect?: unknown[];
 }
 
-/** The desktop app with View ▸ Image generation… open. */
+/** The desktop app with Tools ▸ Image generation… open. */
 async function openDialog(page: Page, answers: Answers = {}): Promise<Locator> {
   await launchDesktop(page);
   await reply(page, 'comfyui_install_info', answers.info ?? info());
   await reply(page, 'comfyui_settings', ...(answers.settings ?? [settings()]));
   await reply(page, 'comfyui_connect', ...(answers.connect ?? [{ kind: 'notFound' }]));
   await newDocument(page, 'pixel');
-  await menu(page, 'View', 'Image Generation…');
+  await menu(page, 'Tools', 'Image Generation…');
   const dialog = page.getByRole('dialog', { name: 'Image generation' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -555,7 +555,7 @@ test.describe('desktop', () => {
     // A location that already holds a complete installation.
     await reply(page, 'comfyui_install_info', info());
     await page.keyboard.press('Escape');
-    await menu(page, 'View', 'Image Generation…');
+    await menu(page, 'Tools', 'Image Generation…');
     await dialog.getByRole('button', { name: 'Install ComfyUI…' }).click();
     await pickLocation(page, wizard, 'E:/Models', { existing: 'complete' });
     await expect(wizard).toContainText('This folder already has a complete installation');
@@ -585,7 +585,7 @@ test.describe('desktop', () => {
     await reply(page, 'comfyui_settings', settings());
     await reply(page, 'comfyui_connect', { kind: 'notFound' });
     await newDocument(page, 'pixel');
-    await menu(page, 'View', 'Image Generation…');
+    await menu(page, 'Tools', 'Image Generation…');
     const wizard = page.getByRole('dialog', { name: 'Install ComfyUI' });
     await expect(wizard.getByRole('status')).toContainText('Installing PyTorch and dependencies');
     await expect(wizard.getByRole('status')).toContainText('Resolved 85 packages');
@@ -605,7 +605,7 @@ test.describe('German', () => {
     await page.getByRole('button', { name: 'Neues Pixel-Sprite' }).click();
     await page.getByRole('button', { name: 'Erstellen' }).click();
     await waitForEditor(page, 'pixel');
-    await menu(page, 'Ansicht', 'Bildgenerierung…');
+    await menu(page, 'Extras', 'Bildgenerierung…');
     await page.getByRole('button', { name: 'ComfyUI installieren…' }).click();
     const wizard = page.getByRole('dialog', { name: 'ComfyUI installieren' });
     await expect(wizard).toContainText('Unterstützt');
