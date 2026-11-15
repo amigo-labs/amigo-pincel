@@ -150,7 +150,7 @@
 >
   <form
     bind:this={form}
-    class="flex max-h-[90vh] w-96 flex-col gap-3 overflow-y-auto rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="flex max-h-[90vh] w-96 flex-col gap-3 overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
@@ -256,7 +256,7 @@
 
     <div class="flex h-48 items-center justify-center rounded border border-pc-border bg-pc-bg">
       {#if errorText}
-        <p class="p-2 text-center text-xs text-amber-400" role="alert">{errorText}</p>
+        <p class="p-2 text-center text-xs text-pc-warning-text" role="alert">{errorText}</p>
       {:else if previewUrl}
         <img class="h-full w-full object-contain p-1" src={previewUrl} alt={t('svg.preview')} />
       {/if}
@@ -275,19 +275,7 @@
 </div>
 
 <style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.25rem 0.75rem;
-  }
-  .panel-btn:hover {
-    background-color: rgb(38 38 38);
-  }
   .panel-btn:disabled {
     opacity: 0.5;
-  }
-  .panel-btn-primary {
-    border-color: rgb(59 130 246);
-    background-color: rgb(29 78 216);
   }
 </style>

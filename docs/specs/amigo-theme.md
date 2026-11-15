@@ -95,25 +95,31 @@ Terms. **UI**: everything the app draws around and over the document except the 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-01 | `.github/workflows/site-data.yml` passes `theme-dir: ui/src/theme` to amigo-labs/website `validate-project.yml` (CI: site-data); locally `node scripts/theme.ts ../amigo-pincel/docs/site/project.yml --out ../amigo-pincel/ui/src/theme --check` in the website checkout | built |        |
+| AC-02 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › the start screen is dark by default (AC-04) | built |        |
+| AC-03 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › pixel / image: nothing keeps the former accent blue (AC-03) | built |        |
+| AC-04 | `ui/e2e/amigo-theme.spec.ts` › the start screen is dark by default, whatever the system prefers (AC-04); › an unknown stored value counts as no choice (AC-04) | built |        |
+| AC-05 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | built |        |
+| AC-06 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | built |        |
+| AC-07 | `ui/e2e/amigo-theme.spec.ts` › System follows the system preference, also while the app is open (AC-07, AC-13) | built |        |
+| AC-08 | `ui/e2e/amigo-theme.spec.ts` › a stored choice is in place when the UI first appears (AC-08) | built |        |
+| AC-09 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: light: the workspace is light, a transparent document looks as in dark (AC-09) | built |        |
+| AC-10 | `ui/e2e/amigo-theme.spec.ts` › Dark / Light: text holds 4.5:1 on what is behind it (AC-10) | built |        |
+| AC-11 | `ui/e2e/amigo-theme.spec.ts` › UI text is Inter from the app itself (AC-11) | built |        |
+| AC-12 | `ui/e2e/amigo-theme.spec.ts` › radii and the focus ring come from the tokens (AC-12) | built |        |
+| AC-13 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme … (AC-05, AC-06, AC-13); › System follows the system preference … (AC-07, AC-13) | built |        |
+| AC-14 | `ui/e2e/amigo-theme.spec.ts` › every language names the theme setting in its own words (AC-14) | built |        |
+| AC-15 | `ui/e2e/amigo-theme.spec.ts` › a choice that cannot be stored applies until the app is closed (AC-15); › a stored choice that cannot be read starts dark and usable (AC-15) | built |        |
 | AC-16 |      | open   |        |
 
 ## Decisions
 
 - 2026-11-15: Dark stays the default instead of following the system, because the owner chose "dark is the default, light can be chosen" and every existing user has a dark Pincel today.
 - 2026-11-15: The palette switches without a transition, because a fade of every surface is costly on large editors and adds nothing.
+- 2026-11-15 (build): What shows through a transparent Pixel document stays one fixed colour (`pc-doc`, the former dark panel colour) in both palettes. Pixel mode has no checkerboard; the area behind the document was the panel colour and would have turned white in the light palette, which changes how a sprite looks. AC-09's reason (colours in a document look the same in both palettes) decides it.
+- 2026-11-15 (build): The active tool and switched-on toggles change from an accent tint to the accent fill, as AC-03 says; with the shared theme's decorative `accent` a tint with accent-coloured icons would miss 4.5:1 in the light palette.
+- 2026-11-15 (build): Text-entry fields and selects get the field ground and the control radius from one unlayered rule in `app.css` instead of a class on each of them, so no field can be missed.
+- 2026-11-15 (build): Status colours written as Tailwind palette classes (`text-red-400`, `text-amber-400`, …) and raw `rgb()` values in component styles move to tokens (new aliases `pc-warning-text`, `pc-success-text`); they were readable on dark only.
+- 2026-11-15 (build): The first render waits at most 400 ms for the stored choice (`initTheme` in `ui/src/lib/theme.svelte.ts`, new public API: `theme`, `setThemeChoice`, `initTheme`, `THEME_CHOICES`, `THEME_PREF`, `isThemeChoice`).
+- 2026-11-15 (build): Red run before the implementation: all 17 tests of `ui/e2e/amigo-theme.spec.ts` failed against the unchanged build (no tokens, no Theme setting).
 - 2026-11-15: The `pc-*` names stay as aliases of the tokens, because renaming them in 86 files changes nothing visible and would make this spec too large (§3.2).

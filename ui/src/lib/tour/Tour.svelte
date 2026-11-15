@@ -141,7 +141,7 @@
       role="dialog"
       aria-modal="true"
       aria-label={t('tour.title')}
-      class="absolute flex w-80 max-w-[calc(100vw-16px)] flex-col gap-3 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl motion-safe:transition-all motion-safe:duration-200"
+      class="absolute flex w-80 max-w-[calc(100vw-16px)] flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl motion-safe:transition-all motion-safe:duration-200"
       style:left="{position.left}px"
       style:top="{position.top}px"
       data-tour-callout

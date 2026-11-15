@@ -396,12 +396,12 @@
 
 <style>
   .pal-menu {
-    border-radius: 0.375rem;
+    border-radius: var(--am-radius-md);
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-panel);
     padding: 0.25rem 0;
     font-size: 0.875rem;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+    box-shadow: var(--am-elev-2);
   }
   .pal-menu-row {
     display: block;
@@ -423,24 +423,24 @@
     aspect-ratio: 1;
     width: 100%;
     border-radius: 0.2rem;
-    border: 1px solid rgb(64 64 64);
+    border: 1px solid var(--am-border);
     cursor: pointer;
   }
   .palette-swatch:hover {
-    border-color: rgb(163 163 163);
+    border-color: var(--am-border-strong);
   }
   .swatch-selected {
-    border-color: rgb(229 229 229);
+    border-color: var(--am-text);
     border-width: 2px;
   }
   .pal-btn {
     border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
+    border: 1px solid var(--am-border);
     padding: 0 0.4rem;
     font-size: 0.75rem;
   }
   .pal-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
+    background-color: var(--am-hover);
   }
   .pal-btn:disabled {
     opacity: 0.4;
@@ -449,8 +449,8 @@
     box-shadow: inset 0 -3px 0 var(--color-pc-accent);
   }
   .swatch-active {
-    outline: 2px solid rgb(59 130 246);
+    outline: 2px solid var(--am-focus);
     outline-offset: 1px;
-    border-color: rgb(59 130 246);
+    border-color: var(--am-accent);
   }
 </style>

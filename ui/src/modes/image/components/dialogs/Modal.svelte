@@ -73,7 +73,7 @@
         </button>
       {/if}
       <button
-        class="rounded bg-pc-accent px-3 py-1 text-white disabled:opacity-50"
+        class="rounded bg-pc-primary px-3 py-1 text-pc-accent-fg disabled:opacity-50"
         disabled={applyDisabled}
         onclick={onApply}
       >

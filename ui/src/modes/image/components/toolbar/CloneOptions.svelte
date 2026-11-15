@@ -19,7 +19,7 @@
   type="button"
   class="rounded border px-2 py-1 hover:bg-pc-hover"
   class:border-pc-accent={tool.cloneSetSource}
-  class:text-pc-accent={tool.cloneSetSource}
+  class:text-pc-accent-text={tool.cloneSetSource}
   class:border-pc-border={!tool.cloneSetSource}
   aria-pressed={tool.cloneSetSource}
   title={t('clone.setSourceHint')}

@@ -200,7 +200,7 @@
         </label>
       </div>
       {#if formError}
-        <p class="text-xs text-red-400" role="alert">{formError}</p>
+        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
         <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
@@ -244,7 +244,7 @@
             </button>
           </div>
           {#if rowError[ts.id]}
-            <p class="text-xs text-red-400" role="alert">{rowError[ts.id]}</p>
+            <p class="text-xs text-pc-danger-text" role="alert">{rowError[ts.id]}</p>
           {/if}
           {#if doc && ts.tileCount > 1}
             <!-- Tile 0 is the empty tile: never shown, never picked
@@ -291,10 +291,10 @@
     line-height: 0;
   }
   .tile-btn:hover {
-    border-color: rgb(82 82 82);
+    border-color: var(--am-border-strong);
   }
   .tile-btn-selected {
-    border-color: rgb(59 130 246);
-    box-shadow: 0 0 0 1px rgb(59 130 246);
+    border-color: var(--am-accent);
+    box-shadow: 0 0 0 1px var(--am-accent);
   }
 </style>

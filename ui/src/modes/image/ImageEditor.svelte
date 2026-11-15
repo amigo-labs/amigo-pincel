@@ -1802,7 +1802,7 @@
     >
     <span
       class="min-w-0 flex-1 truncate text-center"
-      class:text-amber-400={loadError !== null || editor.notice !== null}
+      class:text-pc-warning-text={loadError !== null || editor.notice !== null}
       class:text-pc-muted={loadError === null && editor.notice === null}
       >{loadError ?? editor.notice ?? ''}</span
     >

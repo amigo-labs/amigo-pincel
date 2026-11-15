@@ -201,7 +201,7 @@
 
 <style>
   .pal-menu {
-    border-radius: 0.375rem;
+    border-radius: var(--am-radius-md);
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-panel);
     padding: 0.25rem 0;

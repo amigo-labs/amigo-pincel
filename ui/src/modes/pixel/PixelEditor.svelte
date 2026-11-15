@@ -1543,7 +1543,7 @@
             stores (`image-rendering: pixelated`).
           -->
       <div
-        class="relative shrink-0 border border-pc-border bg-pc-panel shadow-lg"
+        class="relative shrink-0 border border-pc-border bg-pc-doc shadow-lg"
         style:width="{ed.canvasW * view.zoom}px"
         style:height="{ed.canvasH * view.zoom}px"
         style:transform="translate({view.panX}px, {view.panY}px)"
@@ -1705,7 +1705,7 @@
     {/if}
     <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{ed.status}</span>
     {#if probe.on}
-      <span class="text-emerald-400">
+      <span class="text-pc-success-text">
         {probe.fpsEma.toFixed(0)} fps · compose {probe.composeMs.toFixed(2)}ms (max
         {probe.composeMaxMs.toFixed(2)}ms)
       </span>

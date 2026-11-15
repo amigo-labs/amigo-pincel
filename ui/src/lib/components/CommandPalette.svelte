@@ -111,7 +111,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="flex max-h-[70vh] w-full max-w-xl flex-col rounded border border-pc-border bg-pc-panel shadow-xl"
+    class="flex max-h-[70vh] w-full max-w-xl flex-col rounded-pc-dialog border border-pc-border bg-pc-panel shadow-xl"
   >
     {#if asking}
       <label class="flex flex-col gap-1 px-4 py-3 text-xs text-pc-muted">

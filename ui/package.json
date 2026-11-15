@@ -24,6 +24,7 @@
   },
   "dependencies": {
     "@amigo-labs/pincel-wasm": "link:../crates/pincel-wasm/pkg",
+    "@fontsource-variable/inter": "5.2.5",
     "@tauri-apps/api": "~2.12.4",
     "@tauri-apps/plugin-clipboard-manager": "~2.5.0",
     "@tauri-apps/plugin-dialog": "~2.8.4",

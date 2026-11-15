@@ -323,7 +323,7 @@
           title={t('tl.tagTitle', { name: tag.name, from: tag.from + 1, to: tag.to + 1, direction: tag.direction })}
         >
           {tag.name}{#if !isIdentifierLike(tag.name)}<span
-              class="text-amber-400"
+              class="text-pc-warning-text"
               title={t('tl.notIdent')}
             >
               ⚠</span
@@ -351,7 +351,7 @@
         />
       </label>
       {#if !isIdentifierLike(editing.name)}
-        <span class="text-amber-400">
+        <span class="text-pc-warning-text">
           {t('tl.identHint')}
         </span>
       {/if}
@@ -436,6 +436,6 @@
     text-align: left;
   }
   .tag-editing {
-    outline: 1px solid rgb(229 229 229);
+    outline: 1px solid var(--am-text);
   }
 </style>

@@ -57,7 +57,7 @@
   }
 
   const fieldClass =
-    'w-24 rounded border bg-pc-bg px-2 py-1 aria-[invalid=true]:border-red-500 border-pc-border';
+    'w-24 rounded border bg-pc-bg px-2 py-1 aria-[invalid=true]:border-pc-danger-text border-pc-border';
 </script>
 
 <fieldset class="mb-2">

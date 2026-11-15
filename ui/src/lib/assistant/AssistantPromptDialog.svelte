@@ -49,7 +49,7 @@
   onkeydown={onKeydown}
 >
   <form
-    class="flex max-h-full w-[36rem] max-w-full flex-col rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="flex max-h-full w-[36rem] max-w-full flex-col rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       save();

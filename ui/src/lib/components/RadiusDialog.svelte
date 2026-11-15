@@ -47,7 +47,7 @@
   onkeydown={onKeydown}
 >
   <form
-    class="w-72 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="w-72 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       submit();

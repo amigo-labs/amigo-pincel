@@ -92,7 +92,7 @@
         <span class="truncate">{tab.name}</span>
         <span class="sr-only">{t(`mode.${tab.mode}`)}</span>
         {#if tab.dirty}
-          <span class="text-amber-400" aria-hidden="true">●</span>
+          <span class="text-pc-warning-text" aria-hidden="true">●</span>
           <span class="sr-only">{t('tabs.unsaved')}</span>
         {/if}
       </button>

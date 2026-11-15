@@ -63,8 +63,9 @@ export default defineConfig({
         start_url: base,
         scope: base,
         display: 'standalone',
-        background_color: '#0a0a0a',
-        theme_color: '#0a0a0a',
+        // The dark ground of the shared theme (src/theme/tokens.css `--am-bg`).
+        background_color: '#15161a',
+        theme_color: '#15161a',
         // Copies of assets/brand/ (the pixel monogram, generated from
         // docs/site/project.yml by amigo-labs/website scripts/monogram.ts).
         // Not maskable: the frame reaches the edge of the icon.

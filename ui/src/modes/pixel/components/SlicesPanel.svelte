@@ -304,7 +304,7 @@
         />
       </label>
       {#if formError}
-        <p class="text-xs text-red-400" role="alert">{formError}</p>
+        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
         <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
@@ -324,7 +324,7 @@
         <li
           class="flex flex-col gap-1 rounded border px-2 py-1"
           class:border-pc-border={!active}
-          class:border-blue-500={active}
+          class:border-pc-accent={active}
         >
           <div class="flex items-center gap-2">
             <button
@@ -511,7 +511,7 @@
           {/if}
 
           {#if rowError[s.id]}
-            <p class="text-xs text-red-400" role="alert">{rowError[s.id]}</p>
+            <p class="text-xs text-pc-danger-text" role="alert">{rowError[s.id]}</p>
           {/if}
         </li>
       {/each}
@@ -524,7 +524,7 @@
     width: 1rem;
     height: 1rem;
     border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
+    border: 1px solid var(--am-border);
     cursor: pointer;
   }
 </style>

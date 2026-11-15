@@ -43,7 +43,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="w-96 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="w-96 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
   >
     <p class="font-semibold">{t('drop.title')}</p>
     <p class="mt-3 text-pc-muted">{t('drop.prompt')}</p>
@@ -53,7 +53,7 @@
       {/each}
     </ul>
     {#if !canAddLayers}
-      <p class="mt-2 text-xs text-amber-400">{t('drop.pngOnly')}</p>
+      <p class="mt-2 text-xs text-pc-warning-text">{t('drop.pngOnly')}</p>
     {/if}
     <label class="mt-3 flex items-center gap-2 text-xs">
       <input type="checkbox" bind:checked={dontAsk} />

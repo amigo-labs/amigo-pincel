@@ -11,6 +11,9 @@ importers:
       '@amigo-labs/pincel-wasm':
         specifier: link:../crates/pincel-wasm/pkg
         version: link:../crates/pincel-wasm/pkg
+      '@fontsource-variable/inter':
+        specifier: 5.2.5
+        version: 5.2.5
       '@tauri-apps/api':
         specifier: ~2.12.4
         version: 2.12.4
@@ -641,6 +644,9 @@ packages:
   '@eslint/plugin-kit@0.7.3':
     resolution: {integrity: sha512-IkO+/KEUvwbVpiURZg+P7zF74z5Jxe0UgJxVni+RtoHQ6IZieXaO02kmadomap/q+l6bc/jdPGGqTjhuZnuz1Q==}
     engines: {node: ^20.19.0 || ^22.13.0 || >=24}
+
+  '@fontsource-variable/inter@5.2.5':
+    resolution: {integrity: sha512-TrWffUAFOnT8zroE9YmGybagoOgM/HjRqMQ8k9R0vVgXlnUh/vnpbGPAS/Caz1KIlOPnPGh6fvJbb7DHbFCncA==}
 
   '@humanfs/core@0.19.2':
     resolution: {integrity: sha512-UhXNm+CFMWcbChXywFwkmhqjs3PRCmcSa/hfBgLIb7oQ5HNb1wS0icWsGtSAUNgefHeI+eBrA8I1fxmbHsGdvA==}
@@ -3382,6 +3388,8 @@ snapshots:
     dependencies:
       '@eslint/core': 1.2.1
       levn: 0.4.1
+
+  '@fontsource-variable/inter@5.2.5': {}
 
   '@humanfs/core@0.19.2':
     dependencies:

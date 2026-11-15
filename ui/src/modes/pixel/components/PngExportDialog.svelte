@@ -41,7 +41,7 @@
   aria-label={t('png.title')}
 >
   <form
-    class="flex w-72 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="flex w-72 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     onsubmit={(e) => {
       e.preventDefault();
       onSubmit(scale);
@@ -69,18 +69,3 @@
     </div>
   </form>
 </div>
-
-<style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.25rem 0.75rem;
-  }
-  .panel-btn:hover {
-    background-color: rgb(38 38 38);
-  }
-  .panel-btn-primary {
-    border-color: rgb(59 130 246);
-    background-color: rgb(29 78 216);
-  }
-</style>

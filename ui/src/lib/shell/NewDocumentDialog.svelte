@@ -223,7 +223,7 @@
 
 {#snippet note(id: string, n: Note | null)}
   {#if n}
-    <p {id} class="mt-1 text-xs leading-snug text-amber-400">{t(n.key, n.params)}</p>
+    <p {id} class="mt-1 text-xs leading-snug text-pc-warning-text">{t(n.key, n.params)}</p>
   {/if}
 {/snippet}
 
@@ -240,7 +240,7 @@
        notes below say what the clamp will use. -->
   <form
     bind:this={form}
-    class="max-h-full w-80 max-w-full overflow-y-auto rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="max-h-full w-80 max-w-full overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
