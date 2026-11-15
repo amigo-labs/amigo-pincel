@@ -161,6 +161,17 @@ test('an invalid used field blocks Apply and Enter (AC-07)', async ({ page }) =>
   const apply = dialog.getByRole('button', { name: 'Scale' });
   await dialog.getByLabel('Percentage', { exact: true }).fill('0');
   await expect(dialog.getByLabel('Percentage', { exact: true })).toHaveAttribute('aria-invalid', 'true');
+  // A wrong value shows the danger edge, not the field's ordinary one
+  // (amigo-theme AC-10: the strong field edge must not hide it).
+  const edges = await dialog.getByLabel('Percentage', { exact: true }).evaluate((el) => {
+    const probe = document.createElement('span');
+    probe.style.color = 'var(--color-pc-danger-text)';
+    document.body.append(probe);
+    const danger = getComputedStyle(probe).color;
+    probe.remove();
+    return { edge: getComputedStyle(el).borderTopColor, danger };
+  });
+  expect(edges.edge).toBe(edges.danger);
   await expect(dialog.getByTestId('size-result')).toHaveText('—');
   await expect(apply).toBeDisabled();
   await dialog.getByLabel('Percentage', { exact: true }).press('Enter');
