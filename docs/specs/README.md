@@ -114,6 +114,8 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 | I4 | [comfyui-install](comfyui-install.md) | shell | L | comfyui-connect | One-click managed install (uv, PyTorch for NVIDIA / Apple Silicon, model catalog) |
 | I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
 | I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
+| I7 | [ai-upscale](ai-upscale.md) | Image | L | comfyui-generate, comfyui-install | Owner 2026-11-15: Image ▸ AI Upscale… with an upscale model (Real-ESRGAN in the catalog), result as a new layer, `gen.upscale` |
+| I8 | [ai-upscale-refine](ai-upscale-refine.md) | Image | L | ai-upscale | Tiled image-to-image refine after the upscale; Pincel cuts and blends the tiles |
 
 ### J — OCR
 
@@ -254,7 +256,7 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Rename the `pc-*` colour classes to the shared token names | After amigo-theme-controls; no visible change |
 | Adobe .ase / .aco swatches | After palette-formats |
 | WebMCP (agents in the PWA) | Watch browser proposals; see mcp-live-desktop |
-| AI image generation: outpainting, upscaling, control layers (ControlNet), live painting | After comfyui-generate (owner, 2026-11-06); krita-ai-diffusion shows the scope |
+| AI image generation: outpainting, control layers (ControlNet), live painting | After comfyui-generate (owner, 2026-11-06); krita-ai-diffusion shows the scope. Upscaling is specced: ai-upscale, ai-upscale-refine |
 | ComfyUI custom workflows | Import API-format workflows with marked placeholders; after comfyui-generate |
 | ComfyUI managed install for AMD (ROCm), Intel (XPU), CPU | After comfyui-install; v1 is NVIDIA and Apple Silicon |
 | Agent vision tools: object detection, segmentation, style transfer | Need local vision models (e.g. SAM); the PixelAssist prompt names them as unavailable |
