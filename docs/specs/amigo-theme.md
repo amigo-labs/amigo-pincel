@@ -95,7 +95,7 @@ Terms. **UI**: everything the app draws around and over the document except the 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `.github/workflows/site-data.yml` passes `theme-dir: ui/src/theme` to amigo-labs/website `validate-project.yml` (CI: site-data); locally `node scripts/theme.ts ../amigo-pincel/docs/site/project.yml --out ../amigo-pincel/ui/src/theme --check` in the website checkout | built |        |
+| AC-01 | `.github/workflows/site-data.yml` passes `theme-dir: ui/src/theme` to amigo-labs/website `validate-project.yml` (CI: site-data, green on 1c9b985: `site-data / validate`, run 43719232386); locally `node scripts/theme.ts ../amigo-pincel/docs/site/project.yml --out ../amigo-pincel/ui/src/theme --check` in the website checkout | built |        |
 | AC-02 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › the start screen is dark by default (AC-04) | built |        |
 | AC-03 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › pixel / image: nothing keeps the former accent blue (AC-03) | built |        |
 | AC-04 | `ui/e2e/amigo-theme.spec.ts` › the start screen is dark by default, whatever the system prefers (AC-04); › an unknown stored value counts as no choice (AC-04) | built |        |
@@ -110,7 +110,7 @@ Terms. **UI**: everything the app draws around and over the document except the 
 | AC-13 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme … (AC-05, AC-06, AC-13); › System follows the system preference … (AC-07, AC-13) | built |        |
 | AC-14 | `ui/e2e/amigo-theme.spec.ts` › every language names the theme setting in its own words (AC-14) | built |        |
 | AC-15 | `ui/e2e/amigo-theme.spec.ts` › a choice that cannot be stored applies until the app is closed (AC-15); › a stored choice that cannot be read starts dark and usable (AC-15) | built |        |
-| AC-16 |      | open   |        |
+| AC-16 | manual: the owner checked the light palette on the start screen, in both editors with their panels and in the Settings, New, Export and Keyboard Shortcuts dialogs ("Hell ist OK"), 2026-11-15 | built |        |
 
 ## Decisions
 
