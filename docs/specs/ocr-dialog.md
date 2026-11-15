@@ -57,8 +57,8 @@ Terms used below:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Image mode's menu bar has a Tools menu between Effects and Help, holding "Recognize Text…". Pixel mode's menu bar has no Tools menu.
-- [ ] AC-02 (event): When the user picks Tools ▸ Recognize Text…, then the OCR dialog opens. The language is preselected: the language of the last recognition the user started, kept across sessions. On first use it is German if the interface language is German and English otherwise, the best guess for the text a user reads.
+- [ ] AC-01 (always): Image mode's Image menu ends with "Recognize Text…". Pixel mode's menu bar has no such entry.
+- [ ] AC-02 (event): When the user picks Image ▸ Recognize Text…, then the OCR dialog opens. The language is preselected: the language of the last recognition the user started, kept across sessions. On first use it is German if the interface language is German and English otherwise, the best guess for the text a user reads.
 - [ ] AC-03 (event): When the dialog opens, or the user picks another language, and that language's model is stored, then recognition of the source area starts without further input. While the layout is analysed, the dialog shows "Finding text…". After that it shows "Recognizing line k of m", where k is the line being recognized (1 to m); with no lines found, it goes straight to AC-07. A Cancel button is shown throughout.
 - [ ] AC-04 (event): When the language's model is not stored, then the dialog downloads it from the model URL and shows "Downloading German model…" (or English) with the bytes downloaded and the total, or only the bytes downloaded when the server sends no total. It then stores the model and starts recognition. Later opens of the dialog download nothing while the stored model is present.
 - [ ] AC-05 (error): If the downloaded file does not match its pinned SHA-256, then it is discarded and not stored, and the dialog shows "The language model could not be verified." with Retry.
@@ -120,7 +120,7 @@ Terms used below:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `Image mode has a Tools menu between Effects and Help; Pixel mode has none (AC-01)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
+| AC-01 | `Image mode has Image ▸ Recognize Text…; Pixel mode has no such entry (AC-01)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-02 | `the language of the last recognition is preselected, across sessions (AC-02)`, `German › menu, dialog and messages are German; …` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
 | AC-03 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `during work the dialog shows the step and a Cancel button (AC-03)` (`ui/e2e/ocr-dialog.spec.ts`); `ocr_session_reads_the_snapshot_like_pincel_ocr` (`crates/pincel-image-wasm/src/ocr_tests.rs`, progress order) | built |        |
 | AC-04 | `first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)`, `without a usable total the download shows only the bytes received (AC-04)` (`ui/e2e/ocr-dialog.spec.ts`) | built |        |
@@ -161,3 +161,4 @@ Terms used below:
 - 2026-11-11 (build): AC-15's tests were green at once: the property is an absence, and the models never were in the editor bundle. The website build (`scripts/cf-build.sh`) copies them to `ui/dist/ocr/tessdata_fast-4.1.0/`, beside `ui/dist/app/` and so outside the precache glob; `cloudflare/_headers` serves `/ocr/*` with `Cache-Control: immutable` and `Access-Control-Allow-Origin: *` (static headers cannot echo one of several origins, and the files are public). The desktop app's CSP `connect-src` admits `https://pincel.amigo-labs.dev`, without which the webview refuses the fetch; that change can only be checked in the desktop app (CI's `pincel-tauri` job builds it).
 - 2026-11-11 (build): AC-21 is manual (reference machine). On the development machine the e2e run of the benchmark screenshot (dev wasm build, `pincel-ocr` at `opt-level = 3`) took 4.5 s for the whole test including start-up.
 - 2026-11-11 (verification round 1): AC-04's "only the bytes downloaded when the server sends no total" had no test. The new test answers the model request from a local server in chunked transfer (`route.continue` to it), because `route.fulfill` always sets `Content-Length` and Chromium does not decode a fulfilled gzip body. Red run: with the dialog's no-total branch disabled it failed with "Downloading English model… 0.0 MB of 0.0 MB".
+- 2026-11-15: AC-01 reworded — Recognize Text… moved from the Tools menu to the end of the Image menu (`menu-structure` AC-04); Tools is now the desktop app's AI setup in both modes. The AC-01 test was rewritten with it; AC-02 opens the dialog from Image ▸ Recognize Text….

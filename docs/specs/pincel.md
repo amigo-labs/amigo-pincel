@@ -606,7 +606,7 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
 │ Top bar: File Edit Select Image Layer [Frame] Effects Adjustments View │
-│          [Help] · document name ● · undo / redo · panels toggle        │
+│          [Tools] [Help] · document name ● · undo / redo · panels toggle│
 ├──────┬────────────────────────────────────────────────┬────────────────┤
 │ Tool │ Options bar: variants of the active tool group │  Colors        │
 │ rail │ + that tool's options                          ├────────────────┤
