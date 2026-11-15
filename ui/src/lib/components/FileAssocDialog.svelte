@@ -26,7 +26,7 @@
   aria-modal="true"
   aria-labelledby="fileassoc-title"
 >
-  <div class="w-full max-w-lg rounded border border-pc-border bg-pc-panel p-6 shadow-xl">
+  <div class="w-full max-w-lg rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
     <h2 id="fileassoc-title" class="mb-3 text-lg font-semibold">{t('fileAssoc.title')}</h2>
     <p class="mb-3 text-sm text-pc-text">{t('fileAssoc.body')}</p>
     {#if platform === 'macos'}

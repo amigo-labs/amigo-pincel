@@ -207,7 +207,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="max-h-full w-[30rem] max-w-full overflow-y-auto rounded border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
+    class="max-h-full w-[30rem] max-w-full overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
   >
     <h2 id="comfy-install-title" class="mb-3 text-lg font-semibold" tabindex="-1" bind:this={first}>
       {t(install.mode === 'change' ? 'comfy.packagesTitle' : 'comfy.installTitle')}

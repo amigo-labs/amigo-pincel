@@ -76,7 +76,7 @@
       spellcheck="false"
       maxlength="9"
       class="w-24 rounded border bg-pc-bg px-1 py-0.5 font-mono {invalid
-        ? 'border-red-500'
+        ? 'border-pc-danger-text'
         : 'border-pc-border'}"
       aria-label={t('effectDlg.hex', { label })}
       aria-invalid={invalid ? 'true' : 'false'}
@@ -85,7 +85,7 @@
   </span>
 </div>
 {#if invalid}
-  <p id="{uid}-error" class="text-right text-xs text-red-300" role="status">
+  <p id="{uid}-error" class="text-right text-xs text-pc-danger-text" role="status">
     {t('effectDlg.hexInvalid')}
   </p>
 {/if}

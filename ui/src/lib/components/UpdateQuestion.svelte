@@ -33,7 +33,7 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div class="w-full max-w-md rounded border border-pc-border bg-pc-panel p-6 shadow-xl">
+  <div class="w-full max-w-md rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
     <h2 id="update-question-title" class="mb-3 text-lg font-semibold">
       {t('update.question')}
     </h2>

@@ -195,7 +195,7 @@
           if (!compact && depth === 0 && sub !== null) scheduleSubClose();
         }}
       >
-        <span class="w-4 shrink-0 text-pc-accent" aria-hidden="true">{item.checked ? '✓' : ''}</span>
+        <span class="w-4 shrink-0 text-pc-accent-text" aria-hidden="true">{item.checked ? '✓' : ''}</span>
         <span class="flex-1">{item.label}</span>
         {#if item.shortcut}
           <!-- Visual hint only: the accessible name stays the label. -->
@@ -312,12 +312,12 @@
 
 <style>
   .menu-panel {
-    border-radius: 0.375rem;
+    border-radius: var(--am-radius-md);
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-panel);
     padding: 0.25rem 0;
     font-size: 0.875rem;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+    box-shadow: var(--am-elev-2);
   }
   .menu-row {
     display: flex;
@@ -325,7 +325,7 @@
     margin: 0 0.25rem;
     align-items: center;
     gap: 0.25rem;
-    border-radius: 0.25rem;
+    border-radius: var(--am-radius-sm);
     padding: 0.375rem 0.5rem 0.375rem 0.25rem;
     text-align: left;
     white-space: nowrap;

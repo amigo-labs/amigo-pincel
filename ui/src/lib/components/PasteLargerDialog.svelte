@@ -38,7 +38,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="w-96 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="w-96 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
   >
     <p class="font-semibold">{t('paste.largerTitle')}</p>
     <p class="mt-3 text-pc-muted">

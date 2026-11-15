@@ -85,7 +85,7 @@
         if (!tool.disabled) onChoose(tool.id);
       }}
     >
-      <span class="w-4 shrink-0 text-pc-accent" aria-hidden="true">{on ? '✓' : ''}</span>
+      <span class="w-4 shrink-0 text-pc-accent-text" aria-hidden="true">{on ? '✓' : ''}</span>
       <Icon name={tool.icon} size={17} />
       <span class="flex-1">{tool.label}</span>
     </button>
@@ -94,12 +94,12 @@
 
 <style>
   .flyout {
-    border-radius: 0.375rem;
+    border-radius: var(--am-radius-md);
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-panel);
     padding: 0.25rem 0;
     font-size: 0.875rem;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
+    box-shadow: var(--am-elev-2);
     -webkit-touch-callout: none;
   }
   .flyout:focus {

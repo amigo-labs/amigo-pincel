@@ -79,7 +79,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="max-h-full w-[28rem] max-w-full overflow-y-auto rounded border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
+    class="max-h-full w-[28rem] max-w-full overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
   >
     <h2 id="comfy-title" class="mb-3 text-lg font-semibold">{t('comfy.title')}</h2>
 

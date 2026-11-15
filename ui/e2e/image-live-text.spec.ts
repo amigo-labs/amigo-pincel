@@ -57,9 +57,11 @@ async function thumbnailInkRight(page: Page): Promise<number> {
     const { data } = ctx.getImageData(0, 0, bitmap.width, bitmap.height);
     const inner = bitmap.width - 2;
     let right = 0;
-    // 2 px in: the border and its rounded corners are dark too.
-    for (let y = 2; y < bitmap.height - 2; y += 1) {
-      for (let x = 2; x < bitmap.width - 2; x += 1) {
+    // 3 px in: the border and its rounded corners are dark too, and a row
+    // that sits on a half pixel (the UI font decides the row's height) gives
+    // a screenshot one pixel taller, which moves a corner one pixel inwards.
+    for (let y = 3; y < bitmap.height - 3; y += 1) {
+      for (let x = 3; x < bitmap.width - 3; x += 1) {
         const i = (y * bitmap.width + x) * 4;
         const sum = (data[i] ?? 255) + (data[i + 1] ?? 255) + (data[i + 2] ?? 255);
         if (sum < 300) right = Math.max(right, x);

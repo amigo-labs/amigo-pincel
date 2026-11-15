@@ -115,7 +115,9 @@
   aria-modal="true"
   aria-label={t('tiles.editor')}
 >
-  <div class="flex flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 shadow-xl">
+  <div
+    class="flex flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 shadow-xl"
+  >
     <header class="flex items-center justify-between gap-4">
       <h2 class="text-sm font-semibold text-pc-text">
         {t('tiles.editing', { tileset: tilesetId, tile: tileId, w: tileW, h: tileH })}
@@ -135,7 +137,7 @@
       aria-label={t('tiles.pixelEditor', { tile: tileId })}
     ></canvas>
     {#if lastError}
-      <p class="text-xs text-red-400" role="alert">{lastError}</p>
+      <p class="text-xs text-pc-danger-text" role="alert">{lastError}</p>
     {/if}
     <p class="text-xs text-pc-faint">
       {t('tiles.editorHint')}
@@ -146,20 +148,20 @@
 <style>
   .editor-btn {
     border-radius: 0.25rem;
-    border: 1px solid rgb(115 115 115);
-    background-color: rgb(55 65 81);
+    border: 1px solid var(--am-border-strong);
+    background-color: var(--am-surface-raised);
     padding: 0.25rem 0.75rem;
     font-size: 0.75rem;
-    color: rgb(229 229 229);
+    color: var(--am-text);
     cursor: pointer;
   }
   .editor-btn:hover {
-    background-color: rgb(75 85 99);
+    background-color: var(--am-hover);
   }
   .editor-canvas {
     image-rendering: pixelated;
-    background-color: rgb(23 23 23);
-    border: 1px solid rgb(64 64 64);
+    background-color: var(--color-pc-doc);
+    border: 1px solid var(--am-border);
     border-radius: 0.125rem;
     cursor: crosshair;
     touch-action: none;

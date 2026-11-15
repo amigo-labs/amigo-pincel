@@ -87,7 +87,7 @@
   aria-label={t('grid.title')}
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="flex w-80 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     novalidate
     onsubmit={submit}
   >
@@ -144,7 +144,7 @@
       </label>
     </div>
     {#if error}
-      <p class="text-xs text-red-400" role="alert">{error}</p>
+      <p class="text-xs text-pc-danger-text" role="alert">{error}</p>
     {/if}
     <div class="flex justify-end gap-2">
       <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
@@ -152,18 +152,3 @@
     </div>
   </form>
 </div>
-
-<style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.25rem 0.75rem;
-  }
-  .panel-btn:hover {
-    background-color: rgb(38 38 38);
-  }
-  .panel-btn-primary {
-    border-color: rgb(59 130 246);
-    background-color: rgb(29 78 216);
-  }
-</style>

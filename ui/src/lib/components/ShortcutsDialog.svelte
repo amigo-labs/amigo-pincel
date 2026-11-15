@@ -156,7 +156,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="shortcuts-panel flex max-h-full w-full max-w-3xl flex-col rounded border border-pc-border bg-pc-panel shadow-xl"
+    class="shortcuts-panel flex max-h-full w-full max-w-3xl flex-col rounded-pc-dialog border border-pc-border bg-pc-panel shadow-xl"
   >
     <div class="flex items-center gap-3 border-b border-pc-border px-4 py-3">
       <h2 id="shortcuts-title" class="flex-1 text-lg font-semibold">{t('menu.shortcuts')}</h2>
@@ -175,8 +175,8 @@
     {#if message !== null}
       <p
         class="shortcuts-noprint border-b border-pc-border px-4 py-2 text-sm"
-        class:text-pc-accent={message.kind === 'status'}
-        class:text-red-300={message.kind === 'alert'}
+        class:text-pc-accent-text={message.kind === 'status'}
+        class:text-pc-danger-text={message.kind === 'alert'}
         role={message.kind}
       >
         {message.text}
@@ -220,7 +220,7 @@
                 </th>
                 <td class="py-1 pr-3 whitespace-nowrap">
                   {#if id !== null && capturing === id}
-                    <span class="text-xs text-pc-accent">{t('keys.capture')}</span>
+                    <span class="text-xs text-pc-accent-text">{t('keys.capture')}</span>
                   {:else}
                     {#each r.chords as chord, i (i)}
                       <kbd

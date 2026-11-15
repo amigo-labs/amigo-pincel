@@ -71,7 +71,7 @@
   tabindex="-1"
 >
   <div
-    class="w-96 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="w-96 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
   >
     <p id="unsaved-prompt-title" class="font-semibold">{t('shell.unsavedChanges')}</p>
     <div id="unsaved-prompt-question" class="mt-3 text-pc-muted">

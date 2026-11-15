@@ -1,52 +1,76 @@
 @import 'tailwindcss';
 
-/* Editor theme, shared by Pixel and Image mode (spec §9.2). Registered as
-   Tailwind colors, so components write `bg-pc-panel`, `border-pc-border`,
-   `text-pc-muted`, … instead of raw neutrals. */
+/* The shared amigo app theme (docs/specs/amigo-theme.md): every colour,
+   radius and the UI font come from the generated theme files, with Pincel's
+   accent. `tokens.css` is dark on :root and light under data-theme="light". */
+@import './theme/tokens.css';
+
+/* Inter, the theme's UI font, ships with the app (amigo-theme AC-11): only
+   the latin subset, which covers the Latin-script UI languages; Japanese
+   glyphs fall back to the system font. */
+@font-face {
+  font-family: 'Inter Variable';
+  font-style: normal;
+  font-display: swap;
+  font-weight: 100 900;
+  src: url('../node_modules/@fontsource-variable/inter/files/inter-latin-wght-normal.woff2')
+    format('woff2-variations');
+}
+
+/* The editor's colour names, shared by Pixel and Image mode (spec §9.2), as
+   aliases of the theme's tokens. Registered as Tailwind colors, so components
+   write `bg-pc-panel`, `border-pc-border`, `text-pc-muted`, … instead of raw
+   neutrals. In the shared theme `accent` is decorative only: text or an icon
+   on an accent fill sits on `primary` (accent-solid) in `accent-fg`. */
 @theme {
-  --color-pc-bg: #1b1b1e;
-  --color-pc-panel: #242428;
-  --color-pc-raised: #2c2c31;
-  --color-pc-border: #3a3a40;
-  --color-pc-hover: #34343a;
-  --color-pc-active: #44444c;
-  --color-pc-text: #e6e6e9;
-  --color-pc-muted: #b2b2ba;
-  /* Faint text stays >= 4.5:1 on panel and canvas backgrounds. */
-  --color-pc-faint: #9898a3;
-  --color-pc-accent: #3b82f6;
-  --color-pc-accent-fg: #ffffff;
-  /* Accent as text on dark surfaces (>= 4.5:1, plain accent is ~4:1). */
-  --color-pc-accent-text: #7eaaff;
-  /* Control outlines (checkbox / radio): >= 3:1 on panels. */
-  --color-pc-control: #8a8a94;
-  /* Slider track: >= 3:1 on panels (3.3:1), so the rail stays findable. */
-  --color-pc-track: #73737e;
+  --color-pc-bg: var(--am-bg);
+  --color-pc-panel: var(--am-surface);
+  --color-pc-raised: var(--am-surface-raised);
+  --color-pc-border: var(--am-border);
+  --color-pc-hover: var(--am-hover);
+  --color-pc-active: var(--am-active);
+  --color-pc-text: var(--am-text);
+  --color-pc-muted: var(--am-text-secondary);
+  --color-pc-faint: var(--am-text-muted);
+  --color-pc-accent: var(--am-accent);
+  --color-pc-accent-fg: var(--am-on-accent);
+  --color-pc-accent-text: var(--am-accent-ink);
+  /* Control outlines (checkbox / radio) and slider rails: >= 3:1 on panels. */
+  --color-pc-control: var(--am-border-strong);
+  --color-pc-track: var(--am-border-strong);
   /* Selected rows: accent tint, the accent bar marks the edge. */
-  --color-pc-selected: rgb(59 130 246 / 0.16);
-  /* Button surfaces. Primary: white text stays >= 4.5:1 on it (5.2:1;
-     the plain accent gives 3.7:1), also on its hover shade (4.6:1). */
-  --color-pc-primary: #2563eb;
-  --color-pc-primary-hover: #2e6cf0;
-  --color-pc-primary-pressed: #1d4fc4;
-  --color-pc-primary-off: #263350;
-  --color-pc-primary-off-fg: #93a5cc;
-  --color-pc-pressed: #222226;
-  --color-pc-edge-hover: #4a4a52;
-  /* Danger: the text shade on panels (>= 4.5:1), the solid fill under
-     white text (5.6:1). */
-  --color-pc-danger: #c62828;
-  --color-pc-danger-pressed: #a32020;
-  --color-pc-danger-edge: #7a3131;
-  --color-pc-danger-text: #ff9d9d;
+  --color-pc-selected: var(--am-accent-subtle);
+  /* Button surfaces. Hover and pressed move towards the text colour, which
+     raises the contrast of the label in both palettes. */
+  --color-pc-primary: var(--am-accent-solid);
+  --color-pc-primary-hover: color-mix(in oklab, var(--am-accent-solid) 88%, var(--am-text));
+  --color-pc-primary-pressed: color-mix(in oklab, var(--am-accent-solid) 76%, var(--am-text));
+  --color-pc-primary-off: color-mix(in oklab, var(--am-accent-solid) 30%, var(--am-surface));
+  --color-pc-primary-off-fg: var(--am-text-muted);
+  --color-pc-pressed: var(--am-active);
+  --color-pc-edge-hover: var(--am-border-strong);
+  --color-pc-danger: var(--am-danger-solid);
+  --color-pc-danger-pressed: color-mix(in oklab, var(--am-danger-solid) 76%, var(--am-text));
+  --color-pc-danger-edge: color-mix(in oklab, var(--am-danger-ink) 45%, var(--am-surface));
+  --color-pc-danger-text: var(--am-danger-ink);
+  /* Warnings and confirmations as text, always next to their words. */
+  --color-pc-warning-text: var(--am-warning-ink);
+  --color-pc-success-text: var(--am-success-ink);
+  /* Soft top light and pressed shade of raised buttons, per palette. */
+  --color-pc-lift: color-mix(in oklab, var(--am-text) 8%, transparent);
+  --color-pc-sink: color-mix(in oklab, var(--am-bg) 60%, transparent);
+
+  /* What shows through a transparent Pixel document. One fixed colour in
+     both palettes: it is part of how the document looks, and colours must
+     read the same whichever palette the UI has (amigo-theme AC-09). */
+  --color-pc-doc: #242428;
+
+  --radius-pc-control: var(--am-radius-sm);
+  --radius-pc-panel: var(--am-radius-md);
+  --radius-pc-dialog: var(--am-radius-lg);
 }
 
 @layer base {
-  :root {
-    /* Native scrollbars, pickers and form parts render dark. */
-    color-scheme: dark;
-  }
-
   html,
   body,
   #app {
@@ -54,11 +78,11 @@
   }
 
   ::selection {
-    background-color: rgb(59 130 246 / 0.4);
+    background-color: color-mix(in oklab, var(--am-accent) 40%, transparent);
   }
 
   :focus-visible {
-    outline: 2px solid color-mix(in srgb, var(--color-pc-accent) 85%, transparent);
+    outline: 2px solid var(--am-focus);
     outline-offset: 1px;
   }
   /* Text-entry fields show focus as an accent edge plus a soft glow: a
@@ -66,9 +90,9 @@
   input:not([type='checkbox'], [type='radio'], [type='range']):focus-visible,
   select:focus-visible,
   textarea:focus-visible {
-    outline: 1px solid var(--color-pc-accent);
+    outline: 1px solid var(--am-focus);
     outline-offset: 0;
-    box-shadow: 0 0 0 3px color-mix(in srgb, var(--color-pc-accent) 28%, transparent);
+    box-shadow: 0 0 0 3px color-mix(in oklab, var(--am-focus) 28%, transparent);
   }
 
   /* One slider everywhere: neutral 4px rail, accent thumb. */
@@ -135,15 +159,28 @@
   input[type='radio'] {
     border-radius: 9999px;
   }
+  /* A data URI cannot read a custom property, so the tick has one image
+     per palette: the on-accent colour of the dark and of the light theme
+     (the same three selectors as theme/tokens.css). */
+  :root {
+    --pc-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='%23111318' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  }
+  @media (prefers-color-scheme: light) {
+    :root:not([data-theme='dark']) {
+      --pc-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+    }
+  }
+  :root[data-theme='light'] {
+    --pc-tick: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E");
+  }
   input[type='checkbox']:checked {
-    border-color: var(--color-pc-accent);
-    background: var(--color-pc-accent)
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16' fill='none' stroke='white' stroke-width='2.25' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpath d='M3.5 8.5l3 3 6-7'/%3E%3C/svg%3E")
-      center / 100% no-repeat;
+    border-color: var(--color-pc-primary);
+    background: var(--color-pc-primary) var(--pc-tick) center / 100% no-repeat;
   }
   input[type='radio']:checked {
-    border-color: var(--color-pc-accent);
-    background: radial-gradient(circle, white 0 30%, var(--color-pc-accent) 34%);
+    border-color: var(--color-pc-primary);
+    background-color: var(--color-pc-primary);
+    background-image: radial-gradient(circle, var(--color-pc-accent-fg) 0 30%, transparent 34%);
   }
   input[type='checkbox']:disabled,
   input[type='radio']:disabled {
@@ -182,12 +219,7 @@
 
   body {
     @apply bg-pc-bg text-pc-text antialiased;
-    font-family:
-      ui-sans-serif,
-      system-ui,
-      -apple-system,
-      'Segoe UI',
-      sans-serif;
+    font-family: var(--am-font-sans);
   }
 }
 
@@ -199,11 +231,11 @@
     justify-content: center;
     gap: 0.375rem;
     min-height: 1.75rem;
-    border-radius: 0.375rem;
+    border-radius: var(--radius-pc-control);
     border: 1px solid var(--color-pc-border);
     background-color: var(--color-pc-raised);
     /* A light top edge: the button reads as raised off its panel. */
-    box-shadow: inset 0 1px 0 rgb(255 255 255 / 0.06);
+    box-shadow: inset 0 1px 0 var(--color-pc-lift);
     padding: 0 0.625rem;
     font-size: 0.75rem;
     font-weight: 500;
@@ -217,7 +249,7 @@
   .panel-btn:active:not(:disabled) {
     border-color: var(--color-pc-border);
     background-color: var(--color-pc-pressed);
-    box-shadow: inset 0 2px 3px rgb(0 0 0 / 0.45);
+    box-shadow: inset 0 2px 3px var(--color-pc-sink);
     transform: translateY(1px);
   }
   /* Disabled: outline only, so the button still reads as a control. */
@@ -322,7 +354,7 @@
   .keycap {
     display: inline-block;
     border-radius: 0.1875rem;
-    background-color: rgb(255 255 255 / 0.14);
+    background-color: color-mix(in oklab, currentColor 14%, transparent);
     padding: 0.1875rem 0.3125rem;
     font: inherit;
     font-size: 0.625rem;
@@ -339,9 +371,9 @@
   }
   .opt-field {
     min-height: 1.75rem;
-    border-radius: 0.25rem;
+    border-radius: var(--radius-pc-control);
     border: 1px solid var(--color-pc-border);
-    background-color: var(--color-pc-bg);
+    background-color: var(--color-pc-raised);
     padding: 0 0.375rem;
     color: var(--color-pc-text);
   }
@@ -485,6 +517,16 @@
   scroll-behavior: auto !important;
 }
 
+/* Unlayered on purpose: every text-entry field and select sits on the
+   theme's field ground with the control radius, whatever utilities it
+   carries (amigo-theme AC-02, AC-12). */
+input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']),
+select,
+textarea {
+  border-radius: var(--radius-pc-control);
+  background-color: var(--color-pc-raised);
+}
+
 /* Unlayered on purpose: wins over `px-*` utilities, so a select's text
    never runs under its chevron. */
 select:not([multiple]):not([size]) {
@@ -493,7 +535,7 @@ select:not([multiple]):not([size]) {
 
 /* Unlayered on purpose: these win over the `hover:bg-*` utilities icon
    buttons and rail tools carry. Pressed sinks one pixel; a toggle that is
-   on (or the active tool) wears the accent, not a grey close to hover. */
+   on (or the active tool) is filled with the accent (amigo-theme AC-03). */
 .btn-press:active:not(:disabled) {
   background-color: var(--color-pc-active);
   transform: translateY(1px);
@@ -501,7 +543,6 @@ select:not([multiple]):not([size]) {
 .btn-on,
 .btn-on:hover,
 .btn-on:active:not(:disabled) {
-  background-color: color-mix(in srgb, var(--color-pc-accent) 22%, transparent);
-  box-shadow: inset 0 0 0 1px color-mix(in srgb, var(--color-pc-accent) 55%, transparent);
-  color: var(--color-pc-accent-text);
+  background-color: var(--color-pc-primary);
+  color: var(--color-pc-accent-fg);
 }

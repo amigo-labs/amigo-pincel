@@ -48,7 +48,7 @@
   onkeydown={onKeydown}
 >
   <div
-    class="flex w-full max-w-lg flex-col gap-3 rounded border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
+    class="flex w-full max-w-lg flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
   >
     <h2 id="agents-title" class="text-base font-semibold">{t('agents.title')}</h2>
     <label class="flex min-h-8 items-center gap-2">

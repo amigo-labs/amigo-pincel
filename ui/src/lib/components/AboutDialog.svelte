@@ -75,7 +75,7 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div class="w-full max-w-sm rounded border border-pc-border bg-pc-panel p-6 shadow-xl">
+  <div class="w-full max-w-sm rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
     <h2 id="about-title" class="mb-1 text-lg font-semibold">{t('menu.about')}</h2>
     <p class="mb-3 text-sm text-pc-muted">{t('about.version', { version })}</p>
     <p class="mb-4 text-sm text-pc-text">{t('about.tagline')}</p>
@@ -102,10 +102,10 @@
       <p class="mb-4 text-sm text-pc-muted">{reason}</p>
     {/if}
     {#if status !== null}
-      <p class="mb-4 text-sm text-pc-accent" role="status">{status}</p>
+      <p class="mb-4 text-sm text-pc-accent-text" role="status">{status}</p>
     {/if}
     {#if help.restartError !== null}
-      <p class="mb-4 text-sm text-pc-accent" role="alert">
+      <p class="mb-4 text-sm text-pc-accent-text" role="alert">
         {t('about.restartFailed', { error: help.restartError })}
       </p>
     {/if}

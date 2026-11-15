@@ -21,7 +21,7 @@
 </script>
 
 <section
-  class="fixed right-3 bottom-3 z-30 flex max-w-sm items-center gap-3 rounded border border-pc-border bg-pc-panel px-3 py-2 text-sm text-pc-text shadow-xl"
+  class="fixed right-3 bottom-3 z-30 flex max-w-sm items-center gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel px-3 py-2 text-sm text-pc-text shadow-xl"
   aria-label={t('update.notice')}
   data-update-notice
 >

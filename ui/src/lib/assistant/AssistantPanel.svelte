@@ -391,7 +391,7 @@
     }}
   >
     <div
-      class="w-80 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+      class="w-80 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
     >
       <p class="font-semibold">{t('assistant.newChatQuestion')}</p>
       <p class="mt-2 text-xs text-pc-muted">{t('assistant.newChatHelp')}</p>

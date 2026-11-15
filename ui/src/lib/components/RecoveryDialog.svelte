@@ -84,7 +84,7 @@
             </div>
           </div>
           {#if errors[snap.docId]}
-            <p class="text-xs text-rose-400" role="alert">
+            <p class="text-xs text-pc-danger-text" role="alert">
               {errors[snap.docId]}
             </p>
           {/if}

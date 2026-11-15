@@ -100,6 +100,8 @@ No shared files with the groups above; pick by priority.
 | H15 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | H16 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | H17 | [settings-dialog](settings-dialog.md) | both | M | — | Owner 2026-11-12: app settings out of View into Edit ▸ Settings… |
+| H18 | [amigo-theme](amigo-theme.md) | both | L | settings-dialog | Owner 2026-11-15: the shared amigo theme (amigo-labs/website `theme/`) with Pincel's accent, a light mode, Inter |
+| H19 | [amigo-theme-controls](amigo-theme-controls.md) | both | L | amigo-theme | Buttons, fields, sliders, menus and dialogs on the shared `am-*` components; needs a slider in the website's theme first |
 
 ### I — AI assistant and image generation
 
@@ -248,7 +250,8 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | New-dialog size presets | 16/32/64 px, 1080p, screen size, last used |
 | Color mode conversion (RGB ↔ Indexed ↔ Grayscale) | Tied to indexed painting |
 | CJK font for the Text tool | Needed for Japanese text on canvas (more-languages) |
-| ICO export, rulers / guides (Image), settings dialog, light theme | Small, as needed |
+| ICO export, rulers / guides (Image) | Small, as needed |
+| Rename the `pc-*` colour classes to the shared token names | After amigo-theme-controls; no visible change |
 | Adobe .ase / .aco swatches | After palette-formats |
 | WebMCP (agents in the PWA) | Watch browser proposals; see mcp-live-desktop |
 | AI image generation: outpainting, upscaling, control layers (ControlNet), live painting | After comfyui-generate (owner, 2026-11-06); krita-ai-diffusion shows the scope |

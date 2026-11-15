@@ -293,7 +293,7 @@
       title={dirty ? t('frame.unsaved', { title }) : title}
       inert={effectOpen}
     >
-      {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
+      {title}{#if dirty}<span class="text-pc-warning-text"> ●</span>{/if}
     </span>
     <span class="ml-1 flex items-center" inert={effectOpen} data-tour="quick">
       <span class="flex items-center" inert={answering}>{@render quick?.()}</span>
