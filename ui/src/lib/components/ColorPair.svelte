@@ -194,7 +194,7 @@
     onclick={close}
   ></button>
   <div
-    class="fixed z-[61] rounded-lg border border-pc-border bg-pc-panel p-3 shadow-[0_8px_30px_rgb(0_0_0/0.5)]"
+    class="fixed z-[61] rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     bind:this={popover}
@@ -225,5 +225,11 @@
     background:
       linear-gradient(var(--swatch), var(--swatch)),
       repeating-conic-gradient(#999 0 25%, #fff 0 50%) 0 0 / 8px 8px;
+  }
+  /* The hairline above is the swatch's edge; keyboard focus replaces it
+     with the ring (amigo-theme AC-12). */
+  .swatch:focus-visible {
+    outline: 2px solid var(--am-focus);
+    outline-offset: 1px;
   }
 </style>

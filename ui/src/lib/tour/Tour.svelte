@@ -125,7 +125,7 @@
   <div class="fixed inset-0 z-50" data-tour-overlay>
     {#if rect}
       <div
-        class="pointer-events-none absolute rounded-md ring-2 ring-pc-accent motion-safe:transition-all motion-safe:duration-200"
+        class="pointer-events-none absolute rounded-pc-control ring-2 ring-pc-accent motion-safe:transition-all motion-safe:duration-200"
         style:left="{rect.left - PAD}px"
         style:top="{rect.top - PAD}px"
         style:width="{rect.width + PAD * 2}px"

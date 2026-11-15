@@ -357,7 +357,7 @@
               {#each panels as p (p.id)}
                 <button
                   type="button"
-                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs"
+                  class="flex shrink-0 items-center gap-1.5 rounded-pc-control px-2.5 py-1.5 text-xs"
                   class:bg-pc-active={p.id === sheetTab}
                   class:text-pc-muted={p.id !== sheetTab}
                   role="tab"
@@ -421,7 +421,7 @@
       <div
         inert={effectOpen}
         data-dimmed={dim}
-        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:bg-pc-accent focus-visible:outline-none"
+        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-10 focus-visible:bg-pc-focus focus-visible:outline-offset-0"
         role="separator"
         aria-orientation="vertical"
         aria-label={t('frame.sidebarWidth')}

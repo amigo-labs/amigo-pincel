@@ -152,7 +152,7 @@
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="presentation">
   <div
-    class="flex w-[32rem] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
+    class="flex w-[32rem] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
     role="dialog"
     aria-modal="true"
     aria-label={t('ocr.title')}

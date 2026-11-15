@@ -194,7 +194,7 @@
 <div class="flex w-60 flex-col gap-2.5 text-xs text-pc-text">
   <div
     bind:this={area}
-    class="sv relative h-36 w-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-2 focus-visible:ring-pc-accent"
+    class="sv relative h-36 w-full cursor-crosshair touch-none rounded"
     style:background-color={hueColor}
     role="slider"
     tabindex="0"
@@ -331,10 +331,6 @@
     height: 0.75rem;
     border-radius: 0.375rem;
     cursor: pointer;
-    outline: none;
-  }
-  .track:focus-visible {
-    box-shadow: 0 0 0 2px var(--color-pc-accent);
   }
   .hue {
     background: linear-gradient(

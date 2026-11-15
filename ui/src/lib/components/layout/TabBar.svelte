@@ -98,7 +98,7 @@
       </button>
       <button
         type="button"
-        class="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+        class="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
         aria-label={t('tabs.closeNamed', { name: tab.name })}
         title={closeHint ? `${t('tabs.close')} (${closeHint})` : t('tabs.close')}
         onclick={() => onClose(tab.id)}

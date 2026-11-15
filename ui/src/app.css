@@ -35,6 +35,8 @@
   --color-pc-accent: var(--am-accent);
   --color-pc-accent-fg: var(--am-on-accent);
   --color-pc-accent-text: var(--am-accent-ink);
+  /* The keyboard-focus ring (amigo-theme AC-12). */
+  --color-pc-focus: var(--am-focus);
   /* Control outlines (checkbox / radio) and slider rails: >= 3:1 on panels. */
   --color-pc-control: var(--am-border-strong);
   --color-pc-track: var(--am-border-strong);

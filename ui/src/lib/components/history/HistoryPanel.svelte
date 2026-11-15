@@ -153,8 +153,8 @@
 
 <style>
   .history-list:focus-visible .history-focus {
-    outline: 1px solid var(--color-pc-accent);
-    outline-offset: -1px;
+    outline: 2px solid var(--am-focus);
+    outline-offset: -2px;
   }
   .history-row:hover {
     background-color: var(--color-pc-hover);

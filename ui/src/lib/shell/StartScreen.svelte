@@ -222,7 +222,7 @@
        AC-34): enabled whenever the cards are, whatever the clipboard
        holds — only a read can tell, and in the browser a read asks. -->
   <div
-    class="start-surface mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-lg border border-pc-border bg-pc-panel py-2 pr-2 pl-4"
+    class="start-surface mt-3 flex flex-wrap items-center justify-between gap-x-4 gap-y-2 rounded-pc-panel border border-pc-border bg-pc-panel py-2 pr-2 pl-4"
     role="group"
     aria-labelledby="start-clip-title"
   >
@@ -374,7 +374,7 @@
       <div class="mt-6 flex max-w-[40rem] flex-col gap-3">
         {#if bannerShown()}
           <div
-            class="start-surface flex flex-wrap items-center gap-x-4 gap-y-3 rounded-lg border border-pc-border bg-pc-panel px-4 py-3"
+            class="start-surface flex flex-wrap items-center gap-x-4 gap-y-3 rounded-pc-panel border border-pc-border bg-pc-panel px-4 py-3"
             role="region"
             aria-label={t('tour.title')}
           >
@@ -396,7 +396,7 @@
         {#if unsupported}
           <p
             role="alert"
-            class="start-surface rounded-lg border border-pc-border bg-pc-panel px-4 py-3 text-sm leading-5"
+            class="start-surface rounded-pc-panel border border-pc-border bg-pc-panel px-4 py-3 text-sm leading-5"
           >
             {t('start.unsupportedBrowser')}
           </p>
@@ -414,7 +414,7 @@
         <div class="min-w-0">
           {@render openCard('')}
           {@render openHint()}
-          <div class="start-surface mt-6 rounded-lg border border-pc-border bg-pc-panel">
+          <div class="start-surface mt-6 rounded-pc-panel border border-pc-border bg-pc-panel">
             <h2
               class="border-b border-pc-border px-4 py-2 text-[13px] leading-4 font-semibold text-pc-muted"
             >

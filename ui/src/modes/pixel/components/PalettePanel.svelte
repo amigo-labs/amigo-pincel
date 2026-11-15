@@ -412,7 +412,10 @@
   .pal-menu-row:hover,
   .pal-menu-row:focus-visible {
     background-color: var(--color-pc-hover);
-    outline: none;
+  }
+  .pal-menu-row:focus-visible {
+    outline: 2px solid var(--am-focus);
+    outline-offset: -2px;
   }
   .palette-grid {
     display: grid;

@@ -84,7 +84,7 @@
     width={SIZE}
     height={SIZE}
     viewBox="0 0 {SIZE} {SIZE}"
-    class="shrink-0 cursor-pointer touch-none rounded-full focus:outline-2 focus:outline-pc-accent"
+    class="shrink-0 cursor-pointer touch-none rounded-full focus:outline-2 focus:outline-pc-focus"
     role="slider"
     tabindex="0"
     aria-label={t('effectDlg.angleDial', { label })}
