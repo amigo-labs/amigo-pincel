@@ -1,5 +1,22 @@
 # Changelog
 
+## [1.14.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.13.0...v1.14.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** the shared amigo theme and a light mode ([03cc0c2](https://github.com/amigo-labs/amigo-pincel/commit/03cc0c2208395f19a5a27d9c52167613e74a4fed))
+* **ui:** the shared amigo theme, a light mode and Inter (AC-02 – AC-15) ([17aef06](https://github.com/amigo-labs/amigo-pincel/commit/17aef06b355dd18b0e40dbf31a5e9191f840cbd8))
+* **ui:** tidy the menu bars of both editors ([fd7cea9](https://github.com/amigo-labs/amigo-pincel/commit/fd7cea9a570741d9e7b0984041a09bd17bc66b54))
+* **ui:** tidy the menu bars of both editors (AC-01 – AC-15) ([5663301](https://github.com/amigo-labs/amigo-pincel/commit/5663301ac11155133ab2f53dbacfd3429f44078a))
+
+
+### Bug Fixes
+
+* **ui:** amigo-theme rework from the acceptance check (focus rings, radii, contrast) ([2e1c9a5](https://github.com/amigo-labs/amigo-pincel/commit/2e1c9a53a1c452955697f3f2ba205ce64ee135d9))
+* **ui:** placeholders in the faint text colour, progress bars with the accent fill (AC-03, AC-10) ([7cb76e7](https://github.com/amigo-labs/amigo-pincel/commit/7cb76e7e6dbde837cdb96cc4382c150c34bac8dd))
+* **ui:** the focus ring and token radii on the controls that missed them (AC-12) ([ff4046d](https://github.com/amigo-labs/amigo-pincel/commit/ff4046d039397b029ec18a0f9c04ff9dcefacfe2))
+
 ## [1.13.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.12.0...v1.13.0) (2026-11-13)
 
 
