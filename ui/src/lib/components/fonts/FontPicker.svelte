@@ -159,7 +159,7 @@
     bind:this={panel}
     role="dialog"
     aria-label={t('font.list')}
-    class="fixed z-50 flex flex-col gap-1 rounded border border-pc-border bg-pc-panel p-2 text-sm text-pc-text shadow-2xl"
+    class="fixed z-50 flex flex-col gap-1 rounded-pc-panel border border-pc-border bg-pc-panel p-2 text-sm text-pc-text shadow-2xl"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     style:width="{pos.width}px"

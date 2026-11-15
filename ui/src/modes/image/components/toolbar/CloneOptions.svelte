@@ -17,7 +17,7 @@
 <!-- Pen and touch have no Ctrl / ⌘: the next press sets the source. -->
 <button
   type="button"
-  class="rounded border px-2 py-1 hover:bg-pc-hover"
+  class="rounded-pc-control border px-2 py-1 hover:bg-pc-hover"
   class:border-pc-accent={tool.cloneSetSource}
   class:text-pc-accent-text={tool.cloneSetSource}
   class:border-pc-border={!tool.cloneSetSource}

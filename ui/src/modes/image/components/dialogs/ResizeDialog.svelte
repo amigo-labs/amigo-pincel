@@ -62,7 +62,7 @@
     <div class="grid w-fit grid-cols-3 gap-1">
       {#each grid as a (a)}
         <button
-          class="h-7 w-7 rounded border text-xs"
+          class="h-7 w-7 rounded-pc-control border text-xs"
           class:border-pc-accent={anchor === a}
           class:bg-pc-accent={anchor === a}
           class:border-transparent={anchor !== a}

@@ -546,13 +546,19 @@
 }
 
 /* Unlayered on purpose: every text-entry field and select sits on the
-   theme's field ground with the control radius, whatever utilities it
-   carries (amigo-theme AC-02, AC-12). */
+   theme's field ground with the control radius and the strong border,
+   whatever utilities it carries (amigo-theme AC-02, AC-10, AC-12). The
+   hairline `border` separates surfaces; a field's edge has to hold 3:1. */
 input:not([type='checkbox'], [type='radio'], [type='range'], [type='color'], [type='file']),
 select,
 textarea {
   border-radius: var(--radius-pc-control);
   background-color: var(--color-pc-raised);
+}
+/* Only fields drawn with the hairline: one that states its own edge
+   (transparent until hovered, the danger border of a wrong value) keeps it. */
+:is(input, select, textarea):is(.border-pc-border, .opt-field, .panel-btn) {
+  border-color: var(--am-border-strong);
 }
 
 /* Unlayered on purpose: wins over `px-*` utilities, so a select's text
