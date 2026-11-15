@@ -794,6 +794,7 @@ for (const mode of MODES) {
 
       await page.keyboard.press('Control+,');
       await check(settings(page).getByRole('combobox', { name: 'Language' }), 'field text');
+      await checkOutline(settings(page).getByRole('combobox', { name: 'Language' }), 'field outline');
       await check(settings(page).getByRole('button', { name: 'Close' }), 'default button');
       await checkOutline(themeChoice(page, palette === 'Dark' ? 'Light' : 'Dark'), 'radio outline');
       await settings(page).getByRole('button', { name: 'Close' }).click();
@@ -917,6 +918,11 @@ for (const mode of MODES) {
     expect(await radiusOf(picker.getByRole('textbox', { name: 'Hex color' }))).toBe(sm);
     await page.keyboard.press('Escape');
     await expect(picker).toHaveCount(0);
+
+    // A small icon button outside the dialogs.
+    expect(
+      await radiusOf(page.getByRole('button', { name: 'Swap foreground and background colors' })),
+    ).toBe(sm);
 
     // Dialogs, their buttons and fields.
     await page.keyboard.press('Control+,');

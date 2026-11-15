@@ -51,7 +51,7 @@
   aria-labelledby="recovery-title"
 >
   <div
-    class="flex w-full max-w-lg flex-col gap-4 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
+    class="flex w-full max-w-lg flex-col gap-4 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
   >
     <header class="flex items-baseline justify-between">
       <h2 id="recovery-title" class="text-base font-semibold">{t('recovery.title')}</h2>

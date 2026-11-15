@@ -81,7 +81,7 @@
   aria-labelledby="text-title"
 >
   <form
-    class="pointer-events-auto flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
+    class="pointer-events-auto flex w-80 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
     onsubmit={(e) => {
       e.preventDefault();
       if (params.text.trim().length > 0) onApply(params);

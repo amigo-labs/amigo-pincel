@@ -409,7 +409,7 @@
 
     <!-- Finishes the live text (docs/specs/image-live-text.md AC-11). -->
     <button
-      class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+      class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
       disabled={!textBoxOpen()}
       onclick={commitText}>{t('opt.finish')}</button
     >
@@ -437,27 +437,27 @@
     <!-- Operations on the existing selection (spec §8.4). -->
     <div class="ml-auto flex items-center gap-1.5 text-xs">
       <button
-        class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+        class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
         disabled={!editor.hasSelection}
         onclick={() => expandSelection(1)}>{t('opt.expand')}</button
       >
       <button
-        class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+        class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
         disabled={!editor.hasSelection}
         onclick={() => contractSelection(1)}>{t('opt.contract')}</button
       >
       <button
-        class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+        class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
         disabled={!editor.hasSelection}
         onclick={() => featherSelection(2)}>{t('opt.feather')}</button
       >
       <button
-        class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+        class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
         disabled={!editor.hasSelection}
         onclick={invertSelection}>{t('opt.invert')}</button
       >
       <button
-        class="rounded px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
+        class="rounded-pc-control px-2 py-1 hover:bg-pc-hover disabled:opacity-40"
         disabled={!editor.hasSelection}
         onclick={deselect}>{t('menu.deselect')}</button
       >

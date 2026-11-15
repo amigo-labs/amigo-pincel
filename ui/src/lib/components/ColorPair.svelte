@@ -128,7 +128,7 @@
     ></button>
     <button
       type="button"
-      class="absolute -top-0.5 -right-0.5 rounded p-0.5 text-pc-muted hover:text-pc-text"
+      class="absolute -top-0.5 -right-0.5 rounded-pc-control p-0.5 text-pc-muted hover:text-pc-text"
       title={withHint(t('color.swap'), 'swapColors')}
       aria-label={t('color.swapLabel')}
       onclick={onSwap}
