@@ -100,7 +100,6 @@ No shared files with the groups above; pick by priority.
 | H15 | [vectorize-dialog](vectorize-dialog.md) | both | L | vectorize-core | File ▸ Export ▸ SVG… with preview; completes the Vectorizer integration |
 | H16 | [unsaved-changes-prompt](unsaved-changes-prompt.md) | shell | M | — | Save / Don't Save / Cancel before work is lost; the desktop app stops closing without asking. Supersedes app-shell AC-14 |
 | H17 | [settings-dialog](settings-dialog.md) | both | M | — | Owner 2026-11-12: app settings out of View into Edit ▸ Settings… |
-| H18 | [amigo-theme](amigo-theme.md) | both | L | settings-dialog | Owner 2026-11-15: the shared amigo theme (amigo-labs/website `theme/`) with Pincel's accent, a light mode, Inter |
 | H19 | [amigo-theme-controls](amigo-theme-controls.md) | both | L | amigo-theme | Buttons, fields, sliders, menus and dialogs on the shared `am-*` components; needs a slider in the website's theme first |
 
 ### I — AI assistant and image generation
@@ -139,6 +138,7 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
+- [amigo-theme](amigo-theme.md)
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)

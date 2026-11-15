@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-15
 size: L
 design: [pincel.md §9.2, pincel.md §9.5, pincel.md §15]
@@ -39,22 +39,22 @@ Terms. **UI**: everything the app draws around and over the document except the 
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always, CI: site-data): The theme files in the repository are exactly what the website's theme command writes for Pincel's `docs/site/project.yml`; a pull request in which they differ fails the Site data check.
-- [ ] AC-02 (always): The editor draws its UI in the tokens of the active palette, checked on the start screen, in both editors with every panel open and in the Settings, New, About, Keyboard Shortcuts, PNG export and Rename dialogs: the window ground is `bg`, panels, bars, menus and dialogs are `surface`, fields are `surface-raised`, body text is `text`, and hairlines are `border`.
-- [ ] AC-03 (always): The editor's accent is Pincel's brand colour in its roles: the active tool, a switched-on toggle and the primary button are filled with `accent-solid` and carry `on-accent`; links and accent-coloured text are `accent-ink`; a selected layer, frame, history or list row is `accent-subtle`; slider thumbs and progress fills are `accent`. No UI element on the surfaces of AC-02 keeps the former accent blue (`#3b82f6`, `#2563eb`, `#7eaaff`).
-- [ ] AC-04 (state): While no theme choice is stored and none was picked since the app started, the active palette is dark, whatever the system prefers.
-- [ ] AC-05 (event): When the user opens the Settings dialog, then it shows a setting "Theme" with the choices Dark, Light and System, the stored choice selected (Dark while none is stored).
-- [ ] AC-06 (event): When the user picks a theme choice, then the whole UI (the open editor, the dialog itself, and the start screen once shown) has switched to its palette before the next input is handled, without a reload, and the choice is kept after a reload.
-- [ ] AC-07 (state): While the theme choice is System, the active palette is light where the system prefers light and dark otherwise (also where the system states no preference), and it switches when the system preference changes while the app is open.
-- [ ] AC-08 (event): When the app starts with a stored theme choice, then from the moment the start screen (or a document restored at startup) first appears in the page, it is in that choice's palette; the app renders nothing of its UI in the other palette before. The splash the operating system or browser shows before the app runs is not part of this.
-- [ ] AC-09 (state): While the active palette is light, the workspace is the light `bg`; the transparency checkerboard is the same in both palettes, because colours in a document must look the same whichever palette the UI has; a selection outline that crosses the workspace, and the document's edge, differ from the workspace in an element screenshot in both palettes.
-- [ ] AC-10 (always): In both palettes, text holds a contrast of at least 4.5:1 against the fill actually behind it in that state (hover, selected and accent fills included), and icons and control outlines at least 3:1, for: menu bar entries, an open menu's items and shortcuts, panel titles and labels, secondary and faint text, the status bar, tooltips, the active tool's icon, a selected layer row, the labels of primary, default, ghost and danger buttons (enabled), field text and placeholders, and error text.
-- [ ] AC-11 (always): UI text is set in Inter, which ships with the app: it shows without a network connection, in the browser and in the desktop app, and the app requests no font from another host.
-- [ ] AC-12 (always): Buttons, fields, menu items, panels and dialogs take their corner radius from the tokens (`radius-sm` for controls, `radius-md` for panels and menus, `radius-lg` for dialogs), and keyboard focus shows as a ring in the `focus` colour on every focusable button, field, menu item, tab and row in both palettes (the canvas itself shows no ring, as today).
-- [ ] AC-13 (state): While the active palette is light, the page's `theme-color` is the light `bg`; while it is dark, the dark `bg`.
-- [ ] AC-14 (option): Where the UI language is German, the setting reads "Erscheinungsbild" with "Dunkel", "Hell" and "System"; each of the other shipped languages has the four strings in that language, none falling back to English.
-- [ ] AC-15 (error): If the app cannot store a picked theme choice, then the pick still applies until the app is closed, and the next start uses what was stored before (dark if nothing was). If the stored choice cannot be read at startup, then the app starts dark and stays usable.
-- [ ] AC-16 (state, manual: visual design): While the active palette is light, the start screen, both editors with every panel open, and the Settings, New, Export and Keyboard Shortcuts dialogs look complete: no dark block, no invisible icon, no unreadable text.
+- [x] AC-01 (always, CI: site-data): The theme files in the repository are exactly what the website's theme command writes for Pincel's `docs/site/project.yml`; a pull request in which they differ fails the Site data check.
+- [x] AC-02 (always): The editor draws its UI in the tokens of the active palette, checked on the start screen, in both editors with every panel open and in the Settings, New, About, Keyboard Shortcuts, PNG export and Rename dialogs: the window ground is `bg`, panels, bars, menus and dialogs are `surface`, fields are `surface-raised`, body text is `text`, and hairlines are `border`.
+- [x] AC-03 (always): The editor's accent is Pincel's brand colour in its roles: the active tool, a switched-on toggle and the primary button are filled with `accent-solid` and carry `on-accent`; links and accent-coloured text are `accent-ink`; a selected layer, frame, history or list row is `accent-subtle`; slider thumbs and progress fills are `accent`. No UI element on the surfaces of AC-02 keeps the former accent blue (`#3b82f6`, `#2563eb`, `#7eaaff`).
+- [x] AC-04 (state): While no theme choice is stored and none was picked since the app started, the active palette is dark, whatever the system prefers.
+- [x] AC-05 (event): When the user opens the Settings dialog, then it shows a setting "Theme" with the choices Dark, Light and System, the stored choice selected (Dark while none is stored).
+- [x] AC-06 (event): When the user picks a theme choice, then the whole UI (the open editor, the dialog itself, and the start screen once shown) has switched to its palette before the next input is handled, without a reload, and the choice is kept after a reload.
+- [x] AC-07 (state): While the theme choice is System, the active palette is light where the system prefers light and dark otherwise (also where the system states no preference), and it switches when the system preference changes while the app is open.
+- [x] AC-08 (event): When the app starts with a stored theme choice, then from the moment the start screen (or a document restored at startup) first appears in the page, it is in that choice's palette; the app renders nothing of its UI in the other palette before. The splash the operating system or browser shows before the app runs is not part of this.
+- [x] AC-09 (state): While the active palette is light, the workspace is the light `bg`; the transparency checkerboard is the same in both palettes, because colours in a document must look the same whichever palette the UI has; a selection outline that crosses the workspace, and the document's edge, differ from the workspace in an element screenshot in both palettes.
+- [x] AC-10 (always): In both palettes, text holds a contrast of at least 4.5:1 against the fill actually behind it in that state (hover, selected and accent fills included), and icons and control outlines at least 3:1, for: menu bar entries, an open menu's items and shortcuts, panel titles and labels, secondary and faint text, the status bar, tooltips, the active tool's icon, a selected layer row, the labels of primary, default, ghost and danger buttons (enabled), field text and placeholders, and error text.
+- [x] AC-11 (always): UI text is set in Inter, which ships with the app: it shows without a network connection, in the browser and in the desktop app, and the app requests no font from another host.
+- [x] AC-12 (always): Buttons, fields, menu items, panels and dialogs take their corner radius from the tokens (`radius-sm` for controls, `radius-md` for panels and menus, `radius-lg` for dialogs), and keyboard focus shows as a ring in the `focus` colour on every focusable button, field, menu item, tab and row in both palettes (the canvas itself shows no ring, as today).
+- [x] AC-13 (state): While the active palette is light, the page's `theme-color` is the light `bg`; while it is dark, the dark `bg`.
+- [x] AC-14 (option): Where the UI language is German, the setting reads "Erscheinungsbild" with "Dunkel", "Hell" and "System"; each of the other shipped languages has the four strings in that language, none falling back to English.
+- [x] AC-15 (error): If the app cannot store a picked theme choice, then the pick still applies until the app is closed, and the next start uses what was stored before (dark if nothing was). If the stored choice cannot be read at startup, then the app starts dark and stays usable.
+- [x] AC-16 (state, manual: visual design): While the active palette is light, the start screen, both editors with every panel open, and the Settings, New, Export and Keyboard Shortcuts dialogs look complete: no dark block, no invisible icon, no unreadable text.
 
 ## Technical notes
 
@@ -95,22 +95,32 @@ Terms. **UI**: everything the app draws around and over the document except the 
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `.github/workflows/site-data.yml` passes `theme-dir: ui/src/theme` to amigo-labs/website `validate-project.yml` (CI: site-data, green on 1c9b985: `site-data / validate`, run 43719232386); locally `node scripts/theme.ts ../amigo-pincel/docs/site/project.yml --out ../amigo-pincel/ui/src/theme --check` in the website checkout | built |        |
-| AC-02 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: panels, bars, an open menu and the dialogs are drawn in the tokens (AC-02) — every panel open, the bars, an open menu, the New, About, Keyboard Shortcuts, export and Rename dialogs; › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03) — Settings; › the start screen is dark by default (AC-04) | built | 7bf8a88 |
-| AC-03 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: the accent sits in its roles, and no dialog keeps the former blue (AC-03) — primary button, accent text, selected layer / history / frame / list row, slider thumb, progress fill, the sweep with each dialog open; › the start screen keeps no former accent blue (AC-03); › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › pixel / image: nothing keeps the former accent blue (AC-03) | built | 7cb76e7, 7bf8a88 |
-| AC-04 | `ui/e2e/amigo-theme.spec.ts` › the start screen is dark by default, whatever the system prefers (AC-04); › an unknown stored value counts as no choice (AC-04) | built |        |
-| AC-05 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | built |        |
-| AC-06 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | built |        |
-| AC-07 | `ui/e2e/amigo-theme.spec.ts` › System follows the system preference, also while the app is open (AC-07, AC-13) | built |        |
-| AC-08 | `ui/e2e/amigo-theme.spec.ts` › a stored choice is in place when the UI first appears (AC-08) | built |        |
-| AC-09 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: light: the workspace is light, a transparent document looks as in dark (AC-09); › pixel / image, Dark / Light: the document's edge and a selection outline on it differ from the workspace (AC-09) | built | 7bf8a88 |
-| AC-10 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: text holds 4.5:1, icons and control outlines 3:1 on what is behind them (AC-10) | built | 7cb76e7, 7bf8a88 |
-| AC-11 | `ui/e2e/amigo-theme.spec.ts` › UI text is Inter from the app itself (AC-11) | built |        |
-| AC-12 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: radii come from the tokens (AC-12); › pixel / image: keyboard focus shows the focus ring on buttons, fields, menu items, tabs and rows in both palettes (AC-12) | built | ff4046d, 7bf8a88 |
-| AC-13 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme … (AC-05, AC-06, AC-13); › System follows the system preference … (AC-07, AC-13) | built |        |
-| AC-14 | `ui/e2e/amigo-theme.spec.ts` › every language names the theme setting in its own words (AC-14) | built |        |
-| AC-15 | `ui/e2e/amigo-theme.spec.ts` › a choice that cannot be stored applies until the app is closed (AC-15); › a stored choice that cannot be read starts dark and usable (AC-15) | built |        |
-| AC-16 | manual: the owner checked the light palette on the start screen, in both editors with their panels and in the Settings, New, Export and Keyboard Shortcuts dialogs ("Hell ist OK"), 2026-11-15 | built |        |
+| AC-01 | `.github/workflows/site-data.yml` passes `theme-dir: ui/src/theme` to amigo-labs/website `validate-project.yml` (CI: site-data, green on 049f3e4, the last commit that changed the theme files: `site-data / validate` on PR #187); locally `node scripts/theme.ts ../amigo-pincel/docs/site/project.yml --out ../amigo-pincel/ui/src/theme --check` in the website checkout | verified | 96f3f02 |
+| AC-02 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: panels, bars, an open menu and the dialogs are drawn in the tokens (AC-02) — every panel open, the bars, an open menu, the New, About, Keyboard Shortcuts, export and Rename dialogs; › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03) — Settings; › the start screen is dark by default (AC-04) | verified | 7bf8a88 |
+| AC-03 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: the accent sits in its roles, and no dialog keeps the former blue (AC-03) — primary button, accent text, selected layer / history / frame / list row, slider thumb, progress fill, the sweep with each dialog open; › the start screen keeps no former accent blue (AC-03); › pixel / image: the editor's surfaces, text and accent are the theme's tokens (AC-02, AC-03); › pixel / image: nothing keeps the former accent blue (AC-03) | verified | 7cb76e7, 7bf8a88 |
+| AC-04 | `ui/e2e/amigo-theme.spec.ts` › the start screen is dark by default, whatever the system prefers (AC-04); › an unknown stored value counts as no choice (AC-04) | verified | 17aef06 |
+| AC-05 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | verified | 17aef06 |
+| AC-06 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme with Dark selected, and a pick applies at once and is kept (AC-05, AC-06, AC-13) | verified | 17aef06 |
+| AC-07 | `ui/e2e/amigo-theme.spec.ts` › System follows the system preference, also while the app is open (AC-07, AC-13) | verified | 17aef06 |
+| AC-08 | `ui/e2e/amigo-theme.spec.ts` › a stored choice is in place when the UI first appears (AC-08) | verified | 17aef06 |
+| AC-09 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: light: the workspace is light, a transparent document looks as in dark (AC-09); › pixel / image, Dark / Light: the document's edge and a selection outline on it differ from the workspace (AC-09) | verified | 7bf8a88 |
+| AC-10 | `ui/e2e/amigo-theme.spec.ts` › pixel / image, Dark / Light: text holds 4.5:1, icons and control outlines 3:1 on what is behind them (AC-10); `ui/e2e/image-resize-autocrop.spec.ts` › an invalid used field blocks Apply and Enter (AC-07) — a wrong field keeps its danger edge | verified | 7cb76e7, 7bf8a88, 777f604, 6af5d89 |
+| AC-11 | `ui/e2e/amigo-theme.spec.ts` › UI text is Inter from the app itself (AC-11) | verified | 17aef06 |
+| AC-12 | `ui/e2e/amigo-theme.spec.ts` › pixel / image: radii come from the tokens (AC-12); › pixel / image: keyboard focus shows the focus ring on buttons, fields, menu items, tabs and rows in both palettes (AC-12) | verified | ff4046d, 7bf8a88, 777f604 |
+| AC-13 | `ui/e2e/amigo-theme.spec.ts` › Settings shows Theme … (AC-05, AC-06, AC-13); › System follows the system preference … (AC-07, AC-13) | verified | 17aef06 |
+| AC-14 | `ui/e2e/amigo-theme.spec.ts` › every language names the theme setting in its own words (AC-14) | verified | 17aef06 |
+| AC-15 | `ui/e2e/amigo-theme.spec.ts` › a choice that cannot be stored applies until the app is closed (AC-15); › a stored choice that cannot be read starts dark and usable (AC-15) | verified | 17aef06 |
+| AC-16 | manual: the owner checked the light palette on the start screen, in both editors with their panels and in the Settings, New, Export and Keyboard Shortcuts dialogs ("Hell ist OK"), 2026-11-15 | verified | e931441 |
+
+## Summary
+
+> Completed: 2026-11-15
+
+- The UI is drawn in the shared amigo theme: generated token files under `ui/src/theme/` (checked by the Site data workflow), mapped onto the `pc-*` roles, with Pincel's brand colour as the only accent.
+- A light palette next to the dark default: Settings ▸ Theme offers Dark, Light and System; the choice is stored, in place when the UI first appears, and mirrored in `theme-color`.
+- UI text is Inter, shipped with the app; radii come from the tokens and keyboard focus shows a ring in the `focus` colour.
+- Text holds 4.5:1 and icons, control outlines and field edges 3:1 in both palettes; a wrong value keeps its danger edge.
+- The setting is named in all six languages; the light palette was checked by the owner.
 
 ## Decisions
 
