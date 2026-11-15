@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.14.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.0...v1.14.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **ui:** amigo-theme, token radii on the last controls and field edges at 3:1 ([5e66b3a](https://github.com/amigo-labs/amigo-pincel/commit/5e66b3aa4c61ed7f39e6cba62dcbe004db1292c3))
+* **ui:** token radii on the last controls and dialogs, field edges at 3:1 (AC-10, AC-12) ([777f604](https://github.com/amigo-labs/amigo-pincel/commit/777f60426a0a2bd7690e02ccc70126af289005ee))
+
 ## [1.14.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.13.0...v1.14.0) (2026-11-15)
 
 
