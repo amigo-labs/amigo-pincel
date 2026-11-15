@@ -48,7 +48,7 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 - A generative refine pass (image to image in tiles) — because it is the next spec, `ai-upscale-refine`
 - Pixel mode — because pixel art scales by whole factors with hard edges (Nearest, RotSprite); a model upscaler blurs it into something that is no longer pixel art
 - A face or skin fix — because the owner decided (2026-11-15) that selecting the face and using Generate at a low strength covers it
-- Factors other than 2, 3 and 4, and a free target size — because upscale models have a fixed scale of 2 or 4 and Scale Image… covers free sizes afterwards
+- Factors other than 2, 3 and 4, and a free target size — because most upscale models have a scale of 2 or 4 and Scale Image… covers free sizes afterwards
 - Running the model several times to reach a factor above its own scale — because one pass plus resampling is predictable in time and memory (Assumptions)
 - Upscaling only a selection or a single layer — because the result has the target size of the whole document; a part cannot be larger than its canvas
 - The PWA and headless `pincel-mcp` — because neither has a ComfyUI connection (Decision Log 2026-11-06)
@@ -69,12 +69,12 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 ### Upscaling
 
 - [ ] AC-08 (event): When the user clicks Upscale, then a pending live object is committed as before any command — the only change a cancelled or failed upscale leaves behind — and the composite's colour is sent to the server to be upscaled with the chosen model.
-- [ ] AC-09 (state): While the upscale waits or runs, the dialog shows its queue position ("Queued, 2 ahead") or its progress in percent and a Cancel button, the settings are disabled, and the dialog can be left only through Cancel; the document is unchanged.
+- [ ] AC-09 (state): While the upscale waits or runs, the dialog shows its queue position ("Queued, 2 ahead") or its progress in percent and a Cancel button, the settings are disabled, and the dialog cannot be closed (no close button, Escape or click outside); Cancel stops the upscale (AC-13); the document is unchanged.
 - [ ] AC-10 (event): When the server returns the result, then, as one undo step named "AI Upscale" in the History panel: the document has the target size; every existing layer is scaled as Scale Image… with Bicubic scales it (order, groups, names, visibility, opacity and blend modes unchanged); a new layer named "Upscaled " plus the factor ("Upscaled 4×") is added at the top of the layer stack outside every group, visible, at 100 % opacity with the normal blend mode, and is the active layer; the selection is dropped; the dialog closes. Undo restores the size, the layers, every pixel and the selection; Redo applies the step again without contacting the server.
-- [ ] AC-11 (always): The new layer covers the whole canvas at the target size, whatever scale the model has: a server result of another size — also of another aspect ratio — is resampled to exactly the target size as Scale Image…'s Supersampling mode does (`image-resize-autocrop` AC-10, AC-11). A result larger than the size limits is refused as a bad answer (AC-14).
-- [ ] AC-12 (always): The new layer's colour comes from the server's result, and its alpha equals the composite's alpha scaled to the target size as Scale Image… with Bicubic scales it: a fully opaque composite gives a fully opaque layer, a fully transparent composite a fully transparent one.
+- [ ] AC-11 (always): The new layer covers the whole canvas at exactly the target size, whatever scale the model has: the server is asked to deliver the model's output resampled to the target size, so a 4× model at factor 2 and a 2× model at factor 4 both give the target size, and Pincel never receives an image larger than the size limits. A server result of any other size is refused as a bad answer (AC-14).
+- [ ] AC-12 (always): The new layer's colour comes from the server's result, and its alpha equals the alpha of the composite as it was sent (AC-08), scaled to the target size as Scale Image… with Bicubic scales it: a fully opaque composite gives a fully opaque layer, a fully transparent composite a fully transparent one.
 - [ ] AC-13 (event): When the user clicks Cancel while the upscale waits or runs — at any moment before the result is applied — or the app quits, then the job is removed from the server's queue or stopped if it runs, other jobs on the server are not affected, and the document is unchanged; after Cancel the dialog shows its settings again.
-- [ ] AC-14 (error): If the server reports an error, returns no image, an image that cannot be decoded or one larger than the size limits, or becomes unreachable during the upscale, then the dialog shows the error, its settings are enabled again, the document is unchanged, and Upscale can be clicked again; an out-of-GPU-memory error, recognised as in `comfyui-generate` AC-15, reads "Not enough GPU memory — try a smaller factor or a smaller image".
+- [ ] AC-14 (error): If the server reports an error, returns no image, an image that cannot be decoded or one that does not have the target size, or becomes unreachable during the upscale, then the dialog shows the error, its settings are enabled again, the document is unchanged, and Upscale can be clicked again; an out-of-GPU-memory error, recognised as in `comfyui-generate` AC-15, reads "Not enough GPU memory — try a smaller factor or a smaller image".
 
 ### Models
 
@@ -87,7 +87,7 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 - [ ] AC-18 (event): When an agent calls `gen.upscale` with optionally `factor` (2, 3 or 4; default 2) and `model` (default: the dialog's stored model if the server has it, else the server's first upscale model), then a server is needed as for every `gen.*` call (`comfyui-connect` AC-03), and the document of the tab the call targets (the chat's tab, or the tab active when the call arrives for an external client) is upscaled as in AC-08 and AC-10 – AC-12 without a dialog — also when another tab has become active meanwhile — and the result names the new layer, the model and the new document size.
 - [ ] AC-19 (error): If `gen.upscale` names a model the server does not have, a factor other than 2, 3 or 4, or a factor whose target size exceeds the size limits, then the call fails with `isError: true` and a message listing the valid model names, the allowed factors or the size limits, before anything is sent to the server.
 - [ ] AC-20 (error): If an agent calls `gen.upscale` while the server is not usable for upscaling (AC-03), it has no upscale model (AC-04), it is too old (AC-05), a generation is pending in that tab (AC-07), another upscale runs in the app (dialog or agent), or the targeted tab is not an Image-mode document, then the call fails with `isError: true` and that reason in English, nothing is sent to the server, and `tools/list` still lists the tool.
-- [ ] AC-21 (error): If a `gen.upscale` call times out (`mcp-live-desktop` AC-19, the `gen.*` limit), its tab closes, or — when the result arrives — the document's size differs from the size at the start of the call or a generation is pending in that tab (AC-07), then its job is cancelled on the server where it still runs, the document is unchanged, and the call fails with `isError: true` naming the reason.
+- [ ] AC-21 (error): If a `gen.upscale` call times out (`mcp-live-desktop` AC-19, the `gen.*` limit), its tab closes, the server fails as in AC-14, or — when the result arrives — the document's size differs from the size at the start of the call or a generation is pending in that tab (AC-07), then its job is cancelled on the server where it still runs, the document is unchanged, and the call fails with `isError: true` naming the reason in English (for a server failure the texts of AC-14).
 - [ ] AC-22 (event): When an agent calls `gen.models`, then the result additionally lists the server's upscale models by the names `gen.upscale` accepts; the checkpoint and LoRA lists are unchanged.
 
 ### Language and hardware
@@ -98,8 +98,8 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 ## Technical notes
 
 - **Upload.** The composite is uploaded as three colour channels: straight (not premultiplied) colour, fully transparent pixels as black. Upscale models take no alpha; Pincel scales the alpha itself (AC-12).
-- **Workflow.** One template in ComfyUI's API format: `LoadImage` → `ImageUpscaleWithModel` (model from `UpscaleModelLoader`) → `SaveImage`. Upload, queue, progress, cancel and result download work as in `comfyui-generate` (`/upload/image`, WebSocket progress, `/history/{prompt_id}`, `/view`). ComfyUI tiles a large input inside `ImageUpscaleWithModel` itself.
-- **Node check.** `UpscaleModelLoader` and `ImageUpscaleWithModel` are checked on their own (AC-05), not added to `comfyui-connect`'s required list, so a server without them still generates.
+- **Workflow.** One template in ComfyUI's API format: `LoadImage` → `ImageUpscaleWithModel` (model from `UpscaleModelLoader`) → `ImageScale` to the target width and height (method `lanczos`, no crop) → `SaveImage`. Resampling on the server keeps a 4× model's output at factor 2 or 3 (up to four times the target's pixels) out of Pincel's memory. Upload, queue, progress, cancel and result download work as in `comfyui-generate` (`/upload/image`, WebSocket progress, `/history/{prompt_id}`, `/view`). ComfyUI tiles a large input inside `ImageUpscaleWithModel` itself.
+- **Node check.** `UpscaleModelLoader`, `ImageUpscaleWithModel` and `ImageScale` are checked on their own (AC-05), not added to `comfyui-connect`'s required list, so a server without them still generates.
 - **Model list.** From the `object_info` of `UpscaleModelLoader` (`model_name`), read with the checkpoints and LoRAs.
 - **Catalog.** `RealESRGAN_x4plus.pth` from the Real-ESRGAN project's GitHub release (downloadable without login, about 64 MB, BSD-3-Clause), into `<folder>/models/upscale_models`. `extra_model_paths.yaml` gains `upscale_models: upscale_models` and is rewritten when a package is added, so an older managed installation picks the folder up (AC-16). URL, size and SHA-256 go into the pins table.
 - **Applying.** One command of `pincel-image-core` scales the document (the Scale Image code path) and adds the layer, as one history entry. App code never reads canvas pixels (AGENTS.md §9): the composite comes from the core. The result of a 4× upscale can be 100 MB as PNG; it crosses the IPC boundary once, compressed, and is decoded in the core (Gotchas: Tauri IPC is slow for bulk bytes).
@@ -110,16 +110,16 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 
 | Scenario | Expected behavior |
 | -------- | ----------------- |
-| 4× model, factor 2 | The model's 4× result is reduced to the target size (AC-11) |
-| 2× or 1× model, factor 4 | The model's result is enlarged to the target size with Bicubic (AC-11); softer than a 4× model, but the size is as chosen |
+| 4× model, factor 2 | The server reduces the model's 4× output to the target size (AC-11) |
+| 2× or 1× model, factor 4 | The server enlarges the model's output to the target size (AC-11); softer than a 4× model, but the size is as chosen |
 | 5000 × 4000 document | 2× would be 80 MP, over the area limit: "The image is too large to upscale" (AC-06) |
-| 3000 × 2000 document | 2× (24 MP) and 3× (54 MP) can be chosen, 4× (96 MP) cannot (AC-06) |
+| 3000 × 2000 document | 2× (24 MP) and 3× (54 MP) can be chosen, 4× (96 MP) cannot (AC-06); with a 4× model the server computes 96 MP and delivers the target size (AC-11) |
 | Document with hidden layers | Hidden layers are not part of the composite; they are scaled like every layer and stay hidden |
 | Cut-out with transparent background | Colour is upscaled from the composite's straight colour with fully transparent pixels as black, alpha is scaled separately (AC-12); soft edges may show a faint dark fringe (Assumptions) |
 | Live text or a floating selection is open | Committed when Upscale is clicked (AC-08); the commit stays as its own undo step if the upscale is cancelled or fails |
 | Server stops during the upscale | Error as AC-14; the dialog asks for the server again (AC-03), which starts an installation Pincel can start, and Upscale is available once it answers |
-| The model is 8× and the result exceeds the size limits | Refused as a bad answer (AC-11, AC-14); the document is unchanged |
-| The server's result has another aspect ratio than the document | Resampled to the target size, stretched (AC-11) |
+| The server delivers an image that does not have the target size | Refused as a bad answer (AC-11, AC-14); the document is unchanged |
+| An agent tool call arrives while the dialog's upscale runs | It fails at once, as every call during a modal dialog (`mcp-live-desktop` AC-18); the document cannot change under the dialog |
 | The upscale never progresses (a stuck server) | The dialog keeps showing its progress; Cancel ends it (AC-13). The dialog has no time limit of its own (Assumptions) |
 | An agent calls `gen.upscale` while the dialog's upscale runs, or two agents call it at once | The later call fails with "an upscale is already running" (AC-20) |
 | The user clicks Generate while an agent's upscale runs in that tab | The generation starts; when the upscale's result arrives, the call fails and the document is unchanged (AC-21) |
@@ -132,7 +132,7 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 
 | Assumption | Reason | Risk |
 | ---------- | ------ | ---- |
-| One model pass, then resampling to the target size | ComfyUI does not report a model's scale before it runs; one pass keeps time and memory predictable | A 2× model at factor 4 is softer than two passes would be |
+| One model pass, then resampling to the target size on the server | ComfyUI does not report a model's scale before it runs; one pass keeps time predictable, and resampling there keeps Pincel's memory within the size limits | A 2× model at factor 4 is softer than two passes would be; a 4× model at factor 2 near the limits needs server memory for four times the target |
 | Default factor 2× | The smallest result; 4× of a 4 MP photo is already 64 MP | Users of small images pick 4× once; the choice persists |
 | The dialog is modal while the upscale runs | A model upscale is one pass without sampling steps, and the step resizes the document, so edits meanwhile would be covered by the new layer | A slow machine blocks the editor for minutes; Cancel is always available |
 | The dialog's upscale has no time limit | The user watches the progress and can cancel; a limit would have to guess the machine's speed | A stuck server is only ended by Cancel |
@@ -184,4 +184,5 @@ Decided by the owner (2026-11-15): the document is enlarged and the result becom
 - 2026-11-15: No face or skin fix; selection plus Generate at a low strength covers it (owner).
 - 2026-11-15: Upscaling does not need a checkpoint, so the status "no model installed" does not block it — an upscale model is the only model the workflow loads.
 - 2026-11-15: The selection is dropped by the upscale and restored by Undo, as Resize Canvas does — the selection mask is canvas-sized, and a resampled mask of a 4× larger canvas would be a guess at what the user selected.
+- 2026-11-15: The server resamples the model's output to the target size (`ImageScale`, a core node) — otherwise a 4× model at factor 2 or 3 would hand Pincel up to four times the target's pixels, beyond the size limits the factor choice just checked.
 - 2026-11-15: The upscale node types are checked separately from `comfyui-connect`'s required list — a server without them must keep generating.
