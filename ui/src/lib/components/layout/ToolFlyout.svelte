@@ -120,7 +120,12 @@
   .entry:focus,
   .entry-hot {
     background-color: var(--color-pc-hover);
-    outline: none;
+  }
+  /* Opened with the keyboard, the entry also shows the ring (inset: the
+     flyout scrolls and would clip it). */
+  .entry:focus-visible {
+    outline: 2px solid var(--am-focus);
+    outline-offset: -2px;
   }
   .entry:disabled {
     opacity: 0.4;

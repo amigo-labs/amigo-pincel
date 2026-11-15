@@ -215,7 +215,7 @@
   class={[
     'flex min-h-0 flex-col border-pc-border bg-pc-panel text-sm text-pc-text',
     floating
-      ? 'rounded-lg border shadow-[0_8px_30px_rgb(0_0_0/0.5)]'
+      ? 'rounded-pc-panel border shadow-(--am-elev-3)'
       : 'rounded-t-lg border-t shadow-[0_-8px_30px_rgb(0_0_0/0.5)]',
   ]}
   role="dialog"
@@ -231,7 +231,7 @@
   >
     <!-- Title bar: drags the panel, arrow keys move it (AC-18, AC-20). -->
     <div
-      class="flex h-9 shrink-0 touch-none items-center gap-2 rounded-t-lg px-3 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pc-accent"
+      class="flex h-9 shrink-0 touch-none items-center gap-2 rounded-t-pc-panel px-3 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pc-focus"
       class:cursor-move={floating}
       role="group"
       aria-label={t('effectDlg.move')}

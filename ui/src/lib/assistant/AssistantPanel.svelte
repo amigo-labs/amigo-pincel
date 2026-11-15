@@ -180,7 +180,7 @@
 {#snippet item(it: ChatItem)}
   {#if it.kind === 'user'}
     <div
-      class="self-end rounded-md bg-pc-selected px-2.5 py-1.5 whitespace-pre-wrap break-words"
+      class="self-end rounded-pc-control bg-pc-selected px-2.5 py-1.5 whitespace-pre-wrap break-words"
       data-role="user"
     >
       {it.text}
@@ -189,7 +189,7 @@
     <div class="px-0.5" data-role="agent">{@render agentText(it.text)}</div>
   {:else if it.kind === 'tool'}
     <details
-      class="rounded-md border border-pc-border bg-pc-raised text-xs"
+      class="rounded-pc-control border border-pc-border bg-pc-raised text-xs"
       data-role="tool"
       data-state={it.state}
     >

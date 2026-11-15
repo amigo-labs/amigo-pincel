@@ -349,7 +349,7 @@
       {@const flyout = hasFlyout(g)}
       <button
         type="button"
-        class="btn-press relative flex shrink-0 items-center justify-center rounded-md text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
+        class="btn-press relative flex shrink-0 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
         class:h-9={orientation === 'vertical'}
         class:w-9={orientation === 'vertical'}
         class:h-11={orientation === 'horizontal'}

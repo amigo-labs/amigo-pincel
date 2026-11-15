@@ -19,7 +19,7 @@
 
 {#if group && group.tools.length > 1}
   <div
-    class="flex shrink-0 items-center gap-0.5 rounded-md border border-pc-border p-0.5"
+    class="flex shrink-0 items-center gap-0.5 rounded-pc-control border border-pc-border p-0.5"
     role="radiogroup"
     aria-label={t('frame.variant', { group: group.label })}
   >

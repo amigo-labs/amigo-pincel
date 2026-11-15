@@ -68,7 +68,7 @@
      clipboard" row (AC-27): preview on the left, title, size and buttons on
      the right; stacked on narrow screens. -->
 <section
-  class="start-surface mt-3 flex flex-wrap items-stretch gap-3 rounded-lg border border-pc-border bg-pc-panel p-3 text-pc-text"
+  class="start-surface mt-3 flex flex-wrap items-stretch gap-3 rounded-pc-panel border border-pc-border bg-pc-panel p-3 text-pc-text"
   aria-labelledby="clip-offer-title"
 >
   <div

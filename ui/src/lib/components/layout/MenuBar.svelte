@@ -209,7 +209,7 @@
 {#if compact}
   <button
     type="button"
-    class="flex h-9 w-9 items-center justify-center rounded hover:bg-pc-hover"
+    class="flex h-9 w-9 items-center justify-center rounded-pc-control hover:bg-pc-hover"
     class:bg-pc-active={openId === '☰'}
     class:relative={restricted}
     class:z-[46]={restricted}
@@ -233,7 +233,7 @@
     {#each menus as m (m.id)}
       <button
         type="button"
-        class="shrink-0 rounded px-2 py-1 text-sm whitespace-nowrap hover:bg-pc-hover lg:px-2.5"
+        class="shrink-0 rounded-pc-control px-2 py-1 text-sm whitespace-nowrap hover:bg-pc-hover lg:px-2.5"
         class:bg-pc-active={openId === m.id}
         class:relative={restricted && isLive(m)}
         class:z-[46]={restricted && isLive(m)}
@@ -333,7 +333,12 @@
   .menu-row:hover:not(:disabled),
   .menu-row:focus-visible {
     background-color: var(--color-pc-hover);
-    outline: none;
+  }
+  /* The keyboard's item keeps the fill and shows the ring, inset so the
+     menu's edge never clips it (amigo-theme AC-12). */
+  .menu-row:focus-visible {
+    outline: 2px solid var(--am-focus);
+    outline-offset: -2px;
   }
   .menu-row:disabled {
     opacity: 0.45;
