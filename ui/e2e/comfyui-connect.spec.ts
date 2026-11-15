@@ -11,7 +11,7 @@ import {
   setMock,
 } from './tauri-mock';
 
-// View ▸ Image generation… (docs/specs/comfyui-connect.md). The backend
+// Tools ▸ Image generation… (docs/specs/comfyui-connect.md). The backend
 // (src-tauri/src/comfyui/, tested in Rust against fake servers) cannot run
 // here: the mocked Tauri bridge answers its commands and emits its
 // `comfyui:status` events, and these specs check what the dialog shows.
@@ -39,7 +39,7 @@ function connected(over: Record<string, unknown> = {}): Record<string, unknown> 
 }
 
 /** Starts the desktop app with the backend answers in place, opens a
- *  document of `mode` and View ▸ Image generation…. */
+ *  document of `mode` and Tools ▸ Image generation…. */
 async function openDialog(
   page: Page,
   answers: { settings?: unknown; connect?: unknown[] } = {},
@@ -49,7 +49,7 @@ async function openDialog(
   await reply(page, 'comfyui_settings', answers.settings ?? settings());
   await reply(page, 'comfyui_connect', ...(answers.connect ?? [{ kind: 'notFound' }]));
   await newDocument(page, mode);
-  await menu(page, 'View', MENU);
+  await menu(page, 'Tools', MENU);
   return page.getByRole('dialog', { name: 'Image generation' });
 }
 
@@ -58,10 +58,14 @@ function status(dialog: Locator): Locator {
 }
 
 test.describe('browser', () => {
-  test('the PWA has no View ▸ Image generation… (AC-01)', async ({ page }) => {
+  test('the PWA has no Tools ▸ Image generation… (AC-01)', async ({ page }) => {
     for (const mode of ['pixel', 'image'] as const) {
       await createDocument(page, mode);
-      await page.getByRole('menubar').getByRole('menuitem', { name: 'View', exact: true }).click();
+      const bar = page.getByRole('menubar');
+      await expect(bar.getByRole('menuitem', { name: 'View', exact: true })).toBeVisible();
+      // The entry's menu is absent (menu-structure AC-02), and View no longer holds it.
+      await expect(bar.getByRole('menuitem', { name: 'Tools', exact: true })).toHaveCount(0);
+      await bar.getByRole('menuitem', { name: 'View', exact: true }).click();
       const view = page.getByRole('menu', { name: 'View', exact: true });
       await expect(view.getByRole('menuitem', { name: 'Zoom In' })).toBeVisible();
       await expect(view.getByRole('menuitem', { name: MENU })).toHaveCount(0);
@@ -75,7 +79,7 @@ test.describe('desktop', () => {
     await installTauriMock(page);
   });
 
-  test('both editors offer View ▸ Image generation… (AC-01)', async ({ page }) => {
+  test('both editors offer Tools ▸ Image generation… (AC-01)', async ({ page }) => {
     const dialog = await openDialog(page, {}, 'image');
     await expect(dialog).toBeVisible();
     await dialog.getByRole('button', { name: 'Close' }).click();
@@ -180,7 +184,7 @@ test.describe('desktop', () => {
     await reply(page, 'comfyui_connect', connected({ started: true }));
     await holdCommands(page, ['comfyui_connect']);
     await newDocument(page, 'pixel');
-    await menu(page, 'View', MENU);
+    await menu(page, 'Tools', MENU);
     const dialog = page.getByRole('dialog', { name: 'Image generation' });
     await expect(status(dialog)).toContainText('Connecting…');
     await emit(page, 'comfyui:status', { kind: 'starting' });
@@ -302,7 +306,7 @@ test.describe('German', () => {
     await page.getByRole('button', { name: 'Neues Pixel-Sprite' }).click();
     await page.getByRole('button', { name: 'Erstellen' }).click();
     await waitForEditor(page, 'pixel');
-    await menu(page, 'Ansicht', 'Bildgenerierung…');
+    await menu(page, 'Extras', 'Bildgenerierung…');
     const dialog = page.getByRole('dialog', { name: 'Bildgenerierung' });
     await expect(status(dialog)).toContainText('Kein ComfyUI-Server gefunden');
     await expect(dialog.getByRole('button', { name: 'Vorhandene Installation verwenden…' })).toBeVisible();

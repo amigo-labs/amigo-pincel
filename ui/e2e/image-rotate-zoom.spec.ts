@@ -80,7 +80,7 @@ const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exac
 const redoButton = (page: Page) => page.getByRole('button', { name: 'Redo', exact: true });
 
 async function openRotateZoom(page: Page): Promise<void> {
-  await menu(page, 'Layer', 'Rotate / Zoom…');
+  await menu(page, 'Layer', 'Transform', 'Rotate / Zoom…');
   await expect(dialog(page).getByRole('heading', { name: 'Rotate / Zoom' })).toBeVisible();
 }
 
@@ -136,6 +136,7 @@ test('without a document the item cannot be chosen (AC-01)', async ({ page }) =>
   release();
   await waitForEditor(page, 'image');
   await page.getByRole('menubar').getByRole('menuitem', { name: 'Layer', exact: true }).click();
+  await page.getByRole('menuitem', { name: 'Transform', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Rotate / Zoom…' })).toBeEnabled();
 });
 
@@ -147,7 +148,7 @@ test('the preview turns the layer; Cancel and Escape leave document and history 
   const shot = await spot(page);
   const plain = await shot();
   // A redo step that a new undo step would discard.
-  await menu(page, 'Layer', 'Rotate 90° CW');
+  await menu(page, 'Layer', 'Transform', 'Rotate 90° CW');
   await expectShot(shot, plain, false);
   const turned = await shot();
   await undoButton(page).click();
@@ -181,7 +182,7 @@ test('Apply keeps the preview as one undo step; Nearest 90° equals Rotate 90° 
 }) => {
   await openGrid(page);
   const original = await activeLayer(page);
-  await menu(page, 'Layer', 'Rotate 90° CW');
+  await menu(page, 'Layer', 'Transform', 'Rotate 90° CW');
   const turned = await activeLayer(page);
   await undoButton(page).click();
   await expect(undoButton(page)).toBeDisabled();
@@ -209,7 +210,7 @@ test('Apply keeps the preview as one undo step; Nearest 90° equals Rotate 90° 
 test('the identity changes no pixel and adds no undo step (AC-05)', async ({ page }) => {
   await openGrid(page);
   const original = await activeLayer(page);
-  await menu(page, 'Layer', 'Rotate 90° CW');
+  await menu(page, 'Layer', 'Transform', 'Rotate 90° CW');
   await undoButton(page).click();
   await expect(redoButton(page)).toBeEnabled();
   for (const q of ['Nearest', 'Bilinear', 'Bicubic']) {
@@ -246,7 +247,7 @@ test('a locked layer or a group refuses with the locked-layer notice (AC-08)', a
   const original = await activeLayer(page);
   const [name] = (await layerNames(page)) as [string];
   const refused = async (who: string) => {
-    await menu(page, 'Layer', 'Rotate / Zoom…');
+    await menu(page, 'Layer', 'Transform', 'Rotate / Zoom…');
     await expect(page.getByText(`“${who}” is locked`)).toBeVisible();
     await expect(dialog(page)).toHaveCount(0);
   };
@@ -341,7 +342,7 @@ test.describe('German', () => {
 
   test('the item, the dialog and its controls are German (AC-01, AC-03)', async ({ page }) => {
     await openGrid(page);
-    await menu(page, 'Ebene', 'Drehen / Zoomen…');
+    await menu(page, 'Ebene', 'Transformieren', 'Drehen / Zoomen…');
     const panel = dialog(page);
     await expect(panel.getByRole('heading', { name: 'Drehen / Zoomen' })).toBeVisible();
     for (const label of ['Winkel', 'Verschieben X', 'Verschieben Y', 'Zoom']) {

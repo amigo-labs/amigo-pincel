@@ -527,6 +527,7 @@ export const de: Record<MessageKey, string> = {
   'menu.rotateCcw': '90° gegen den Uhrzeigersinn drehen',
   'menu.rotate180': '180° drehen',
   'menu.rotateZoom': 'Drehen / Zoomen…',
+  'menu.transform': 'Transformieren',
   'menu.resizeCanvas': 'Arbeitsfläche ändern…',
   'menu.scaleImage': 'Bild skalieren…',
   'menu.crop': 'Auf Auswahl zuschneiden',

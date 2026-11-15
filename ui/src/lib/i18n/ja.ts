@@ -526,6 +526,7 @@ export const ja: Record<MessageKey, string> = {
   'menu.rotateCcw': '90°回転（反時計回り）',
   'menu.rotate180': '180°回転',
   'menu.rotateZoom': '回転 / ズーム…',
+  'menu.transform': '変形',
   'menu.resizeCanvas': 'カンバスサイズを変更…',
   'menu.scaleImage': '画像を拡大・縮小…',
   'menu.crop': '選択範囲で切り抜き',

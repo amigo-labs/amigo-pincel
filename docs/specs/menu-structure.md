@@ -109,24 +109,29 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-01 | desktop › `{mode}: Tools follows View and holds the two AI entries` (`ui/e2e/menu-structure.spec.ts`); the dialogs' own tests open them from Tools (`ui/e2e/mcp-live-settings.spec.ts`, `comfyui-connect.spec.ts`, `comfyui-install.spec.ts`) | built |        |
+| AC-02 | browser › `{mode}: no Tools menu, menus in order, a View of view entries only` (`ui/e2e/menu-structure.spec.ts`); `the PWA has no Tools ▸ Image generation…` (`ui/e2e/comfyui-connect.spec.ts`); `AC-13 the web app shows neither the setting nor the indicator` (`ui/e2e/mcp-live-settings.spec.ts`) | built |        |
+| AC-03 | browser › `{mode}: no Tools menu, menus in order, a View of view entries only`; desktop › `{mode}: Tools follows View and holds the two AI entries` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-04 | `image: Image ends with Recognize Text…, which opens the OCR dialog` (`ui/e2e/menu-structure.spec.ts`); the OCR dialog's tests open it from Image (`ui/e2e/ocr-helpers.ts` `openOcr`, `ocr-dialog*.spec.ts`) | built |        |
+| AC-05 | `pixel: Help lists the Frame-Time Probe before About and toggles it`, `image: Help has no Frame-Time Probe` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-06 | desktop on macOS › `pixel: no in-window Help; F2 and the palette reach the probe` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-07 | browser › `{mode}: Layer ends with the Transform submenu; its entries keep their hints` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-08 | browser › `{mode}: Layer ends with the Transform submenu; its entries keep their hints` (`ui/e2e/menu-structure.spec.ts`); hints and effect through the new path in `ui/e2e/shortcuts-coverage.spec.ts`, `image-rotate-zoom.spec.ts` (incl. `without a document the item cannot be chosen`), `rotsprite.spec.ts` | built |        |
+| AC-09 | `entries both modes share stand in the same order` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-10 | browser › `{mode}: Select holds All, Deselect, Invert, then the radius commands` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-11 | browser › `{mode}: no Tools menu, menus in order, a View of view entries only`; desktop › `{mode}: Tools follows View and holds the two AI entries`; desktop on macOS › `pixel: no in-window Help; F2 and the palette reach the probe` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-12 | `the palette lists the moved commands under their new paths only`; desktop › `{mode}: Tools follows View and holds the two AI entries` (`ui/e2e/menu-structure.spec.ts`); `ui/e2e/command-palette.spec.ts` | built |        |
+| AC-13 | phone › `{mode}: the ☰ sheet lists the menus and entries of the menu bar` (`ui/e2e/menu-structure.spec.ts`) | built |        |
+| AC-14 | `German: Extras and Transformieren; the other languages have their own Transform` (`ui/e2e/menu-structure.spec.ts`); German paths in `ui/e2e/mcp-live-settings.spec.ts`, `comfyui-connect.spec.ts`, `image-rotate-zoom.spec.ts` | built |        |
+| AC-15 | desktop › `{mode}: Tools is inert while an effect is open` (`ui/e2e/menu-structure.spec.ts`); `ui/e2e/assistant-chat.spec.ts` (Tools inert while an answer runs) | built |        |
 
 ## Decisions
 
 - 2026-11-15 (owner): AI Agents… and Image Generation… go into the Tools menu, not into the Generate / Assistant panels. This replaces the plan noted in `settings-dialog` (out of scope: "they move into the AI panel (`ai-panel`)"); no `ai-panel` spec will be written for it. Reason: the dialogs must be reachable while a panel is hidden (`panel-visibility`).
 - 2026-11-15 (owner): Recognize Text… moves to the Image menu, the Frame-Time Probe out of View, flips and rotations into Layer ▸ Transform, and shared entries get one order. Reasons for the places chosen: Assumptions.
 - 2026-11-15 (clarification pass): German keeps "Extras" for Tools — the string exists and the menu is not new.
+- 2026-11-15 (build): Red run — `pnpm exec playwright test e2e/menu-structure.spec.ts` against the build before the change: 16 of 19 failed for the old structure (probe in View, flat layer transforms, Tools holding Recognize Text…, Invert Selection last in Image mode, no Tools on the desktop). Three passed at once because the behavior existed: Pixel mode's Select order (AC-10), Image mode's Help without a probe (AC-05), and Tools inert while an effect is open in Image mode (AC-15, where Tools already existed).
+- 2026-11-15 (build): The parts both modes share are built once in `ui/src/lib/components/layout/shared-menus.ts` (`selectMenu`, `layerTransformItems`, `toolsMenus`); the old `ui/src/modes/image/ocr/menu.ts` is gone. New exported API for review: those three functions with `SelectMenuContext` / `LayerTransformContext`, `imageMenus` / `ImageMenuContext` (`ui/src/modes/image/menus.ts`), `probeItem` (`ui/src/modes/pixel/menus.ts`), the `diagnostics` parameter of `helpMenus`, and `PaletteSource.extras` — commands without a menu path, which AC-06 needs on macOS.
+- 2026-11-15 (build): The rotations in Layer ▸ Transform show no hint, as before: Ctrl+R-style keys belong to Image ▸ Rotate (the canvas), in both modes.
+- 2026-11-15 (build): `ocr-dialog` AC-01 said "a Tools menu … holding Recognize Text…; Pixel mode has no Tools menu", which AC-01 / AC-04 here make false, so that AC was reworded there (contrary to the technical note "their AC wording stays"); the other listed specs only got a Decisions line.
+- 2026-11-15 (build): AC-08's "disabled while no document is open" cannot occur in the browser (an editor is mounted only with a document); the existing test that holds the wasm back and checks the entry afterwards (`image-rotate-zoom.spec.ts`) is the closest observable and was moved to the new path.

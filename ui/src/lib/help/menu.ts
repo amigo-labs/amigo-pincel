@@ -16,11 +16,16 @@ export function settingsMenuItems(): MenuItem[] {
 }
 
 /**
- * The Help menu (Keyboard Shortcuts, About, the updater's entries), or nothing where the OS already draws one: on macOS the
+ * The Help menu (Keyboard Shortcuts, the mode's `diagnostics` entries, About,
+ * the updater's entries), or nothing where the OS already draws one: on macOS the
  * native menu bar owns Help, and a second copy inside the window would be
  * the duplication this menu exists to avoid (spec §11.3).
  */
-export function helpMenus(openShortcuts: () => void, tourContext?: TourContext): MenuDef[] {
+export function helpMenus(
+  openShortcuts: () => void,
+  tourContext?: TourContext,
+  diagnostics: MenuItem[] = [],
+): MenuDef[] {
   if (hasNativeMenu()) return [];
   const updater = help.updater;
   // No update entries where nothing can be installed: a browser, a debug
@@ -41,6 +46,7 @@ export function helpMenus(openShortcuts: () => void, tourContext?: TourContext):
         ...(tourContext
           ? [{ label: t('menu.tour'), run: () => startTour(tourContext) } satisfies MenuItem]
           : []),
+        ...diagnostics,
         { kind: 'separator' },
         { label: t('menu.about'), run: openAbout },
         ...updates,
