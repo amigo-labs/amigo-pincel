@@ -87,7 +87,7 @@
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('anim.format')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         bind:value={format}
         aria-label={t('anim.format')}
       >
@@ -98,7 +98,7 @@
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('sheet.frames')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         value={tag ?? ''}
         onchange={(e) => chooseTag(e.currentTarget.value === '' ? null : e.currentTarget.value)}
         aria-label={t('sheet.frames')}
@@ -112,7 +112,7 @@
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('anim.scale')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         bind:value={scale}
         aria-label={t('anim.scale')}
       >
@@ -123,25 +123,27 @@
     </label>
     <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
       <legend class="mb-1">{t('anim.loop')}</legend>
-      <label class="flex items-center gap-2">
+      <label class="am-check flex items-center gap-2">
         <input type="radio" name="anim-loop" checked={forever} onchange={() => (forever = true)} />
         {t('anim.forever')}
       </label>
       <label class="flex items-center gap-2">
-        <input
-          type="radio"
-          name="anim-loop"
-          checked={!forever}
-          onchange={() => (forever = false)}
-          aria-label={t('anim.times')}
-        />
+        <span class="am-check">
+          <input
+            type="radio"
+            name="anim-loop"
+            checked={!forever}
+            onchange={() => (forever = false)}
+            aria-label={t('anim.times')}
+          />
+        </span>
         <input
           type="number"
           min="1"
           max="65535"
           bind:value={count}
           disabled={forever}
-          class="w-20 rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums disabled:opacity-50"
+          class="am-input w-20 tabular-nums disabled:opacity-50"
           aria-label={t('anim.loopCount')}
         />
         {t('anim.timesSuffix')}
@@ -157,8 +159,8 @@
       <p class="text-xs text-pc-muted" role="status">{t('anim.gifAlpha')}</p>
     {/if}
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('menu.export')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
     </div>
   </form>
 </div>

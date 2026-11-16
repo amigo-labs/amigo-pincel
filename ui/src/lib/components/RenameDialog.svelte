@@ -54,11 +54,11 @@
     <p class="font-semibold">{t('layers.renameTitle')}</p>
     <label class="mt-3 flex flex-col gap-1 text-xs text-pc-muted">
       {t('layers.name')}
-      <input bind:this={input} bind:value={draft} class="opt-field w-full text-sm" spellcheck="false" />
+      <input bind:this={input} bind:value={draft} class="am-input w-full" spellcheck="false" />
     </label>
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('layers.rename')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('layers.rename')}</button>
     </div>
   </form>
 </div>

@@ -269,7 +269,7 @@
             inputmode="numeric"
             bind:value={width}
             oninput={(e) => (widthBad = e.currentTarget.validity.badInput)}
-            class="h-8 w-full min-w-0 rounded border border-pc-border bg-pc-bg px-1.5 text-pc-text"
+            class="am-input w-full min-w-0"
             aria-label={t('common.width')}
             aria-describedby={widthNote ? `${uid}-wnote` : undefined}
           />
@@ -289,7 +289,7 @@
             inputmode="numeric"
             bind:value={height}
             oninput={(e) => (heightBad = e.currentTarget.validity.badInput)}
-            class="h-8 w-full min-w-0 rounded border border-pc-border bg-pc-bg px-1.5 text-pc-text"
+            class="am-input w-full min-w-0"
             aria-label={t('common.height')}
             aria-describedby={heightNote ? `${uid}-hnote` : undefined}
           />
@@ -300,7 +300,7 @@
     </div>
     {@render note(`${uid}-anote`, areaNote)}
 
-    <label class="mt-3 flex min-h-8 items-center gap-2 text-xs text-pc-muted">
+    <label class="am-check mt-3 flex min-h-8 items-center gap-2 text-xs text-pc-muted">
       <input
         type="checkbox"
         checked={startup}
@@ -325,8 +325,8 @@
     </div>
 
     <div class="mt-3 flex justify-end gap-2">
-      <Button class="min-h-8" onclick={onCancel}>{t('common.cancel')}</Button>
-      <Button type="submit" variant="primary" class="min-h-8" aria-describedby="{uid}-result"
+      <Button onclick={onCancel}>{t('common.cancel')}</Button>
+      <Button type="submit" variant="primary" aria-describedby="{uid}-result"
         >{t('common.create')}</Button
       >
     </div>

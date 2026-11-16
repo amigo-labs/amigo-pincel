@@ -75,9 +75,7 @@
       }}
       spellcheck="false"
       maxlength="9"
-      class="w-24 rounded border bg-pc-bg px-1 py-0.5 font-mono {invalid
-        ? 'border-pc-danger-text'
-        : 'border-pc-border'}"
+      class="am-input w-24 font-mono"
       aria-label={t('effectDlg.hex', { label })}
       aria-invalid={invalid ? 'true' : 'false'}
       aria-describedby={invalid ? `${uid}-error` : undefined}

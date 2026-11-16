@@ -108,7 +108,7 @@
           max={maxSize}
           value={width}
           oninput={(e) => onWidthInput(Number(e.currentTarget.value))}
-          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+          class="am-input tabular-nums w-auto"
           aria-label={t('common.width')}
         />
       </label>
@@ -120,7 +120,7 @@
           max={maxSize}
           value={height}
           oninput={(e) => onHeightInput(Number(e.currentTarget.value))}
-          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+          class="am-input tabular-nums w-auto"
           aria-label={t('common.height')}
         />
       </label>
@@ -133,8 +133,8 @@
           {#each anchors as a (a.id)}
             <button
               type="button"
-              class="panel-btn h-7 w-7 px-0 text-center"
-              class:panel-btn-primary={anchor === a.id}
+              class="am-btn h-7 w-7 px-0"
+              class:am-btn--primary={anchor === a.id}
               role="radio"
               aria-checked={anchor === a.id}
               aria-label={a.id.replace('_', ' ')}
@@ -150,7 +150,7 @@
         <span>{t('resize.interpolation')}</span>
         <select
           bind:value={interpolation}
-          class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
+          class="am-input w-auto"
           aria-label={t('resize.interpolation')}
         >
           <option value="nearest">{t('resize.nearest')}</option>
@@ -158,15 +158,15 @@
           <option value="bicubic">{t('resize.bicubic')}</option>
         </select>
       </label>
-      <label class="flex items-center gap-2 text-xs text-pc-text">
+      <label class="am-check flex items-center gap-2 text-xs text-pc-text">
         <input type="checkbox" bind:checked={keepAspect} />
         <span>{t('resize.keepAspect')}</span>
       </label>
     {/if}
 
     <footer class="mt-1 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">
         {mode === 'resize' ? t('resize.resize') : t('resize.scale')}
       </button>
     </footer>

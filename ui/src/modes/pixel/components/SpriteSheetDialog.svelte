@@ -76,7 +76,7 @@
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('sheet.frames')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         value={tag ?? ''}
         onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
         aria-label={t('sheet.frames')}
@@ -94,14 +94,14 @@
         min="1"
         max={count}
         bind:value={columns}
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+        class="am-input tabular-nums w-auto"
         aria-label={t('sheet.columns')}
       />
     </label>
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('export.scale')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         bind:value={scale}
         aria-label={t('export.scale')}
       >
@@ -113,13 +113,13 @@
     <p class="text-xs text-pc-muted" aria-live="polite">
       {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
     </p>
-    <label class="flex items-center gap-2 text-xs text-pc-text">
+    <label class="am-check flex items-center gap-2 text-xs text-pc-text">
       <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
       {t('sheet.jsonHint')}
     </label>
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('menu.export')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
     </div>
   </form>
 </div>

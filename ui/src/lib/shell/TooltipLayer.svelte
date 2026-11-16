@@ -163,7 +163,7 @@
     <div class="flex items-center gap-2">
       <span class="whitespace-pre-line">{tip.label}</span>
       {#if tip.key}
-        <kbd class="keycap">{tip.key}</kbd>
+        <kbd class="am-kbd">{tip.key}</kbd>
       {/if}
     </div>
     {#if tip.hint}

@@ -34,7 +34,7 @@
     <span class="text-pc-muted">{t('resize.resampling')}</span>
     <select
       bind:value={interpolation}
-      class="rounded border border-pc-border bg-pc-raised px-2 py-1"
+      class="am-input w-auto"
     >
       <option value="supersampling">{t('resize.supersampling')}</option>
       <option value="nearest">{t('resize.nearestShort')}</option>

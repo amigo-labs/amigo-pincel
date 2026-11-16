@@ -52,7 +52,7 @@
         <span>{t('settings.language')}</span>
         <select
           bind:this={languageField}
-          class="panel-btn leading-4 pointer-coarse:min-h-11"
+          class="am-input pointer-coarse:min-h-11 w-auto"
           value={locale()}
           onchange={(e) => {
             const v = e.currentTarget.value;
@@ -73,7 +73,7 @@
         <span id="settings-theme">{t('settings.theme')}</span>
         <span class="flex flex-wrap gap-x-3 gap-y-1">
           {#each THEME_CHOICES as choice (choice)}
-            <label class="flex items-center gap-1.5 pointer-coarse:min-h-11">
+            <label class="am-check flex items-center gap-1.5 pointer-coarse:min-h-11">
               <input
                 type="radio"
                 name="settings-theme"
@@ -86,7 +86,7 @@
         </span>
       </div>
       <div class="flex flex-col gap-1">
-        <label class="flex items-center gap-2 pointer-coarse:min-h-11">
+        <label class="am-check flex items-center gap-2 pointer-coarse:min-h-11">
           <input
             type="checkbox"
             checked={motion.option}
@@ -101,7 +101,7 @@
           </p>
         {/if}
       </div>
-      <label class="flex items-center gap-2 pointer-coarse:min-h-11">
+      <label class="am-check flex items-center gap-2 pointer-coarse:min-h-11">
         <input
           type="checkbox"
           checked={touchGestures.enabled}
@@ -111,7 +111,7 @@
       </label>
     </div>
     <div class="mt-6 flex justify-end">
-      <button class="panel-btn" onclick={onClose}>{t('common.close')}</button>
+      <button class="am-btn" onclick={onClose}>{t('common.close')}</button>
     </div>
   </div>
 </div>

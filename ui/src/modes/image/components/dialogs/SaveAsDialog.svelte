@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../../../lib/range-fill';
   // Save As (save-original-format AC-09, AC-10, AC-14 – AC-16): every format
   // Image mode writes, with the JPEG quality and the merge confirmation in
   // the same dialog, and a notice when the document's own format cannot be
@@ -63,7 +64,7 @@
     <span class="text-pc-muted">{t('save.format')}</span>
     <select
       aria-label={t('save.format')}
-      class="flex-1 rounded border border-pc-border bg-pc-raised px-2 py-1"
+      class="am-input flex-1"
       value={format}
       onchange={onChange}
     >
@@ -79,15 +80,16 @@
         type="range"
         min="1"
         max="100"
-        class="flex-1"
+        class="am-range flex-1"
         value={quality}
         oninput={(e) => (pickedQuality = e.currentTarget.valueAsNumber)}
+        use:rangeFill={quality}
       />
       <span class="w-8 text-right tabular-nums">{quality}</span>
     </label>
   {/if}
   {#if needsMerge}
-    <label class="mb-4 flex items-start gap-2">
+    <label class="am-check mb-4 flex items-start gap-2">
       <input type="checkbox" class="mt-0.5" bind:checked={merge} />
       <span>
         {t('save.mergeLayers')}

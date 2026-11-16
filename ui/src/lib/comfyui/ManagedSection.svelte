@@ -38,24 +38,24 @@
       <div class="rounded border border-pc-border p-2" role="alertdialog" aria-label={t('comfy.uninstallTitle')}>
         <p class="mb-2">{t('comfy.uninstallConfirm', { path: managed.dir })}</p>
         <div class="flex gap-2">
-          <button class="panel-btn min-h-8" onclick={() => void uninstall()}>{t('comfy.uninstallButton')}</button>
-          <button class="panel-btn min-h-8" onclick={() => (install.confirmUninstall = false)}
+          <button class="am-btn" onclick={() => void uninstall()}>{t('comfy.uninstallButton')}</button>
+          <button class="am-btn" onclick={() => (install.confirmUninstall = false)}
             >{t('common.cancel')}</button
           >
         </div>
       </div>
     {:else}
       <div class="flex flex-wrap gap-2">
-        <button class="panel-btn min-h-8" disabled={locked} title={lockedTitle} onclick={openPackages}
+        <button class="am-btn" disabled={locked} title={lockedTitle} onclick={openPackages}
           >{t('comfy.managePackages')}</button
         >
         {#if managed.updateAvailable}
-          <button class="panel-btn min-h-8" disabled={locked} title={lockedTitle} onclick={() => void startUpdate()}
+          <button class="am-btn" disabled={locked} title={lockedTitle} onclick={() => void startUpdate()}
             >{t('comfy.update')}</button
           >
         {/if}
         <button
-          class="panel-btn min-h-8"
+          class="am-btn"
           disabled={locked}
           title={lockedTitle}
           onclick={() => (install.confirmUninstall = true)}>{t('comfy.uninstall')}</button
@@ -68,14 +68,14 @@
     <p class="text-pc-danger-text">{t('comfy.incomplete')}</p>
     <p class="mb-2 truncate text-xs text-pc-muted" title={managed.dir}>{managed.dir}</p>
     <div class="flex flex-wrap gap-2">
-      <button class="panel-btn min-h-8" disabled={locked} onclick={() => void resumeIncomplete()}
+      <button class="am-btn" disabled={locked} onclick={() => void resumeIncomplete()}
         >{t('comfy.resume')}</button
       >
-      <button class="panel-btn min-h-8" disabled={locked} onclick={() => void uninstall()}>{t('comfy.delete')}</button>
+      <button class="am-btn" disabled={locked} onclick={() => void uninstall()}>{t('comfy.delete')}</button>
     </div>
   </section>
 {:else if managed.kind === 'none' && comfy.status.kind !== 'notFound' && info !== null}
   <div class="mb-4 border-t border-pc-border pt-3">
-    <button class="panel-btn min-h-8" onclick={() => openInstallWizard()}>{t('comfy.install')}</button>
+    <button class="am-btn" onclick={() => openInstallWizard()}>{t('comfy.install')}</button>
   </div>
 {/if}

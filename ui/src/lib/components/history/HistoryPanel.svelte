@@ -111,7 +111,7 @@
     {#each buttons as b (b.icon)}
       <button
         type="button"
-        class="panel-btn flex-1"
+        class="am-btn am-btn--sm flex-1"
         aria-label={t(b.label)}
         title={t(b.label)}
         disabled={b.delta() === 0}

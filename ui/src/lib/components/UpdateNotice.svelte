@@ -26,10 +26,10 @@
   data-update-notice
 >
   <span>{t('update.noticeText', { version })}</span>
-  <button class="panel-btn" onkeydown={onKeydown} onclick={onInstall}>{t('about.install')}</button>
-  <button class="panel-btn" onkeydown={onKeydown} onclick={onLater}>{t('update.later')}</button>
+  <button class="am-btn" onkeydown={onKeydown} onclick={onInstall}>{t('about.install')}</button>
+  <button class="am-btn" onkeydown={onKeydown} onclick={onLater}>{t('update.later')}</button>
   <button
-    class="panel-btn"
+    class="am-btn"
     onkeydown={onKeydown}
     aria-label={t('update.closeNotice')}
     title={t('update.closeNotice')}

@@ -55,7 +55,7 @@
     {#if !canAddLayers}
       <p class="mt-2 text-xs text-pc-warning-text">{t('drop.pngOnly')}</p>
     {/if}
-    <label class="mt-3 flex items-center gap-2 text-xs">
+    <label class="am-check mt-3 flex items-center gap-2 text-xs">
       <input type="checkbox" bind:checked={dontAsk} />
       <span>{t('drop.dontAsk')}</span>
     </label>

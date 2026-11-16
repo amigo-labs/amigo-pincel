@@ -64,7 +64,7 @@
 </script>
 
 {#snippet folderButton(label: MessageKey)}
-  <button class="panel-btn min-h-8" onclick={() => void pickFolder()}>{t(label)}</button>
+  <button class="am-btn" onclick={() => void pickFolder()}>{t(label)}</button>
 {/snippet}
 
 {#if install.open}
@@ -87,7 +87,7 @@
       <legend class="mb-1 text-xs text-pc-muted">{t('comfy.server')}</legend>
       <div class="flex flex-col gap-1" role="radiogroup" aria-label={t('comfy.server')}>
         {#each choices as [value, label] (value)}
-          <label class="flex min-h-8 items-center gap-2">
+          <label class="am-check flex min-h-8 items-center gap-2">
             <input
               type="radio"
               name="comfy-server"
@@ -122,10 +122,10 @@
           placeholder="http://127.0.0.1:8188"
           spellcheck="false"
           autocomplete="off"
-          class="h-8 min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-1.5 text-pc-text"
+          class="am-input min-w-0 flex-1"
           aria-label={t('comfy.url')}
         />
-        <button type="submit" class="panel-btn min-h-8" disabled={comfy.busy}>{t('comfy.test')}</button>
+        <button type="submit" class="am-btn" disabled={comfy.busy}>{t('comfy.test')}</button>
       </form>
       {#if remote}
         <p class="mb-3 text-xs text-pc-accent-text" role="note">{t('comfy.remoteNotice')}</p>
@@ -153,11 +153,11 @@
         <p class="mb-2">{t('comfy.notFound')}</p>
         <div class="flex flex-wrap gap-2">
           <button
-            class="panel-btn min-h-8"
+            class="am-btn"
             onclick={() => void chooseServer('existing').then(() => pickFolder())}
             >{t('comfy.useExisting')}</button
           >
-          <button class="panel-btn min-h-8" disabled={install.info === null} onclick={() => openInstallWizard()}
+          <button class="am-btn" disabled={install.info === null} onclick={() => openInstallWizard()}
             >{t('comfy.install')}</button
           >
         </div>
@@ -194,7 +194,7 @@
           <p class="mb-2 text-pc-accent-text">{t('comfy.driverHint')}</p>
         {/if}
         {#if choice === 'managed'}
-          <button class="panel-btn mb-2 min-h-8" onclick={retryStart}>{t('comfy.retryStart')}</button>
+          <button class="am-btn mb-2" onclick={retryStart}>{t('comfy.retryStart')}</button>
         {/if}
         {#if status.log.length > 0}
           <p class="text-xs text-pc-muted">{t('comfy.output')}</p>
@@ -207,8 +207,8 @@
         {#if choice === 'managed'}
           {@const path = status.path}
           <div class="flex flex-wrap gap-2">
-            <button class="panel-btn min-h-8" onclick={() => installAgain(path)}>{t('comfy.installAgain')}</button>
-            <button class="panel-btn min-h-8" onclick={() => void chooseAnotherServer()}
+            <button class="am-btn" onclick={() => installAgain(path)}>{t('comfy.installAgain')}</button>
+            <button class="am-btn" onclick={() => void chooseAnotherServer()}
               >{t('comfy.chooseServer')}</button
             >
           </div>
@@ -234,7 +234,7 @@
     <ManagedSection />
 
     <div class="flex justify-end">
-      <button bind:this={closeButton} class="panel-btn min-h-8" onclick={onClose}>
+      <button bind:this={closeButton} class="am-btn" onclick={onClose}>
         {t('common.close')}
       </button>
     </div>

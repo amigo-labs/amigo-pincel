@@ -107,8 +107,8 @@
           })}
         </p>
         <div class="mt-2 flex flex-wrap gap-2">
-          <button class="panel-btn min-h-8" onclick={() => void existing()}>{t('comfy.useExisting')}</button>
-          <button class="panel-btn min-h-8" onclick={() => void custom()}>{t('comfy.custom')}</button>
+          <button class="am-btn" onclick={() => void existing()}>{t('comfy.useExisting')}</button>
+          <button class="am-btn" onclick={() => void custom()}>{t('comfy.custom')}</button>
         </div>
       {:else}
         <p>{t('comfy.supported')}</p>
@@ -127,7 +127,7 @@
       <span class="min-w-0 flex-1 truncate" title={check?.target ?? ''}
         >{check ? t('comfy.target', { path: check.target }) : t('comfy.noLocation')}</span
       >
-      <button class="panel-btn min-h-8" onclick={() => void pickLocation()}>{t('comfy.chooseLocation')}</button>
+      <button class="am-btn" onclick={() => void pickLocation()}>{t('comfy.chooseLocation')}</button>
     </div>
     {#if check !== null}
       <p class:text-pc-danger-text={short}>
@@ -139,7 +139,7 @@
       {#if !check.writable}<p class="text-pc-danger-text">{t('comfy.notWritable')}</p>{/if}
       {#if check.existing === 'complete'}
         <p>{t('comfy.existingComplete')}</p>
-        <button class="panel-btn mt-1 min-h-8" onclick={() => void useThisInstallation()}>{t('comfy.useThis')}</button>
+        <button class="am-btn mt-1" onclick={() => void useThisInstallation()}>{t('comfy.useThis')}</button>
       {:else if check.existing === 'incomplete'}
         <p class="text-pc-muted">{t('comfy.existingIncomplete')}</p>
       {/if}
@@ -154,7 +154,7 @@
       {@const checked = install.selected.includes(pkg.id)}
       {@const min = hardware ? minimum(pkg, hardware) : null}
       <div class="mb-1">
-        <label class="flex min-h-8 items-center gap-2">
+        <label class="am-check flex min-h-8 items-center gap-2">
           <input
             type="checkbox"
             {checked}
@@ -190,8 +190,8 @@
           })}
         </p>
         <div class="flex gap-2">
-          <button class="panel-btn min-h-8" onclick={() => confirmRemoval(true)}>{t('comfy.removeBoth')}</button>
-          <button class="panel-btn min-h-8" onclick={() => confirmRemoval(false)}>{t('comfy.keep')}</button>
+          <button class="am-btn" onclick={() => confirmRemoval(true)}>{t('comfy.removeBoth')}</button>
+          <button class="am-btn" onclick={() => confirmRemoval(false)}>{t('comfy.keep')}</button>
         </div>
       </div>
     {/if}
@@ -224,15 +224,15 @@
         {@render packagesBlock()}
       {/if}
       <div class="flex justify-end gap-2">
-        <button class="panel-btn min-h-8" onclick={closeWizard}>{t('common.cancel')}</button>
+        <button class="am-btn" onclick={closeWizard}>{t('common.cancel')}</button>
         {#if install.mode === 'install'}
           {#if hardware?.unsupported === null}
-            <button class="panel-btn min-h-8" disabled={!canInstall} onclick={toLicenses}
+            <button class="am-btn" disabled={!canInstall} onclick={toLicenses}
               >{t('comfy.installButton')}</button
             >
           {/if}
         {:else}
-          <button class="panel-btn min-h-8" disabled={!changed} onclick={toLicenses}>{t('common.apply')}</button>
+          <button class="am-btn" disabled={!changed} onclick={toLicenses}>{t('common.apply')}</button>
         {/if}
       </div>
     {:else if install.page === 'licenses'}
@@ -241,7 +241,7 @@
           <div class="mb-2">
             <p>{t('comfy.licenseOf', { name: pkg.name, license: pkg.license })}</p>
             <p class="break-all text-xs text-pc-muted">{pkg.licenseUrl}</p>
-            <label class="flex min-h-8 items-center gap-2">
+            <label class="am-check flex min-h-8 items-center gap-2">
               <input
                 type="checkbox"
                 checked={install.accepting.includes(pkg.id)}
@@ -260,8 +260,8 @@
         {/if}
       </section>
       <div class="flex justify-end gap-2">
-        <button class="panel-btn min-h-8" onclick={() => (install.page = 'setup')}>{t('comfy.back')}</button>
-        <button class="panel-btn min-h-8" disabled={!allAccepted} onclick={() => void startJob()}>
+        <button class="am-btn" onclick={() => (install.page = 'setup')}>{t('comfy.back')}</button>
+        <button class="am-btn" disabled={!allAccepted} onclick={() => void startJob()}>
           {t(install.mode === 'install' ? 'comfy.installButton' : 'common.apply')}
         </button>
       </div>
@@ -280,7 +280,7 @@
         {/if}
       </div>
       <div class="flex justify-end">
-        <button class="panel-btn min-h-8" onclick={cancelJob}>{t('common.cancel')}</button>
+        <button class="am-btn" onclick={cancelJob}>{t('common.cancel')}</button>
       </div>
     {:else if install.page === 'failed' && install.error !== null}
       {@const error = install.error}
@@ -294,9 +294,9 @@
         {/if}
       </div>
       <div class="flex justify-end gap-2">
-        <button class="panel-btn min-h-8" onclick={closeWizard}>{t('common.close')}</button>
+        <button class="am-btn" onclick={closeWizard}>{t('common.close')}</button>
         {#if error.kind !== 'generationRunning' && error.kind !== 'busy'}
-          <button class="panel-btn min-h-8" onclick={() => void retry()}>{t('comfy.retry')}</button>
+          <button class="am-btn" onclick={() => void retry()}>{t('comfy.retry')}</button>
         {/if}
       </div>
     {/if}

@@ -8,7 +8,7 @@
 
 <label class="flex items-center gap-2">
   <span class="text-pc-muted">{t('opt.sample')}</span>
-  <select bind:value={tool.cloneSample} class="opt-field">
+  <select bind:value={tool.cloneSample} class="am-input am-input--sm w-auto">
     <option value="current_layer">{t('opt.currentLayer')}</option>
     <option value="all_layers">{t('opt.allLayers')}</option>
   </select>
@@ -17,10 +17,8 @@
 <!-- Pen and touch have no Ctrl / ⌘: the next press sets the source. -->
 <button
   type="button"
-  class="rounded-pc-control border px-2 py-1 hover:bg-pc-hover"
-  class:border-pc-accent={tool.cloneSetSource}
-  class:text-pc-accent-text={tool.cloneSetSource}
-  class:border-pc-border={!tool.cloneSetSource}
+  class="am-btn am-btn--sm"
+  class:am-btn--primary={tool.cloneSetSource}
   aria-pressed={tool.cloneSetSource}
   title={t('clone.setSourceHint')}
   onclick={() => (tool.cloneSetSource = !tool.cloneSetSource)}>{t('clone.setSource')}</button

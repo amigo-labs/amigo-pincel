@@ -165,7 +165,7 @@
       <select
         id="ocr-language"
         bind:this={languageSelect}
-        class="rounded border border-pc-border bg-pc-raised px-2 py-1"
+        class="am-input w-auto"
         value={lang ?? ''}
         onchange={(e) => {
           const next = e.currentTarget.value;
@@ -185,7 +185,7 @@
       <textarea
         bind:this={field}
         bind:value={text}
-        class="h-56 w-full resize-y rounded border border-pc-border bg-pc-raised p-2 font-mono text-xs"
+        class="am-input h-56 w-full resize-y p-2 font-mono text-xs"
         aria-label={t('ocr.field')}
         spellcheck="false"
         oninput={() => {

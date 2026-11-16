@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../range-fill';
   // Foreground / background colors, shared by both modes (spec §9.2):
   // overlapping swatches with swap (X) and reset (D), a hex field and an
   // alpha slider for the foreground. A click on a swatch opens the own
@@ -160,7 +161,7 @@
         }}
         spellcheck="false"
         maxlength="7"
-        class="opt-field w-20 font-mono"
+        class="am-input am-input--sm w-20 font-mono"
         aria-label={t('color.hexLabel')}
       />
     </label>
@@ -176,8 +177,9 @@
           onFg({ ...fg, a: Number(e.currentTarget.value) });
         }}
         onchange={() => onDraft(false)}
-        class="w-20"
+        class="am-range w-20"
         aria-label={t('color.alpha')}
+        use:rangeFill={fg.a}
       />
       <span class="w-7 text-right tabular-nums">{fg.a}</span>
     </label>

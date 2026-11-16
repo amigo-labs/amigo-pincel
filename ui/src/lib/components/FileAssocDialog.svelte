@@ -49,12 +49,12 @@
     {:else}
       <p class="mb-4 text-sm text-pc-muted">{t('fileAssoc.other')}</p>
     {/if}
-    <label class="mb-4 flex items-center gap-2 text-sm text-pc-text">
+    <label class="am-check mb-4 flex items-center gap-2 text-sm text-pc-text">
       <input type="checkbox" bind:checked={dontShowAgain} />
       {t('fileAssoc.dontShow')}
     </label>
     <div class="flex justify-end">
-      <button class="panel-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
+      <button class="am-btn" onclick={() => onDismiss(dontShowAgain)}>{t('fileAssoc.gotIt')}</button>
     </div>
   </div>
 </div>

@@ -45,14 +45,14 @@
       {t(canExpand ? 'paste.larger' : 'paste.tooLarge', { w: width, h: height })}
     </p>
     <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
       {#if canExpand}
-        <button type="button" class="panel-btn" onclick={onKeep}>{t('paste.keep')}</button>
-        <button bind:this={primary} type="button" class="panel-btn panel-btn-primary" onclick={onExpand}>
+        <button type="button" class="am-btn" onclick={onKeep}>{t('paste.keep')}</button>
+        <button bind:this={primary} type="button" class="am-btn am-btn--primary" onclick={onExpand}>
           {t('paste.expand')}
         </button>
       {:else}
-        <button bind:this={primary} type="button" class="panel-btn panel-btn-primary" onclick={onKeep}>
+        <button bind:this={primary} type="button" class="am-btn am-btn--primary" onclick={onKeep}>
           {t('paste.keep')}
         </button>
       {/if}

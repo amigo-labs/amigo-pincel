@@ -718,9 +718,13 @@ for (const mode of MODES) {
       };
       /** A control's outline against what is behind the control. */
       const checkOutline = async (el: Locator, label: string): Promise<void> => {
-        const { behind } = await painted(el);
+        // At rest: the shared field shows the focus ring instead of its outline.
+        await el.blur();
+        const { behind, fill } = await painted(el);
+        // A checked toggle of the shared theme has no outline: its fill is the edge.
+        const checked = await el.evaluate((e) => e instanceof HTMLInputElement && e.checked);
         expect(
-          contrast(await outlineOf(el), behind),
+          contrast(checked ? fill : await outlineOf(el), behind),
           `${palette}: ${label}`,
         ).toBeGreaterThanOrEqual(3);
       };
@@ -777,7 +781,7 @@ for (const mode of MODES) {
       const tip = page.locator('[data-tooltip]');
       await expect(tip).toBeVisible();
       await check(tip, 'tooltip');
-      await check(tip.locator('.keycap'), 'tooltip keycap');
+      await check(tip.locator('.am-kbd'), 'tooltip keycap');
       await page.mouse.move(0, 0);
 
       // An open menu: an item, its shortcut, and the item under the pointer.
@@ -801,9 +805,9 @@ for (const mode of MODES) {
 
       await menu(page, 'File', 'New…');
       const dialog = page.getByRole('dialog', { name: 'New document' });
-      await check(dialog.locator('.panel-btn-primary').first(), 'primary button');
+      await check(dialog.locator('.am-btn--primary').first(), 'primary button');
       await check(
-        dialog.locator('.panel-btn:not(.panel-btn-primary)').first(),
+        dialog.locator('.am-btn:not(.am-btn--primary)').first(),
         'default button in a dialog',
       );
       await checkOutline(dialog.getByRole('checkbox'), 'checkbox outline in a dialog');
@@ -860,7 +864,7 @@ for (const mode of MODES) {
       await canvas.click();
       await page.getByRole('button', { name: /^Close (pincel\.aseprite|image\.ora)$/ }).click();
       const prompt = page.getByRole('alertdialog');
-      const dontSave = prompt.locator('.panel-btn-danger');
+      const dontSave = prompt.locator('.am-btn--danger');
       await check(dontSave, 'danger button');
       await dontSave.hover();
       await check(dontSave, 'hovered danger button');
@@ -957,13 +961,13 @@ for (const mode of MODES) {
       await expectRing(page, close, at('button'));
       const language = settings(page).getByRole('combobox', { name: 'Language' });
       await keyFocus(page, language);
-      await expectRing(page, language, at('select'), '1px');
+      await expectRing(page, language, at('select'));
       await close.click();
 
       // A text field, the colour buttons and a slider of a panel.
       const hex = sidebar.getByRole('textbox', { name: 'Foreground color hex value' });
       await keyFocus(page, hex);
-      await expectRing(page, hex, at('field'), '1px');
+      await expectRing(page, hex, at('field'));
       for (const which of ['fg', 'bg'] as const) {
         await keyFocus(page, swatch(page, which));
         await expectRing(page, swatch(page, which), at(`${which} colour button`));

@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../range-fill';
   // The layers panel both modes share (spec §9.2): per row a drag grip,
   // visibility, lock, thumbnail, name and rename button; the active layer's
   // opacity and blend mode below; add / duplicate / merge / delete in the
@@ -305,7 +306,7 @@
           <div class="ml-1 min-w-0 flex-1">
             {#if editingKey === row.key}
               <input
-                class="opt-field w-full"
+                class="am-input am-input--sm w-full"
                 bind:value={draft}
                 use:focusAndSelect
                 aria-label={t('layers.renameLabel', { name: row.name })}
@@ -355,17 +356,18 @@
           min="0"
           max="100"
           value={pct(active.opacity)}
-          class="min-w-0 flex-1"
+          class="am-range min-w-0 flex-1"
           aria-label={t('layers.opacityLabel')}
           oninput={(e) => onOpacity(active, Number(e.currentTarget.value) / 100, false)}
           onchange={(e) => onOpacity(active, Number(e.currentTarget.value) / 100, true)}
+          use:rangeFill={pct(active.opacity)}
         />
         <span class="w-9 text-right tabular-nums">{percent(pct(active.opacity))}</span>
       </label>
       <label class="flex items-center gap-2">
         <span class="w-16 shrink-0">{t('layers.blend')}</span>
         <select
-          class="opt-field min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1"
           value={active.blend}
           aria-label={t('layers.blendLabel')}
           onchange={(e) => onBlend(active, e.currentTarget.value)}
@@ -382,12 +384,12 @@
     {#if onMergeVisible}
       <button
         type="button"
-        class="panel-btn flex-1"
+        class="am-btn am-btn--sm flex-1"
         disabled={rows.length < 2}
         onclick={onMergeVisible}>{t('layers.mergeVisible')}</button
       >
     {/if}
-    <button type="button" class="panel-btn flex-1" disabled={rows.length < 2} onclick={onFlatten}
+    <button type="button" class="am-btn am-btn--sm flex-1" disabled={rows.length < 2} onclick={onFlatten}
       >{t('layers.flatten')}</button
     >
   </div>

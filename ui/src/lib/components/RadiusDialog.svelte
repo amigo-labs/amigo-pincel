@@ -63,12 +63,12 @@
         min="1"
         {max}
         step="1"
-        class="opt-field w-full text-sm"
+        class="am-input w-full"
       />
     </label>
     <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('common.apply')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('common.apply')}</button>
     </div>
   </form>
 </div>

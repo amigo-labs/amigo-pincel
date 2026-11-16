@@ -174,7 +174,7 @@
                   inputmode="numeric"
                   bind:value={width}
                   {@attach focusOnFinePointer}
-                  class="opt-field start-ctl w-20 px-2 text-sm"
+                  class="am-input start-ctl w-20"
                   aria-label={t('common.width')}
                 />
               </label>
@@ -188,7 +188,7 @@
                   step="1"
                   inputmode="numeric"
                   bind:value={height}
-                  class="opt-field start-ctl w-20 px-2 text-sm"
+                  class="am-input start-ctl w-20"
                   aria-label={t('common.height')}
                 />
               </label>
@@ -196,14 +196,14 @@
             </span>
             <button
               type="submit"
-              class="panel-btn panel-btn-primary start-ctl w-full px-4 text-sm leading-5 min-[35rem]:ml-auto min-[35rem]:w-auto"
+              class="am-btn am-btn--primary start-ctl w-full min-[35rem]:ml-auto min-[35rem]:w-auto"
               disabled={blocked}
             >
               {t('common.create')}
             </button>
           </div>
           <label
-            class="mt-3 flex items-center gap-2 text-xs leading-4 text-pc-muted pointer-coarse:min-h-11"
+            class="am-check mt-3 flex items-center gap-2 text-xs leading-4 text-pc-muted pointer-coarse:min-h-11"
           >
             <input
               type="checkbox"
@@ -233,7 +233,7 @@
       {#each CARDS as card (card.mode)}
         <button
           type="button"
-          class="panel-btn start-ctl gap-2 px-3 text-sm leading-5"
+          class="am-btn start-ctl"
           disabled={blocked}
           onclick={() => onOpenClipboard(card.mode)}
           ><Icon name={card.icon} size={16} class="shrink-0 text-pc-muted" />{t(
@@ -287,7 +287,7 @@
     >
       <button
         type="button"
-        class="panel-btn start-ctl justify-start gap-2 px-3 text-sm leading-5"
+        class="am-btn start-ctl justify-start"
         disabled={blocked}
         onclick={() => onOpenSample('sprite')}
         ><Icon name="mode-pixel" size={16} class="shrink-0 text-pc-muted" />{t(
@@ -296,7 +296,7 @@
       >
       <button
         type="button"
-        class="panel-btn start-ctl justify-start gap-2 px-3 text-sm leading-5"
+        class="am-btn start-ctl justify-start"
         disabled={blocked}
         onclick={() => onOpenSample('image')}
         ><Icon name="mode-image" size={16} class="shrink-0 text-pc-muted" />{t(
@@ -339,23 +339,23 @@
           <span class="flex items-center gap-2" data-tour="start-help">
             <button
               type="button"
-              class="panel-btn leading-4 pointer-coarse:min-h-11"
+              class="am-btn pointer-coarse:min-h-11"
               onclick={() => startTour('start')}>{t('menu.tour')}</button
             >
             <button
               type="button"
-              class="panel-btn leading-4 pointer-coarse:min-h-11"
+              class="am-btn pointer-coarse:min-h-11"
               onclick={openSettings}>{t('settings.title')}</button
             >
             <button
               type="button"
-              class="panel-btn leading-4 pointer-coarse:min-h-11"
+              class="am-btn pointer-coarse:min-h-11"
               onclick={openAbout}>{t('menu.about')}</button
             >
           </span>
         {/if}
         <select
-          class="panel-btn leading-4 pointer-coarse:min-h-11"
+          class="am-input pointer-coarse:min-h-11 w-auto"
           aria-label={t('start.language')}
           value={locale()}
           onchange={(e) => {
@@ -382,12 +382,12 @@
             <span class="flex gap-2">
               <button
                 type="button"
-                class="panel-btn panel-btn-primary leading-4 pointer-coarse:min-h-11"
+                class="am-btn am-btn--primary pointer-coarse:min-h-11"
                 onclick={() => answerBanner(true)}>{t('tour.bannerTake')}</button
               >
               <button
                 type="button"
-                class="panel-btn leading-4 pointer-coarse:min-h-11"
+                class="am-btn pointer-coarse:min-h-11"
                 onclick={() => answerBanner(false)}>{t('tour.bannerDecline')}</button
               >
             </span>
@@ -606,10 +606,8 @@
     font-weight: 450;
   }
 
-  /* 36px control tier, 44px under a coarse pointer. */
-  .start-ctl {
-    min-height: 2.25rem;
-  }
+  /* Controls are the shared 32px ones; rows keep 36px, both 44px under a
+     coarse pointer. */
   .start-row {
     display: grid;
     width: 100%;

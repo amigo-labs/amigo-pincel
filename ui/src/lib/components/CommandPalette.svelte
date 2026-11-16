@@ -119,7 +119,7 @@
         <input
           bind:this={frameField}
           bind:value={frameText}
-          class="opt-field w-full text-sm"
+          class="am-input w-full"
           type="text"
           inputmode="numeric"
           aria-invalid={frameInvalid}
@@ -130,7 +130,7 @@
       <input
         bind:this={search}
         bind:value={query}
-        class="opt-field m-3 text-sm"
+        class="am-input m-3 w-auto"
         type="text"
         role="combobox"
         aria-label={t('cmd.title')}

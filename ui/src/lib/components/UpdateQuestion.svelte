@@ -39,15 +39,15 @@
     </h2>
     <div class="mb-4 space-y-1" role="radiogroup" aria-labelledby="update-question-title">
       {#each MODES as m (m)}
-        <label class="flex items-center gap-2 text-sm text-pc-text">
+        <label class="am-check flex items-center gap-2 text-sm text-pc-text">
           <input type="radio" name="update-question-mode" value={m} bind:group={mode} />
           {t(`update.${m}`)}
         </label>
       {/each}
     </div>
     <div class="flex justify-end gap-2">
-      <button class="panel-btn" onclick={onDismiss}>{t('update.close')}</button>
-      <button bind:this={confirmButton} class="panel-btn" onclick={() => onConfirm(mode)}>
+      <button class="am-btn" onclick={onDismiss}>{t('update.close')}</button>
+      <button bind:this={confirmButton} class="am-btn" onclick={() => onConfirm(mode)}>
         {t('update.confirm')}
       </button>
     </div>

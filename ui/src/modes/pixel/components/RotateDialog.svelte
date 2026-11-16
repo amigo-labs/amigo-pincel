@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../../lib/range-fill';
   // Layer ▸ Rotate… (docs/specs/rotsprite.md): angle as number plus
   // slider, method choice, live preview. Presentational: the parent draws
   // the preview and runs the rotation. No backdrop tint, so the canvas
@@ -76,23 +77,24 @@
         value={angle}
         oninput={(e) => onAngleInput(e.currentTarget)}
         onchange={(e) => (e.currentTarget.value = String(angle))}
-        class="w-20 rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+        class="am-input w-20 tabular-nums"
         aria-label={t('pxRotate.angle')}
       />
     </label>
-    <input
+    <input class="am-range"
       type="range"
       min={MIN_ANGLE}
       max={MAX_ANGLE}
       step="1"
       bind:value={angle}
       aria-label={t('pxRotate.angleSlider')}
+      use:rangeFill={angle}
     />
     <label class="flex items-center justify-between gap-2 text-xs">
       <span>{t('pxRotate.method')}</span>
       <select
         bind:value={method}
-        class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
+        class="am-input w-auto"
         aria-label={t('pxRotate.method')}
       >
         <option value="nearest">{t('pxRotate.nearest')}</option>
@@ -105,8 +107,8 @@
       </p>
     {/if}
     <footer class="mt-1 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary" disabled={tooLarge}>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" disabled={tooLarge}>
         {t('common.apply')}
       </button>
     </footer>

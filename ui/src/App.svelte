@@ -1055,7 +1055,7 @@
     role="alert"
   >
     <span class="whitespace-pre-line">{shellError}</span>
-    <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
+    <button class="am-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}
 

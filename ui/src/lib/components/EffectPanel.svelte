@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../range-fill';
   import { onMount } from 'svelte';
   import { toParams, type ParamDef } from '../effects/catalog';
   import { canvasPick } from '../effects/canvas-pick.svelte';
@@ -265,8 +266,9 @@
               max={p.max}
               step={p.step}
               bind:value={values[p.key]}
-              class="col-span-2 row-start-2 w-full cursor-pointer"
+              class="am-range col-span-2 row-start-2 w-full"
               aria-label={fxText(p.label)}
+              use:rangeFill={values[p.key]}
             />
             <input
               type="number"
@@ -276,12 +278,12 @@
               value={values[p.key]}
               oninput={(e) => typeNumber(p, e.currentTarget, false)}
               onchange={(e) => typeNumber(p, e.currentTarget, true)}
-              class="opt-field col-start-2 row-start-1 w-16 text-right tabular-nums"
+              class="am-input col-start-2 row-start-1 w-16 text-right tabular-nums"
               aria-label={t('effectDlg.value', { label: fxText(p.label) })}
             />
           </label>
         {:else if p.kind === 'bool'}
-          <label class="flex items-center gap-2 text-xs text-pc-text">
+          <label class="am-check flex items-center gap-2 text-xs text-pc-text">
             <input
               type="checkbox"
               checked={values[p.key] !== 0}
@@ -311,7 +313,7 @@
                     max="100"
                     step="0.1"
                     bind:value={values[axis.key]}
-                    class="opt-field w-16 text-right tabular-nums"
+                    class="am-input w-16 text-right tabular-nums"
                     aria-label={t('effectDlg.percent', { label: fxText(axis.label) })}
                   />
                   <span class="text-pc-faint">%</span>
@@ -320,7 +322,8 @@
             </span>
             <button
               type="button"
-              class="panel-btn self-start"
+              class="am-btn self-start"
+              class:am-btn--primary={picking === p.key}
               aria-pressed={picking === p.key}
               onclick={() => (picking === p.key ? stopPicking() : startPicking(p))}
             >
@@ -348,10 +351,10 @@
                 max={p.max}
                 step="1"
                 bind:value={values[p.key]}
-                class="opt-field w-16 text-right tabular-nums"
+                class="am-input w-16 text-right tabular-nums"
                 aria-label={t('effectDlg.value', { label: fxText(p.label) })}
               />
-              <button type="button" class="panel-btn" onclick={() => reseed(p)}>
+              <button type="button" class="am-btn" onclick={() => reseed(p)}>
                 {t('effectDlg.reseed')}
               </button>
             </span>
@@ -370,8 +373,9 @@
                   step={p.step}
                   value={values[part.key]}
                   oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
-                  class="flex-1 cursor-pointer"
+                  class="am-range flex-1"
                   aria-label={fxText(part.label)}
+                  use:rangeFill={values[part.key]}
                 />
                 <input
                   type="number"
@@ -380,12 +384,12 @@
                   step={p.step}
                   value={values[part.key]}
                   oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
-                  class="opt-field w-16 text-right tabular-nums"
+                  class="am-input w-16 text-right tabular-nums"
                   aria-label={t('effectDlg.value', { label: fxText(part.label) })}
                 />
               </span>
             {/each}
-            <label class="flex items-center gap-2">
+            <label class="am-check flex items-center gap-2">
               <input
                 type="checkbox"
                 checked={values[p.linkKey] !== 0}
@@ -402,7 +406,7 @@
             <select
               value={values[p.key]}
               onchange={(e) => (values[p.key] = Number(e.currentTarget.value))}
-              class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
+              class="am-input w-auto"
               aria-label={fxText(p.label)}
             >
               {#each p.options as opt, i (opt)}
@@ -415,16 +419,16 @@
     </div>
 
     <footer class="flex shrink-0 items-center justify-between gap-2 px-3 pt-2 pb-3">
-      <label class="flex items-center gap-1 text-xs text-pc-muted">
+      <label class="am-check flex items-center gap-1 text-xs text-pc-muted">
         <input type="checkbox" bind:checked={session.preview} />
         <span>{t('effectDlg.preview')}</span>
       </label>
       <span class="flex gap-2">
-        <button type="button" class="panel-btn" onclick={reset} disabled={def.params.length === 0}>
+        <button type="button" class="am-btn" onclick={reset} disabled={def.params.length === 0}>
           {t('effectDlg.reset')}
         </button>
-        <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-        <button type="submit" class="panel-btn panel-btn-primary" bind:this={okButton}>
+        <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+        <button type="submit" class="am-btn am-btn--primary" bind:this={okButton}>
           {t('common.ok')}
         </button>
       </span>

@@ -66,14 +66,14 @@
     {@render children()}
 
     <div class="flex justify-end gap-2">
-      <button class="rounded-pc-control px-3 py-1 hover:bg-pc-hover" onclick={onClose}>{t('common.cancel')}</button>
+      <button class="am-btn" onclick={onClose}>{t('common.cancel')}</button>
       {#if secondary}
-        <button class="rounded-pc-control border border-pc-border px-3 py-1 hover:bg-pc-hover" onclick={secondary.onClick}>
+        <button class="am-btn" onclick={secondary.onClick}>
           {secondary.label}
         </button>
       {/if}
       <button
-        class="rounded-pc-control bg-pc-primary px-3 py-1 text-pc-accent-fg disabled:opacity-50"
+        class="am-btn am-btn--primary"
         disabled={applyDisabled}
         onclick={onApply}
       >

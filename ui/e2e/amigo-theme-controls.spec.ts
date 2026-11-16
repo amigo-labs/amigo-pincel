@@ -1,0 +1,351 @@
+import { expect, test, type Locator, type Page } from '@playwright/test';
+import { createDocument, gotoStart } from './helpers';
+import {
+  PALETTES,
+  keyFocus,
+  lookOf,
+  near,
+  pickTheme,
+  pixelAt,
+  pseudoOf,
+  rgb,
+  stateOf,
+  tokenColor,
+  tokenValue,
+  type State,
+} from './controls-helpers';
+
+// Controls on the shared amigo components (docs/specs/amigo-theme-controls.md):
+// buttons, fields, toggles and sliders take the look of the `am-*` classes
+// of the theme files, 24 px high inside the editor frame and 32 px in
+// dialogs, popovers and on the start screen.
+
+const MODES = ['pixel', 'image'] as const;
+
+const TRANSPARENT = 'rgba(0, 0, 0, 0)';
+
+const sidebar = (page: Page): Locator => page.getByRole('complementary', { name: 'Panels' });
+const toolOptions = (page: Page): Locator => page.getByRole('toolbar', { name: 'Tool options' });
+const settings = (page: Page): Locator => page.getByRole('dialog', { name: 'Settings', exact: true });
+
+/** The four roles of the shared button, as tokens. */
+const ROLES = {
+  primary: { fill: 'accent-solid', text: 'on-accent', edge: null },
+  default: { fill: 'surface', text: 'text', edge: 'border-strong' },
+  ghost: { fill: null, text: 'text-secondary', edge: null },
+  danger: { fill: 'danger-solid', text: 'on-accent', edge: null },
+} as const;
+type Role = keyof typeof ROLES;
+
+/** `el` is the shared button in `role`, `height` px high. */
+async function expectButton(page: Page, el: Locator, role: Role, height: 24 | 32, what: string): Promise<void> {
+  const want = ROLES[role];
+  // The shared button fades its fill: one that was just enabled is still on its way.
+  await expect
+    .poll(async () => (await lookOf(el)).fill, `${what}: fill`)
+    .toBe(want.fill ? await tokenColor(page, want.fill) : TRANSPARENT);
+  const look = await lookOf(el);
+  expect(look.text, `${what}: text`).toBe(await tokenColor(page, want.text));
+  expect(look.edge, `${what}: outline`).toBe(want.edge ? await tokenColor(page, want.edge) : TRANSPARENT);
+  expect(look.edgeWidth, `${what}: outline width`).toBe('1px');
+  expect(look.radius, `${what}: radius`).toBe(await tokenValue(page, 'radius-sm'));
+  expect(look.height, `${what}: height`).toBe(height);
+}
+
+/** What a state may change against the resting button (AC-01). A filter
+ *  changes the fill the button paints, so it counts as the fill. */
+function differs(a: State, b: State): boolean {
+  return (
+    a.fill !== b.fill ||
+    a.edge !== b.edge ||
+    a.outline !== b.outline ||
+    a.opacity !== b.opacity ||
+    a.filter !== b.filter
+  );
+}
+
+/** Hover, pressed and keyboard focus each change `el` against its resting state. */
+async function expectLiveStates(page: Page, el: Locator, what: string): Promise<void> {
+  await page.mouse.move(0, 0);
+  const rest = await stateOf(el);
+  await el.hover();
+  // The shared button fades its fill in: wait for the end of the transition.
+  await expect.poll(async () => differs(await stateOf(el), rest), `${what}: hover`).toBe(true);
+  await page.mouse.down();
+  await expect.poll(async () => differs(await stateOf(el), rest), `${what}: pressed`).toBe(true);
+  // Release outside, so the button's action does not run.
+  await page.mouse.move(0, 0);
+  await page.mouse.up();
+  await expect.poll(async () => differs(await stateOf(el), rest), `${what}: back at rest`).toBe(false);
+  await keyFocus(page, el);
+  const focused = await stateOf(el);
+  expect(focused.outline, `${what}: focus ring`).toBe(`2px solid ${await tokenColor(page, 'focus')}`);
+  expect(differs(focused, rest), `${what}: focus`).toBe(true);
+  await el.blur();
+}
+
+/** A stroke and Alt+W: the unsaved prompt with Save, Don't Save and Cancel. */
+async function openUnsavedPrompt(page: Page): Promise<Locator> {
+  await page.getByTitle('Pencil (B)').click();
+  const box = await page.locator('canvas[data-ready="true"]').first().boundingBox();
+  if (!box) throw new Error('no canvas');
+  await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+  await page.mouse.down();
+  await page.mouse.move(box.x + box.width / 2 + 20, box.y + box.height / 2);
+  await page.mouse.up();
+  await page.keyboard.press('Alt+w');
+  const prompt = page.getByRole('alertdialog');
+  await expect(prompt).toBeVisible();
+  return prompt;
+}
+
+// Each test walks the start screen, both editors and their dialogs.
+test.slow();
+
+for (const palette of PALETTES) {
+  test(`${palette}: text buttons are the shared button in its four roles, 24 px in the frame and 32 px elsewhere (AC-01)`, async ({
+    page,
+  }) => {
+    // The start screen: 32 px.
+    await gotoStart(page);
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    await page.getByRole('button', { name: 'Open a sample' }).click();
+    const sample = page.getByRole('button', { name: 'Bouncing slime (Pixel)' });
+    await expectButton(page, sample, 'default', 32, 'start screen, sample');
+    await expectLiveStates(page, sample, 'default');
+    await page.getByRole('button', { name: 'New pixel sprite' }).click();
+    const create = page.getByRole('form', { name: 'New pixel sprite' }).getByRole('button', { name: 'Create' });
+    await expectButton(page, create, 'primary', 32, 'start screen, Create');
+    await expectLiveStates(page, create, 'primary');
+
+    // Busy, as `Button.svelte` renders it: disabled with `aria-busy`.
+    const restCreate = await stateOf(create);
+    await create.evaluate((b: HTMLButtonElement) => {
+      b.setAttribute('aria-busy', 'true');
+      b.disabled = true;
+    });
+    await expect.poll(async () => differs(await stateOf(create), restCreate), 'busy').toBe(true);
+    await create.evaluate((b: HTMLButtonElement) => {
+      b.removeAttribute('aria-busy');
+      b.disabled = false;
+    });
+
+    for (const mode of MODES) {
+      await createDocument(page, mode, { width: 16, height: 16 });
+      // Inside the editor frame: 24 px. Flatten is disabled with one layer.
+      const merge = sidebar(page).getByRole('button', { name: 'Flatten' });
+      await expect(merge).toBeDisabled();
+      const off = await lookOf(merge);
+      expect(off.height, `${mode}: frame button height`).toBe(24);
+      expect(off.radius).toBe(await tokenValue(page, 'radius-sm'));
+      expect(off.fill, `${mode}: disabled fill`).toBe(await tokenColor(page, 'surface-raised'));
+      expect(off.text, `${mode}: disabled text`).toBe(await tokenColor(page, 'text-muted'));
+      expect(off.edge, `${mode}: disabled outline`).toBe(await tokenColor(page, 'border'));
+      const fit = page.getByRole('button', { name: 'Fit to window' });
+      await expectButton(page, fit, 'ghost', 24, `${mode}: zoom readout`);
+      await expectLiveStates(page, fit, `${mode}: ghost`);
+    }
+
+    // Pixel mode's timeline: an enabled default button in the frame.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const tag = page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Add tag' });
+    await expectButton(page, tag, 'default', 24, 'timeline, + Tag');
+
+    // Image mode's dialogs (the shared Modal).
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+    await page.getByRole('menu', { name: 'Image', exact: true }).getByRole('menuitem', { name: 'Scale Image…' }).click();
+    const scale = page.getByRole('dialog', { name: 'Scale Image' });
+    await expectButton(page, scale.getByRole('button', { name: 'Scale' }), 'primary', 32, 'Scale');
+    await expectButton(page, scale.getByRole('button', { name: 'Cancel' }), 'default', 32, 'Scale, Cancel');
+
+    // Pixel mode's dialogs: 32 px. The unsaved prompt comes last: it leaves unsaved work behind.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await page.keyboard.press('Control+,');
+    await expectButton(page, settings(page).getByRole('button', { name: 'Close' }), 'default', 32, 'Settings, Close');
+    await page.keyboard.press('Escape');
+    const prompt = await openUnsavedPrompt(page);
+    await expectButton(page, prompt.getByRole('button', { name: 'Save', exact: true }), 'primary', 32, 'Save');
+    const dontSave = prompt.getByRole('button', { name: "Don't Save" });
+    await expectButton(page, dontSave, 'danger', 32, "Don't Save");
+    await expectLiveStates(page, dontSave, 'danger');
+    await expectButton(page, prompt.getByRole('button', { name: 'Cancel', exact: true }), 'default', 32, 'Cancel');
+
+  });
+
+  test(`${palette}: fields and selects are the shared field, 24 px in the frame and 32 px elsewhere (AC-02)`, async ({
+    page,
+  }) => {
+    /** `el` is the shared field at rest, `height` px high. */
+    const expectField = async (el: Locator, height: 24 | 32, what: string): Promise<void> => {
+      // At rest: a field that has the focus shows the ring instead of its outline.
+      await el.blur();
+      const look = await lookOf(el);
+      expect(look.fill, `${what}: fill`).toBe(await tokenColor(page, 'surface-raised'));
+      expect(look.edge, `${what}: outline`).toBe(await tokenColor(page, 'border-strong'));
+      expect(look.edgeWidth, `${what}: outline width`).toBe('1px');
+      expect(look.radius, `${what}: radius`).toBe(await tokenValue(page, 'radius-sm'));
+      expect(look.height, `${what}: height`).toBe(height);
+    };
+    /** With keyboard focus the ring replaces the outline. */
+    const expectFocus = async (el: Locator, what: string): Promise<void> => {
+      await keyFocus(page, el);
+      const s = await stateOf(el);
+      expect(s.outline, `${what}: focus ring`).toBe(`2px solid ${await tokenColor(page, 'focus')}`);
+      expect(s.edge, `${what}: outline under the ring`).toBe(TRANSPARENT);
+      await el.blur();
+    };
+
+    // The start screen: 32 px.
+    await gotoStart(page);
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    await page.getByRole('button', { name: 'New pixel sprite' }).click();
+    const width = page.getByRole('form', { name: 'New pixel sprite' }).getByRole('spinbutton', { name: 'Width' });
+    await expectField(width, 32, 'start screen, Width');
+    await expectFocus(width, 'start screen, Width');
+
+    for (const mode of MODES) {
+      await createDocument(page, mode, { width: 16, height: 16 });
+      // Inside the editor frame: 24 px.
+      const hex = sidebar(page).getByRole('textbox', { name: 'Foreground color hex value' });
+      await expectField(hex, 24, `${mode}: hex field`);
+      await expectFocus(hex, `${mode}: hex field`);
+      await expectField(toolOptions(page).getByRole('combobox').first(), 24, `${mode}: tool option select`);
+      // A dialog: 32 px.
+      await page.keyboard.press('Control+,');
+      const language = settings(page).getByRole('combobox', { name: 'Language' });
+      await expectField(language, 32, `${mode}: Language`);
+      await expectFocus(language, `${mode}: Language`);
+      await settings(page).getByRole('button', { name: 'Close' }).click();
+      await expect(settings(page)).toBeHidden();
+    }
+
+    // A wrong value: outlined in danger-ink; focused it shows the ring and keeps its error text.
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+    await page.getByRole('menu', { name: 'Image', exact: true }).getByRole('menuitem', { name: 'Scale Image…' }).click();
+    const dialog = page.getByRole('dialog', { name: 'Scale Image' });
+    const percent = dialog.getByLabel('Percentage', { exact: true });
+    await expectField(percent, 32, 'Scale, Percentage');
+    await percent.fill('0');
+    await expect(percent).toHaveAttribute('aria-invalid', 'true');
+    await percent.blur();
+    expect((await lookOf(percent)).edge, 'invalid outline').toBe(await tokenColor(page, 'danger-ink'));
+    await keyFocus(page, percent);
+    expect((await stateOf(percent)).outline, 'invalid, focused').toBe(`2px solid ${await tokenColor(page, 'focus')}`);
+    // The size fields say what is wrong in their hint; it stays while the field has the focus.
+    await expect(percent).toHaveAttribute('aria-invalid', 'true');
+    await expect(percent).toHaveAttribute('title', 'Enter a positive number');
+  });
+
+  test(`${palette}: checkboxes and radios are the shared toggle (AC-03)`, async ({ page }) => {
+    const strong = (): Promise<string> => tokenColor(page, 'border-strong');
+    const solid = (): Promise<string> => tokenColor(page, 'accent-solid');
+    const mark = (): Promise<string> => tokenColor(page, 'on-accent');
+    const expectOff = async (el: Locator, what: string): Promise<void> => {
+      await expect(el, what).not.toBeChecked();
+      const look = await lookOf(el);
+      expect(look.edge, `${what}: outline`).toBe(await strong());
+      expect(look.fill, `${what}: fill`).toBe(await tokenColor(page, 'surface-raised'));
+      expect(look.height, `${what}: size`).toBe(16);
+    };
+    const expectOn = async (el: Locator, kind: 'checkbox' | 'radio', what: string): Promise<void> => {
+      await expect(el, what).toBeChecked();
+      // Reduce motion turns every change into a (very short) transition.
+      await expect.poll(async () => (await lookOf(el)).fill, `${what}: fill`).toBe(await solid());
+      const look = await lookOf(el);
+      expect(look.edge, `${what}: outline`).toBe(TRANSPARENT);
+      const after = await pseudoOf(el, '::after');
+      expect(after.content, `${what}: mark`).not.toBe('none');
+      expect(kind === 'checkbox' ? after.edge : after.fill, `${what}: mark colour`).toBe(await mark());
+    };
+
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    // Inside the editor frame.
+    const pressure = toolOptions(page).getByRole('checkbox', { name: 'Size' });
+    await expectOn(pressure, 'checkbox', 'tool option');
+    await pressure.uncheck();
+    await expectOff(pressure, 'tool option');
+    await pressure.check();
+    // A dialog.
+    await page.keyboard.press('Control+,');
+    const motion = settings(page).getByRole('checkbox', { name: 'Reduce motion' });
+    await expectOff(motion, 'Reduce motion');
+    await motion.check();
+    await expectOn(motion, 'checkbox', 'Reduce motion');
+    await motion.uncheck();
+    const theme = settings(page).getByRole('radiogroup', { name: 'Theme' });
+    await expectOn(theme.getByRole('radio', { name: palette, exact: true }), 'radio', 'theme radio');
+    await expectOff(theme.getByRole('radio', { name: 'System', exact: true }), 'theme radio');
+    expect((await lookOf(theme.getByRole('radio', { name: 'System', exact: true }))).radius).toBe(
+      await tokenValue(page, 'radius-full'),
+    );
+    await page.keyboard.press('Escape');
+
+    // Image mode's tool options.
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    const box = toolOptions(page).getByRole('checkbox').first();
+    const kind = (await box.isChecked()) ? expectOn(box, 'checkbox', 'image tool option') : expectOff(box, 'image tool option');
+    await kind;
+
+    // The start screen.
+    await gotoStart(page);
+    await page.getByRole('button', { name: 'New pixel sprite' }).click();
+    const startBox = page.getByRole('form', { name: 'New pixel sprite' }).getByRole('checkbox').first();
+    await (await startBox.isChecked()
+      ? expectOn(startBox, 'checkbox', 'start screen')
+      : expectOff(startBox, 'start screen'));
+  });
+
+  test(`${palette}: sliders are the shared slider: the travelled part in accent on a border-strong rail (AC-04)`, async ({
+    page,
+  }) => {
+    for (const mode of MODES) {
+      await createDocument(page, mode, { width: 16, height: 16 });
+      if (palette === 'Light' && mode === 'pixel') await pickTheme(page, 'Light');
+      const accent = rgb(await tokenColor(page, 'accent'));
+      const rail = rgb(await tokenColor(page, 'border-strong'));
+      const sliders: [string, Locator][] = [
+        ['alpha', sidebar(page).getByRole('slider', { name: 'Foreground alpha' })],
+        ['tool option', toolOptions(page).getByRole('slider').first()],
+      ];
+      for (const [name, slider] of sliders) {
+        const what = `${mode}: ${name}`;
+        await slider.scrollIntoViewIfNeeded();
+        const min = Number((await slider.getAttribute('min')) ?? 0);
+        const max = Number(await slider.getAttribute('max'));
+        const start = await slider.inputValue();
+        const share = async (): Promise<number> =>
+          slider.evaluate((el) => parseFloat(getComputedStyle(el).getPropertyValue('--am-range-fill')));
+        // The share follows the value from the start, not only after an input.
+        expect(await share(), `${what}: travelled share at the start`).toBeCloseTo(
+          ((Number(start) - min) / (max - min)) * 100,
+          3,
+        );
+        expect((await lookOf(slider)).height, `${what}: height`).toBe(16);
+        await slider.fill(String(max));
+        expect(await share(), `${what}: travelled share at the maximum`).toBe(100);
+
+        // In the middle: accent left of the thumb, the rail right of it, the thumb in accent.
+        const mid = min + Math.round((max - min) / 2);
+        await slider.fill(String(mid));
+        expect(await share(), `${what}: travelled share`).toBeCloseTo(((mid - min) / (max - min)) * 100, 3);
+        const box = await slider.boundingBox();
+        if (!box) throw new Error('no slider');
+        const y = box.y + box.height / 2;
+        await page.mouse.move(0, 0);
+        expect(near(await pixelAt(page, box.x + 4, y), accent), `${what}: travelled part`).toBe(true);
+        expect(near(await pixelAt(page, box.x + box.width - 4, y), rail), `${what}: rail`).toBe(true);
+        // The thumb (14 px wide) travels between the rail's ends and is taller than the rail.
+        const thumb = box.x + 7 + ((mid - min) / (max - min)) * (box.width - 14);
+        expect(near(await pixelAt(page, thumb, y), accent), `${what}: thumb`).toBe(true);
+        expect(near(await pixelAt(page, thumb, y - 3), accent), `${what}: thumb height`).toBe(true);
+        await slider.fill(String(min));
+        expect(await share(), `${what}: travelled share at the minimum`).toBe(0);
+        expect(near(await pixelAt(page, box.x + box.width - 4, y), rail), `${what}: rail at the minimum`).toBe(true);
+        expect(near(await pixelAt(page, box.x + 6, y), accent), `${what}: thumb at the minimum`).toBe(true);
+        await slider.fill(start);
+      }
+    }
+  });
+}

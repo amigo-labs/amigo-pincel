@@ -51,7 +51,7 @@
     <label class="flex flex-col gap-1 text-xs text-pc-text">
       <span>{t('export.scale')}</span>
       <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
+        class="am-input w-auto"
         bind:value={scale}
         aria-label={t('export.scale')}
       >
@@ -64,8 +64,8 @@
       {t('png.size', { w: frameWidth * scale, h: frameHeight * scale })}
     </p>
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('menu.export')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
     </div>
   </form>
 </div>

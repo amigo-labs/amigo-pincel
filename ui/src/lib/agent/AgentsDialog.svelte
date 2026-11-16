@@ -51,7 +51,7 @@
     class="flex w-full max-w-lg flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
   >
     <h2 id="agents-title" class="text-base font-semibold">{t('agents.title')}</h2>
-    <label class="flex min-h-8 items-center gap-2">
+    <label class="am-check flex min-h-8 items-center gap-2">
       <input
         type="checkbox"
         checked={enabled}
@@ -76,12 +76,12 @@
           <input
             id="agents-command"
             bind:this={commandField}
-            class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-xs"
+            class="am-input min-w-0 flex-1 font-mono"
             readonly
             value={status.command}
           />
           <button
-            class="panel-btn"
+            class="am-btn"
             onclick={() => status?.command && void copy('command', status.command, commandField)}
           >
             {copied === 'command' ? t('agents.copied') : t('agents.copy')}
@@ -94,12 +94,12 @@
           <input
             id="agents-token"
             bind:this={tokenField}
-            class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-xs"
+            class="am-input min-w-0 flex-1 font-mono"
             readonly
             value={status.token}
           />
           <button
-            class="panel-btn"
+            class="am-btn"
             onclick={() => status?.token && void copy('token', status.token, tokenField)}
           >
             {copied === 'token' ? t('agents.copied') : t('agents.copy')}
@@ -110,7 +110,7 @@
     {/if}
     <div class="flex justify-between gap-2">
       <button
-        class="panel-btn"
+        class="am-btn"
         disabled={!enabled || agentAccess.busy}
         onclick={() => {
           copied = null;
@@ -119,7 +119,7 @@
       >
         {t('agents.regenerate')}
       </button>
-      <button bind:this={closeButton} class="panel-btn" onclick={onClose}>
+      <button bind:this={closeButton} class="am-btn" onclick={onClose}>
         {t('agents.close')}
       </button>
     </div>

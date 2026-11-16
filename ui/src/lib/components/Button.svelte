@@ -1,8 +1,8 @@
 <script lang="ts">
   // The text button both editors and the shell use (spec §9.2). Variants,
   // the busy state and the shortcut keycap live here; the look is
-  // `.panel-btn` in app.css, so markup that still writes the classes by
-  // hand stays in step.
+  // the shared button (`am-btn` of the theme's components.css). It is 32px
+  // high; inside the editor frame a caller passes `class="am-btn--sm"`.
   import type { Snippet } from 'svelte';
   import type { HTMLButtonAttributes } from 'svelte/elements';
   import Icon from './icons/Icon.svelte';
@@ -40,7 +40,7 @@
 <button
   bind:this={el}
   {type}
-  class={['panel-btn', variant !== 'default' && `panel-btn-${variant}`, className]}
+  class={['am-btn', variant !== 'default' && `am-btn--${variant}`, className]}
   aria-busy={busy ? 'true' : undefined}
   disabled={disabled || busy}
   {...rest}
@@ -63,6 +63,6 @@
   {/if}
   {@render children()}
   {#if shortcut}
-    <kbd class="keycap" aria-hidden="true">{shortcut}</kbd>
+    <kbd class="am-kbd" aria-hidden="true">{shortcut}</kbd>
   {/if}
 </button>

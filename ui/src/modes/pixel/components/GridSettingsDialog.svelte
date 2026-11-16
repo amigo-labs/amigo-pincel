@@ -109,14 +109,14 @@
               field.set(e.currentTarget.valueAsNumber);
               error = null;
             }}
-            class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+            class="am-input tabular-nums w-auto"
             aria-label={field.label}
           />
         </label>
       {/each}
     </div>
     {#if tileSize}
-      <button type="button" class="panel-btn self-start" onclick={useTileSize}>
+      <button type="button" class="am-btn self-start" onclick={useTileSize}>
         {t('grid.useTileSize', { w: tileSize.w, h: tileSize.h })}
       </button>
     {/if}
@@ -138,7 +138,7 @@
           max="100"
           step="1"
           bind:value={opacity}
-          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
+          class="am-input tabular-nums w-auto"
           aria-label={t('grid.opacity')}
         />
       </label>
@@ -147,8 +147,8 @@
       <p class="text-xs text-pc-danger-text" role="alert">{error}</p>
     {/if}
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('common.ok')}</button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('common.ok')}</button>
     </div>
   </form>
 </div>

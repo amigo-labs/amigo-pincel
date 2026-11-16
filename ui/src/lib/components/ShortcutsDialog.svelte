@@ -160,14 +160,14 @@
   >
     <div class="flex items-center gap-3 border-b border-pc-border px-4 py-3">
       <h2 id="shortcuts-title" class="flex-1 text-lg font-semibold">{t('menu.shortcuts')}</h2>
-      <button class="panel-btn shortcuts-noprint" onclick={onClose}>{t('common.close')}</button>
+      <button class="am-btn shortcuts-noprint" onclick={onClose}>{t('common.close')}</button>
     </div>
     <div class="shortcuts-noprint border-b border-pc-border px-4 py-2">
       <input
         bind:this={filterField}
         bind:value={query}
         type="search"
-        class="opt-field w-full py-1 text-sm"
+        class="am-input w-full"
         placeholder={t('keys.filter')}
         aria-label={t('keys.filter')}
       />
@@ -193,8 +193,8 @@
             owner: keymapLabel(conflict.owner, source.groups),
           })}
         </span>
-        <button class="panel-btn panel-btn-primary" onclick={replace}>{t('keys.replace')}</button>
-        <button class="panel-btn" onclick={closeConflict}>{t('common.cancel')}</button>
+        <button class="am-btn am-btn--primary" onclick={replace}>{t('keys.replace')}</button>
+        <button class="am-btn" onclick={closeConflict}>{t('common.cancel')}</button>
       </div>
     {/if}
     <div class="shortcuts-list min-h-0 flex-1 overflow-y-auto px-4 py-2" data-testid="shortcut-list">
@@ -233,11 +233,11 @@
                 <td class="py-1 pr-3 text-xs text-pc-muted">{r.note ?? ''}</td>
                 <td class="shortcuts-noprint py-1 text-right whitespace-nowrap">
                   {#if id !== null}
-                    <button class="panel-btn panel-btn-ghost" onclick={() => startCapture(id)}>
+                    <button class="am-btn am-btn--ghost" onclick={() => startCapture(id)}>
                       {t('keys.change')}
                     </button>
                     <button
-                      class="panel-btn panel-btn-ghost"
+                      class="am-btn am-btn--ghost"
                       disabled={!isOverridden(id)}
                       onclick={() => resetBinding(id)}
                     >
@@ -254,10 +254,10 @@
       {/each}
     </div>
     <div class="shortcuts-noprint flex flex-wrap justify-end gap-2 border-t border-pc-border px-4 py-2">
-      <button class="panel-btn" onclick={() => void importKeymap()}>{t('keys.importKeymap')}</button>
-      <button class="panel-btn" onclick={() => void exportKeymap()}>{t('keys.exportKeymap')}</button>
+      <button class="am-btn" onclick={() => void importKeymap()}>{t('keys.importKeymap')}</button>
+      <button class="am-btn" onclick={() => void exportKeymap()}>{t('keys.exportKeymap')}</button>
       <button
-        class="panel-btn"
+        class="am-btn"
         onclick={() => {
           message = null;
           resetAllBindings();

@@ -137,7 +137,7 @@
     }
   }
 
-  const field = 'rounded border border-pc-border bg-pc-bg px-2 py-1';
+  const field = 'am-input';
 </script>
 
 <svelte:window onkeydown={onKeydown} />
@@ -160,7 +160,7 @@
 
     <label class="flex flex-col gap-1 text-xs">
       <span>{t('svg.mode')}</span>
-      <select bind:this={modeField} class={field} bind:value={mode} aria-label={t('svg.mode')}>
+      <select bind:this={modeField} class="{field} w-auto" bind:value={mode} aria-label={t('svg.mode')}>
         <option value="color">{t('svg.modeColor')}</option>
         <option value="mono">{t('svg.modeMono')}</option>
         <option value="exact">{t('svg.modeExact')}</option>
@@ -181,7 +181,7 @@
         />
       </label>
     {:else if mode === 'mono'}
-      <label class="flex items-center gap-2 text-xs">
+      <label class="am-check flex items-center gap-2 text-xs">
         <input type="checkbox" bind:checked={autoThreshold} />
         {t('svg.autoThreshold')}
       </label>
@@ -198,7 +198,7 @@
           aria-label={t('svg.threshold')}
         />
       </label>
-      <label class="flex items-center gap-2 text-xs">
+      <label class="am-check flex items-center gap-2 text-xs">
         <input type="checkbox" bind:checked={invert} />
         {t('svg.invert')}
       </label>
@@ -209,7 +209,7 @@
     {/if}
 
     {#if mode !== 'exact'}
-      <label class="flex items-center gap-2 text-xs">
+      <label class="am-check flex items-center gap-2 text-xs">
         <input type="checkbox" bind:checked={despeckle} />
         {t('svg.despeckle')}
       </label>
@@ -236,7 +236,7 @@
           aria-label={t('svg.cornerThreshold')}
         />
       </label>
-      <label class="flex items-center gap-2 text-xs">
+      <label class="am-check flex items-center gap-2 text-xs">
         <input type="checkbox" bind:checked={optCurve} />
         {t('svg.optCurve')}
       </label>
@@ -266,16 +266,10 @@
     </p>
 
     <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary" disabled={errorText !== null}>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" disabled={errorText !== null}>
         {t('export.export')}
       </button>
     </div>
   </form>
 </div>
-
-<style>
-  .panel-btn:disabled {
-    opacity: 0.5;
-  }
-</style>

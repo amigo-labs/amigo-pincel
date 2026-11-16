@@ -61,15 +61,15 @@
       <textarea
         bind:this={field}
         bind:value={draft}
-        class="opt-field h-80 min-h-0 w-full flex-1 resize-y py-1.5 font-mono text-xs"
+        class="am-input h-80 min-h-0 w-full flex-1 resize-y py-1.5 font-mono text-xs"
         spellcheck="false"></textarea>
     </label>
     <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <button type="button" class="panel-btn mr-auto" onclick={reset}
+      <button type="button" class="am-btn mr-auto" onclick={reset}
         >{t('assistant.promptReset')}</button
       >
-      <button type="button" class="panel-btn" onclick={onClose}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary" disabled={draft.trim() === ''}>
+      <button type="button" class="am-btn" onclick={onClose}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" disabled={draft.trim() === ''}>
         {t('assistant.promptSave')}
       </button>
     </div>

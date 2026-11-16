@@ -83,7 +83,7 @@
       <fieldset class="mb-4" role="radiogroup" aria-labelledby="about-updates">
         <legend id="about-updates" class="mb-1 text-sm font-semibold">{t('about.updates')}</legend>
         {#each MODES as mode (mode)}
-          <label class="flex items-center gap-2 text-sm text-pc-text">
+          <label class="am-check flex items-center gap-2 text-sm text-pc-text">
             <input
               type="radio"
               name="about-update-mode"
@@ -112,18 +112,18 @@
     <div class="flex flex-wrap justify-end gap-2">
       {#if supported}
         {#if available !== null}
-          <button class="panel-btn" onclick={runUpdateCheck}>{t('about.install')}</button>
+          <button class="am-btn" onclick={runUpdateCheck}>{t('about.install')}</button>
         {/if}
         {#if canRestart}
-          <button class="panel-btn" onclick={() => void requestRestart()}>
+          <button class="am-btn" onclick={() => void requestRestart()}>
             {t('about.restart')}
           </button>
         {/if}
-        <button class="panel-btn" disabled={help.checking} onclick={runUpdateCheck}>
+        <button class="am-btn" disabled={help.checking} onclick={runUpdateCheck}>
           {t('about.check')}
         </button>
       {/if}
-      <button bind:this={closeButton} class="panel-btn" onclick={onClose}>
+      <button bind:this={closeButton} class="am-btn" onclick={onClose}>
         {t('about.close')}
       </button>
     </div>
