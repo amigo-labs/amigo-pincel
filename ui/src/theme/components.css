@@ -64,6 +64,7 @@ body {
 .am-input--lg { height: var(--am-control-lg); }
 .am-hint { font-size: 12px; line-height: 16px; color: var(--am-text-muted); }
 .am-hint--error { color: var(--am-danger-ink); }
+.am-hint--warning { color: var(--am-warning-ink); }
 
 /* ---- Toggle, checkbox, radio ---- */
 .am-check { display: inline-flex; align-items: center; gap: var(--am-space-2); cursor: pointer; }
@@ -175,6 +176,8 @@ body {
 .am-banner--danger  { background: var(--am-danger-subtle); }
 .am-banner--danger strong  { color: var(--am-danger-ink); }
 .am-banner > div { flex: 1; min-width: 0; }
+/* A banner that floats over content (a toast, a notice over a canvas). */
+.am-banner--float { box-shadow: var(--am-elev-2); }
 
 /* ---- Panel ---- */
 .am-panel { border: 1px solid var(--am-border); border-radius: var(--am-radius-md); background: var(--am-surface); min-width: 0; }
@@ -184,6 +187,18 @@ body {
 }
 .am-panel > header h3 { margin: 0; font: 600 16px/22px var(--am-font-sans); }
 .am-panel > .am-body { padding: var(--am-space-4); }
+/* A panel docked in a sidebar or dock: no card, stacked panels are divided by
+   a hairline, a dense header at control height with the title in the label
+   style. The header may be a button (collapsible, aria-expanded). */
+.am-panel--docked { border: 0; border-bottom: 1px solid var(--am-border); border-radius: 0; background: transparent; }
+.am-panel--docked > header {
+  height: var(--am-control-md); padding: 0 var(--am-space-3);
+  font-size: 11px; line-height: 16px; font-weight: 600; letter-spacing: 0.06em; text-transform: uppercase; color: var(--am-text-muted);
+}
+.am-panel--docked > header :is(h3, button) { margin: 0; padding: 0; border: 0; background: transparent; color: inherit; font: inherit; letter-spacing: inherit; text-transform: inherit; }
+.am-panel--docked > header button { cursor: pointer; }
+.am-panel--docked > header button:hover { color: var(--am-text); }
+.am-panel--docked > .am-body { padding: var(--am-space-3); }
 
 /* ---- List row ---- */
 .am-list { display: flex; flex-direction: column; }
