@@ -374,6 +374,7 @@ mod tests {
     }
 
     use crate::command::CommandBus;
+    use crate::document::GenerationInfo;
     use crate::document::tree::tests::{names, tree_doc};
 
     /// bg, G (50 %, Multiply) { a, H (hidden) { b } , c }, top — each raster
@@ -522,6 +523,37 @@ mod tests {
             Some(Color::rgba(255, 0, 0, 255))
         );
         assert_eq!(doc.active_layer_index(), 0);
+    }
+
+    #[test]
+    fn merge_down_keeps_only_the_lower_generation_info_and_undo_restores_both() {
+        let mut doc = Document::new(2, 2).unwrap();
+        doc.add_layer("Top").unwrap();
+        let lower = crate::document::generation::sample();
+        let upper = GenerationInfo {
+            prompt: "upper".into(),
+            ..lower.clone()
+        };
+        doc.layers[0].generation = Some(lower.clone());
+        doc.layers[1].generation = Some(upper.clone());
+        let mut cmd = MergeDown::at(1);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers()[0].generation.as_ref(), Some(&lower));
+        cmd.revert(&mut doc).unwrap();
+        assert_eq!(doc.layers()[0].generation.as_ref(), Some(&lower));
+        assert_eq!(doc.layers()[1].generation.as_ref(), Some(&upper));
+    }
+
+    #[test]
+    fn flatten_drops_the_generation_info_and_undo_restores_it() {
+        let mut doc = Document::new(2, 2).unwrap();
+        let info = crate::document::generation::sample();
+        doc.layers[0].generation = Some(info.clone());
+        let mut cmd = FlattenImage::new();
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers()[0].generation, None);
+        cmd.revert(&mut doc).unwrap();
+        assert_eq!(doc.layers()[0].generation.as_ref(), Some(&info));
     }
 
     #[test]

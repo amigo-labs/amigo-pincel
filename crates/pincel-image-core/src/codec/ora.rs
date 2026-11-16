@@ -25,7 +25,7 @@ use zip::{CompressionMethod, ZipArchive, ZipWriter};
 use super::{CodecError, decode, to_png_bytes};
 use crate::color::BlendMode;
 use crate::document::tree::subtree_end;
-use crate::document::{Document, ImageBuffer, Layer, MAX_LAYERS};
+use crate::document::{Document, GenerationInfo, ImageBuffer, Layer, MAX_LAYERS};
 use crate::error::DocumentError;
 use crate::render::compose;
 use crate::transform::{Interpolation, scale};
@@ -106,6 +106,50 @@ fn blend_from_op(op: &str) -> BlendMode {
 /// XML is tiny) and marked as made on Unix on every platform — the zip
 /// crate's default is the host OS, which made the desktop app's files
 /// differ from the browser's (docs/specs/performance-desktop-jobs.md).
+/// The XML namespace of Pincel's own `<layer>` attributes: a layer's
+/// generation info (Decision Log 2026-11-16 "Generation info"), which other
+/// OpenRaster readers ignore.
+pub const GENERATION_NS: &str = "urn:amigo-labs:pincel:ora";
+
+/// ` pincel:prompt="…" …` for a layer with generation info, else empty.
+fn generation_attrs(info: Option<&GenerationInfo>) -> String {
+    let Some(g) = info else {
+        return String::new();
+    };
+    format!(
+        " pincel:prompt=\"{}\" pincel:negative=\"{}\" pincel:model=\"{}\" pincel:lora=\"{}\" \
+         pincel:lora-strength=\"{}\" pincel:strength=\"{}\" pincel:seed=\"{}\"",
+        escape(&g.prompt),
+        escape(&g.negative),
+        escape(&g.model),
+        escape(&g.lora),
+        g.lora_strength,
+        g.strength,
+        g.seed,
+    )
+}
+
+/// A `<layer>` tag's generation info: all seven attributes present and in
+/// range, else none (docs/specs/comfyui-generation-info.md AC-12).
+fn read_generation(tag: &str) -> Option<GenerationInfo> {
+    let number = |name: &str| {
+        attr(tag, name)?
+            .parse::<f64>()
+            .ok()
+            .filter(|v| v.is_finite())
+    };
+    let info = GenerationInfo {
+        prompt: attr(tag, "pincel:prompt")?,
+        negative: attr(tag, "pincel:negative")?,
+        model: attr(tag, "pincel:model")?,
+        lora: attr(tag, "pincel:lora")?,
+        lora_strength: number("pincel:lora-strength")?,
+        strength: number("pincel:strength")?,
+        seed: attr(tag, "pincel:seed")?.parse().ok()?,
+    };
+    info.is_valid().then_some(info)
+}
+
 fn stored() -> SimpleFileOptions {
     SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
@@ -123,7 +167,7 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
     let (w, h) = (doc.canvas.width(), doc.canvas.height());
     let mut xml = format!(
         "<?xml version='1.0' encoding='UTF-8'?>\n\
-         <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\">\n<stack>\n"
+         <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\" xmlns:pincel=\"{GENERATION_NS}\">\n<stack>\n"
     );
     let layers = doc.layers();
     // Every layer PNG is encoded up front (on all cores with the `parallel`
@@ -224,7 +268,8 @@ fn write_run<W: Write + std::io::Seek>(
                 .expect("every raster layer has an encoded PNG");
             zip.start_file(format!("data/layer{index}.png"), stored)?;
             zip.write_all(png)?;
-            xml.push_str(&format!("{indent}<layer {attrs} />\n"));
+            let generation = generation_attrs(layer.generation.as_ref());
+            xml.push_str(&format!("{indent}<layer {attrs}{generation} />\n"));
         }
     }
     Ok(())
@@ -354,6 +399,7 @@ pub fn from_ora_bytes(bytes: &[u8]) -> Result<Document, OraError> {
                     pixels,
                 );
                 read_properties(&mut layer, &tag);
+                layer.generation = read_generation(&tag);
                 if attr(&tag, "selected").as_deref() == Some("true") {
                     selected = Some(items.len());
                 }
@@ -476,10 +522,18 @@ fn escape(s: &str) -> String {
         .replace('>', "&gt;")
         .replace('"', "&quot;")
         .replace('\'', "&apos;")
+        // Kept as characters: an XML reader turns a raw line break or tab
+        // in an attribute into a space.
+        .replace('\n', "&#10;")
+        .replace('\r', "&#13;")
+        .replace('\t', "&#9;")
 }
 
 fn unescape(s: &str) -> String {
-    s.replace("&lt;", "<")
+    s.replace("&#10;", "\n")
+        .replace("&#13;", "\r")
+        .replace("&#9;", "\t")
+        .replace("&lt;", "<")
         .replace("&gt;", ">")
         .replace("&quot;", "\"")
         .replace("&apos;", "'")
@@ -490,6 +544,7 @@ fn unescape(s: &str) -> String {
 mod tests {
     use super::*;
     use crate::color::Color;
+    use crate::document::GenerationInfo;
 
     fn sample_doc() -> Document {
         let mut doc = Document::new(4, 3).expect("doc");
@@ -525,6 +580,74 @@ mod tests {
             assert_eq!(a.visible, b.visible);
             assert_eq!(a.locked, b.locked);
             assert!((a.opacity - b.opacity).abs() < 0.001);
+        }
+    }
+
+    #[test]
+    fn to_ora_bytes_then_from_ora_bytes_keeps_the_generation_info() {
+        let mut doc = sample_doc();
+        let info = GenerationInfo {
+            negative: "blurry, \"text\" & <noise>".into(),
+            lora: "pixel-art.safetensors".into(),
+            lora_strength: 0.75,
+            seed: u64::MAX,
+            ..crate::document::generation::sample()
+        };
+        doc.layers[1].generation = Some(info.clone());
+        let plain = to_ora_bytes(&sample_doc(), 1).unwrap();
+        let back = from_ora_bytes(&to_ora_bytes(&doc, 1).unwrap()).unwrap();
+        assert_eq!(back.layers()[1].generation.as_ref(), Some(&info));
+        assert_eq!(back.layers()[0].generation, None);
+        // Every other attribute reads back as without the info.
+        let mut stripped = back.clone();
+        stripped.layers[1].generation = None;
+        let plain_back = from_ora_bytes(&plain).unwrap();
+        for (a, b) in stripped.layers().iter().zip(plain_back.layers()) {
+            assert_eq!(
+                (
+                    &a.name,
+                    a.opacity,
+                    a.blend_mode,
+                    a.visible,
+                    a.locked,
+                    &a.pixels
+                ),
+                (
+                    &b.name,
+                    b.opacity,
+                    b.blend_mode,
+                    b.visible,
+                    b.locked,
+                    &b.pixels
+                )
+            );
+        }
+    }
+
+    #[test]
+    fn from_ora_bytes_ignores_incomplete_or_invalid_generation_info() {
+        let ok = "pincel:prompt='p' pincel:negative='' pincel:model='m' pincel:lora='' \
+                  pincel:lora-strength='1' pincel:strength='100' pincel:seed='7'";
+        let read = |attrs: &str| {
+            let xml = format!(
+                "<image w='3' h='2' xmlns:pincel='{GENERATION_NS}'><stack>\
+                 <layer name='g' src='a.png' {attrs}/></stack></image>"
+            );
+            from_ora_bytes(&ora_with_stack(&xml)).unwrap().layers()[0]
+                .generation
+                .clone()
+        };
+        assert_eq!(read(ok).map(|g| g.seed), Some(7));
+        for bad in [
+            ok.replace("pincel:seed='7'", ""),
+            ok.replace("pincel:prompt='p'", "pincel:prompt=''"),
+            ok.replace("pincel:seed='7'", "pincel:seed='-1'"),
+            ok.replace("pincel:seed='7'", "pincel:seed='18446744073709551616'"),
+            ok.replace("pincel:strength='100'", "pincel:strength='0'"),
+            ok.replace("pincel:lora-strength='1'", "pincel:lora-strength='2.5'"),
+            ok.replace("pincel:strength='100'", "pincel:strength='x'"),
+        ] {
+            assert_eq!(read(&bad), None, "{bad}");
         }
     }
 
