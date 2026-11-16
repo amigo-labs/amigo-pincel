@@ -143,7 +143,7 @@
           max="65535"
           bind:value={count}
           disabled={forever}
-          class="am-input w-20 tabular-nums disabled:opacity-50"
+          class="am-input w-20 tabular-nums"
           aria-label={t('anim.loopCount')}
         />
         {t('anim.timesSuffix')}

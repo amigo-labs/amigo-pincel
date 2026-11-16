@@ -323,7 +323,6 @@
             <button
               type="button"
               class="am-btn self-start"
-              class:am-btn--primary={picking === p.key}
               aria-pressed={picking === p.key}
               onclick={() => (picking === p.key ? stopPicking() : startPicking(p))}
             >

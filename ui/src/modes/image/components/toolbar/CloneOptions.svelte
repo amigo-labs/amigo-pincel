@@ -18,7 +18,6 @@
 <button
   type="button"
   class="am-btn am-btn--sm"
-  class:am-btn--primary={tool.cloneSetSource}
   aria-pressed={tool.cloneSetSource}
   title={t('clone.setSourceHint')}
   onclick={() => (tool.cloneSetSource = !tool.cloneSetSource)}>{t('clone.setSource')}</button

@@ -137,7 +137,7 @@
     <label class="flex flex-col gap-1">
       <span>{t('gen.negative')}</span>
       <textarea
-        class="am-input am-input--sm min-h-10 py-1 disabled:opacity-50 w-auto h-auto"
+        class="am-input am-input--sm min-h-10 py-1 w-auto h-auto"
         rows="2"
         aria-label={t('gen.negative')}
         disabled={family === 'flux'}

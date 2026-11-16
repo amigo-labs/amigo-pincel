@@ -192,7 +192,7 @@
           min="0"
           max="255"
           step="1"
-          class="w-20 {field} disabled:opacity-50"
+          class="w-20 {field}"
           bind:value={threshold}
           disabled={autoThreshold}
           aria-label={t('svg.threshold')}
@@ -246,7 +246,7 @@
           type="number"
           min="0"
           step="0.05"
-          class="w-20 {field} disabled:opacity-50"
+          class="w-20 {field}"
           bind:value={tolerance}
           disabled={!optCurve}
           aria-label={t('svg.tolerance')}
