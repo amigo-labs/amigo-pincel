@@ -1,5 +1,17 @@
 # Changelog
 
+## [1.15.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.2...v1.15.0) (2026-11-16)
+
+
+### Features
+
+* **ui:** buttons, fields, toggles and sliders on the shared amigo components ([ae9e0dc](https://github.com/amigo-labs/amigo-pincel/commit/ae9e0dcff15da6f83e255373324627ab9212884d))
+* **ui:** buttons, fields, toggles and sliders on the shared amigo components (AC-01, AC-02, AC-03, AC-04) ([dd7d04f](https://github.com/amigo-labs/amigo-pincel/commit/dd7d04f9b74a0bf0e28c1ccc6c2c2807681f428a))
+* **ui:** dialogs, notices and the progress bar on the shared amigo components (AC-07, AC-08) ([98119a2](https://github.com/amigo-labs/amigo-pincel/commit/98119a2f1635042699a6ae02fc78e87a7a01452d))
+* **ui:** shared tab row in the phone's panel sheet, shared segmented control for the preview zoom (AC-05) ([ccad60b](https://github.com/amigo-labs/amigo-pincel/commit/ccad60be58e0b0fb04c4a3199775b1cc37c7e4e6))
+* **ui:** toggle buttons and disabled fields take the shared states (AC-01, AC-02) ([a9fcbaf](https://github.com/amigo-labs/amigo-pincel/commit/a9fcbaf5d3b974f7ce5240cd602b78dac287bed4))
+* **ui:** tool variants, theme choice and menus on the shared amigo components (AC-05, AC-06) ([bd18b3b](https://github.com/amigo-labs/amigo-pincel/commit/bd18b3ba988da16720cc826a29fa88bd6e31569f))
+
 ## [1.14.2](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.1...v1.14.2) (2026-11-16)
 
 
