@@ -271,7 +271,7 @@
            with less room the sidebar scrolls instead of the panel's
            buttons spilling over the panel below. -->
       <div
-        class="flex flex-col border-b border-pc-border"
+        class="flex flex-col"
         class:flex-1={p.grow && !(isCollapsed(p))}
         class:min-h-40={p.grow && !(isCollapsed(p))}
         class:min-h-0={!p.grow || (isCollapsed(p))}

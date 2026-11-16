@@ -482,6 +482,9 @@ test.describe('desktop on Linux', () => {
     await desktopStart(page, { updater: { supported: true, mode: 'notify', announce: '2.0.0' } });
     const card = notice(page);
     await expect(card).toContainText('Pincel 2.0.0 is available');
+    // It floats over the app: the shared floating banner's shadow
+    // (amigo-theme-controls AC-08).
+    expect(await card.evaluate((n) => getComputedStyle(n).boxShadow)).not.toBe('none');
     // A card that takes no focus.
     expect(
       await page.evaluate(() => document.activeElement?.closest('[data-update-notice]') ?? null),
