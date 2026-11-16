@@ -152,54 +152,58 @@
 
 <div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="presentation">
   <div
-    class="flex w-[32rem] max-w-[calc(100vw-2rem)] flex-col gap-3 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
+    class="am-dialog w-[32rem] max-w-[calc(100vw-2rem)]"
     role="dialog"
     aria-modal="true"
     aria-label={t('ocr.title')}
     tabindex="-1"
   >
-    <h2 class="text-sm font-semibold">{t('ocr.title')}</h2>
+    <header>
+      <h2>{t('ocr.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
 
-    <div class="flex items-center gap-2">
-      <label for="ocr-language">{t('ocr.language')}</label>
-      <select
-        id="ocr-language"
-        bind:this={languageSelect}
-        class="rounded border border-pc-border bg-pc-raised px-2 py-1"
-        value={lang ?? ''}
-        onchange={(e) => {
-          const next = e.currentTarget.value;
-          if (next === 'deu' || next === 'eng') {
-            lang = next;
-            start();
-          }
-        }}
-      >
-        {#each OCR_LANGS as id (id)}
-          <option value={id}>{t(LANG_LABELS[id])}</option>
-        {/each}
-      </select>
+      <div class="flex items-center gap-2">
+        <label for="ocr-language">{t('ocr.language')}</label>
+        <select
+          id="ocr-language"
+          bind:this={languageSelect}
+          class="am-input w-auto"
+          value={lang ?? ''}
+          onchange={(e) => {
+            const next = e.currentTarget.value;
+            if (next === 'deu' || next === 'eng') {
+              lang = next;
+              start();
+            }
+          }}
+        >
+          {#each OCR_LANGS as id (id)}
+            <option value={id}>{t(LANG_LABELS[id])}</option>
+          {/each}
+        </select>
+      </div>
+
+      {#if view.kind === 'done' && !view.empty}
+        <textarea
+          bind:this={field}
+          bind:value={text}
+          class="am-input h-56 w-full resize-y p-2 font-mono text-xs"
+          aria-label={t('ocr.field')}
+          spellcheck="false"
+          oninput={() => {
+            copied = false;
+            copyFailed = false;
+          }}></textarea>
+        <p class="min-h-5 text-pc-muted" role="status" data-testid="ocr-copy-status">
+          {copyFailed ? t('ocr.copyFailed') : copied ? t('ocr.copied') : ''}
+        </p>
+      {:else}
+        <p class="min-h-5" role="status" data-testid="ocr-status">{status}</p>
+      {/if}
+
     </div>
-
-    {#if view.kind === 'done' && !view.empty}
-      <textarea
-        bind:this={field}
-        bind:value={text}
-        class="h-56 w-full resize-y rounded border border-pc-border bg-pc-raised p-2 font-mono text-xs"
-        aria-label={t('ocr.field')}
-        spellcheck="false"
-        oninput={() => {
-          copied = false;
-          copyFailed = false;
-        }}></textarea>
-      <p class="min-h-5 text-pc-muted" role="status" data-testid="ocr-copy-status">
-        {copyFailed ? t('ocr.copyFailed') : copied ? t('ocr.copied') : ''}
-      </p>
-    {:else}
-      <p class="min-h-5" role="status" data-testid="ocr-status">{status}</p>
-    {/if}
-
-    <div class="flex justify-end gap-2">
+    <footer>
       {#if view.kind === 'work'}
         <Button onclick={close}>{t('common.cancel')}</Button>
       {:else if view.kind === 'error'}
@@ -213,6 +217,6 @@
           </Button>
         {/if}
       {/if}
-    </div>
+    </footer>
   </div>
 </div>

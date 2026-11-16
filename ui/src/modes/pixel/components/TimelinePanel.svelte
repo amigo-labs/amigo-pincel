@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../../lib/range-fill';
   import Icon from '../../../lib/components/icons/Icon.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
@@ -203,7 +204,7 @@
     <label class="flex items-center gap-1" title={t('tl.loopHint')}>
       {t('tl.loop')}
       <select
-        class="opt-field"
+        class="am-input am-input--sm w-auto"
         value={loopTag === null ? '' : String(loopTag)}
         onchange={(e) => {
           const v = e.currentTarget.value;
@@ -218,14 +219,14 @@
       </select>
     </label>
     <button
-      class="panel-btn"
+      class="am-btn am-btn--sm"
       onclick={addTag}
       disabled={!doc}
       aria-label={t('tl.addTag')}
       title={t('tl.addTagHint')}>{t('tl.plusTag')}</button
     >
     <span class="mx-1 h-4 w-px bg-pc-border"></span>
-    <label class="flex items-center gap-1">
+    <label class="am-check flex items-center gap-1">
       <input
         type="checkbox"
         checked={onion.enabled}
@@ -240,7 +241,7 @@
         type="number"
         min="0"
         max="8"
-        class="opt-field w-10"
+        class="am-input am-input--sm w-10"
         value={onion.back}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -256,7 +257,7 @@
         type="number"
         min="0"
         max="8"
-        class="opt-field w-10"
+        class="am-input am-input--sm w-10"
         value={onion.forward}
         disabled={!onion.enabled}
         onchange={(e) =>
@@ -269,7 +270,7 @@
       <Icon name="chevron-right" size={14} class="text-pc-muted" />
     </label>
     <label class="flex items-center gap-1" title={t('tl.onionOpacityHint')}>
-      <input
+      <input class="am-range"
         type="range"
         min="0"
         max="255"
@@ -277,6 +278,7 @@
         disabled={!onion.enabled}
         oninput={(e) => onOnionChange({ ...onion, alpha: Number(e.currentTarget.value) })}
         aria-label={t('tl.onionOpacity')}
+        use:rangeFill={onion.alpha}
       />
     </label>
   </div>
@@ -302,7 +304,7 @@
             type="number"
             min="1"
             max="65535"
-            class="w-full rounded border border-transparent bg-pc-bg/60 px-0.5 text-center tabular-nums hover:border-pc-border"
+            class="w-full rounded-pc-control border border-transparent bg-pc-bg/60 px-0.5 text-center tabular-nums hover:border-pc-border"
             value={ms}
             onchange={(e) => setDuration(e.currentTarget, i, ms)}
             aria-label={t('tl.frameDuration', { n: i + 1 })}
@@ -323,7 +325,7 @@
           title={t('tl.tagTitle', { name: tag.name, from: tag.from + 1, to: tag.to + 1, direction: tag.direction })}
         >
           {tag.name}{#if !isIdentifierLike(tag.name)}<span
-              class="text-amber-400"
+              class="text-pc-warning-text"
               title={t('tl.notIdent')}
             >
               ⚠</span
@@ -341,7 +343,7 @@
       <label class="flex items-center gap-1">
         {t('layers.name')}
         <input
-          class="w-28 rounded border border-pc-border bg-pc-panel px-1"
+          class="am-input am-input--sm w-28"
           value={editing.name}
           onchange={(e) => {
             const name = e.currentTarget.value.trim();
@@ -351,7 +353,7 @@
         />
       </label>
       {#if !isIdentifierLike(editing.name)}
-        <span class="text-amber-400">
+        <span class="text-pc-warning-text">
           {t('tl.identHint')}
         </span>
       {/if}
@@ -361,7 +363,7 @@
           type="number"
           min="1"
           max={durations.length}
-          class="w-12 rounded border border-pc-border bg-pc-panel px-1"
+          class="am-input am-input--sm w-12"
           value={editing.from + 1}
           onchange={(e) => {
             const from = clampFrame(e.currentTarget.value);
@@ -377,7 +379,7 @@
           type="number"
           min="1"
           max={durations.length}
-          class="w-12 rounded border border-pc-border bg-pc-panel px-1"
+          class="am-input am-input--sm w-12"
           value={editing.to + 1}
           onchange={(e) => {
             const to = clampFrame(e.currentTarget.value);
@@ -390,7 +392,7 @@
       <label class="flex items-center gap-1">
         {t('tl.direction')}
         <select
-          class="opt-field"
+          class="am-input am-input--sm w-auto"
           value={editing.direction}
           onchange={(e) => {
             const dir = e.currentTarget.value;
@@ -403,7 +405,7 @@
           {/each}
         </select>
       </label>
-      <button class="panel-btn" onclick={() => removeTag(editing.index)} aria-label={t('tl.deleteTag')}
+      <button class="am-btn am-btn--sm" onclick={() => removeTag(editing.index)} aria-label={t('tl.deleteTag')}
         >{t('tl.delete')}</button
       >
     </div>
@@ -436,6 +438,6 @@
     text-align: left;
   }
   .tag-editing {
-    outline: 1px solid rgb(229 229 229);
+    outline: 1px solid var(--am-text);
   }
 </style>

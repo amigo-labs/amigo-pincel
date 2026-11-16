@@ -74,8 +74,8 @@
     width: 2rem;
     height: 2rem;
     image-rendering: pixelated;
-    background-color: rgb(23 23 23);
-    border: 1px solid rgb(38 38 38);
+    background-color: var(--color-pc-doc);
+    border: 1px solid var(--am-border);
     border-radius: 0.125rem;
   }
 </style>

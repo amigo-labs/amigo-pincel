@@ -169,8 +169,8 @@ export function comfyDialogOpen(): boolean {
   return comfy.open;
 }
 
-/** View ▸ Image generation… for both editors; nothing in a browser (AC-01). */
+/** Tools ▸ Image generation… for both editors; nothing in a browser (comfyui-connect AC-01). */
 export function imageGenerationItems(): MenuItem[] {
   if (!isTauri()) return [];
-  return [{ kind: 'separator' }, { label: t('menu.imageGeneration'), run: openImageGeneration }];
+  return [{ label: t('menu.imageGeneration'), run: openImageGeneration }];
 }

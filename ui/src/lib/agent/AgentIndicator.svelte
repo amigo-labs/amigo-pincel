@@ -11,7 +11,7 @@
     <span class="h-1.5 w-1.5 rounded-full bg-pc-accent" aria-hidden="true"></span>
     {t('status.aiConnected')}
     <button
-      class="rounded px-1 text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+      class="am-btn am-btn--ghost am-btn--sm"
       onclick={() => void disconnectAgents()}
     >
       {t('status.aiDisconnect')}

@@ -185,18 +185,14 @@
 {/snippet}
 
 {#snippet toolState(failed: boolean, ok: boolean, label: string)}
-  <span
-    class:text-pc-danger-text={failed}
-    class:text-pc-accent-text={ok}
-    class:text-pc-muted={!failed && !ok}
-  >
+  <span class={['am-chip', failed && 'am-chip--danger', ok && 'am-chip--success']}>
     {label}
   </span>
 {/snippet}
 
 {#snippet toolRow(it: ToolItem)}
   <details
-    class="rounded-md border border-pc-border bg-pc-raised text-xs"
+    class="rounded-pc-control border border-pc-border bg-pc-raised text-xs"
     data-role="tool"
     data-state={it.state}
   >
@@ -227,7 +223,7 @@
 {#snippet toolGroup(tools: readonly ToolItem[])}
   {@const g = groupState(tools)}
   <details
-    class="rounded-md border border-pc-border bg-pc-raised text-xs"
+    class="rounded-pc-control border border-pc-border bg-pc-raised text-xs"
     data-role="tool-group"
     data-state={g.kind}
   >
@@ -250,7 +246,7 @@
 {#snippet item(it: ChatItem)}
   {#if it.kind === 'user'}
     <div
-      class="self-end rounded-md bg-pc-selected px-2.5 py-1.5 whitespace-pre-wrap break-words"
+      class="self-end rounded-pc-control bg-pc-selected px-2.5 py-1.5 whitespace-pre-wrap break-words"
       data-role="user"
     >
       {it.text}
@@ -260,25 +256,27 @@
   {:else if it.kind === 'tool'}
     {@render toolRow(it)}
   {:else if it.kind === 'end'}
-    <div class="flex flex-col gap-0.5 text-xs" data-role="end" role="status">
-      {#if it.outcome === 'stopped'}
+    {#if it.outcome === 'stopped'}
+      <div class="flex flex-col gap-0.5 text-xs" data-role="end" role="status">
         <span class="text-pc-muted">{t('assistant.stopped')}</span>
-      {:else}
-        <span class="text-pc-danger-text whitespace-pre-wrap break-words">
-          {t('assistant.failed', { error: it.error?.text ?? '' })}
-        </span>
-        {#if it.error}
-          <span class="text-pc-muted">{hintText(it.error)}</span>
-        {/if}
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <div class="am-banner am-banner--danger text-xs" data-role="end" role="status">
+        <div class="flex flex-col gap-0.5">
+          <strong class="whitespace-pre-wrap break-words">
+            {t('assistant.failed', { error: it.error?.text ?? '' })}
+          </strong>
+          {#if it.error}
+            <span class="text-pc-muted">{hintText(it.error)}</span>
+          {/if}
+        </div>
+      </div>
+    {/if}
   {:else}
-    <div
-      class="text-xs text-pc-danger-text whitespace-pre-wrap break-words"
-      data-role="end"
-      role="status"
-    >
-      {t('assistant.cannotStart', { error: it.text })}
+    <div class="am-banner am-banner--danger text-xs" data-role="end" role="status">
+      <div>
+        <strong class="whitespace-pre-wrap break-words">{t('assistant.cannotStart', { error: it.text })}</strong>
+      </div>
     </div>
   {/if}
 {/snippet}
@@ -312,7 +310,7 @@
   {:else if chat}
     <div class="flex flex-wrap items-center gap-2 text-xs text-pc-muted">
       <select
-        class="opt-field"
+        class="am-input am-input--sm w-auto"
         aria-label={t('assistant.cli')}
         value={cli ?? ''}
         disabled={answering}
@@ -325,7 +323,7 @@
       </select>
       {#if modelList.length > 0}
         <select
-          class="opt-field min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1"
           aria-label={t('assistant.model')}
           value={chatModel(chat)}
           disabled={answering}
@@ -344,7 +342,7 @@
         </select>
       {:else}
         <input
-          class="opt-field min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1"
           aria-label={t('assistant.model')}
           placeholder={t('assistant.modelDefault')}
           value={chatModel(chat)}
@@ -356,7 +354,7 @@
       {/if}
     </div>
     {#if !local}
-      <label class="flex items-center gap-2 text-xs text-pc-muted">
+      <label class="am-check flex items-center gap-2 text-xs text-pc-muted">
         <input
           type="checkbox"
           checked={chat.imageAccess}
@@ -395,7 +393,7 @@
     }}
   >
     <textarea
-      class="opt-field max-h-32 min-h-9 flex-1 resize-y py-1.5 text-sm"
+      class="am-input am-input--sm max-h-32 min-h-9 flex-1 resize-y py-1.5 h-auto"
       rows="2"
       aria-label={t('assistant.message')}
       placeholder={t('assistant.placeholder')}
@@ -405,7 +403,7 @@
     {#if answering}
       <button
         type="button"
-        class="panel-btn flex items-center gap-1"
+        class="am-btn am-btn--sm flex items-center gap-1"
         onclick={() => chat && stopAnswer(chat)}
       >
         <Icon name="stop" size={14} />
@@ -414,7 +412,7 @@
     {:else}
       <button
         type="submit"
-        class="panel-btn panel-btn-primary flex items-center gap-1"
+        class="am-btn am-btn--sm am-btn--primary flex items-center gap-1"
         disabled={!chat || !canSend || draft.trim() === ''}
       >
         <Icon name="send" size={14} />
@@ -436,23 +434,25 @@
       if (e.key === 'Escape') confirmChange(false);
     }}
   >
-    <div
-      class="w-80 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-    >
-      <p class="font-semibold">{t('assistant.newChatQuestion')}</p>
-      <p class="mt-2 text-xs text-pc-muted">{t('assistant.newChatHelp')}</p>
-      <div class="mt-4 flex justify-end gap-2">
-        <button type="button" class="panel-btn" onclick={() => confirmChange(false)}>
+    <div class="am-dialog">
+      <header>
+        <h2>{t('assistant.newChatQuestion')}</h2>
+      </header>
+      <div class="am-body flex flex-col gap-3">
+        <p class="text-xs text-pc-muted">{t('assistant.newChatHelp')}</p>
+      </div>
+      <footer>
+        <button type="button" class="am-btn" onclick={() => confirmChange(false)}>
           {t('common.cancel')}
         </button>
         <button
           type="button"
-          class="panel-btn panel-btn-primary"
+          class="am-btn am-btn--primary"
           onclick={() => confirmChange(true)}
         >
           {t('assistant.newChatConfirm')}
         </button>
-      </div>
+      </footer>
     </div>
   </div>
 {/if}

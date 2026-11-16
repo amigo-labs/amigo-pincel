@@ -25,7 +25,10 @@ test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 async function rows(page: Page, name: string): Promise<string[]> {
   const list = page.getByRole('menu', { name, exact: true });
   await expect(list).toBeVisible();
-  const texts = await list.locator('[role="menuitem"] > span.flex-1').allTextContents();
+  const texts = await list.getByRole('menuitem').evaluateAll((els) =>
+    // The item's text without its shortcut key cap.
+    els.map((el) => [...el.childNodes].filter((n) => n.nodeName !== 'KBD').map((n) => n.textContent).join('')),
+  );
   return texts.map((r) => r.trim());
 }
 

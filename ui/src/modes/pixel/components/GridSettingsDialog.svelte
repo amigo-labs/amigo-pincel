@@ -87,83 +87,72 @@
   aria-label={t('grid.title')}
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     novalidate
     onsubmit={submit}
   >
-    <h2 class="text-base font-semibold">{t('grid.title')}</h2>
-    <div class="grid grid-cols-2 gap-2">
-      {#each [
-        { label: t('grid.cellWidth'), get: () => w, set: (v: number) => (w = v) },
-        { label: t('grid.cellHeight'), get: () => h, set: (v: number) => (h = v) },
-        { label: t('grid.offsetX'), get: () => x, set: (v: number) => (x = v) },
-        { label: t('grid.offsetY'), get: () => y, set: (v: number) => (y = v) },
-      ] as field (field.label)}
+    <header>
+      <h2>{t('grid.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <div class="grid grid-cols-2 gap-2">
+        {#each [
+          { label: t('grid.cellWidth'), get: () => w, set: (v: number) => (w = v) },
+          { label: t('grid.cellHeight'), get: () => h, set: (v: number) => (h = v) },
+          { label: t('grid.offsetX'), get: () => x, set: (v: number) => (x = v) },
+          { label: t('grid.offsetY'), get: () => y, set: (v: number) => (y = v) },
+        ] as field (field.label)}
+          <label class="flex flex-col gap-1 text-xs text-pc-text">
+            <span>{field.label}</span>
+            <input
+              type="number"
+              step="1"
+              value={field.get()}
+              oninput={(e) => {
+                field.set(e.currentTarget.valueAsNumber);
+                error = null;
+              }}
+              class="am-input tabular-nums w-auto"
+              aria-label={field.label}
+            />
+          </label>
+        {/each}
+      </div>
+      {#if tileSize}
+        <button type="button" class="am-btn self-start" onclick={useTileSize}>
+          {t('grid.useTileSize', { w: tileSize.w, h: tileSize.h })}
+        </button>
+      {/if}
+      <div class="grid grid-cols-2 gap-2">
         <label class="flex flex-col gap-1 text-xs text-pc-text">
-          <span>{field.label}</span>
+          <span>{t('grid.color')}</span>
           <input
-            type="number"
-            step="1"
-            value={field.get()}
-            oninput={(e) => {
-              field.set(e.currentTarget.valueAsNumber);
-              error = null;
-            }}
-            class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-            aria-label={field.label}
+            type="color"
+            bind:value={color}
+            class="h-7 w-full rounded border border-pc-border bg-pc-bg"
+            aria-label={t('grid.color')}
           />
         </label>
-      {/each}
+        <label class="flex flex-col gap-1 text-xs text-pc-text">
+          <span>{t('grid.opacity')}</span>
+          <input
+            type="number"
+            min="0"
+            max="100"
+            step="1"
+            bind:value={opacity}
+            class="am-input tabular-nums w-auto"
+            aria-label={t('grid.opacity')}
+          />
+        </label>
+      </div>
+      {#if error}
+        <p class="am-hint am-hint--error" role="alert">{error}</p>
+      {/if}
     </div>
-    {#if tileSize}
-      <button type="button" class="panel-btn self-start" onclick={useTileSize}>
-        {t('grid.useTileSize', { w: tileSize.w, h: tileSize.h })}
-      </button>
-    {/if}
-    <div class="grid grid-cols-2 gap-2">
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('grid.color')}</span>
-        <input
-          type="color"
-          bind:value={color}
-          class="h-7 w-full rounded border border-pc-border bg-pc-bg"
-          aria-label={t('grid.color')}
-        />
-      </label>
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('grid.opacity')}</span>
-        <input
-          type="number"
-          min="0"
-          max="100"
-          step="1"
-          bind:value={opacity}
-          class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-          aria-label={t('grid.opacity')}
-        />
-      </label>
-    </div>
-    {#if error}
-      <p class="text-xs text-red-400" role="alert">{error}</p>
-    {/if}
-    <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('common.ok')}</button>
-    </div>
+    <footer>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('common.ok')}</button>
+    </footer>
   </form>
 </div>
-
-<style>
-  .panel-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
-    padding: 0.25rem 0.75rem;
-  }
-  .panel-btn:hover {
-    background-color: rgb(38 38 38);
-  }
-  .panel-btn-primary {
-    border-color: rgb(59 130 246);
-    background-color: rgb(29 78 216);
-  }
-</style>

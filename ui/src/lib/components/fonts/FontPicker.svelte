@@ -33,6 +33,9 @@
   let active = $state(0);
   let pos = $state({ left: 0, top: 0, width: 260, maxHeight: 320 });
   let button: HTMLButtonElement | undefined = $state();
+  // The control is 24px high in the editor frame (the options bar) and
+  // 32px in a dialog (amigo-theme-controls AC-02).
+  const dense = $derived(!button?.closest('[role="dialog"], [role="alertdialog"]'));
   let panel: HTMLDivElement | undefined = $state();
   let search: HTMLInputElement | undefined = $state();
   let fileInput: HTMLInputElement | undefined = $state();
@@ -138,7 +141,7 @@
 <button
   bind:this={button}
   type="button"
-  class="opt-field flex max-w-48 min-w-28 items-center gap-1 truncate text-left"
+  class={['am-input flex w-auto max-w-48 min-w-28 items-center gap-1 truncate text-left', dense && 'am-input--sm']}
   aria-haspopup="dialog"
   aria-expanded={open}
   aria-label={t('font.control', { family })}
@@ -159,7 +162,7 @@
     bind:this={panel}
     role="dialog"
     aria-label={t('font.list')}
-    class="fixed z-50 flex flex-col gap-1 rounded border border-pc-border bg-pc-panel p-2 text-sm text-pc-text shadow-2xl"
+    class="fixed z-50 flex flex-col gap-1 rounded-pc-panel border border-pc-border bg-pc-panel p-2 text-sm text-pc-text shadow-2xl"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     style:width="{pos.width}px"
@@ -170,7 +173,7 @@
       bind:this={search}
       bind:value={query}
       type="search"
-      class="opt-field w-full"
+      class="am-input w-full"
       placeholder={t('font.search')}
       aria-label={t('font.search')}
       aria-controls="{uid}-list"
@@ -211,7 +214,7 @@
       <p class="px-2 text-xs text-pc-muted" data-font-note>{note}</p>
     {/if}
     {#if canAdd}
-      <button type="button" class="panel-btn" onclick={() => fileInput?.click()}
+      <button type="button" class="am-btn" onclick={() => fileInput?.click()}
         >{t('font.addFile')}</button
       >
       <input

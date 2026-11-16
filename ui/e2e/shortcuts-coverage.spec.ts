@@ -227,8 +227,8 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(await menuHint(page, 'Layer', 'Duplicate Layer')).toBe('Ctrl+J');
     expect(await menuHint(page, 'Layer', 'Delete Layer')).toBe('Ctrl+Shift+Del');
     expect(await menuHint(page, 'Layer', 'Merge Down')).toBe('Ctrl+Shift+E');
-    expect(await menuHint(page, 'Layer', 'Flip Horizontal')).toBe('Shift+H');
-    expect(await menuHint(page, 'Layer', 'Flip Vertical')).toBe('Shift+V');
+    expect(await menuHint(page, 'Layer', 'Transform', 'Flip Horizontal')).toBe('Shift+H');
+    expect(await menuHint(page, 'Layer', 'Transform', 'Flip Vertical')).toBe('Shift+V');
     expect(await menuHint(page, 'View', 'Toggle UI')).toBe('Tab');
     // The keys flip the layer, not the image; the rotations are desktop-only.
     expect(await menuHint(page, 'Image', 'Flip Horizontal')).toBe('');

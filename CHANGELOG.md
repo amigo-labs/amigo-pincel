@@ -1,5 +1,50 @@
 # Changelog
 
+## [1.15.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.2...v1.15.0) (2026-11-16)
+
+
+### Features
+
+* **ui:** buttons, fields, toggles and sliders on the shared amigo components ([ae9e0dc](https://github.com/amigo-labs/amigo-pincel/commit/ae9e0dcff15da6f83e255373324627ab9212884d))
+* **ui:** buttons, fields, toggles and sliders on the shared amigo components (AC-01, AC-02, AC-03, AC-04) ([dd7d04f](https://github.com/amigo-labs/amigo-pincel/commit/dd7d04f9b74a0bf0e28c1ccc6c2c2807681f428a))
+* **ui:** dialogs, notices and the progress bar on the shared amigo components (AC-07, AC-08) ([98119a2](https://github.com/amigo-labs/amigo-pincel/commit/98119a2f1635042699a6ae02fc78e87a7a01452d))
+* **ui:** shared tab row in the phone's panel sheet, shared segmented control for the preview zoom (AC-05) ([ccad60b](https://github.com/amigo-labs/amigo-pincel/commit/ccad60be58e0b0fb04c4a3199775b1cc37c7e4e6))
+* **ui:** toggle buttons and disabled fields take the shared states (AC-01, AC-02) ([a9fcbaf](https://github.com/amigo-labs/amigo-pincel/commit/a9fcbaf5d3b974f7ce5240cd602b78dac287bed4))
+* **ui:** tool variants, theme choice and menus on the shared amigo components (AC-05, AC-06) ([bd18b3b](https://github.com/amigo-labs/amigo-pincel/commit/bd18b3ba988da16720cc826a29fa88bd6e31569f))
+
+## [1.14.2](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.1...v1.14.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ui:** a wrong value keeps its danger edge on fields ([ac1c67d](https://github.com/amigo-labs/amigo-pincel/commit/ac1c67dab72665fc3563e12168ec78922034cae4))
+* **ui:** a wrong value keeps its danger edge on fields (AC-10) ([6af5d89](https://github.com/amigo-labs/amigo-pincel/commit/6af5d89ac4ab1dd808838d8c9f18c9d6ab4233d9))
+
+## [1.14.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.0...v1.14.1) (2026-11-15)
+
+
+### Bug Fixes
+
+* **ui:** amigo-theme, token radii on the last controls and field edges at 3:1 ([5e66b3a](https://github.com/amigo-labs/amigo-pincel/commit/5e66b3aa4c61ed7f39e6cba62dcbe004db1292c3))
+* **ui:** token radii on the last controls and dialogs, field edges at 3:1 (AC-10, AC-12) ([777f604](https://github.com/amigo-labs/amigo-pincel/commit/777f60426a0a2bd7690e02ccc70126af289005ee))
+
+## [1.14.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.13.0...v1.14.0) (2026-11-15)
+
+
+### Features
+
+* **ui:** the shared amigo theme and a light mode ([03cc0c2](https://github.com/amigo-labs/amigo-pincel/commit/03cc0c2208395f19a5a27d9c52167613e74a4fed))
+* **ui:** the shared amigo theme, a light mode and Inter (AC-02 – AC-15) ([17aef06](https://github.com/amigo-labs/amigo-pincel/commit/17aef06b355dd18b0e40dbf31a5e9191f840cbd8))
+* **ui:** tidy the menu bars of both editors ([fd7cea9](https://github.com/amigo-labs/amigo-pincel/commit/fd7cea9a570741d9e7b0984041a09bd17bc66b54))
+* **ui:** tidy the menu bars of both editors (AC-01 – AC-15) ([5663301](https://github.com/amigo-labs/amigo-pincel/commit/5663301ac11155133ab2f53dbacfd3429f44078a))
+
+
+### Bug Fixes
+
+* **ui:** amigo-theme rework from the acceptance check (focus rings, radii, contrast) ([2e1c9a5](https://github.com/amigo-labs/amigo-pincel/commit/2e1c9a53a1c452955697f3f2ba205ce64ee135d9))
+* **ui:** placeholders in the faint text colour, progress bars with the accent fill (AC-03, AC-10) ([7cb76e7](https://github.com/amigo-labs/amigo-pincel/commit/7cb76e7e6dbde837cdb96cc4382c150c34bac8dd))
+* **ui:** the focus ring and token radii on the controls that missed them (AC-12) ([ff4046d](https://github.com/amigo-labs/amigo-pincel/commit/ff4046d039397b029ec18a0f9c04ff9dcefacfe2))
+
 ## [1.13.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.12.0...v1.13.0) (2026-11-13)
 
 

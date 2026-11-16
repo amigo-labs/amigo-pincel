@@ -92,13 +92,13 @@
         <span class="truncate">{tab.name}</span>
         <span class="sr-only">{t(`mode.${tab.mode}`)}</span>
         {#if tab.dirty}
-          <span class="text-amber-400" aria-hidden="true">●</span>
+          <span class="text-pc-warning-text" aria-hidden="true">●</span>
           <span class="sr-only">{t('tabs.unsaved')}</span>
         {/if}
       </button>
       <button
         type="button"
-        class="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+        class="mr-1 flex h-5 w-5 shrink-0 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
         aria-label={t('tabs.closeNamed', { name: tab.name })}
         title={closeHint ? `${t('tabs.close')} (${closeHint})` : t('tabs.close')}
         onclick={() => onClose(tab.id)}

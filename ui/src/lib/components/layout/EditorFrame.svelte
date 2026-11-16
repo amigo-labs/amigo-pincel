@@ -293,7 +293,7 @@
       title={dirty ? t('frame.unsaved', { title }) : title}
       inert={effectOpen}
     >
-      {title}{#if dirty}<span class="text-amber-400"> ●</span>{/if}
+      {title}{#if dirty}<span class="text-pc-warning-text"> ●</span>{/if}
     </span>
     <span class="ml-1 flex items-center" inert={effectOpen} data-tour="quick">
       <span class="flex items-center" inert={answering}>{@render quick?.()}</span>
@@ -353,23 +353,25 @@
             inert={effectOpen}
             data-dimmed={dim}
           >
-            <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-2 pt-1.5 [scrollbar-width:none]" role="tablist">
-              {#each panels as p (p.id)}
-                <button
-                  type="button"
-                  class="flex shrink-0 items-center gap-1.5 rounded-md px-2.5 py-1.5 text-xs"
-                  class:bg-pc-active={p.id === sheetTab}
-                  class:text-pc-muted={p.id !== sheetTab}
-                  role="tab"
-                  aria-selected={p.id === sheetTab}
-                  onclick={() => (sheetTab = p.id)}
-                >
-                  <Icon name={p.icon} size={15} />
-                  {p.title}
-                </button>
-              {/each}
-              <span class="flex-1"></span>
-              <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+            <!-- The shared tab row; the close button sits beside it, not in it. -->
+            <div class="flex shrink-0 items-end pr-2 pl-3">
+              <div class="am-tabs min-w-0 flex-1 [scrollbar-width:none]" role="tablist">
+                {#each panels as p (p.id)}
+                  <button
+                    type="button"
+                    class="inline-flex shrink-0 items-center gap-1.5"
+                    role="tab"
+                    aria-selected={p.id === sheetTab}
+                    onclick={() => (sheetTab = p.id)}
+                  >
+                    <Icon name={p.icon} size={15} />
+                    {p.title}
+                  </button>
+                {/each}
+              </div>
+              <span class="flex h-9 shrink-0 items-center border-b border-pc-border pl-2">
+                <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+              </span>
             </div>
             <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" role="tabpanel">
               {#key sheetPanel.id}
@@ -421,7 +423,7 @@
       <div
         inert={effectOpen}
         data-dimmed={dim}
-        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:bg-pc-accent focus-visible:outline-none"
+        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-10 focus-visible:bg-pc-focus focus-visible:outline-offset-0"
         role="separator"
         aria-orientation="vertical"
         aria-label={t('frame.sidebarWidth')}

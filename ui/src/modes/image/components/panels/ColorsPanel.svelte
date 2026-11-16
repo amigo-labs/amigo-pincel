@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { activeOnFocus } from '../../../../lib/components/layout/menu-focus';
   // Foreground / background colors (spec §16.6, §4.2), on the shared
   // ColorPair control, with the recent colors and Image mode's palette
   // always in view below them (color-picker AC-25 – AC-29). The palette is
@@ -135,7 +136,7 @@
       onclick={() => (menu = null)}
     ></button>
     <div
-      class="pal-menu fixed z-50 w-52 shadow-lg"
+      class="am-menu fixed z-50 w-52"
       style:left="{menu.left}px"
       style:top="{menu.top}px"
       role="menu"
@@ -148,13 +149,14 @@
         }
       }}
     >
-      <button type="button" class="pal-menu-row" role="menuitem" onclick={() => void loadPalette()}>
+      <button type="button" role="menuitem" use:activeOnFocus onclick={() => void loadPalette()}>
         {t('palette.loadAction')}
       </button>
       <button
         type="button"
-        class="pal-menu-row flex items-center justify-between"
+        class="w-full"
         role="menuitem"
+        use:activeOnFocus
         aria-haspopup="menu"
         aria-expanded={saveOpen}
         onclick={() => (saveOpen = !saveOpen)}
@@ -167,8 +169,9 @@
           {#each SAVES as entry (entry.id)}
             <button
               type="button"
-              class="pal-menu-row pl-6"
+              class="w-full pl-6"
               role="menuitem"
+        use:activeOnFocus
               onclick={() => void savePalette(entry)}
             >
               {t(entry.label)}
@@ -176,8 +179,8 @@
           {/each}
         </div>
       {/if}
-      <div class="my-1 border-t border-pc-border" role="separator"></div>
-      <button type="button" class="pal-menu-row" role="menuitem" onclick={resetPalette}>
+      <hr />
+      <button type="button" class="am-danger" role="menuitem" use:activeOnFocus onclick={resetPalette}>
         {t('palette.reset')}
       </button>
     </div>
@@ -199,23 +202,3 @@
   </div>
 </Panel>
 
-<style>
-  .pal-menu {
-    border-radius: 0.375rem;
-    border: 1px solid var(--color-pc-border);
-    background-color: var(--color-pc-panel);
-    padding: 0.25rem 0;
-    font-size: 0.875rem;
-  }
-  .pal-menu-row {
-    display: block;
-    width: 100%;
-    padding: 0.3rem 0.75rem;
-    text-align: left;
-  }
-  .pal-menu-row:hover,
-  .pal-menu-row:focus-visible {
-    background-color: var(--color-pc-hover);
-    outline: none;
-  }
-</style>

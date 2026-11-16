@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { menu, newDocument, waitForEditor } from './helpers';
+import { sharedPage } from './controls-helpers';
 import { commandCalls, emit, installTauriMock, launchDesktop, reply, setMock } from './tauri-mock';
 
 // The managed ComfyUI install (docs/specs/comfyui-install.md). The backend
@@ -100,14 +101,14 @@ interface Answers {
   connect?: unknown[];
 }
 
-/** The desktop app with View ▸ Image generation… open. */
+/** The desktop app with Tools ▸ Image generation… open. */
 async function openDialog(page: Page, answers: Answers = {}): Promise<Locator> {
   await launchDesktop(page);
   await reply(page, 'comfyui_install_info', answers.info ?? info());
   await reply(page, 'comfyui_settings', ...(answers.settings ?? [settings()]));
   await reply(page, 'comfyui_connect', ...(answers.connect ?? [{ kind: 'notFound' }]));
   await newDocument(page, 'pixel');
-  await menu(page, 'View', 'Image Generation…');
+  await menu(page, 'Tools', 'Image Generation…');
   const dialog = page.getByRole('dialog', { name: 'Image generation' });
   await expect(dialog).toBeVisible();
   return dialog;
@@ -312,6 +313,34 @@ test.describe('desktop', () => {
       progress: { step, package: null, done: null, total: null, line: null, ...more },
     };
   }
+
+  test('the download bar is the shared progress bar (amigo-theme-controls AC-08)', async ({ page }) => {
+    const wizard = await installing(page);
+    await emit(page, 'comfyui:install', progress('model', { package: 'sd15', done: GIB, total: 4 * GIB }));
+    const bar = wizard.getByRole('progressbar');
+    await expect(bar).toHaveAttribute('aria-valuenow', String(GIB));
+    const look = (el: Locator) =>
+      el.evaluate((node) => {
+        const fill = node.firstElementChild;
+        if (!fill) throw new Error('no fill');
+        const cs = getComputedStyle(node);
+        const fs = getComputedStyle(fill);
+        return {
+          track: cs.backgroundColor,
+          radius: cs.borderTopLeftRadius,
+          height: node.getBoundingClientRect().height,
+          fill: fs.backgroundColor,
+          share: Math.round((fill.getBoundingClientRect().width / node.getBoundingClientRect().width) * 100),
+        };
+      });
+    const alone = await sharedPage(
+      page,
+      'Dark',
+      '<div id="bar" class="am-progress" style="width:200px"><i style="width:25%"></i></div>',
+    );
+    expect(await look(bar)).toEqual(await look(alone.locator('#bar')));
+    await alone.close();
+  });
 
   test('installing shows the step, bytes or the latest line, and Cancel (AC-06)', async ({ page }) => {
     const wizard = await installing(page);
@@ -555,7 +584,7 @@ test.describe('desktop', () => {
     // A location that already holds a complete installation.
     await reply(page, 'comfyui_install_info', info());
     await page.keyboard.press('Escape');
-    await menu(page, 'View', 'Image Generation…');
+    await menu(page, 'Tools', 'Image Generation…');
     await dialog.getByRole('button', { name: 'Install ComfyUI…' }).click();
     await pickLocation(page, wizard, 'E:/Models', { existing: 'complete' });
     await expect(wizard).toContainText('This folder already has a complete installation');
@@ -585,7 +614,7 @@ test.describe('desktop', () => {
     await reply(page, 'comfyui_settings', settings());
     await reply(page, 'comfyui_connect', { kind: 'notFound' });
     await newDocument(page, 'pixel');
-    await menu(page, 'View', 'Image Generation…');
+    await menu(page, 'Tools', 'Image Generation…');
     const wizard = page.getByRole('dialog', { name: 'Install ComfyUI' });
     await expect(wizard.getByRole('status')).toContainText('Installing PyTorch and dependencies');
     await expect(wizard.getByRole('status')).toContainText('Resolved 85 packages');
@@ -605,7 +634,7 @@ test.describe('German', () => {
     await page.getByRole('button', { name: 'Neues Pixel-Sprite' }).click();
     await page.getByRole('button', { name: 'Erstellen' }).click();
     await waitForEditor(page, 'pixel');
-    await menu(page, 'Ansicht', 'Bildgenerierung…');
+    await menu(page, 'Extras', 'Bildgenerierung…');
     await page.getByRole('button', { name: 'ComfyUI installieren…' }).click();
     const wizard = page.getByRole('dialog', { name: 'ComfyUI installieren' });
     await expect(wizard).toContainText('Unterstützt');

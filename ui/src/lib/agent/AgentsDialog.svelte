@@ -47,70 +47,72 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="flex w-full max-w-lg flex-col gap-3 rounded border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
-  >
-    <h2 id="agents-title" class="text-base font-semibold">{t('agents.title')}</h2>
-    <label class="flex min-h-8 items-center gap-2">
-      <input
-        type="checkbox"
-        checked={enabled}
-        disabled={agentAccess.busy}
-        onchange={(e) => void setAgentAccess(e.currentTarget.checked)}
-      />
-      {t('agents.allow')}
-    </label>
-    <p class="text-xs text-pc-muted">{t('agents.help')}</p>
-    {#if agentAccess.error !== null}
-      <p class="text-xs text-pc-danger-text" role="alert">
-        {t('agents.failed', { error: agentAccess.error })}
-      </p>
-    {/if}
-    {#if enabled && status?.command && status.token}
-      {#if status.portChanged}
-        <p class="text-xs text-pc-accent-text" role="status">{t('agents.portChanged')}</p>
+  <div class="am-dialog w-full max-w-lg">
+    <header>
+      <h2 id="agents-title">{t('agents.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="am-check flex min-h-8 items-center gap-2">
+        <input
+          type="checkbox"
+          checked={enabled}
+          disabled={agentAccess.busy}
+          onchange={(e) => void setAgentAccess(e.currentTarget.checked)}
+        />
+        {t('agents.allow')}
+      </label>
+      <p class="text-xs text-pc-muted">{t('agents.help')}</p>
+      {#if agentAccess.error !== null}
+        <p class="am-hint am-hint--error" role="alert">
+          {t('agents.failed', { error: agentAccess.error })}
+        </p>
       {/if}
-      <div class="flex flex-col gap-1">
-        <label class="text-xs text-pc-muted" for="agents-command">{t('agents.command')}</label>
-        <div class="flex gap-2">
-          <input
-            id="agents-command"
-            bind:this={commandField}
-            class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-xs"
-            readonly
-            value={status.command}
-          />
-          <button
-            class="panel-btn"
-            onclick={() => status?.command && void copy('command', status.command, commandField)}
-          >
-            {copied === 'command' ? t('agents.copied') : t('agents.copy')}
-          </button>
+      {#if enabled && status?.command && status.token}
+        {#if status.portChanged}
+          <div class="am-banner am-banner--warning" role="status"><div><strong>{t('agents.portChanged')}</strong></div></div>
+        {/if}
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-pc-muted" for="agents-command">{t('agents.command')}</label>
+          <div class="flex gap-2">
+            <input
+              id="agents-command"
+              bind:this={commandField}
+              class="am-input min-w-0 flex-1 font-mono"
+              readonly
+              value={status.command}
+            />
+            <button
+              class="am-btn"
+              onclick={() => status?.command && void copy('command', status.command, commandField)}
+            >
+              {copied === 'command' ? t('agents.copied') : t('agents.copy')}
+            </button>
+          </div>
         </div>
-      </div>
-      <div class="flex flex-col gap-1">
-        <label class="text-xs text-pc-muted" for="agents-token">{t('agents.token')}</label>
-        <div class="flex gap-2">
-          <input
-            id="agents-token"
-            bind:this={tokenField}
-            class="min-w-0 flex-1 rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-xs"
-            readonly
-            value={status.token}
-          />
-          <button
-            class="panel-btn"
-            onclick={() => status?.token && void copy('token', status.token, tokenField)}
-          >
-            {copied === 'token' ? t('agents.copied') : t('agents.copy')}
-          </button>
+        <div class="flex flex-col gap-1">
+          <label class="text-xs text-pc-muted" for="agents-token">{t('agents.token')}</label>
+          <div class="flex gap-2">
+            <input
+              id="agents-token"
+              bind:this={tokenField}
+              class="am-input min-w-0 flex-1 font-mono"
+              readonly
+              value={status.token}
+            />
+            <button
+              class="am-btn"
+              onclick={() => status?.token && void copy('token', status.token, tokenField)}
+            >
+              {copied === 'token' ? t('agents.copied') : t('agents.copy')}
+            </button>
+          </div>
         </div>
-      </div>
-      <p class="text-xs text-pc-faint">{t('agents.address', { url: status.url ?? '' })}</p>
-    {/if}
-    <div class="flex justify-between gap-2">
+        <p class="text-xs text-pc-faint">{t('agents.address', { url: status.url ?? '' })}</p>
+      {/if}
+    </div>
+    <footer>
       <button
-        class="panel-btn"
+        class="am-btn mr-auto"
         disabled={!enabled || agentAccess.busy}
         onclick={() => {
           copied = null;
@@ -119,9 +121,9 @@
       >
         {t('agents.regenerate')}
       </button>
-      <button bind:this={closeButton} class="panel-btn" onclick={onClose}>
+      <button bind:this={closeButton} class="am-btn" onclick={onClose}>
         {t('agents.close')}
       </button>
-    </div>
+    </footer>
   </div>
 </div>

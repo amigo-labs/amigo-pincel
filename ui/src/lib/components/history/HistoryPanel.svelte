@@ -111,7 +111,7 @@
     {#each buttons as b (b.icon)}
       <button
         type="button"
-        class="panel-btn flex-1"
+        class="am-btn am-btn--sm flex-1"
         aria-label={t(b.label)}
         title={t(b.label)}
         disabled={b.delta() === 0}
@@ -127,7 +127,7 @@
     tabindex="0"
     aria-label={t('historyPanel.list')}
     aria-activedescendant={`${listId}-${focused}`}
-    class="history-list flex max-h-64 min-h-0 flex-col overflow-y-auto rounded border border-pc-border py-1"
+    class="history-list flex max-h-64 min-h-0 flex-col overflow-y-auto rounded-pc-control border border-pc-border py-1"
     onkeydown={onKeyDown}
   >
     {#each rows as name, i (i)}
@@ -153,8 +153,8 @@
 
 <style>
   .history-list:focus-visible .history-focus {
-    outline: 1px solid var(--color-pc-accent);
-    outline-offset: -1px;
+    outline: 2px solid var(--am-focus);
+    outline-offset: -2px;
   }
   .history-row:hover {
     background-color: var(--color-pc-hover);

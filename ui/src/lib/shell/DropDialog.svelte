@@ -42,24 +42,26 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="w-96 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-  >
-    <p class="font-semibold">{t('drop.title')}</p>
-    <p class="mt-3 text-pc-muted">{t('drop.prompt')}</p>
-    <ul class="mt-2 max-h-32 overflow-y-auto text-xs">
-      {#each names as name, i (i)}
-        <li class="truncate">{name}</li>
-      {/each}
-    </ul>
-    {#if !canAddLayers}
-      <p class="mt-2 text-xs text-amber-400">{t('drop.pngOnly')}</p>
-    {/if}
-    <label class="mt-3 flex items-center gap-2 text-xs">
-      <input type="checkbox" bind:checked={dontAsk} />
-      <span>{t('drop.dontAsk')}</span>
-    </label>
-    <div class="mt-4 flex flex-wrap justify-end gap-2">
+  <div class="am-dialog">
+    <header>
+      <h2>{t('drop.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <p class="text-pc-muted">{t('drop.prompt')}</p>
+      <ul class="max-h-32 overflow-y-auto text-xs">
+        {#each names as name, i (i)}
+          <li class="truncate">{name}</li>
+        {/each}
+      </ul>
+      {#if !canAddLayers}
+        <div class="am-banner am-banner--warning"><div><strong>{t('drop.pngOnly')}</strong></div></div>
+      {/if}
+      <label class="am-check flex items-center gap-2 text-xs">
+        <input type="checkbox" bind:checked={dontAsk} />
+        <span>{t('drop.dontAsk')}</span>
+      </label>
+    </div>
+    <footer class="flex-wrap">
       <Button onclick={onCancel}>{t('common.cancel')}</Button>
       <Button bind:el={openButton} onclick={() => onChoose('document', dontAsk)}>
         {t('drop.openDocument')}
@@ -71,6 +73,6 @@
       {:else}
         <Button disabled>{t('drop.addLayer')}</Button>
       {/if}
-    </div>
+    </footer>
   </div>
 </div>

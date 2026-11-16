@@ -16,7 +16,7 @@ import {
   wordsPng,
 } from './ocr-helpers';
 
-// Tools ▸ Recognize Text… in Image mode (docs/specs/ocr-dialog.md): the
+// Image ▸ Recognize Text… in Image mode (docs/specs/ocr-dialog.md): the
 // menu, the dialog, the model download on first use and the recognition.
 // The models are served from the committed files (`serveModels`).
 
@@ -32,24 +32,23 @@ async function openThreeWords(page: Page): Promise<void> {
   await openPng(page, 'words.png', png);
 }
 
-test('Image mode has a Tools menu between Effects and Help; Pixel mode has none (AC-01)', async ({
+// The entry moved from Tools to Image (docs/specs/menu-structure.md AC-04).
+test('Image mode has Image ▸ Recognize Text…; Pixel mode has no such entry (AC-01)', async ({
   page,
 }) => {
   await createDocument(page, 'image', { width: 32, height: 32 });
   const bar = page.getByRole('menubar');
-  const tops = await bar.getByRole('menuitem').allTextContents();
-  const names = tops.map((s) => s.trim());
-  const tools = names.indexOf('Tools');
-  expect(tools).toBeGreaterThan(names.indexOf('Effects'));
-  expect(tools).toBeLessThan(names.indexOf('Help'));
-  await bar.getByRole('menuitem', { name: 'Tools', exact: true }).click();
+  await bar.getByRole('menuitem', { name: 'Image', exact: true }).click();
   await expect(
-    page.getByRole('menu', { name: 'Tools', exact: true }).getByRole('menuitem'),
-  ).toHaveText(['Recognize Text…']);
+    page.getByRole('menu', { name: 'Image', exact: true }).getByRole('menuitem').last(),
+  ).toHaveText('Recognize Text…');
   await page.keyboard.press('Escape');
 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  await expect(page.getByRole('menubar').getByRole('menuitem', { name: 'Tools' })).toHaveCount(0);
+  await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+  const image = page.getByRole('menu', { name: 'Image', exact: true });
+  await expect(image.getByRole('menuitem', { name: 'Crop to Selection' })).toBeVisible();
+  await expect(image.getByRole('menuitem', { name: 'Recognize Text…' })).toHaveCount(0);
 });
 
 test('first use downloads the model with progress, then recognizes the image (AC-03, AC-04, AC-07)', async ({
@@ -171,7 +170,7 @@ test.describe('German', () => {
     await serveModels(page);
     await openThreeWords(page);
     await recordSteps(page);
-    await menu(page, 'Extras', 'Text erkennen…');
+    await menu(page, 'Bild', 'Text erkennen…');
     const dialog = ocrDialog(page, 'Text erkennen');
     await expect(dialog).toBeVisible();
     const language = dialog.getByRole('combobox', { name: 'Sprache' });

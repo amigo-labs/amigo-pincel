@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { activeOnFocus } from '../../../lib/components/layout/menu-focus';
   import { t } from '../../../lib/i18n/index.svelte';
   import Panel from '../../../lib/components/layout/Panel.svelte';
   import IconButton from '../../../lib/components/layout/IconButton.svelte';
@@ -248,7 +249,7 @@
       onclick={() => (menu = null)}
     ></button>
     <div
-      class="pal-menu fixed z-50 w-52"
+      class="am-menu fixed z-50 w-52"
       style:left="{menu.left}px"
       style:top="{menu.top}px"
       role="menu"
@@ -267,23 +268,24 @@
         {t('palette.presets')}
       </div>
       {#each PRESETS as id (id)}
-        <button type="button" class="pal-menu-row" role="menuitem" onclick={() => applyPreset(id)}>
+        <button type="button" role="menuitem" use:activeOnFocus onclick={() => applyPreset(id)}>
           {t(PRESET_KEYS[id])}
         </button>
       {/each}
-      <div class="my-1 border-t border-pc-border" role="separator"></div>
+      <hr />
       <button
         type="button"
-        class="pal-menu-row"
         role="menuitem"
+        use:activeOnFocus
         onclick={() => void importPalette()}
       >
         {t('palette.importAction')}
       </button>
       <button
         type="button"
-        class="pal-menu-row flex items-center justify-between"
+        class="w-full"
         role="menuitem"
+        use:activeOnFocus
         aria-haspopup="menu"
         aria-expanded={exportOpen}
         onclick={() => (exportOpen = !exportOpen)}
@@ -296,8 +298,9 @@
           {#each EXPORTS as entry (entry.id)}
             <button
               type="button"
-              class="pal-menu-row pl-6"
+              class="w-full pl-6"
               role="menuitem"
+        use:activeOnFocus
               onclick={() => void exportPalette(entry)}
             >
               {t(entry.label)}
@@ -395,25 +398,6 @@
 </Panel>
 
 <style>
-  .pal-menu {
-    border-radius: 0.375rem;
-    border: 1px solid var(--color-pc-border);
-    background-color: var(--color-pc-panel);
-    padding: 0.25rem 0;
-    font-size: 0.875rem;
-    box-shadow: 0 10px 30px rgb(0 0 0 / 0.45);
-  }
-  .pal-menu-row {
-    display: block;
-    width: 100%;
-    padding: 0.3rem 0.75rem;
-    text-align: left;
-  }
-  .pal-menu-row:hover,
-  .pal-menu-row:focus-visible {
-    background-color: var(--color-pc-hover);
-    outline: none;
-  }
   .palette-grid {
     display: grid;
     grid-template-columns: repeat(auto-fill, minmax(1.25rem, 1fr));
@@ -423,24 +407,24 @@
     aspect-ratio: 1;
     width: 100%;
     border-radius: 0.2rem;
-    border: 1px solid rgb(64 64 64);
+    border: 1px solid var(--am-border);
     cursor: pointer;
   }
   .palette-swatch:hover {
-    border-color: rgb(163 163 163);
+    border-color: var(--am-border-strong);
   }
   .swatch-selected {
-    border-color: rgb(229 229 229);
+    border-color: var(--am-text);
     border-width: 2px;
   }
   .pal-btn {
     border-radius: 0.25rem;
-    border: 1px solid rgb(64 64 64);
+    border: 1px solid var(--am-border);
     padding: 0 0.4rem;
     font-size: 0.75rem;
   }
   .pal-btn:hover:not(:disabled) {
-    background-color: rgb(38 38 38);
+    background-color: var(--am-hover);
   }
   .pal-btn:disabled {
     opacity: 0.4;
@@ -449,8 +433,8 @@
     box-shadow: inset 0 -3px 0 var(--color-pc-accent);
   }
   .swatch-active {
-    outline: 2px solid rgb(59 130 246);
+    outline: 2px solid var(--am-focus);
     outline-offset: 1px;
-    border-color: rgb(59 130 246);
+    border-color: var(--am-accent);
   }
 </style>

@@ -7,10 +7,13 @@ import { helpMenus, settingsMenuItems } from '../../lib/help/menu';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import type { EffectDef } from '../../lib/effects/catalog';
-import { tidy, type MenuDef, type MenuItem } from '../../lib/components/layout/menu';
+import { tidy, type MenuAction, type MenuDef } from '../../lib/components/layout/menu';
+import {
+  layerTransformItems,
+  selectMenu,
+  toolsMenus,
+} from '../../lib/components/layout/shared-menus';
 import { hint } from '../../lib/shell/shortcuts';
-import { agentsMenuItems } from '../../lib/agent/access.svelte';
-import { imageGenerationItems } from '../../lib/comfyui/state.svelte';
 import { t } from '../../lib/i18n/index.svelte';
 import type { RecentFile } from '../../lib/idb/recent-files';
 import type { AxisMode } from './stores/editor.svelte';
@@ -109,22 +112,9 @@ export interface PixelMenuContext {
   toggleUi(): void;
 }
 
-/** Flips and rotations; `layer` picks whose keys the hints show (flips: layer, 90°: image). */
-function transforms(
-  run: (op: TransformOp) => void,
-  disabled: boolean,
-  layer: boolean,
-): MenuItem[] {
-  const flipKey = (a: 'flipLayerH' | 'flipLayerV') => (layer ? hint(a) : '');
-  const rotateKey = (a: 'rotateCw' | 'rotateCcw') => (layer ? '' : hint(a));
-  return [
-    { label: t('menu.flipH'), shortcut: flipKey('flipLayerH'), disabled, run: () => run('flip_horizontal') },
-    { label: t('menu.flipV'), shortcut: flipKey('flipLayerV'), disabled, run: () => run('flip_vertical') },
-    { kind: 'separator' },
-    { label: t('menu.rotateCw'), shortcut: rotateKey('rotateCw'), disabled, run: () => run('rotate_90_cw') },
-    { label: t('menu.rotateCcw'), shortcut: rotateKey('rotateCcw'), disabled, run: () => run('rotate_90_ccw') },
-    { label: t('menu.rotate180'), disabled, run: () => run('rotate_180') },
-  ];
+/** Help ▸ Frame-Time Probe (menu-structure AC-05); on macOS a palette command (AC-06). */
+export function probeItem(c: Pick<PixelMenuContext, 'probeOn' | 'toggleProbe'>): MenuAction {
+  return { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe };
 }
 
 /** The Pixel-mode menu bar. */
@@ -190,32 +180,35 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         ...settingsMenuItems(),
       ],
     },
-    {
-      id: 'select',
-      label: t('menu.select'),
-      items: [
-        { label: t('menu.selectAll'), shortcut: hint('selectAll'), disabled: noDoc, run: c.selectAll },
-        { label: t('menu.deselect'), shortcut: hint('deselect'), disabled: !c.hasSelection, run: c.deselect },
-        {
-          label: t('menu.invertSelection'),
-          shortcut: hint('invertSelection'),
-          disabled: noDoc,
-          run: c.invertSelection,
-        },
-        { kind: 'separator' },
-        { label: t('menu.expand'), disabled: !c.hasSelection, run: () => c.growSelection('expand') },
-        {
-          label: t('menu.contract'),
-          disabled: !c.hasSelection,
-          run: () => c.growSelection('contract'),
-        },
-      ],
-    },
+    selectMenu({
+      noDoc,
+      hasSelection: c.hasSelection,
+      selectAll: c.selectAll,
+      deselect: c.deselect,
+      invertSelection: c.invertSelection,
+      expand: () => c.growSelection('expand'),
+      contract: () => c.growSelection('contract'),
+    }),
     {
       id: 'image',
       label: t('menu.image'),
       items: [
-        ...transforms(c.transformCanvas, noDoc, false),
+        { label: t('menu.flipH'), disabled: noDoc, run: () => c.transformCanvas('flip_horizontal') },
+        { label: t('menu.flipV'), disabled: noDoc, run: () => c.transformCanvas('flip_vertical') },
+        { kind: 'separator' },
+        {
+          label: t('menu.rotateCw'),
+          shortcut: hint('rotateCw'),
+          disabled: noDoc,
+          run: () => c.transformCanvas('rotate_90_cw'),
+        },
+        {
+          label: t('menu.rotateCcw'),
+          shortcut: hint('rotateCcw'),
+          disabled: noDoc,
+          run: () => c.transformCanvas('rotate_90_ccw'),
+        },
+        { label: t('menu.rotate180'), disabled: noDoc, run: () => c.transformCanvas('rotate_180') },
         { kind: 'separator' },
         { label: t('menu.resizeCanvas'), disabled: noDoc, run: c.resizeCanvas },
         { label: t('menu.scaleImage'), disabled: noDoc, run: c.scaleImage },
@@ -237,6 +230,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
         {
           label: t('menu.deleteLayer'),
+          danger: true,
           shortcut: hint('deleteLayer'),
           disabled: noDoc || c.layerCount <= 1,
           run: c.removeLayer,
@@ -249,9 +243,15 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           run: c.mergeDown,
         },
         { label: t('menu.flatten'), disabled: noDoc || c.layerCount < 2, run: c.flatten },
-        { kind: 'separator' },
-        ...transforms(c.transformLayer, noDoc, true),
-        { label: t('pxRotate.menu'), disabled: noDoc, run: c.rotateLayer },
+        ...layerTransformItems({
+          noDoc,
+          flipH: () => c.transformLayer('flip_horizontal'),
+          flipV: () => c.transformLayer('flip_vertical'),
+          rotateCw: () => c.transformLayer('rotate_90_cw'),
+          rotateCcw: () => c.transformLayer('rotate_90_ccw'),
+          rotate180: () => c.transformLayer('rotate_180'),
+          dialog: { label: t('pxRotate.menu'), run: c.rotateLayer },
+        }),
       ],
     },
     {
@@ -278,7 +278,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         },
         { kind: 'separator' },
         { label: t('menu.newFrame'), shortcut: hint('newFrame'), disabled: noDoc, run: c.addFrame },
-        { label: t('menu.deleteFrame'), disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
+        { label: t('menu.deleteFrame'), danger: true, disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
       ],
     },
     ...effectMenus(c.openEffect, noDoc, 'pixel'),
@@ -313,11 +313,9 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         },
         { kind: 'separator' },
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
-        { label: t('menu.probe'), shortcut: 'F2', checked: c.probeOn, run: c.toggleProbe },
-        ...agentsMenuItems(),
-        ...imageGenerationItems(),
       ],
     },
-    ...helpMenus(c.openShortcuts, 'pixel'),
+    ...toolsMenus(),
+    ...helpMenus(c.openShortcuts, 'pixel', [probeItem(c)]),
   ];
 }

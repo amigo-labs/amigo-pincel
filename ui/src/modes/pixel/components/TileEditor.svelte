@@ -115,51 +115,43 @@
   aria-modal="true"
   aria-label={t('tiles.editor')}
 >
-  <div class="flex flex-col gap-3 rounded border border-pc-border bg-pc-panel p-4 shadow-xl">
-    <header class="flex items-center justify-between gap-4">
-      <h2 class="text-sm font-semibold text-pc-text">
+  <div class="am-dialog w-auto max-w-full">
+    <header>
+      <h2>
         {t('tiles.editing', { tileset: tilesetId, tile: tileId, w: tileW, h: tileH })}
       </h2>
-      <button type="button" class="editor-btn" onclick={onClose}>{t('common.done')}</button>
     </header>
-    <canvas
-      bind:this={canvas}
-      width={tileW}
-      height={tileH}
-      class="editor-canvas"
-      style="width: {tileW * ZOOM}px; height: {tileH * ZOOM}px;"
-      onpointerdown={onPointerDown}
-      onpointermove={onPointerMove}
-      onpointerup={onPointerUp}
-      onpointercancel={onPointerUp}
-      aria-label={t('tiles.pixelEditor', { tile: tileId })}
-    ></canvas>
-    {#if lastError}
-      <p class="text-xs text-red-400" role="alert">{lastError}</p>
-    {/if}
-    <p class="text-xs text-pc-faint">
-      {t('tiles.editorHint')}
-    </p>
+    <div class="am-body flex flex-col gap-3">
+      <canvas
+        bind:this={canvas}
+        width={tileW}
+        height={tileH}
+        class="editor-canvas"
+        style="width: {tileW * ZOOM}px; height: {tileH * ZOOM}px;"
+        onpointerdown={onPointerDown}
+        onpointermove={onPointerMove}
+        onpointerup={onPointerUp}
+        onpointercancel={onPointerUp}
+        aria-label={t('tiles.pixelEditor', { tile: tileId })}
+      ></canvas>
+      {#if lastError}
+        <p class="am-hint am-hint--error" role="alert">{lastError}</p>
+      {/if}
+      <p class="text-xs text-pc-faint">
+        {t('tiles.editorHint')}
+      </p>
+    </div>
+    <footer>
+      <button type="button" class="am-btn" onclick={onClose}>{t('common.done')}</button>
+    </footer>
   </div>
 </div>
 
 <style>
-  .editor-btn {
-    border-radius: 0.25rem;
-    border: 1px solid rgb(115 115 115);
-    background-color: rgb(55 65 81);
-    padding: 0.25rem 0.75rem;
-    font-size: 0.75rem;
-    color: rgb(229 229 229);
-    cursor: pointer;
-  }
-  .editor-btn:hover {
-    background-color: rgb(75 85 99);
-  }
   .editor-canvas {
     image-rendering: pixelated;
-    background-color: rgb(23 23 23);
-    border: 1px solid rgb(64 64 64);
+    background-color: var(--color-pc-doc);
+    border: 1px solid var(--am-border);
     border-radius: 0.125rem;
     cursor: crosshair;
     touch-action: none;

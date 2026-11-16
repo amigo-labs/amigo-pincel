@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../range-fill';
   // Foreground / background colors, shared by both modes (spec §9.2):
   // overlapping swatches with swap (X) and reset (D), a hex field and an
   // alpha slider for the foreground. A click on a swatch opens the own
@@ -128,7 +129,7 @@
     ></button>
     <button
       type="button"
-      class="absolute -top-0.5 -right-0.5 rounded p-0.5 text-pc-muted hover:text-pc-text"
+      class="absolute -top-0.5 -right-0.5 rounded-pc-control p-0.5 text-pc-muted hover:text-pc-text"
       title={withHint(t('color.swap'), 'swapColors')}
       aria-label={t('color.swapLabel')}
       onclick={onSwap}
@@ -160,7 +161,7 @@
         }}
         spellcheck="false"
         maxlength="7"
-        class="opt-field w-20 font-mono"
+        class="am-input am-input--sm w-20 font-mono"
         aria-label={t('color.hexLabel')}
       />
     </label>
@@ -176,8 +177,9 @@
           onFg({ ...fg, a: Number(e.currentTarget.value) });
         }}
         onchange={() => onDraft(false)}
-        class="w-20"
+        class="am-range w-20"
         aria-label={t('color.alpha')}
+        use:rangeFill={fg.a}
       />
       <span class="w-7 text-right tabular-nums">{fg.a}</span>
     </label>
@@ -194,7 +196,7 @@
     onclick={close}
   ></button>
   <div
-    class="fixed z-[61] rounded-lg border border-pc-border bg-pc-panel p-3 shadow-[0_8px_30px_rgb(0_0_0/0.5)]"
+    class="fixed z-[61] rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     bind:this={popover}
@@ -225,5 +227,11 @@
     background:
       linear-gradient(var(--swatch), var(--swatch)),
       repeating-conic-gradient(#999 0 25%, #fff 0 50%) 0 0 / 8px 8px;
+  }
+  /* The hairline above is the swatch's edge; keyboard focus replaces it
+     with the ring (amigo-theme AC-12). */
+  .swatch:focus-visible {
+    outline: 2px solid var(--am-focus);
+    outline-offset: 1px;
   }
 </style>

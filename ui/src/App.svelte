@@ -973,7 +973,9 @@
   <div
     class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center border-4 border-dashed border-pc-accent bg-black/40"
   >
-    <p class="rounded bg-pc-panel px-4 py-2 text-sm text-pc-text shadow-xl">{t('drop.overlay')}</p>
+    <p class="am-banner">
+      {t('drop.overlay')}
+    </p>
   </div>
 {/if}
 
@@ -1049,11 +1051,11 @@
 
 {#if shellError}
   <div
-    class="fixed bottom-3 left-3 z-30 flex items-center gap-3 rounded border border-red-900 bg-pc-panel px-3 py-2 text-xs text-red-200 shadow-xl"
+    class="am-banner am-banner--danger fixed bottom-3 left-3 z-30 max-w-[calc(100vw-1.5rem)] items-center"
     role="alert"
   >
-    <span class="whitespace-pre-line">{shellError}</span>
-    <button class="panel-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
+    <div><strong class="whitespace-pre-line">{shellError}</strong></div>
+    <button class="am-btn" onclick={() => (shellError = null)}>{t('shell.dismiss')}</button>
   </div>
 {/if}
 

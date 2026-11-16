@@ -124,10 +124,10 @@ test.describe('buttons and tooltips', () => {
     const prompt = page.getByRole('alertdialog');
     await expect(prompt).toBeVisible();
     await expect(prompt.getByRole('button', { name: "Don't Save" })).toHaveClass(
-      /panel-btn-danger/,
+      /am-btn--danger/,
     );
     await expect(prompt.getByRole('button', { name: 'Save', exact: true })).toHaveClass(
-      /panel-btn-primary/,
+      /am-btn--primary/,
     );
     // The keycap is not part of the name.
     const cancel = prompt.getByRole('button', { name: 'Cancel', exact: true });

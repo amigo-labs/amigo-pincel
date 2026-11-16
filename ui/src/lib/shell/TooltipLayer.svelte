@@ -153,7 +153,7 @@
 {#if tip}
   <div
     bind:this={tipEl}
-    class="pointer-events-none fixed z-[100] max-w-64 rounded-md border border-pc-border bg-pc-bg px-2 py-1.5 text-xs text-pc-text shadow-lg"
+    class="pointer-events-none fixed z-[100] max-w-64 rounded-pc-control border border-pc-border bg-pc-bg px-2 py-1.5 text-xs text-pc-text shadow-lg"
     style:left="{pos?.left ?? 0}px"
     style:top="{pos?.top ?? 0}px"
     style:visibility={pos ? 'visible' : 'hidden'}
@@ -163,7 +163,7 @@
     <div class="flex items-center gap-2">
       <span class="whitespace-pre-line">{tip.label}</span>
       {#if tip.key}
-        <kbd class="keycap">{tip.key}</kbd>
+        <kbd class="am-kbd">{tip.key}</kbd>
       {/if}
     </div>
     {#if tip.hint}

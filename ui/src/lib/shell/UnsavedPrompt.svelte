@@ -70,32 +70,36 @@
   aria-describedby="unsaved-prompt-question"
   tabindex="-1"
 >
-  <div
-    class="w-96 max-w-full rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-  >
-    <p id="unsaved-prompt-title" class="font-semibold">{t('shell.unsavedChanges')}</p>
-    <div id="unsaved-prompt-question" class="mt-3 text-pc-muted">
-      {#if several}
-        <p>{t('shell.unsavedIn', { n: names.length })}</p>
-        <ul class="mt-2 max-h-40 list-disc overflow-y-auto pl-5 text-pc-text">
-          {#each names as name, i (i)}
-            <li class="truncate">{name}</li>
-          {/each}
-        </ul>
-      {:else}
-        <p>{t('shell.saveChangesTo', { name: names[0] ?? '' })}</p>
-      {/if}
+  <div class="am-dialog">
+    <header>
+      <h2 id="unsaved-prompt-title">{t('shell.unsavedChanges')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <div id="unsaved-prompt-question" class="text-pc-muted">
+        {#if several}
+          <p>{t('shell.unsavedIn', { n: names.length })}</p>
+          <ul class="mt-2 max-h-40 list-disc overflow-y-auto pl-5 text-pc-text">
+            {#each names as name, i (i)}
+              <li class="truncate">{name}</li>
+            {/each}
+          </ul>
+        {:else}
+          <p>{t('shell.saveChangesTo', { name: names[0] ?? '' })}</p>
+        {/if}
+      </div>
     </div>
-    <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <Button bind:el={saveButton} variant="primary" onclick={() => onAnswer('save')}
-        >{several ? t('shell.saveAll') : t('shell.save')}</Button
+    <footer class="flex-wrap">
+      <!-- The safe choice first, the action last (amigo-theme-controls AC-07);
+           Tab still goes Save → Don't Save → Cancel (onKeydown). -->
+      <Button bind:el={cancelButton} shortcut="Esc" onclick={() => onAnswer('cancel')}
+        >{t('common.cancel')}</Button
       >
       <Button bind:el={dontSaveButton} variant="danger" onclick={() => onAnswer('dontSave')}
         >{t('shell.dontSave')}</Button
       >
-      <Button bind:el={cancelButton} shortcut="Esc" onclick={() => onAnswer('cancel')}
-        >{t('common.cancel')}</Button
+      <Button bind:el={saveButton} variant="primary" onclick={() => onAnswer('save')}
+        >{several ? t('shell.saveAll') : t('shell.save')}</Button
       >
-    </div>
+    </footer>
   </div>
 </div>

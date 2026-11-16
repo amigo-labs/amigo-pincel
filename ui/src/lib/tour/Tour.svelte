@@ -125,7 +125,7 @@
   <div class="fixed inset-0 z-50" data-tour-overlay>
     {#if rect}
       <div
-        class="pointer-events-none absolute rounded-md ring-2 ring-pc-accent motion-safe:transition-all motion-safe:duration-200"
+        class="pointer-events-none absolute rounded-pc-control ring-2 ring-pc-accent motion-safe:transition-all motion-safe:duration-200"
         style:left="{rect.left - PAD}px"
         style:top="{rect.top - PAD}px"
         style:width="{rect.width + PAD * 2}px"
@@ -141,7 +141,7 @@
       role="dialog"
       aria-modal="true"
       aria-label={t('tour.title')}
-      class="absolute flex w-80 max-w-[calc(100vw-16px)] flex-col gap-3 rounded-lg border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl motion-safe:transition-all motion-safe:duration-200"
+      class="absolute flex w-80 max-w-[calc(100vw-16px)] flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl motion-safe:transition-all motion-safe:duration-200"
       style:left="{position.left}px"
       style:top="{position.top}px"
       data-tour-callout
@@ -152,11 +152,11 @@
           >{tour.step + 1} / {steps.length}</span
         >
         <span class="flex-1"></span>
-        <button type="button" class="panel-btn" onclick={endTour}>{t('tour.skip')}</button>
-        <button type="button" class="panel-btn" disabled={tour.step === 0} onclick={back}
+        <button type="button" class="am-btn" onclick={endTour}>{t('tour.skip')}</button>
+        <button type="button" class="am-btn" disabled={tour.step === 0} onclick={back}
           >{t('tour.back')}</button
         >
-        <button type="button" class="panel-btn panel-btn-primary" data-tour-next onclick={next}
+        <button type="button" class="am-btn am-btn--primary" data-tour-next onclick={next}
           >{last ? t('tour.done') : t('tour.next')}</button
         >
       </div>

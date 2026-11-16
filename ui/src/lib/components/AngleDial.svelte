@@ -84,7 +84,7 @@
     width={SIZE}
     height={SIZE}
     viewBox="0 0 {SIZE} {SIZE}"
-    class="shrink-0 cursor-pointer touch-none rounded-full focus:outline-2 focus:outline-pc-accent"
+    class="shrink-0 cursor-pointer touch-none rounded-full focus:outline-2 focus:outline-pc-focus"
     role="slider"
     tabindex="0"
     aria-label={t('effectDlg.angleDial', { label })}
@@ -125,7 +125,7 @@
     value={value}
     oninput={(e) => onField(e, false)}
     onchange={(e) => onField(e, true)}
-    class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+    class="am-input w-16 text-right tabular-nums"
     aria-label={t('effectDlg.degrees', { label })}
   />
 </span>

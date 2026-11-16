@@ -44,7 +44,7 @@ async function menuPaths(page: Page): Promise<string[]> {
     const count = await rows.count();
     for (let i = 0; i < count; i += 1) {
       const row = rows.nth(i);
-      const label = ((await row.locator('span.flex-1').textContent()) ?? '').trim();
+      const label = ((await row.locator('.am-menu-label').textContent()) ?? '').trim();
       if ((await row.getAttribute('aria-haspopup')) === 'menu') {
         // A disabled submenu (an empty Open Recent) has nothing to list.
         if (await row.isDisabled()) continue;
@@ -80,7 +80,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(search(page)).toBeFocused();
     await expect(option(page, 'Layer ▸ Merge Down')).toHaveCount(1);
     await expect(option(page, 'Image ▸ Flip Horizontal')).toHaveCount(1);
-    await expect(option(page, 'Layer ▸ Flip Horizontal')).toHaveCount(1);
+    await expect(option(page, 'Layer ▸ Transform ▸ Flip Horizontal')).toHaveCount(1);
     await expect(option(page, 'Tool: Magic Wand')).toHaveCount(1);
     await expect(option(page, 'Go to frame…')).toHaveCount(mode === 'pixel' ? 1 : 0);
 

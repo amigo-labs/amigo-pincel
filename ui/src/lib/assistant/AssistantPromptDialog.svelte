@@ -49,29 +49,33 @@
   onkeydown={onKeydown}
 >
   <form
-    class="flex max-h-full w-[36rem] max-w-full flex-col rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog flex max-h-full w-[36rem] max-w-full flex-col"
     onsubmit={(e) => {
       e.preventDefault();
       save();
     }}
   >
-    <p class="font-semibold">{t('assistant.promptTitle')}</p>
-    <label class="mt-3 flex min-h-0 flex-1 flex-col gap-1 text-xs text-pc-muted">
-      {t('assistant.promptLabel')}
-      <textarea
-        bind:this={field}
-        bind:value={draft}
-        class="opt-field h-80 min-h-0 w-full flex-1 resize-y py-1.5 font-mono text-xs"
-        spellcheck="false"></textarea>
-    </label>
-    <div class="mt-4 flex flex-wrap justify-end gap-2">
-      <button type="button" class="panel-btn mr-auto" onclick={reset}
+    <header>
+      <h2>{t('assistant.promptTitle')}</h2>
+    </header>
+    <div class="am-body flex min-h-0 flex-1 flex-col gap-3">
+      <label class="flex min-h-0 flex-1 flex-col gap-1 text-xs text-pc-muted">
+        {t('assistant.promptLabel')}
+        <textarea
+          bind:this={field}
+          bind:value={draft}
+          class="am-input h-80 min-h-0 w-full flex-1 resize-y py-1.5 font-mono text-xs"
+          spellcheck="false"></textarea>
+      </label>
+    </div>
+    <footer class="flex-wrap">
+      <button type="button" class="am-btn mr-auto" onclick={reset}
         >{t('assistant.promptReset')}</button
       >
-      <button type="button" class="panel-btn" onclick={onClose}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary" disabled={draft.trim() === ''}>
+      <button type="button" class="am-btn" onclick={onClose}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" disabled={draft.trim() === ''}>
         {t('assistant.promptSave')}
       </button>
-    </div>
+    </footer>
   </form>
 </div>

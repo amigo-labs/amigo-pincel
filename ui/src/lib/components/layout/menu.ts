@@ -12,6 +12,8 @@ export interface MenuAction {
   disabled?: boolean;
   /** Renders a check mark (toggles such as panel visibility). */
   checked?: boolean;
+  /** An action that removes something: drawn in the danger colour. */
+  danger?: boolean;
   run: () => void;
 }
 

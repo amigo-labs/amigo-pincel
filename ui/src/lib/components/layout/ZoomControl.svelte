@@ -27,14 +27,14 @@
 </script>
 
 <div
-  class="absolute right-3 bottom-3 z-20 flex items-center gap-0.5 rounded-md border border-pc-border bg-pc-panel/90 p-0.5 text-xs shadow-lg backdrop-blur"
+  class="absolute right-3 bottom-3 z-20 flex items-center gap-0.5 rounded-pc-control border border-pc-border bg-pc-panel/90 p-0.5 text-xs shadow-lg backdrop-blur"
   role="group"
   aria-label={t('zoom.label')}
 >
   <IconButton icon="zoom-out" label={t('zoom.out')} hint={hint('zoomOut')} size="sm" onclick={onZoomOut} disabled={!canZoomOut} />
   <button
     type="button"
-    class="h-6 min-w-12 rounded px-1 text-center tabular-nums hover:bg-pc-hover"
+    class="am-btn am-btn--ghost am-btn--sm min-w-12 px-1 tabular-nums"
     title={withHint(t('zoom.fit'), 'zoomFit')}
     aria-label={t('zoom.fit')}
     onclick={onFit}
@@ -44,7 +44,7 @@
   <IconButton icon="zoom-in" label={t('zoom.in')} hint={hint('zoomIn')} size="sm" onclick={onZoomIn} disabled={!canZoomIn} />
   <button
     type="button"
-    class="h-6 rounded px-1.5 hover:bg-pc-hover"
+    class="am-btn am-btn--ghost am-btn--sm px-1.5"
     title={withHint(t('zoom.actual'), 'zoomActual')}
     aria-label={t('zoom.actual')}
     onclick={onActual}

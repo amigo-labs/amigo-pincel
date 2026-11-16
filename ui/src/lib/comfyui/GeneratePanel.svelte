@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../range-fill';
   // The Generate panel of both editors (docs/specs/comfyui-generate.md,
   // comfyui-generate-pixel.md): prompt, model, LoRA, strength, variants and
   // seed; Generate / Cancel with the queue position, progress and live
@@ -112,8 +113,8 @@
   <div {@attach wake} class="flex flex-col gap-2 text-xs text-pc-muted">
     {#if issue !== null}
       <div class="flex flex-col gap-1.5" data-testid="generate-status">
-        <p role="status" class="text-pc-danger-text">{t(issue.key, issue.params)}</p>
-        <button type="button" class="panel-btn min-h-8 self-start" onclick={openImageGeneration}
+        <div role="status" class="am-banner am-banner--danger"><div><strong>{t(issue.key, issue.params)}</strong></div></div>
+        <button type="button" class="am-btn am-btn--sm self-start" onclick={openImageGeneration}
           >{t('gen.setUp')}</button
         >
       </div>
@@ -121,13 +122,13 @@
       <p role="status">{t('gen.checking')}</p>
     {/if}
     {#if genServer.gone !== null}
-      <p role="note" class="text-pc-accent-text">{t('gen.noLonger', { name: genServer.gone })}</p>
+      <div role="note" class="am-banner am-banner--warning"><div><strong>{t('gen.noLonger', { name: genServer.gone })}</strong></div></div>
     {/if}
 
     <label class="flex flex-col gap-1">
       <span>{t('gen.prompt')}</span>
       <textarea
-        class="opt-field min-h-16 py-1"
+        class="am-input am-input--sm min-h-16 py-1 w-auto h-auto"
         rows="3"
         aria-label={t('gen.prompt')}
         bind:value={genInput.prompt}
@@ -136,7 +137,7 @@
     <label class="flex flex-col gap-1">
       <span>{t('gen.negative')}</span>
       <textarea
-        class="opt-field min-h-10 py-1 disabled:opacity-50"
+        class="am-input am-input--sm min-h-10 py-1 w-auto h-auto"
         rows="2"
         aria-label={t('gen.negative')}
         disabled={family === 'flux'}
@@ -149,7 +150,7 @@
     <label class="flex items-center gap-2">
       <span class="w-20 shrink-0">{t('gen.model')}</span>
       <select
-        class="opt-field min-w-0 flex-1"
+        class="am-input am-input--sm min-w-0 flex-1"
         value={genSettings.model ?? ''}
         aria-label={t('gen.model')}
         disabled={models === null}
@@ -167,7 +168,7 @@
       <label class="flex items-center gap-2">
         <span class="w-20 shrink-0">{t('gen.modelType')}</span>
         <select
-          class="opt-field min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1"
           value={family}
           aria-label={t('gen.modelType')}
           onchange={(e) => setFamily(e.currentTarget.value)}
@@ -181,7 +182,7 @@
     <label class="flex items-center gap-2">
       <span class="w-20 shrink-0">{t('gen.lora')}</span>
       <select
-        class="opt-field min-w-0 flex-1"
+        class="am-input am-input--sm min-w-0 flex-1"
         value={genSettings.lora ?? ''}
         aria-label={t('gen.lora')}
         disabled={models === null}
@@ -203,11 +204,12 @@
         min="0"
         max="2"
         step="0.05"
-        class="min-w-0 flex-1"
+        class="am-range min-w-0 flex-1"
         aria-label={t('gen.loraStrength')}
         disabled={genSettings.lora === null}
         value={genSettings.loraStrength}
         onchange={(e) => setNumber('loraStrength', Number(e.currentTarget.value), 0, 2)}
+        use:rangeFill={genSettings.loraStrength}
       />
       <span class="w-9 text-right tabular-nums">{genSettings.loraStrength.toFixed(2)}</span>
     </label>
@@ -217,11 +219,12 @@
         type="range"
         min="1"
         max="100"
-        class="min-w-0 flex-1"
+        class="am-range min-w-0 flex-1"
         aria-label={t('gen.strength')}
         value={genSettings.strength}
         oninput={(e) => (genSettings.strength = Number(e.currentTarget.value))}
         onchange={(e) => setNumber('strength', Number(e.currentTarget.value), 1, 100)}
+        use:rangeFill={genSettings.strength}
       />
       <span class="w-9 text-right tabular-nums">{percent(genSettings.strength)}</span>
     </label>
@@ -231,7 +234,7 @@
         type="number"
         min="1"
         max="8"
-        class="opt-field w-16"
+        class="am-input am-input--sm w-16"
         aria-label={t('gen.variants')}
         value={genSettings.count}
         onchange={(e) => setNumber('count', Math.round(Number(e.currentTarget.value)), 1, 8)}
@@ -242,7 +245,7 @@
       <input
         type="text"
         inputmode="numeric"
-        class="opt-field min-w-0 flex-1"
+        class="am-input am-input--sm min-w-0 flex-1"
         class:border-pc-danger={!seedOk}
         placeholder={t('gen.seedRandom')}
         aria-label={t('gen.seed')}
@@ -254,30 +257,30 @@
       <div class="flex flex-col gap-1.5">
         <p role="status" class="text-pc-text" data-testid="generate-progress">{progressText()}</p>
         {#if gen.live}
-          <img src={gen.live} alt={t('gen.livePreview')} class="max-h-40 self-start rounded border border-pc-border" />
+          <img src={gen.live} alt={t('gen.livePreview')} class="max-h-40 self-start rounded-pc-control border border-pc-border" />
         {/if}
-        <button type="button" class="panel-btn min-h-8" onclick={() => key !== null && cancel(key)}>{t('gen.cancel')}</button>
+        <button type="button" class="am-btn am-btn--sm" onclick={() => key !== null && cancel(key)}>{t('gen.cancel')}</button>
       </div>
     {:else}
       <button
         type="button"
-        class="panel-btn panel-btn-primary min-h-8"
+        class="am-btn am-btn--sm am-btn--primary"
         disabled={!canGenerate}
         onclick={() => target && void generate(target)}>{t('gen.generate')}</button
       >
       {#if blocked === 'noVisibleColor'}
-        <p role="note" class="text-pc-danger-text">{t('gen.noVisibleColor')}</p>
+        <div role="note" class="am-banner am-banner--danger"><div><strong>{t('gen.noVisibleColor')}</strong></div></div>
       {/if}
     {/if}
 
     {#if gen?.error}
       {@const message = errorMessage(gen.error)}
-      <p role="alert" class="text-pc-danger-text">{t(message.key, message.params)}</p>
+      <div role="alert" class="am-banner am-banner--danger"><div><strong>{t(message.key, message.params)}</strong></div></div>
     {/if}
 
     {#if gen && gen.phase === 'done' && gen.variants.length > 0}
       {#if larger}
-        <p role="note" class="text-pc-accent-text">{t('gen.larger')}</p>
+        <div role="note" class="am-banner am-banner--warning"><div><strong>{t('gen.larger')}</strong></div></div>
       {/if}
       <div class="flex flex-wrap gap-1" role="listbox" aria-label={t('gen.strip')}>
         {#each gen.thumbs as src, i (src)}
@@ -286,7 +289,7 @@
             role="option"
             aria-selected={gen.selected === i}
             aria-label={t('gen.variant', { n: i + 1 })}
-            class="h-12 w-12 overflow-hidden rounded border-2"
+            class="h-12 w-12 overflow-hidden rounded-pc-control border-2"
             class:border-pc-accent={gen.selected === i}
             class:border-pc-border={gen.selected !== i}
             onclick={() => key !== null && selectVariant(key, i)}
@@ -303,10 +306,10 @@
         {/each}
       </div>
       <div class="flex gap-2">
-        <button type="button" class="panel-btn panel-btn-primary min-h-8 flex-1" onclick={() => target && apply(target)}
+        <button type="button" class="am-btn am-btn--sm am-btn--primary flex-1" onclick={() => target && apply(target)}
           >{t('gen.apply')}</button
         >
-        <button type="button" class="panel-btn min-h-8 flex-1" onclick={() => key !== null && discard(key)}
+        <button type="button" class="am-btn am-btn--sm flex-1" onclick={() => key !== null && discard(key)}
           >{t('gen.discard')}</button
         >
       </div>

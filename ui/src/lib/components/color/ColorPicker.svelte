@@ -194,7 +194,7 @@
 <div class="flex w-60 flex-col gap-2.5 text-xs text-pc-text">
   <div
     bind:this={area}
-    class="sv relative h-36 w-full cursor-crosshair touch-none rounded outline-none focus-visible:ring-2 focus-visible:ring-pc-accent"
+    class="sv relative h-36 w-full cursor-crosshair touch-none rounded"
     style:background-color={hueColor}
     role="slider"
     tabindex="0"
@@ -260,7 +260,7 @@
     <span class="w-8 text-pc-muted">{t('color.hex')}</span>
     <input
       type="text"
-      class="opt-field min-w-0 flex-1 font-mono"
+      class="am-input min-w-0 flex-1 font-mono"
       spellcheck="false"
       maxlength="9"
       bind:value={hexText}
@@ -286,7 +286,7 @@
           max="255"
           step="1"
           value={value[ch.key]}
-          class="opt-field w-full text-right tabular-nums"
+          class="am-input w-full px-1 text-right tabular-nums"
           onchange={(e) => commitChannel(ch.key, e.currentTarget)}
           onkeydown={(e) => {
             if (e.key === 'Enter') {
@@ -331,10 +331,6 @@
     height: 0.75rem;
     border-radius: 0.375rem;
     cursor: pointer;
-    outline: none;
-  }
-  .track:focus-visible {
-    box-shadow: 0 0 0 2px var(--color-pc-accent);
   }
   .hue {
     background: linear-gradient(

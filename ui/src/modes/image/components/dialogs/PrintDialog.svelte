@@ -16,11 +16,11 @@
 
 <Modal title={t('print.title')} applyLabel={t('print.print')} onApply={() => onPrint(placement)} {onClose}>
   <fieldset class="mb-4 flex flex-col gap-2">
-    <label class="flex items-center gap-2">
+    <label class="am-check flex items-center gap-2">
       <input type="radio" name="print-placement" value="fit" bind:group={placement} />
       <span>{t('print.fit')}</span>
     </label>
-    <label class="flex items-center gap-2">
+    <label class="am-check flex items-center gap-2">
       <input type="radio" name="print-placement" value="actual" bind:group={placement} />
       <span>{t('print.actual')}</span>
     </label>

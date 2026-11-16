@@ -50,48 +50,44 @@
   aria-modal="true"
   aria-labelledby="recovery-title"
 >
-  <div
-    class="flex w-full max-w-lg flex-col gap-4 rounded border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
-  >
+  <div class="am-dialog w-full max-w-lg">
     <header class="flex items-baseline justify-between">
-      <h2 id="recovery-title" class="text-base font-semibold">{t('recovery.title')}</h2>
+      <h2 id="recovery-title">{t('recovery.title')}</h2>
       <span class="text-xs text-pc-muted">
         {t('recovery.count', { count: snapshots.length })}
       </span>
     </header>
-    <p class="text-xs text-pc-muted">{t('recovery.body')}</p>
-    <ul class="flex flex-col gap-2">
-      {#each snapshots as snap (snap.docId)}
-        <li class="flex flex-col gap-1 rounded border border-pc-border bg-pc-bg px-3 py-2">
-          <div class="flex items-center justify-between gap-3">
+    <div class="am-body flex flex-col gap-3">
+      <p class="text-xs text-pc-muted">{t('recovery.body')}</p>
+      <ul class="am-list">
+        {#each snapshots as snap (snap.docId)}
+          <li class="am-item">
             <div class="flex min-w-0 flex-col">
-              <span class="truncate font-medium" title={snap.name}>
-                {snap.name}
-              </span>
-              <span class="text-xs text-pc-faint">
+              <span class="am-title" title={snap.name}>{snap.name}</span>
+              <span class="am-meta">
                 {t(`mode.${snap.mode ?? 'pixel'}`)} · {formatTimestamp(snap.ts)} · {formatBytes(
                   snap.byteLength,
                 )}
               </span>
             </div>
             <div class="flex shrink-0 gap-1">
-              <Button variant="primary" onclick={() => onRecover(snap)}>
-                {t('recovery.recover')}
-              </Button>
               <Button variant="danger" onclick={() => onDiscard(snap.docId)}>
                 {t('recovery.discard')}
               </Button>
+              <Button variant="primary" onclick={() => onRecover(snap)}>
+                {t('recovery.recover')}
+              </Button>
             </div>
-          </div>
-          {#if errors[snap.docId]}
-            <p class="text-xs text-rose-400" role="alert">
-              {errors[snap.docId]}
-            </p>
-          {/if}
-        </li>
-      {/each}
-    </ul>
-    <footer class="flex justify-end">
+            {#if errors[snap.docId]}
+              <p class="am-hint am-hint--error col-span-2" role="alert">
+                {errors[snap.docId]}
+              </p>
+            {/if}
+          </li>
+        {/each}
+      </ul>
+    </div>
+    <footer>
       <Button onclick={onDismiss}>{t('recovery.notNow')}</Button>
     </footer>
   </div>

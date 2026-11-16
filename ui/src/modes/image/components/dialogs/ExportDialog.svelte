@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../../../lib/range-fill';
   import { t } from '../../../../lib/i18n/index.svelte';
   // JPEG quality dialog: Export ▸ JPEG (spec §13.2) and the first JPEG Save
   // of a document (save-original-format). PNG/WebP are lossless and write
@@ -26,7 +27,7 @@
 >
   <label class="mb-3 flex items-center justify-between gap-2">
     <span class="text-pc-muted">{t('export.quality')}</span>
-    <input type="range" min="1" max="100" bind:value={quality} class="flex-1" />
+    <input type="range" min="1" max="100" bind:value={quality} class="am-range flex-1" use:rangeFill={quality} />
     <span class="w-8 text-right tabular-nums">{quality}</span>
   </label>
 </Modal>

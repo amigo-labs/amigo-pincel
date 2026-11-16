@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../range-fill';
   import { onMount } from 'svelte';
   import { toParams, type ParamDef } from '../effects/catalog';
   import { canvasPick } from '../effects/canvas-pick.svelte';
@@ -210,224 +211,227 @@
 
 <svelte:window onkeydown={onKeydown} onkeydowncapture={onTab} />
 
-<div
-  bind:this={root}
+<!-- Floating, the panel is the shared dialog (amigo-theme-controls AC-07);
+     in the phone's bottom sheet it keeps the sheet's dense rows. -->
+<div bind:this={root} class="flex min-h-0 flex-col" role="dialog" aria-modal="true" aria-labelledby="{uid}-title">
+<form
   class={[
-    'flex min-h-0 flex-col border-pc-border bg-pc-panel text-sm text-pc-text',
+    'flex min-h-0 flex-col',
     floating
-      ? 'rounded-lg border shadow-[0_8px_30px_rgb(0_0_0/0.5)]'
-      : 'rounded-t-lg border-t shadow-[0_-8px_30px_rgb(0_0_0/0.5)]',
+      ? 'am-dialog'
+      : 'rounded-t-lg border-t border-pc-border bg-pc-panel text-sm text-pc-text shadow-(--am-elev-3)',
   ]}
-  role="dialog"
-  aria-modal="true"
-  aria-labelledby="{uid}-title"
+  onsubmit={(e) => {
+    e.preventDefault();
+    onApply(params);
+  }}
 >
-  <form
-    class="flex min-h-0 flex-col"
-    onsubmit={(e) => {
-      e.preventDefault();
-      onApply(params);
-    }}
+  <!-- Title bar: drags the panel, arrow keys move it (AC-18, AC-20). -->
+  <header
+    class={[
+      'flex shrink-0 touch-none items-center gap-2 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pc-focus',
+      floating ? 'cursor-move rounded-t-pc-dialog' : 'h-9 px-3',
+    ]}
+    role="group"
+    aria-label={t('effectDlg.move')}
+    {@attach titleBar}
   >
-    <!-- Title bar: drags the panel, arrow keys move it (AC-18, AC-20). -->
-    <div
-      class="flex h-9 shrink-0 touch-none items-center gap-2 rounded-t-lg px-3 select-none focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-pc-accent"
-      class:cursor-move={floating}
-      role="group"
-      aria-label={t('effectDlg.move')}
-      {@attach titleBar}
-    >
-      <h2 id="{uid}-title" class="min-w-0 flex-1 truncate text-sm font-semibold">
-        {effectLabel(def)}
-      </h2>
-      <span class="text-xs text-pc-muted">
-        {hasSelection ? t('effectDlg.selection') : t('effectDlg.wholeLayer')}
-      </span>
-      <IconButton icon="close" label={t('common.close')} size="sm" onclick={onCancel} />
-    </div>
+    <h2 id="{uid}-title" class={['min-w-0 flex-1 truncate', !floating && 'text-sm font-semibold']}>
+      {effectLabel(def)}
+    </h2>
+    <span class="text-xs text-pc-muted">
+      {hasSelection ? t('effectDlg.selection') : t('effectDlg.wholeLayer')}
+    </span>
+    <IconButton icon="close" label={t('common.close')} size="sm" onclick={onCancel} />
+  </header>
 
-    <!-- The controls scroll when the panel does not fit; title bar and
-         buttons stay in view. -->
-    <div class="flex min-h-0 flex-col gap-3 overflow-y-auto px-3 pt-1 pb-1" bind:this={body}>
-      {#if def.params.length === 0}
-        <p class="text-xs text-pc-muted">{t('effectDlg.noParams')}</p>
-      {/if}
+  <!-- The controls scroll when the panel does not fit; title bar and
+       buttons stay in view. -->
+  <div
+    class={['flex min-h-0 flex-col gap-3 overflow-y-auto text-pc-text', floating ? 'am-body' : 'px-3 pt-1 pb-1']}
+    bind:this={body}
+  >
+    {#if def.params.length === 0}
+      <p class="text-xs text-pc-muted">{t('effectDlg.noParams')}</p>
+    {/if}
 
-      {#each def.params as p (p.key)}
-        {#if p.kind === 'number'}
-          <!-- Slider first in the DOM (focus order, effect-panel AC-06), shown
-               under the label / value row by the grid. -->
-          <label class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1.5 text-xs text-pc-text">
-            <span class="col-start-1 row-start-1">{fxText(p.label)}</span>
-            <input
-              type="range"
-              min={p.min}
-              max={p.max}
-              step={p.step}
-              bind:value={values[p.key]}
-              class="col-span-2 row-start-2 w-full cursor-pointer"
-              aria-label={fxText(p.label)}
-            />
+    {#each def.params as p (p.key)}
+      {#if p.kind === 'number'}
+        <!-- Slider first in the DOM (focus order, effect-panel AC-06), shown
+             under the label / value row by the grid. -->
+        <label class="grid grid-cols-[1fr_auto] items-center gap-x-2 gap-y-1.5 text-xs text-pc-text">
+          <span class="col-start-1 row-start-1">{fxText(p.label)}</span>
+          <input
+            type="range"
+            min={p.min}
+            max={p.max}
+            step={p.step}
+            bind:value={values[p.key]}
+            class="am-range col-span-2 row-start-2 w-full"
+            aria-label={fxText(p.label)}
+            use:rangeFill={values[p.key]}
+          />
+          <input
+            type="number"
+            min={p.min}
+            max={p.max}
+            step={p.step}
+            value={values[p.key]}
+            oninput={(e) => typeNumber(p, e.currentTarget, false)}
+            onchange={(e) => typeNumber(p, e.currentTarget, true)}
+            class="am-input col-start-2 row-start-1 w-16 text-right tabular-nums"
+            aria-label={t('effectDlg.value', { label: fxText(p.label) })}
+          />
+        </label>
+      {:else if p.kind === 'bool'}
+        <label class="am-check flex items-center gap-2 text-xs text-pc-text">
+          <input
+            type="checkbox"
+            checked={values[p.key] !== 0}
+            onchange={(e) => (values[p.key] = e.currentTarget.checked ? 1 : 0)}
+          />
+          <span>{fxText(p.label)}</span>
+        </label>
+      {:else if p.kind === 'angle'}
+        <div class="flex flex-col gap-1 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <AngleDial
+            value={values[p.key] ?? p.default}
+            label={fxText(p.label)}
+            onchange={(v) => (values[p.key] = v)}
+          />
+        </div>
+      {:else if p.kind === 'point'}
+        <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+          <legend>{fxText(p.label)}</legend>
+          <span class="flex items-center gap-2">
+            {#each [{ key: p.xKey, label: p.xLabel }, { key: p.yKey, label: p.yLabel }] as axis (axis.key)}
+              <label class="flex items-center gap-1">
+                <span>{fxText(axis.label)}</span>
+                <input
+                  type="number"
+                  min="0"
+                  max="100"
+                  step="0.1"
+                  bind:value={values[axis.key]}
+                  class="am-input w-16 text-right tabular-nums"
+                  aria-label={t('effectDlg.percent', { label: fxText(axis.label) })}
+                />
+                <span class="text-pc-faint">%</span>
+              </label>
+            {/each}
+          </span>
+          <button
+            type="button"
+            class="am-btn self-start"
+            aria-pressed={picking === p.key}
+            onclick={() => (picking === p.key ? stopPicking() : startPicking(p))}
+          >
+            {t('effectDlg.pick')}
+          </button>
+          {#if picking === p.key}
+            <span class="text-pc-muted" role="status">
+              {t('effectDlg.picking', { label: fxText(p.label) })}
+            </span>
+          {/if}
+        </fieldset>
+      {:else if p.kind === 'color'}
+        <EffectColorField
+          value={values[p.key] ?? 0}
+          label={fxText(p.label)}
+          onchange={(v) => (values[p.key] = v)}
+        />
+      {:else if p.kind === 'seed'}
+        <div class="flex items-center justify-between gap-2 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <span class="flex items-center gap-2">
             <input
               type="number"
               min={p.min}
               max={p.max}
-              step={p.step}
-              value={values[p.key]}
-              oninput={(e) => typeNumber(p, e.currentTarget, false)}
-              onchange={(e) => typeNumber(p, e.currentTarget, true)}
-              class="opt-field col-start-2 row-start-1 w-16 text-right tabular-nums"
+              step="1"
+              bind:value={values[p.key]}
+              class="am-input w-16 text-right tabular-nums"
               aria-label={t('effectDlg.value', { label: fxText(p.label) })}
             />
-          </label>
-        {:else if p.kind === 'bool'}
-          <label class="flex items-center gap-2 text-xs text-pc-text">
-            <input
-              type="checkbox"
-              checked={values[p.key] !== 0}
-              onchange={(e) => (values[p.key] = e.currentTarget.checked ? 1 : 0)}
-            />
-            <span>{fxText(p.label)}</span>
-          </label>
-        {:else if p.kind === 'angle'}
-          <div class="flex flex-col gap-1 text-xs text-pc-text">
-            <span>{fxText(p.label)}</span>
-            <AngleDial
-              value={values[p.key] ?? p.default}
-              label={fxText(p.label)}
-              onchange={(v) => (values[p.key] = v)}
-            />
-          </div>
-        {:else if p.kind === 'point'}
-          <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-            <legend>{fxText(p.label)}</legend>
-            <span class="flex items-center gap-2">
-              {#each [{ key: p.xKey, label: p.xLabel }, { key: p.yKey, label: p.yLabel }] as axis (axis.key)}
-                <label class="flex items-center gap-1">
-                  <span>{fxText(axis.label)}</span>
-                  <input
-                    type="number"
-                    min="0"
-                    max="100"
-                    step="0.1"
-                    bind:value={values[axis.key]}
-                    class="opt-field w-16 text-right tabular-nums"
-                    aria-label={t('effectDlg.percent', { label: fxText(axis.label) })}
-                  />
-                  <span class="text-pc-faint">%</span>
-                </label>
-              {/each}
-            </span>
-            <button
-              type="button"
-              class="panel-btn self-start"
-              aria-pressed={picking === p.key}
-              onclick={() => (picking === p.key ? stopPicking() : startPicking(p))}
-            >
-              {t('effectDlg.pick')}
+            <button type="button" class="am-btn" onclick={() => reseed(p)}>
+              {t('effectDlg.reseed')}
             </button>
-            {#if picking === p.key}
-              <span class="text-pc-muted" role="status">
-                {t('effectDlg.picking', { label: fxText(p.label) })}
-              </span>
-            {/if}
-          </fieldset>
-        {:else if p.kind === 'color'}
-          <EffectColorField
-            value={values[p.key] ?? 0}
-            label={fxText(p.label)}
-            onchange={(v) => (values[p.key] = v)}
-          />
-        {:else if p.kind === 'seed'}
-          <div class="flex items-center justify-between gap-2 text-xs text-pc-text">
-            <span>{fxText(p.label)}</span>
+          </span>
+        </div>
+      {:else if p.kind === 'pair'}
+        <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+          <legend>{fxText(p.label)}</legend>
+          {#each ['first', 'second'] as const as side (side)}
+            {@const part = p[side]}
             <span class="flex items-center gap-2">
+              <span class="w-12">{fxText(part.label)}</span>
+              <input
+                type="range"
+                min={p.min}
+                max={p.max}
+                step={p.step}
+                value={values[part.key]}
+                oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
+                class="am-range flex-1"
+                aria-label={fxText(part.label)}
+                use:rangeFill={values[part.key]}
+              />
               <input
                 type="number"
                 min={p.min}
                 max={p.max}
-                step="1"
-                bind:value={values[p.key]}
-                class="opt-field w-16 text-right tabular-nums"
-                aria-label={t('effectDlg.value', { label: fxText(p.label) })}
+                step={p.step}
+                value={values[part.key]}
+                oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
+                class="am-input w-16 text-right tabular-nums"
+                aria-label={t('effectDlg.value', { label: fxText(part.label) })}
               />
-              <button type="button" class="panel-btn" onclick={() => reseed(p)}>
-                {t('effectDlg.reseed')}
-              </button>
             </span>
-          </div>
-        {:else if p.kind === 'pair'}
-          <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-            <legend>{fxText(p.label)}</legend>
-            {#each ['first', 'second'] as const as side (side)}
-              {@const part = p[side]}
-              <span class="flex items-center gap-2">
-                <span class="w-12">{fxText(part.label)}</span>
-                <input
-                  type="range"
-                  min={p.min}
-                  max={p.max}
-                  step={p.step}
-                  value={values[part.key]}
-                  oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
-                  class="flex-1 cursor-pointer"
-                  aria-label={fxText(part.label)}
-                />
-                <input
-                  type="number"
-                  min={p.min}
-                  max={p.max}
-                  step={p.step}
-                  value={values[part.key]}
-                  oninput={(e) => setPair(p, side, e.currentTarget.valueAsNumber)}
-                  class="opt-field w-16 text-right tabular-nums"
-                  aria-label={t('effectDlg.value', { label: fxText(part.label) })}
-                />
-              </span>
-            {/each}
-            <label class="flex items-center gap-2">
-              <input
-                type="checkbox"
-                checked={values[p.linkKey] !== 0}
-                onchange={() => toggleLink(p)}
-              />
-              <span>
-                {t('effectDlg.link', { a: fxText(p.first.label), b: fxText(p.second.label) })}
-              </span>
-            </label>
-          </fieldset>
-        {:else}
-          <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
-            <span>{fxText(p.label)}</span>
-            <select
-              value={values[p.key]}
-              onchange={(e) => (values[p.key] = Number(e.currentTarget.value))}
-              class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-              aria-label={fxText(p.label)}
-            >
-              {#each p.options as opt, i (opt)}
-                <option value={i}>{fxText(opt)}</option>
-              {/each}
-            </select>
+          {/each}
+          <label class="am-check flex items-center gap-2">
+            <input
+              type="checkbox"
+              checked={values[p.linkKey] !== 0}
+              onchange={() => toggleLink(p)}
+            />
+            <span>
+              {t('effectDlg.link', { a: fxText(p.first.label), b: fxText(p.second.label) })}
+            </span>
           </label>
-        {/if}
-      {/each}
-    </div>
+        </fieldset>
+      {:else}
+        <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
+          <span>{fxText(p.label)}</span>
+          <select
+            value={values[p.key]}
+            onchange={(e) => (values[p.key] = Number(e.currentTarget.value))}
+            class="am-input w-auto"
+            aria-label={fxText(p.label)}
+          >
+            {#each p.options as opt, i (opt)}
+              <option value={i}>{fxText(opt)}</option>
+            {/each}
+          </select>
+        </label>
+      {/if}
+    {/each}
+  </div>
 
-    <footer class="flex shrink-0 items-center justify-between gap-2 px-3 pt-2 pb-3">
-      <label class="flex items-center gap-1 text-xs text-pc-muted">
-        <input type="checkbox" bind:checked={session.preview} />
-        <span>{t('effectDlg.preview')}</span>
-      </label>
-      <span class="flex gap-2">
-        <button type="button" class="panel-btn" onclick={reset} disabled={def.params.length === 0}>
-          {t('effectDlg.reset')}
-        </button>
-        <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-        <button type="submit" class="panel-btn panel-btn-primary" bind:this={okButton}>
-          {t('common.ok')}
-        </button>
-      </span>
-    </footer>
-  </form>
+  <footer class={['flex shrink-0 items-center gap-2', !floating && 'justify-between px-3 pt-2 pb-3']}>
+    <label class="am-check mr-auto flex items-center gap-1 text-xs text-pc-muted">
+      <input type="checkbox" bind:checked={session.preview} />
+      <span>{t('effectDlg.preview')}</span>
+    </label>
+    <span class="flex gap-2">
+      <button type="button" class="am-btn" onclick={reset} disabled={def.params.length === 0}>
+        {t('effectDlg.reset')}
+      </button>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" bind:this={okButton}>
+        {t('common.ok')}
+      </button>
+    </span>
+  </footer>
+</form>
 </div>

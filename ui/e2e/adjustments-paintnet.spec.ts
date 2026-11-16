@@ -32,7 +32,10 @@ async function adjustments(page: Page, top: string): Promise<string[]> {
   await page.getByRole('menubar').getByRole('menuitem', { name: top, exact: true }).click();
   const list = page.getByRole('menu', { name: top, exact: true });
   await expect(list).toBeVisible();
-  const rows = await list.locator('[role="menuitem"] > span.flex-1').allTextContents();
+  const rows = await list.getByRole('menuitem').evaluateAll((els) =>
+    // The item's text without its shortcut key cap.
+    els.map((el) => [...el.childNodes].filter((n) => n.nodeName !== 'KBD').map((n) => n.textContent).join('')),
+  );
   await page.keyboard.press('Escape');
   return rows.map((r) => r.trim());
 }

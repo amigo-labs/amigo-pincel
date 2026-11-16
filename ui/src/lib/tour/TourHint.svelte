@@ -20,12 +20,12 @@
   <div class="flex min-w-0 items-center gap-1.5 text-xs text-pc-text" role="status">
     <span class="min-w-0 truncate">{mode === 'pixel' ? t('tour.hintPixel') : t('tour.hintImage')}</span>
     <button
-      class="panel-btn panel-btn-primary shrink-0 py-0.5"
+      class="am-btn am-btn--primary am-btn--sm shrink-0"
       onclick={() => {
         shown = false;
         startTour(mode);
       }}>{t('tour.hintTake')}</button
     >
-    <button class="panel-btn shrink-0 py-0.5" onclick={() => (shown = false)}>{t('tour.hintClose')}</button>
+    <button class="am-btn am-btn--sm shrink-0" onclick={() => (shown = false)}>{t('tour.hintClose')}</button>
   </div>
 {/if}
