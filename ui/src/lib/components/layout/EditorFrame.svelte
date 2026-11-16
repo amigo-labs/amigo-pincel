@@ -13,7 +13,7 @@
   // While an Assistant answer runs, the tool rail, options bar, tab bar,
   // quick actions and every menu but View are inert (ai-chat-panel AC-10);
   // the canvas still zooms and pans, the panels stay usable.
-  import { onMount, tick, type Snippet } from 'svelte';
+  import { onMount, tick, untrack, type Snippet } from 'svelte';
   import AgentIndicator from '../../agent/AgentIndicator.svelte';
   import { assistantBusy } from '../../assistant/chat.svelte';
   import Icon from '../icons/Icon.svelte';
@@ -27,6 +27,7 @@
     SIDEBAR_MIN_WIDTH,
     effectPanelPos,
     loadLayout,
+    panelRequest,
     saveLayout,
     sidebarMaxWidth,
     sidebarWidth,
@@ -164,6 +165,26 @@
 
   function toggleCollapsed(p: PanelDef): void {
     layout.collapsed[p.id] = !isCollapsed(p);
+    saveLayout(mode, layout);
+  }
+
+  // A request to show a panel (`expandPanel`): expanded, and visible in
+  // the sidebar, the drawer or the bottom sheet.
+  let seenRequest = panelRequest.n;
+  $effect(() => {
+    const { n, mode: requested, id } = panelRequest;
+    if (n === seenRequest) return;
+    seenRequest = n;
+    if (requested === mode) untrack(() => revealPanel(id));
+  });
+
+  function revealPanel(id: string): void {
+    const p = panels.find((def) => def.id === id);
+    if (p === undefined) return;
+    if (isCollapsed(p)) layout.collapsed[id] = false;
+    if (size === 'wide') layout.sidebar = true;
+    else if (size === 'medium') drawerOpen = true;
+    else sheetTab = id;
     saveLayout(mode, layout);
   }
 

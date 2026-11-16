@@ -5,7 +5,7 @@
   // tree, each header directly above its children
   // (docs/specs/image-layer-groups.md).
   import { editor } from '../../stores/editor.svelte';
-  import type { BlendMode } from '../../core/wasm';
+  import type { BlendMode, LayerGenerationInfo } from '../../core/wasm';
   import { canDeleteLayer, canMergeDown, treeOrder } from '../../core/layer-tree';
   import {
     addGroup,
@@ -25,7 +25,8 @@
     setLayerVisible,
   } from '../../core/controller';
   import LayersPanel from '../../../../lib/components/layers/LayersPanel.svelte';
-  import { blendOptions, type LayerRow } from '../../../../lib/components/layers/layers';
+  import { blendOptions, type LayerGeneration, type LayerRow } from '../../../../lib/components/layers/layers';
+  import { generationUser } from '../../../../lib/comfyui/use-generation';
   import { t } from '../../../../lib/i18n/index.svelte';
 
   const BLEND_MODES: BlendMode[] = [
@@ -43,6 +44,20 @@
     'exclusion',
   ];
   const blendModes = $derived(blendOptions(BLEND_MODES));
+  const useGeneration = generationUser('image');
+
+  function generationRow(g: LayerGenerationInfo): LayerGeneration {
+    return {
+      prompt: g.prompt,
+      negative: g.negative,
+      model: g.model,
+      lora: g.lora,
+      loraStrength: g.lora_strength,
+      strength: g.strength,
+      seed: g.seed,
+      text: g.text,
+    };
+  }
 
   // Top-most first, every group directly above its children.
   const rows = $derived<LayerRow[]>(
@@ -63,6 +78,7 @@
           depth: l.depth,
           isGroup,
           ...(isGroup ? { badge: t('layers.kind.group') } : {}),
+          ...(l.generation ? { generation: generationRow(l.generation) } : {}),
         },
       ];
     }),
@@ -128,4 +144,5 @@
   onDelete={() => deleteLayer(editor.activeLayer)}
   onMergeVisible={mergeVisible}
   onFlatten={flattenImage}
+  onUseGeneration={useGeneration}
 />
