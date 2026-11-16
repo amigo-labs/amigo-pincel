@@ -62,7 +62,12 @@ async function themeColor(page: Page, token: string): Promise<Rgba> {
 test('the slider rail reaches 3:1 against the panel', async ({ page }) => {
   await createDocument(page, 'pixel');
   const panel = await themeColor(page, 'panel');
-  const track = await themeColor(page, 'track');
+  // The rail is the shared slider's (amigo-theme-controls AC-04): border-strong.
+  const track = parseColor(
+    await page.evaluate(() =>
+      getComputedStyle(document.documentElement).getPropertyValue('--am-border-strong').trim(),
+    ),
+  );
   expect(contrast(track, panel)).toBeGreaterThanOrEqual(3);
 });
 
