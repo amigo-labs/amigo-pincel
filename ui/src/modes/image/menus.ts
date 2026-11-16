@@ -221,6 +221,7 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
         {
           label: t('menu.deleteLayer'),
+          danger: true,
           shortcut: hint('deleteLayer'),
           disabled: !c.canDeleteLayer,
           run: c.deleteLayer,

@@ -44,7 +44,7 @@ async function menuPaths(page: Page): Promise<string[]> {
     const count = await rows.count();
     for (let i = 0; i < count; i += 1) {
       const row = rows.nth(i);
-      const label = ((await row.locator('span.flex-1').textContent()) ?? '').trim();
+      const label = ((await row.locator('.am-menu-label').textContent()) ?? '').trim();
       if ((await row.getAttribute('aria-haspopup')) === 'menu') {
         // A disabled submenu (an empty Open Recent) has nothing to list.
         if (await row.isDisabled()) continue;

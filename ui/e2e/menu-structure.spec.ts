@@ -37,15 +37,15 @@ async function tops(page: Page): Promise<string[]> {
 }
 
 const ROWS =
-  ':scope > [role="menuitem"], :scope > [role="menuitemcheckbox"], :scope > [role="separator"]';
+  ':scope > [role="menuitem"], :scope > [role="menuitemcheckbox"], :scope > hr';
 
 /** Labels of an open menu's rows, separators as `—`. */
 async function rowLabels(menuEl: Locator): Promise<string[]> {
   return menuEl.locator(ROWS).evaluateAll((els) =>
     els.map((el) =>
-      el.getAttribute('role') === 'separator'
+      el.tagName === 'HR'
         ? '—'
-        : (el.querySelector('span.flex-1')?.textContent ?? '').trim(),
+        : (el.querySelector('.am-menu-label')?.textContent ?? '').trim(),
     ),
   );
 }
@@ -82,7 +82,7 @@ async function entriesByMenu(page: Page): Promise<Map<string, string[]>> {
     const count = await rows.count();
     for (let i = 0; i < count; i += 1) {
       const row = rows.nth(i);
-      const label = ((await row.locator('span.flex-1').textContent()) ?? '').trim();
+      const label = ((await row.locator('.am-menu-label').textContent()) ?? '').trim();
       into.push([...path, label].join(' ▸ '));
       if ((await row.getAttribute('aria-haspopup')) === 'menu' && !(await row.isDisabled())) {
         await row.click();
@@ -194,7 +194,7 @@ test.describe('browser', () => {
       .getByRole('menuitemcheckbox', { name: 'Frame-Time Probe' });
     await openHelp();
     await expect(item).toHaveAttribute('aria-checked', 'false');
-    await expect(item.locator('span[aria-hidden="true"]').last()).toHaveText('F2');
+    await expect(item.locator('kbd')).toHaveText('F2');
     await item.click();
     await expect(page.getByText(/fps · compose/)).toBeVisible();
     await openHelp();

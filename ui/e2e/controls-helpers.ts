@@ -101,7 +101,8 @@ export async function pickTheme(page: Page, name: Palette | 'System'): Promise<v
   await settings
     .getByRole('radiogroup', { name: 'Theme' })
     .getByRole('radio', { name, exact: true })
-    .check();
+    // The radio is hidden inside its segment: the press lands on its label.
+    .check({ force: true });
   await expect.poll(() => storedPref(page, 'theme')).toBe(name.toLowerCase());
   await settings.getByRole('button', { name: 'Close' }).click();
   await expect(settings).toBeHidden();

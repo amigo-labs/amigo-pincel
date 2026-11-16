@@ -204,7 +204,7 @@ export async function menuHint(page: Page, top: string, ...path: string[]): Prom
     .getByRole('menu', { name: scope, exact: true })
     .getByRole('menuitem', { name: path.at(-1) ?? '', exact: true });
   await item.waitFor();
-  const hints = await item.locator('span[aria-hidden="true"]').allTextContents();
+  const hints = await item.locator('kbd').allTextContents();
   for (let i = 0; i < path.length && (await page.getByRole('menu').count()) > 0; i += 1) {
     await page.keyboard.press('Escape');
   }

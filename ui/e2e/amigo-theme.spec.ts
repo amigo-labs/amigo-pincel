@@ -107,7 +107,8 @@ function themeChoice(page: Page, name: string): Locator {
 /** Picks a theme in Settings and closes the dialog; waits for the pref. */
 async function pickTheme(page: Page, name: 'Dark' | 'Light' | 'System'): Promise<void> {
   await page.keyboard.press('Control+,');
-  await themeChoice(page, name).check();
+  await // The radio itself is hidden inside its segment: the press lands on its label.
+  await themeChoice(page, name).check({ force: true });
   await expect.poll(() => storedPref(page, 'theme')).toBe(name.toLowerCase());
   await settings(page).getByRole('button', { name: 'Close' }).click();
   await expect(settings(page)).toBeHidden();
@@ -345,7 +346,12 @@ for (const mode of ['pixel', 'image'] as const) {
       settings(page).getByRole('combobox', { name: 'Language' }),
       'surface-raised',
     );
-    await expectFill(page, themeChoice(page, 'Dark'), 'accent-solid');
+    // The theme choice is a segmented control: the selected segment is raised on `surface`.
+    await expectFill(
+      page,
+      settings(page).getByRole('radiogroup', { name: 'Theme' }).locator('label').filter({ hasText: 'Dark' }),
+      'surface',
+    );
   });
 
   test(`${mode}: nothing keeps the former accent blue (AC-03)`, async ({ page }) => {
@@ -510,7 +516,7 @@ test('Settings shows Theme with Dark selected, and a pick applies at once and is
   const themeColor = page.locator('meta[name="theme-color"]');
   await expect(themeColor).toHaveAttribute('content', DARK_BG);
 
-  await themeChoice(page, 'Light').check();
+  await themeChoice(page, 'Light').check({ force: true });
   // The editor and the open dialog switch without a reload.
   expect(await token(page, 'bg')).toBe(LIGHT_BG);
   await expectFill(page, page.locator('body'), 'bg');
@@ -790,17 +796,16 @@ for (const mode of MODES) {
         .getByRole('menu', { name: 'Edit', exact: true })
         .getByRole('menuitem', { name: 'Copy', exact: true });
       await check(copy, 'menu item');
-      await check(copy.locator('.text-pc-faint').first(), 'menu shortcut');
+      await check(copy.locator('kbd'), 'menu shortcut');
       await copy.hover();
       await check(copy, 'hovered menu item');
-      await check(copy.locator('.text-pc-faint').first(), 'hovered menu shortcut');
+      await check(copy.locator('kbd'), 'hovered menu shortcut');
       await page.keyboard.press('Escape');
 
       await page.keyboard.press('Control+,');
       await check(settings(page).getByRole('combobox', { name: 'Language' }), 'field text');
       await checkOutline(settings(page).getByRole('combobox', { name: 'Language' }), 'field outline');
       await check(settings(page).getByRole('button', { name: 'Close' }), 'default button');
-      await checkOutline(themeChoice(page, palette === 'Dark' ? 'Light' : 'Dark'), 'radio outline');
       await settings(page).getByRole('button', { name: 'Close' }).click();
 
       await menu(page, 'File', 'New…');
@@ -1080,7 +1085,7 @@ test('a choice that cannot be stored applies until the app is closed (AC-15)', a
   });
   await gotoStart(page);
   await page.keyboard.press('Control+,');
-  await themeChoice(page, 'Light').check();
+  await themeChoice(page, 'Light').check({ force: true });
   expect(await token(page, 'bg')).toBe(LIGHT_BG);
   await settings(page).getByRole('button', { name: 'Close' }).click();
   expect(await token(page, 'bg')).toBe(LIGHT_BG);

@@ -276,16 +276,20 @@ for (const palette of PALETTES) {
     await motion.check();
     await expectOn(motion, 'checkbox', 'Reduce motion');
     await motion.uncheck();
-    const theme = settings(page).getByRole('radiogroup', { name: 'Theme' });
-    await expectOn(theme.getByRole('radio', { name: palette, exact: true }), 'radio', 'theme radio');
-    await expectOff(theme.getByRole('radio', { name: 'System', exact: true }), 'theme radio');
-    expect((await lookOf(theme.getByRole('radio', { name: 'System', exact: true }))).radius).toBe(
-      await tokenValue(page, 'radius-full'),
-    );
     await page.keyboard.press('Escape');
 
     // Image mode's tool options.
     await createDocument(page, 'image', { width: 16, height: 16 });
+    // Radios: the size mode of Scale Image.
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+    await page.getByRole('menu', { name: 'Image', exact: true }).getByRole('menuitem', { name: 'Scale Image…' }).click();
+    const scale = page.getByRole('dialog', { name: 'Scale Image' });
+    await expectOn(scale.getByRole('radio', { checked: true }), 'radio', 'size mode');
+    const other = scale.getByRole('radio', { checked: false }).first();
+    await expectOff(other, 'size mode');
+    expect((await lookOf(other)).radius).toBe(await tokenValue(page, 'radius-full'));
+    await scale.getByRole('button', { name: 'Cancel' }).click();
+    await expect(scale).toBeHidden();
     const box = toolOptions(page).getByRole('checkbox').first();
     const kind = (await box.isChecked()) ? expectOn(box, 'checkbox', 'image tool option') : expectOff(box, 'image tool option');
     await kind;
@@ -415,6 +419,141 @@ for (const palette of PALETTES) {
   });
 }
 
+const MENU_ALONE = `
+  <div id="menu" class="am-menu">
+    <button id="item"><span class="am-menu-label">Copy</span><kbd id="kbd" class="am-kbd">Ctrl+C</kbd></button>
+    <button id="item-off" disabled><span class="am-menu-label">Paste</span></button>
+    <button id="item-danger" class="am-danger"><span class="am-menu-label">Delete</span></button>
+  </div>
+  <div id="seg" class="am-seg"><label id="seg-on"><input type="radio" name="s" checked />Dark</label><label id="seg-off"><input type="radio" name="s" />Light</label></div>
+  <div id="seg-sm" class="am-seg am-seg--sm"><button id="seg-sm-on" role="radio" aria-checked="true">A</button><button id="seg-sm-off" role="radio" aria-checked="false">B</button></div>
+`;
+
+for (const palette of PALETTES) {
+  test(`${palette}: the tool variants and the theme choice are the shared segmented control (AC-05)`, async ({
+    page,
+  }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const alone = await sharedPage(page, palette, MENU_ALONE);
+    const same = async (el: Locator, id: string): Promise<void> => {
+      const want = await stateOf(alone.locator(`#${id}`));
+      const pick = (s: State): unknown => ({ fill: s.fill, text: s.text, radius: s.radius, height: s.height, shadow: s.shadow });
+      await expect.poll(async () => pick(await stateOf(el)), `against the shared #${id}`).toEqual(pick(want));
+    };
+
+    // The variants of the active tool group, in the options bar (24 px).
+    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: /^Marquee/ }).click();
+    const variants = toolOptions(page).getByRole('radiogroup');
+    await expect(variants).toBeVisible();
+    const box = await lookOf(variants);
+    expect(box.height, 'dense').toBe(24);
+    expect(box.fill).toBe(await tokenColor(page, 'surface-raised'));
+    expect(box.edge).toBe(await tokenColor(page, 'border'));
+    const on = variants.getByRole('radio', { checked: true });
+    await expect(on).toHaveCount(1);
+    await same(on, 'seg-sm-on');
+    expect((await stateOf(on)).fill, 'selected segment raised on surface').toBe(await tokenColor(page, 'surface'));
+    const label = await variants.getByRole('radio', { checked: false }).first().getAttribute('aria-label');
+    const off = variants.getByRole('radio', { name: label ?? '', exact: true });
+    await same(off, 'seg-sm-off');
+    // The keyboard still moves the choice; a click picks.
+    await off.click();
+    await expect(off).toBeChecked();
+    await same(off, 'seg-sm-on');
+
+    // The theme choice in Settings (32 px).
+    await page.keyboard.press('Control+,');
+    const theme = settings(page).getByRole('radiogroup', { name: 'Theme' });
+    const segments = theme.locator('.am-seg');
+    expect((await lookOf(segments)).height).toBe(32);
+    expect((await lookOf(segments)).fill).toBe(await tokenColor(page, 'surface-raised'));
+    await same(theme.locator('label').filter({ hasText: palette }), 'seg-on');
+    await same(theme.locator('label').filter({ hasText: 'System' }), 'seg-off');
+    await expect(theme.getByRole('radio', { name: palette, exact: true })).toBeChecked();
+    await alone.close();
+  });
+
+  test(`${palette}: menus from the menu bar, context menus and tool flyouts are the shared menu (AC-06)`, async ({
+    page,
+  }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const alone = await sharedPage(page, palette, MENU_ALONE);
+    const menuLook = async (el: Locator): Promise<unknown> => {
+      const s = await stateOf(el);
+      return { fill: s.fill, edge: s.edge, radius: s.radius, shadow: s.shadow };
+    };
+    const itemLook = async (el: Locator): Promise<unknown> => {
+      const s = await stateOf(el);
+      return { fill: s.fill, text: s.text, radius: s.radius, height: s.height };
+    };
+    const wantMenu = await menuLook(alone.locator('#menu'));
+    const wantItem = await itemLook(alone.locator('#item'));
+    expect((wantMenu as { radius: string }).radius).toBe(await tokenValue(page, 'radius-md'));
+
+    // A menu of the menu bar.
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Edit', exact: true }).click();
+    const edit = page.getByRole('menu', { name: 'Edit', exact: true });
+    await page.mouse.move(0, 0);
+    expect(await menuLook(edit), 'Edit menu').toEqual(wantMenu);
+    expect((await stateOf(edit)).fill).toBe(await tokenColor(page, 'surface'));
+    const copy = edit.getByRole('menuitem', { name: 'Copy', exact: true });
+    expect(await itemLook(copy), 'item').toEqual(wantItem);
+    // The shortcut is a key cap at the right end.
+    const cap = copy.locator('kbd');
+    await expect(cap).toHaveText(/C$/);
+    const capLook = await lookOf(cap);
+    expect({ ...capLook, height: 0 }).toEqual({ ...(await lookOf(alone.locator('#kbd'))), height: 0 });
+    const capBox = await cap.boundingBox();
+    const copyBox = await copy.boundingBox();
+    if (!capBox || !copyBox) throw new Error('no item');
+    expect(copyBox.x + copyBox.width - (capBox.x + capBox.width), 'key cap at the right').toBeLessThanOrEqual(8);
+    // A disabled item: muted, and no fill under the pointer.
+    const disabled = edit.locator('button:disabled').first();
+    await expect(disabled).toBeVisible();
+    expect((await stateOf(disabled)).text, 'disabled item').toBe(await tokenColor(page, 'text-muted'));
+    await disabled.hover({ force: true });
+    expect((await stateOf(disabled)).fill, 'disabled item under the pointer').toBe(TRANSPARENT);
+    await copy.hover();
+    await expect.poll(async () => (await stateOf(copy)).fill, 'hovered item').toBe(await tokenColor(page, 'hover'));
+    await page.keyboard.press('Escape');
+
+    // A destructive item.
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Layer', exact: true }).click();
+    const del = page.getByRole('menu', { name: 'Layer', exact: true }).getByRole('menuitem', { name: 'Delete Layer' });
+    await page.mouse.move(0, 0);
+    const danger = await stateOf(del);
+    expect(await del.isDisabled() ? await tokenColor(page, 'text-muted') : await tokenColor(page, 'danger-ink')).toBe(
+      danger.text,
+    );
+    await expect(del).toHaveClass(/am-danger/);
+    await page.keyboard.press('Escape');
+
+    // A context menu (the palette's) and a tool flyout.
+    await sidebar(page).getByRole('button', { name: 'Palette options' }).click();
+    const more = page.getByRole('menu', { name: 'Palette options' });
+    await page.mouse.move(0, 0);
+    expect(await menuLook(more), 'palette menu').toEqual(wantMenu);
+    expect(await itemLook(more.getByRole('menuitem').first()), 'palette menu item').toEqual(wantItem);
+    // The menu takes Escape while the focus is in it.
+    await more.getByRole('menuitem').first().focus();
+    await page.keyboard.press('Escape');
+    await expect(more).toBeHidden();
+    await page.getByRole('toolbar', { name: 'Tools' }).getByRole('button', { name: /^Marquee/ }).focus();
+    await page.keyboard.press('Shift+F10');
+    const flyout = page.getByRole('menu', { name: 'Marquee' });
+    await expect(flyout).toBeVisible();
+    await page.mouse.move(0, 0);
+    expect(await menuLook(flyout), 'tool flyout').toEqual(wantMenu);
+    // The entry the keyboard is on is filled like a hovered one; read another.
+    const entry = flyout.locator('button[role="menuitemradio"]:not(:focus)').first();
+    await expect(flyout.locator('button:focus')).toHaveAttribute('data-active', '');
+    expect(await itemLook(entry), 'flyout entry').toEqual(wantItem);
+    await alone.close();
+  });
+}
+
 // AC-10: the app's control against the shared component rendered alone
 // from the theme files (`ui/src/theme/`), property by property.
 const ALONE = `
@@ -515,12 +654,8 @@ for (const palette of PALETTES) {
     await sameState(zoom.locator('button[aria-pressed="true"]'), 'seg-on');
     await same(zoom.locator('button[aria-pressed="false"]').first(), 'seg-off');
 
-    // Radios and a dialog's button: Settings.
+    // A dialog's button: Settings.
     await page.keyboard.press('Control+,');
-    const theme = settings(page).getByRole('radiogroup', { name: 'Theme' });
-    await same(theme.getByRole('radio', { name: palette, exact: true }), 'radio-on');
-    await sameState(theme.getByRole('radio', { name: palette, exact: true }), 'radio-on');
-    await same(theme.getByRole('radio', { name: 'System', exact: true }), 'radio');
     await same(settings(page).getByRole('button', { name: 'Close' }), 'btn');
     await settings(page).getByRole('button', { name: 'Close' }).click();
 
@@ -532,6 +667,9 @@ for (const palette of PALETTES) {
     const percent = scale.getByLabel('Percentage', { exact: true });
     await percent.fill('0');
     await same(percent, 'field-bad');
+    await same(scale.getByRole('radio', { checked: true }), 'radio-on');
+    await sameState(scale.getByRole('radio', { checked: true }), 'radio-on');
+    await same(scale.getByRole('radio', { checked: false }).first(), 'radio');
     await scale.getByRole('button', { name: 'Cancel' }).click();
     await expect(scale).toBeHidden();
 

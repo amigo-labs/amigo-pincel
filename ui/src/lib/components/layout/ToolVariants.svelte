@@ -19,15 +19,13 @@
 
 {#if group && group.tools.length > 1}
   <div
-    class="flex shrink-0 items-center gap-0.5 rounded-pc-control border border-pc-border p-0.5"
+    class="am-seg am-seg--sm shrink-0"
     role="radiogroup"
     aria-label={t('frame.variant', { group: group.label })}
   >
     {#each group.tools as tool (tool.id)}
       <button
         type="button"
-        class="btn-press flex h-7 w-7 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45"
-        class:btn-on={tool.id === active}
         role="radio"
         aria-checked={tool.id === active}
         aria-label={tool.label}
@@ -35,7 +33,7 @@
         disabled={tool.disabled}
         onclick={() => onSelect(tool.id)}
       >
-        <Icon name={tool.icon} size={17} />
+        <Icon name={tool.icon} size={14} />
       </button>
     {/each}
   </div>

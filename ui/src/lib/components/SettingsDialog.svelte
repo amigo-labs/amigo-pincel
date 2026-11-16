@@ -71,9 +71,9 @@
         aria-labelledby="settings-theme"
       >
         <span id="settings-theme">{t('settings.theme')}</span>
-        <span class="flex flex-wrap gap-x-3 gap-y-1">
+        <span class="am-seg">
           {#each THEME_CHOICES as choice (choice)}
-            <label class="am-check flex items-center gap-1.5 pointer-coarse:min-h-11">
+            <label>
               <input
                 type="radio"
                 name="settings-theme"
