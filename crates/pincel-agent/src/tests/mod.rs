@@ -25,6 +25,7 @@ mod preview;
 mod rotate_zoom;
 mod select;
 mod select_fill;
+mod strokes;
 mod structure;
 mod tags_palette;
 mod transform;

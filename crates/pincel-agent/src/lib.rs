@@ -159,6 +159,9 @@ pub fn call(
     } else {
         args
     };
+    if tool.name == image::draw::STROKES.name {
+        image::draw::check_stroke_limits(&args)?;
+    }
     schema::validate(&(tool.schema)(), &args).map_err(|message| AgentError::InvalidArgs {
         tool: name.to_owned(),
         message,

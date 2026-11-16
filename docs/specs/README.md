@@ -140,6 +140,7 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
+- [agent-painting](agent-painting.md)
 - [amigo-theme](amigo-theme.md)
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)
