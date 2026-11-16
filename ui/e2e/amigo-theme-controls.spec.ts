@@ -894,3 +894,93 @@ for (const palette of PALETTES) {
   });
 }
 
+
+// AC-07 (panels), AC-08 (floating notices), AC-10: docked panels, the
+// banners that float over the app, and the New dialog's size warnings.
+const DOCKED_ALONE = `
+  <section id="docked" class="am-panel am-panel--docked">
+    <header><button type="button">Layers</button></header>
+    <div class="am-body">Body</div>
+  </section>
+  <div id="float" class="am-banner am-banner--danger am-banner--float"><div><strong>Text</strong></div></div>
+  <p id="hint-warning" class="am-hint am-hint--warning">Text</p>
+`;
+
+/** What the shared docked panel fixes: the panel's edges and its header. */
+async function dockedLook(panel: Locator): Promise<Record<string, string>> {
+  return panel.evaluate((el) => {
+    const p = getComputedStyle(el);
+    const header = el.querySelector(':scope > header');
+    const h = header ? getComputedStyle(header) : null;
+    return {
+      fill: p.backgroundColor,
+      radius: p.borderTopLeftRadius,
+      top: p.borderTopWidth,
+      side: p.borderLeftWidth,
+      hairline: `${p.borderBottomWidth} ${p.borderBottomStyle} ${p.borderBottomColor}`,
+      headerHeight: h?.height ?? 'none',
+      headerPadding: h ? `${h.paddingLeft} ${h.paddingRight}` : 'none',
+      headerFont: h ? `${h.fontSize} ${h.fontWeight} ${h.textTransform} ${h.letterSpacing}` : 'none',
+      headerText: h?.color ?? 'none',
+    };
+  });
+}
+
+for (const palette of PALETTES) {
+  test(`${palette}: docked panels, floating notices and size warnings are the shared ones (AC-07, AC-08, AC-10)`, async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const alone = await sharedPage(page, palette, DOCKED_ALONE);
+    const docked = await dockedLook(alone.locator('#docked'));
+    expect(docked.hairline).toBe(`1px solid ${await tokenColor(page, 'border')}`);
+
+    // Panels in the sidebar of both editors and in Pixel mode's bottom dock.
+    for (const mode of MODES) {
+      await createDocument(page, mode, { width: 16, height: 16 });
+      const layers = sidebar(page).getByRole('region', { name: 'Layers', exact: true });
+      expect(await dockedLook(layers), `${mode}: Layers panel`).toEqual(docked);
+      if (mode === 'pixel') {
+        const timeline = page.getByRole('region', { name: 'Timeline' });
+        expect(await dockedLook(timeline), 'Timeline panel').toEqual(docked);
+      }
+    }
+
+    // The New dialog: a width over the limit is noted as a warning hint.
+    await menu(page, 'File', 'New…');
+    const created = page.getByRole('dialog', { name: 'New document' });
+    const width = created.getByRole('spinbutton', { name: 'Width' });
+    await width.fill('999999');
+    // The note the field names as its description.
+    await expect(width).toHaveAttribute('aria-describedby', /.+/);
+    const hint = created.locator(`[id="${await width.getAttribute('aria-describedby')}"]`);
+    await expect(hint).toContainText('At most');
+    // A hint's height follows its text (the note wraps), so it is left out.
+    const textLook = async (el: Locator): Promise<Omit<Look, 'height'>> => {
+      const { fill, text, edge, edgeWidth, radius } = await lookOf(el);
+      return { fill, text, edge, edgeWidth, radius };
+    };
+    expect(await textLook(hint), 'size warning').toEqual(await textLook(alone.locator('#hint-warning')));
+    const font = (el: Locator): Promise<string> =>
+      el.evaluate((n) => `${getComputedStyle(n).fontSize}/${getComputedStyle(n).lineHeight}`);
+    expect(await font(hint), 'size warning font').toBe(await font(alone.locator('#hint-warning')));
+    expect((await lookOf(hint)).text).toBe(await tokenColor(page, 'warning-ink'));
+    await created.getByRole('button', { name: 'Cancel' }).click();
+
+    // A file that cannot be opened: the floating error notice.
+    await gotoStart(page);
+    await page.getByRole('main').evaluate((el) => {
+      const data = new DataTransfer();
+      data.items.add(new File(['notes'], 'notes.txt', { type: 'text/plain' }));
+      el.dispatchEvent(new DragEvent('drop', { dataTransfer: data, bubbles: true, cancelable: true }));
+    });
+    const toast = page.getByRole('alert').filter({ hasText: 'notes.txt' });
+    await expect(toast).toBeVisible();
+    const shadow = (el: Locator): Promise<string> => el.evaluate((n) => getComputedStyle(n).boxShadow);
+    expect(await shadow(toast), 'floating notice').toBe(await shadow(alone.locator('#float')));
+    expect(await shadow(toast)).not.toBe('none');
+    await toast.getByRole('button', { name: 'Dismiss' }).click();
+    await alone.close();
+  });
+}

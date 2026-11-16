@@ -21,7 +21,7 @@
 </script>
 
 <section
-  class="am-banner fixed right-3 bottom-3 z-30 max-w-sm items-center"
+  class="am-banner am-banner--float fixed right-3 bottom-3 z-30 max-w-sm items-center"
   aria-label={t('update.notice')}
   data-update-notice
 >

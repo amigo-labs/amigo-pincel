@@ -34,12 +34,16 @@
   const collapsed = $derived(host !== 'sheet' && (slot?.collapsed ?? false));
 </script>
 
-<section class="flex min-h-0 flex-col text-sm" class:flex-1={!collapsed} aria-label={name}>
-  <header class="flex h-9 shrink-0 items-center gap-1 pr-2" class:pl-3={host === 'sheet'}>
+<!-- The shared docked panel (amigo-theme-controls AC-07): its header sets the
+     height, padding, label style and the hairline below the panel, so no
+     utility here may restate them (a utility would win over the shared
+     class). -->
+<section class="am-panel am-panel--docked flex min-h-0 flex-col text-sm" class:flex-1={!collapsed} aria-label={name}>
+  <header class="shrink-0">
     {#if host !== 'sheet'}
       <button
         type="button"
-        class="flex h-full min-w-0 flex-1 items-center gap-1 pl-1.5 text-left text-[11px] font-semibold tracking-wide text-pc-muted uppercase hover:text-pc-text"
+        class="flex h-full min-w-0 flex-1 items-center gap-1 text-left"
         aria-expanded={!collapsed}
         onclick={() => slot?.toggle()}
       >

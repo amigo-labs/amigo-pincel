@@ -1051,7 +1051,7 @@
 
 {#if shellError}
   <div
-    class="am-banner am-banner--danger fixed bottom-3 left-3 z-30 max-w-[calc(100vw-1.5rem)] items-center"
+    class="am-banner am-banner--danger am-banner--float fixed bottom-3 left-3 z-30 max-w-[calc(100vw-1.5rem)] items-center"
     role="alert"
   >
     <div><strong class="whitespace-pre-line">{shellError}</strong></div>
