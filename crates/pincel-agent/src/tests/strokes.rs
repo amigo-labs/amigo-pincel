@@ -467,3 +467,161 @@ fn guide_names_draw_strokes_and_pressure() {
         assert!(guide.contains(needle), "guide lacks {needle}");
     }
 }
+
+/// `draw.strokes` and `draw.stroke` on `target` fail with the same message,
+/// leave the document as it was and add no undo step (AC-08).
+fn assert_refused_like_stroke(s: &mut S, target: u64, needle: &str) {
+    let depth = undo_depth(s);
+    let id = s.ok("doc.info", json!({}))["doc"]
+        .as_str()
+        .expect("doc")
+        .to_owned();
+    let before = s.ok(
+        "doc.read_pixels",
+        json!({ "doc": id, "layer": 0, "region": { "x": 0, "y": 0, "width": 8, "height": 8 } }),
+    );
+    let batch = s.err(
+        "draw.strokes",
+        json!({ "layer": target, "strokes": [{ "points": [[1, 1], [3, 3]] }] }),
+    );
+    let single = s.err(
+        "draw.stroke",
+        json!({ "layer": target, "points": [[1, 1], [3, 3]] }),
+    );
+    assert_eq!(batch, single, "target {target}");
+    assert!(batch.contains(needle), "target {target}: {batch}");
+    assert_eq!(undo_depth(s), depth, "target {target}: no undo step");
+    assert_eq!(
+        s.ok(
+            "doc.read_pixels",
+            json!({ "doc": id, "layer": 0, "region": { "x": 0, "y": 0, "width": 8, "height": 8 } })
+        ),
+        before
+    );
+}
+
+#[test]
+fn strokes_inside_a_locked_group_or_on_pixel_locks_and_groups_fail_as_draw_stroke_does() {
+    // Image: a layer inside a locked group.
+    let mut s = S::new();
+    image_doc(&mut s);
+    let group = s.ok("layer.add", json!({ "kind": "group", "name": "Box" }))["layer"]
+        .as_u64()
+        .expect("group");
+    let inner = s.ok("layer.add", json!({ "name": "Inner", "parent": group }))["layer"]
+        .as_u64()
+        .expect("inner");
+    s.ok("layer.set", json!({ "layer": group, "locked": true }));
+    assert_refused_like_stroke(&mut s, inner, "locked");
+
+    // Pixel: a locked layer, a layer inside a locked group, a group.
+    let mut s = S::new();
+    s.new_doc(8, 8);
+    s.ok("layer.set", json!({ "layer": 0, "locked": true }));
+    assert_refused_like_stroke(&mut s, 0, "locked");
+    s.ok("layer.set", json!({ "layer": 0, "locked": false }));
+    let group = s.ok("layer.add", json!({ "name": "G", "kind": "group" }))["layer"]
+        .as_u64()
+        .expect("group");
+    let inner = s.ok("layer.add", json!({ "name": "A", "parent": group }))["layer"]
+        .as_u64()
+        .expect("inner");
+    assert_refused_like_stroke(&mut s, group, "group");
+    s.ok("layer.set", json!({ "layer": group, "locked": true }));
+    assert_refused_like_stroke(&mut s, inner, "locked");
+}
+
+#[test]
+fn strokes_limits_come_before_item_errors_and_the_count_limit_first() {
+    let mut s = S::new();
+    image_doc(&mut s);
+    let half: Vec<[u32; 2]> = (0..50_001).map(|i| [i % 32, 5]).collect();
+    // Point limit broken and an item with an unknown argument.
+    let e = s.err(
+        "draw.strokes",
+        json!({ "strokes": [{ "points": half }, { "points": half, "colour": "#ff0000" }] }),
+    );
+    assert!(e.contains("100000") && !e.contains("colour"), "{e}");
+    // Point limit broken and an item with a bad value.
+    let e = s.err(
+        "draw.strokes",
+        json!({ "strokes": [{ "points": half, "size": 900 }, { "points": half }] }),
+    );
+    assert!(e.contains("100000") && !e.contains("size"), "{e}");
+    // Both limits broken: the stroke count is named.
+    let mut many = vec![json!({ "points": [[1, 1]] }); 1001];
+    many[0] = json!({ "points": half });
+    many[1] = json!({ "points": half });
+    let e = s.err("draw.strokes", json!({ "strokes": many }));
+    assert!(e.contains("1000") && !e.contains("100000"), "{e}");
+    // Exactly 100000 points is accepted.
+    let fifty: Vec<[u32; 2]> = (0..50_000).map(|i| [i % 32, 5]).collect();
+    s.ok(
+        "draw.strokes",
+        json!({ "strokes": [{ "points": fifty }, { "points": fifty }] }),
+    );
+}
+
+#[test]
+fn strokes_report_the_first_invalid_item_by_index() {
+    let mut s = S::new();
+    image_doc(&mut s);
+    let e = s.err(
+        "draw.strokes",
+        json!({ "strokes": [
+            { "points": [[1, 1]] },
+            { "points": [[1, 1]], "size": 900 },
+            { "points": [[1, 1]], "color": "red" },
+        ] }),
+    );
+    assert!(e.contains("strokes[1]") && e.contains("size"), "{e}");
+    assert!(!e.contains("strokes[2]"), "{e}");
+}
+
+#[test]
+fn strokes_undo_step_has_the_first_strokes_kind_beyond_the_history_capacity() {
+    use pincel_image_core::command::HistoryKind;
+    let mut s = S::new();
+    let id = image_doc(&mut s);
+    let mut items = vec![json!({ "tool": "eraser", "points": [[1, 1], [6, 6]] })];
+    items.extend((0..150).map(|i| json!({ "points": [[i % 30, 10]], "size": 3 })));
+    s.ok("draw.strokes", json!({ "strokes": items }));
+    let kinds: Vec<HistoryKind> = s.image(&id).bus.history.undo_kinds().collect();
+    assert_eq!(kinds.last(), Some(&HistoryKind::Eraser), "{kinds:?}");
+}
+
+#[test]
+fn strokes_on_pixel_never_merge_with_the_call_before() {
+    let mut s = S::new();
+    s.new_doc(8, 8);
+    s.ok(
+        "draw.strokes",
+        json!({ "strokes": [{ "points": [[1, 1]] }] }),
+    );
+    s.ok(
+        "draw.strokes",
+        json!({ "strokes": [{ "points": [[2, 2]] }] }),
+    );
+    assert_eq!(undo_depth(&mut s), 2);
+}
+
+#[test]
+fn guide_gives_the_pressure_defaults_and_that_pressure_is_image_only() {
+    let guide = crate::read_resource("pincel://guide")
+        .expect("guide")
+        .split_whitespace()
+        .collect::<Vec<_>>()
+        .join(" ");
+    let start = guide.find("- Pen pressure").expect("pressure bullet");
+    let bullet = &guide[start..start + guide[start + 1..].find("\n- ").unwrap_or(600).min(600)];
+    for needle in [
+        "Image documents only",
+        "`pressure_size` is on (default true)",
+        "`pressure_opacity` is on (default false)",
+    ] {
+        assert!(
+            bullet.contains(needle),
+            "pressure bullet lacks {needle}: {bullet}"
+        );
+    }
+}

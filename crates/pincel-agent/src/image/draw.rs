@@ -442,13 +442,19 @@ pub(crate) const STROKES: Tool = Tool {
     },
 };
 
-/// The items of `strokes` as the arguments of single strokes on the call's
-/// document, after the point limit (AC-06).
-fn stroke_items(args: &Args) -> Result<Vec<Args>, AgentError> {
-    let list = args
-        .get("strokes")
-        .and_then(Value::as_array)
-        .ok_or_else(|| AgentError::tool("missing required argument `strokes`"))?;
+/// The limits of `draw.strokes`, checked before its arguments are
+/// validated against the schema so that a broken limit is reported first,
+/// the stroke count before the points (docs/specs/agent-painting.md AC-06).
+pub(crate) fn check_stroke_limits(args: &Value) -> Result<(), AgentError> {
+    let Some(list) = args.get("strokes").and_then(Value::as_array) else {
+        return Ok(());
+    };
+    if list.len() as u64 > MAX_STROKES {
+        return Err(AgentError::tool(format!(
+            "`strokes` has {} items; one call takes at most {MAX_STROKES} strokes, split them over several calls",
+            list.len()
+        )));
+    }
     let points: usize = list
         .iter()
         .map(|item| {
@@ -462,6 +468,16 @@ fn stroke_items(args: &Args) -> Result<Vec<Args>, AgentError> {
             "`strokes` hold {points} points together; one call takes at most {MAX_STROKE_POINTS} points, split the strokes over several calls"
         )));
     }
+    Ok(())
+}
+
+/// The items of `strokes` as the arguments of single strokes on the call's
+/// document.
+fn stroke_items(args: &Args) -> Result<Vec<Args>, AgentError> {
+    let list = args
+        .get("strokes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AgentError::tool("missing required argument `strokes`"))?;
     Ok(list
         .iter()
         .map(|item| {

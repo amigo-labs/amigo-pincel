@@ -454,10 +454,16 @@ impl ImageDoc {
         }
         let mut copy = CommandBus::new(self.bus.document.clone());
         let mut scratch = StrokeScratch::default();
+        // The kind of the first stroke that records a step, read at once:
+        // the copy's history keeps only its newest steps.
+        let mut kind = None;
         for spec in specs {
             run_command(&mut copy, spec, &mut scratch, &[FONT.into()]).map_err(core_err)?;
+            if kind.is_none() {
+                kind = copy.history.undo_kinds().last();
+            }
         }
-        let Some(kind) = copy.history.undo_kinds().next() else {
+        let Some(kind) = kind else {
             return Ok(false);
         };
         let before = &self.bus.document.layers()[layer].pixels;

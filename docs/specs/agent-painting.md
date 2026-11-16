@@ -104,24 +104,25 @@ This spec adds a batch tool `draw.strokes` (many strokes, one call, one undo ste
 | AC-01 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_listed_with_draw_strokes_item_arguments`; `crates/pincel-agent/src/tests/doc.rs` `tool_schemas_are_valid` | built | |
 | AC-02 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_image_match_one_stroke_call_per_item` | built | |
 | AC-03 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_pixel_match_one_stroke_call_per_item` | built | |
-| AC-04 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_one_undo_step_in_both_modes`, `strokes_that_change_nothing_add_no_undo_step` | built | |
+| AC-04 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_one_undo_step_in_both_modes`, `strokes_that_change_nothing_add_no_undo_step`, `strokes_on_pixel_never_merge_with_the_call_before`, `strokes_undo_step_has_the_first_strokes_kind_beyond_the_history_capacity` | built | |
 | AC-05 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_result_names_doc_layer_changed_and_count` | built | |
-| AC-06 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_over_the_limits_fail_and_change_nothing` | built | |
-| AC-07 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_with_an_invalid_item_fail_naming_it_and_paint_nothing` | built | |
-| AC-08 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_a_locked_layer_or_group_fail_as_draw_stroke_does` | built | |
+| AC-06 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_over_the_limits_fail_and_change_nothing`, `strokes_limits_come_before_item_errors_and_the_count_limit_first` | built | |
+| AC-07 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_with_an_invalid_item_fail_naming_it_and_paint_nothing`, `strokes_report_the_first_invalid_item_by_index` | built | |
+| AC-08 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_a_locked_layer_or_group_fail_as_draw_stroke_does`, `strokes_inside_a_locked_group_or_on_pixel_locks_and_groups_fail_as_draw_stroke_does` | built | |
 | AC-09 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_pressure_matches_the_editor_brush_with_pressure`, `stroke_eraser_pressure_matches_the_editor_eraser` | built | |
 | AC-10 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_without_effective_pressure_paints_as_without_pressure` | built | |
 | AC-11 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_item_pressure_paints_as_draw_stroke` | built | |
 | AC-12 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_with_a_wrong_length_or_value_fails` | built | |
 | AC-13 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_on_a_pixel_document_fails_naming_the_argument_and_mode` | built | |
 | AC-14 | `crates/pincel-agent/src/tests/live.rs` `call_strokes_is_one_editor_undo_step_in_both_modes` | built | |
-| AC-15 | `crates/pincel-agent/src/tests/strokes.rs` `guide_names_draw_strokes_and_pressure` | built | |
+| AC-15 | `crates/pincel-agent/src/tests/strokes.rs` `guide_names_draw_strokes_and_pressure`, `guide_gives_the_pressure_defaults_and_that_pressure_is_image_only` | built | |
 
 ## Decisions
 
 - 2026-11-16 (owner): both modes get `draw.strokes`; at most 1000 strokes per call; one invalid item fails the whole call, because a half-painted pass is harder for the agent to reason about and undo than a refusal it can fix and resend; pressure follows the Image editor's Pressure → Size / Opacity options with their defaults.
 - 2026-11-16: a `draw.strokes` call never merges with another call's undo step (AC-04), as every MCP tool call (`mcp-headless-pixel` AC-09), so `doc.undo` always takes back exactly one call.
 - 2026-11-16: `pressure` reverses the out-of-scope line of `mcp-parity-drawing-image` ("an agent's stroke is the full-pressure stroke a mouse makes"): painting needs tapering strokes, and pressure is a property of the stroke, not only of an input device.
-- 2026-11-16 (spec-build): Error order. The schema check of the whole call (item count, types, unknown argument names, `pressure` values outside 0–1) runs before any tool code, as for every tool, so a schema error in a later item is reported before a value error `draw.stroke`'s code finds in an earlier one (e.g. an Image `size` of 900). Within each of the two passes the first item by index is reported, and the point limit is checked between them. Because the shared argument validation is the same for every tool, and splitting it for one tool would make `draw.strokes` the only tool whose schema errors differ from `draw.stroke`'s.
+- 2026-11-16 (spec-build, revised after the first acceptance round): Error order. The two limits are checked before anything else, the stroke count first, then the points (AC-06 and its edge cases). Then the schema check of the whole call runs (types, unknown argument names, `pressure` values outside 0–1), as for every tool, and only after it the value checks `draw.stroke`'s code makes (e.g. an Image `size` of 900). So a schema error in a later item is reported before a value error in an earlier one; within each pass the first item by index is reported. Because the shared schema validation is the same for every tool, and splitting it for one tool would make `draw.strokes` the only tool whose schema errors differ from `draw.stroke`'s.
+- 2026-11-16 (spec-build): The first acceptance round found AC-08 tested only for Image targets. The added Pixel and locked-group tests passed at once, because `draw.strokes` uses `draw.stroke`'s target checks. The round also found the Image undo step taking the kind of the oldest step left in the copy's 100-step history instead of the first stroke's; that is fixed and tested with 151 strokes.
 - 2026-11-16 (spec-build): Image strokes run on a copy of the document, and the target layer's changed rectangle becomes one `SetPixels` step of the first stroke's history kind. A folded batch of per-stroke steps could overflow the undo capacity (100 steps) with a 1000-stroke call, and it would close an Assistant answer's open undo group early.
 - 2026-11-16 (spec-build): `draw.strokes` is in the Image tool list next to `draw.stroke`, whose `run` also serves Pixel documents. On a Pixel document the strokes are painted in turn on one copy of the target cel and committed as one patch of the first stroke's history kind, as `draw.stroke` commits one.
