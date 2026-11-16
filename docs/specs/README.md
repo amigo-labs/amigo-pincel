@@ -112,6 +112,8 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 | I4 | [comfyui-install](comfyui-install.md) | shell | L | comfyui-connect | One-click managed install (uv, PyTorch for NVIDIA / Apple Silicon, model catalog) |
 | I5 | [comfyui-generate](comfyui-generate.md) | Image | L | comfyui-connect, mcp-live-desktop | Generate panel, text / image to image, inpainting, variants, `gen.*` tools |
 | I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
+| I7 | [generation-self-improvement](generation-self-improvement.md) | both | L | comfyui-generate, comfyui-generate-pixel, ai-chat-clis | Reviewer agent scores variants, loops with a revised prompt, keeps lessons per model family |
+| I8 | [comfyui-generation-info](comfyui-generation-info.md) | both | L | comfyui-generate, comfyui-generate-pixel | Generated layers keep prompt, model, seed; layers panel shows, copies, reuses them; `.ora` / `.aseprite` |
 
 ### J — OCR
 
