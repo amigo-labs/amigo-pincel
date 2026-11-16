@@ -1,5 +1,13 @@
 # Changelog
 
+## [1.14.2](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.1...v1.14.2) (2026-11-16)
+
+
+### Bug Fixes
+
+* **ui:** a wrong value keeps its danger edge on fields ([ac1c67d](https://github.com/amigo-labs/amigo-pincel/commit/ac1c67dab72665fc3563e12168ec78922034cae4))
+* **ui:** a wrong value keeps its danger edge on fields (AC-10) ([6af5d89](https://github.com/amigo-labs/amigo-pincel/commit/6af5d89ac4ab1dd808838d8c9f18c9d6ab4233d9))
+
 ## [1.14.1](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.0...v1.14.1) (2026-11-15)
 
 
