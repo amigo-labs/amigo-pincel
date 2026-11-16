@@ -1,13 +1,38 @@
 //! Generation info on Pixel layers (docs/specs/comfyui-generation-info.md):
-//! kept in `.aseprite`, through undo / redo, Duplicate, Merge down and
-//! Flatten.
+//! kept in `.aseprite`, through undo / redo, layer edits, Duplicate, Merge
+//! down and Flatten.
 
 use pincel_core::generate::add_generated_layer;
 use pincel_core::{
-    Bus, Cel, CelMap, ColorMode, DuplicateLayer, FlattenImage, Frame, FrameIndex, GenerationInfo,
-    HistoryKind, Layer, LayerId, MergeDown, PixelBuffer, Rect, Sprite, UserData, read_aseprite,
-    write_aseprite,
+    BlendMode, Bus, Cel, CelMap, ColorMode, DuplicateLayer, FlattenImage, Frame, FrameIndex,
+    GenerationInfo, HistoryKind, Layer, LayerId, LayerPlacement, MergeDown, MoveLayerTo,
+    PixelBuffer, Rect, Rgba, SetLayerBlendMode, SetLayerEditable, SetLayerName, SetLayerOpacity,
+    SetLayerVisible, SetPixel, Sprite, UserData, read_aseprite, write_aseprite,
 };
+
+#[test]
+fn layer_edits_keep_the_generation_info() {
+    let (mut s, mut c) = doc();
+    let mut bus = Bus::new();
+    let info = info("a slime");
+    generate(&mut bus, &mut s, &mut c, &info);
+    let id = LayerId::new(7);
+    let edits = [
+        SetLayerName::new(id, "Slime").into(),
+        SetLayerOpacity::new(id, 128).into(),
+        SetLayerBlendMode::new(id, BlendMode::Multiply).into(),
+        SetLayerVisible::new(id, false).into(),
+        SetLayerEditable::new(id, false).into(),
+        SetLayerEditable::new(id, true).into(),
+        SetPixel::new(id, F0, 2, 2, Rgba::new(0, 255, 0, 255)).into(),
+        MoveLayerTo::new(id, LayerId::new(0), LayerPlacement::Below).into(),
+    ];
+    for edit in edits {
+        bus.execute(edit, &mut s, &mut c).unwrap();
+        assert_eq!(layer(&s, 7).generation(), Some(info.clone()));
+    }
+    assert_eq!(s.layers[0].id, id, "moved below the background");
+}
 
 const F0: FrameIndex = FrameIndex::new(0);
 
