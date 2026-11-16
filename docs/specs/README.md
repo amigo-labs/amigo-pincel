@@ -25,7 +25,9 @@ Owner priorities lead: performance and MCP. The specs are grouped by area; each 
 
 Agents reach every document-changing capability; live mode last. Runs in parallel with every other group.
 
-Every spec of this group is done.
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| A1 | [agent-painting](agent-painting.md) | both | M | mcp-parity-drawing-image, pen-input | `draw.strokes` (batch, one undo step) and per-point `pressure`, so agents can paint pictures stroke by stroke; a painterly brush is a later spec |
 
 ### B — Image live objects
 
