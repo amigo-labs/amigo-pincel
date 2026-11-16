@@ -557,7 +557,11 @@ textarea {
 }
 /* Only fields drawn with the hairline: one that states its own edge
    (transparent until hovered, the danger border of a wrong value) keeps it. */
-:is(input, select, textarea):is(.border-pc-border, .opt-field, .panel-btn) {
+:is(input, select, textarea):is(.border-pc-border, .opt-field, .panel-btn):not(
+    [aria-invalid='true'],
+    .border-pc-danger,
+    .border-pc-danger-text
+  ) {
   border-color: var(--am-border-strong);
 }
 
