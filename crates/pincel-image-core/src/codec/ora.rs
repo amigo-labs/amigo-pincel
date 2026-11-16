@@ -102,10 +102,6 @@ fn blend_from_op(op: &str) -> BlendMode {
     }
 }
 
-/// Options for an archive entry: stored (PNGs are already deflated; the
-/// XML is tiny) and marked as made on Unix on every platform — the zip
-/// crate's default is the host OS, which made the desktop app's files
-/// differ from the browser's (docs/specs/performance-desktop-jobs.md).
 /// The XML namespace of Pincel's own `<layer>` attributes: a layer's
 /// generation info (Decision Log 2026-11-16 "Generation info"), which other
 /// OpenRaster readers ignore.
@@ -150,6 +146,10 @@ fn read_generation(tag: &str) -> Option<GenerationInfo> {
     info.is_valid().then_some(info)
 }
 
+/// Options for an archive entry: stored (PNGs are already deflated; the
+/// XML is tiny) and marked as made on Unix on every platform — the zip
+/// crate's default is the host OS, which made the desktop app's files
+/// differ from the browser's (docs/specs/performance-desktop-jobs.md).
 fn stored() -> SimpleFileOptions {
     SimpleFileOptions::default()
         .compression_method(CompressionMethod::Stored)
@@ -165,11 +165,18 @@ pub fn to_ora_bytes(doc: &Document, compression: u8) -> Result<Vec<u8>, OraError
     zip.write_all(ORA_MIMETYPE.as_bytes())?;
 
     let (w, h) = (doc.canvas.width(), doc.canvas.height());
+    let layers = doc.layers();
+    // Declared only when used, so a file without generated layers stays
+    // byte for byte as before generation info existed.
+    let namespace = if layers.iter().any(|l| l.generation.is_some()) {
+        format!(" xmlns:pincel=\"{GENERATION_NS}\"")
+    } else {
+        String::new()
+    };
     let mut xml = format!(
         "<?xml version='1.0' encoding='UTF-8'?>\n\
-         <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\" xmlns:pincel=\"{GENERATION_NS}\">\n<stack>\n"
+         <image version=\"0.0.6\" w=\"{w}\" h=\"{h}\" xres=\"72\" yres=\"72\"{namespace}>\n<stack>\n"
     );
-    let layers = doc.layers();
     // Every layer PNG is encoded up front (on all cores with the `parallel`
     // feature), then stored in the archive's order.
     let pngs = crate::par::map(layers, |layer| {
@@ -581,6 +588,32 @@ mod tests {
             assert_eq!(a.locked, b.locked);
             assert!((a.opacity - b.opacity).abs() < 0.001);
         }
+    }
+
+    /// The archive's `stack.xml`, as text.
+    fn stack_xml(ora: &[u8]) -> String {
+        let mut zip = zip::ZipArchive::new(Cursor::new(ora)).unwrap();
+        let mut xml = String::new();
+        zip.by_name("stack.xml")
+            .unwrap()
+            .read_to_string(&mut xml)
+            .unwrap();
+        xml
+    }
+
+    #[test]
+    fn to_ora_bytes_without_generation_info_declares_no_pincel_namespace() {
+        // A file without generated layers stays byte for byte as before the
+        // feature (docs/specs/comfyui-generation-info.md AC-09).
+        let xml = stack_xml(&to_ora_bytes(&sample_doc(), 1).unwrap());
+        assert!(!xml.contains(GENERATION_NS), "{xml}");
+        let mut doc = sample_doc();
+        doc.layers[1].generation = Some(crate::document::generation::sample());
+        let xml = stack_xml(&to_ora_bytes(&doc, 1).unwrap());
+        assert!(
+            xml.contains(&format!("xmlns:pincel=\"{GENERATION_NS}\"")),
+            "{xml}"
+        );
     }
 
     #[test]
