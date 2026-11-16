@@ -250,6 +250,38 @@ mod tests {
     use super::*;
 
     #[test]
+    fn layer_edits_keep_the_generation_info() {
+        use crate::command::{MoveLayer, SetPixels};
+        use crate::document::ImageBuffer;
+        use crate::geometry::Rect;
+        let mut doc = Document::new(4, 4).unwrap();
+        doc.add_layer("Top").unwrap();
+        let info = crate::document::generation::sample();
+        doc.layers[0].generation = Some(info.clone());
+        let mut edits: Vec<Box<dyn Command>> = vec![
+            Box::new(RenameLayer::new(0, "Sky")),
+            Box::new(SetLayerOpacity::new(0, 0.5)),
+            Box::new(SetLayerBlendMode::new(0, BlendMode::Multiply)),
+            Box::new(SetLayerVisible::new(0, false)),
+            Box::new(SetLayerLocked::new(0, true)),
+            Box::new(SetLayerLocked::new(0, false)),
+            Box::new(SetPixels::new(
+                0,
+                Rect::new(0, 0, 1, 1),
+                ImageBuffer::from_raw(1, 1, vec![255, 0, 0, 255]).unwrap(),
+            )),
+        ];
+        for edit in &mut edits {
+            edit.apply(&mut doc).unwrap();
+            assert_eq!(doc.layers()[0].generation.as_ref(), Some(&info));
+        }
+        let mut lift = MoveLayer::new(0, 1);
+        lift.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers()[1].generation.as_ref(), Some(&info));
+        assert_eq!(doc.layers()[0].generation, None);
+    }
+
+    #[test]
     fn rename_layer_round_trip() {
         let mut doc = Document::new(4, 4).unwrap();
         let mut cmd = RenameLayer::new(0, "Sky");

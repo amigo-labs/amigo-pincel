@@ -95,8 +95,8 @@ export function englishLabel(label: string): string | null {
 
 /** `value` (0–100) as a percentage in the active locale ("100 %" in
  *  French; docs/specs/more-languages.md AC-09). Reactive like `t()`. */
-export function percent(value: number): string {
-  return formatPercent(value, state.locale);
+export function percent(value: number, maxFraction = 0): string {
+  return formatPercent(value, state.locale, maxFraction);
 }
 
 /** `value` with exactly `digits` decimals in the active locale ("1,5"). */

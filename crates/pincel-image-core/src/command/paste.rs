@@ -3,7 +3,7 @@
 use super::HistoryKind;
 use super::snapshot::{DocSnapshot, restore, snapshot};
 use super::{Command, ResizeCanvas};
-use crate::document::{Document, ImageBuffer, Layer, MAX_LAYERS};
+use crate::document::{Document, GenerationInfo, ImageBuffer, Layer, MAX_LAYERS};
 use crate::error::DocumentError;
 use std::any::Any;
 
@@ -31,6 +31,8 @@ pub struct PasteLayer {
     /// The new layer's name; "Layer N" without one.
     name: Option<String>,
     kind: HistoryKind,
+    /// What the new layer records about its generation.
+    generation: Option<GenerationInfo>,
 }
 
 /// What undoing a paste needs: a whole-document snapshot when the paste
@@ -60,6 +62,7 @@ impl PasteLayer {
             prev: None,
             name: None,
             kind: HistoryKind::Paste,
+            generation: None,
         }
     }
 
@@ -68,6 +71,13 @@ impl PasteLayer {
     pub fn labelled(mut self, name: impl Into<String>, kind: HistoryKind) -> Self {
         self.name = Some(name.into());
         self.kind = kind;
+        self
+    }
+
+    /// Records `info` on the new layer (docs/specs/comfyui-generation-info.md
+    /// AC-01).
+    pub fn with_generation(mut self, info: GenerationInfo) -> Self {
+        self.generation = Some(info);
         self
     }
 }
@@ -116,13 +126,16 @@ impl Command for PasteLayer {
         let active = doc.active_layer_index();
         let layer = match (self.layer.take(), self.pixels.take()) {
             (Some(layer), _) => layer,
-            (None, Some(px)) => Layer::from_pixels(
-                self.name
-                    .clone()
-                    .unwrap_or_else(|| format!("Layer {}", doc.layers.len() + 1)),
-                px.offset_copy(w, h, self.x, self.y),
-            )
-            .with_parent(doc.active_layer().parent),
+            (None, Some(px)) => Layer {
+                generation: self.generation.clone(),
+                ..Layer::from_pixels(
+                    self.name
+                        .clone()
+                        .unwrap_or_else(|| format!("Layer {}", doc.layers.len() + 1)),
+                    px.offset_copy(w, h, self.x, self.y),
+                )
+                .with_parent(doc.active_layer().parent)
+            },
             (None, None) => return Err(DocumentError::RegionOutOfBounds),
         };
         let index = *self.index.get_or_insert(doc.subtree_end(active));
@@ -267,6 +280,22 @@ mod tests {
             PasteLayer::new(image(1, 1), false).kind(),
             HistoryKind::Paste
         );
+    }
+
+    #[test]
+    fn generated_paste_records_its_generation_and_redo_keeps_it() {
+        let mut doc = Document::new(8, 8).unwrap();
+        let info = crate::document::generation::sample();
+        let mut cmd = PasteLayer::at(image(2, 2), 0, 0, false)
+            .labelled("Generated: apple", HistoryKind::Generate)
+            .with_generation(info.clone());
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].generation.as_ref(), Some(&info));
+        cmd.revert(&mut doc).unwrap();
+        assert_eq!(doc.layers.len(), 1);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].generation.as_ref(), Some(&info));
+        assert_eq!(doc.layers[0].generation, None);
     }
 
     #[test]

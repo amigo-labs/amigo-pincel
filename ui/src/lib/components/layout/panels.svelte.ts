@@ -58,6 +58,18 @@ export interface FrameLayout {
   effectPos?: EffectPos;
 }
 
+/** The last request to show a panel of one mode's editor frame
+ *  (comfyui-generation-info AC-05); `n` counts the requests. */
+export const panelRequest = $state({ mode: '', id: '', n: 0 });
+
+/** Expands panel `id` of `mode`'s editor frame and brings it into view
+ *  (sidebar, drawer or bottom sheet). */
+export function expandPanel(mode: string, id: string): void {
+  panelRequest.mode = mode;
+  panelRequest.id = id;
+  panelRequest.n += 1;
+}
+
 /** Offset of the effect panel's top-right corner from the canvas area's
  *  top-right corner, in px: `x` to the left, `y` down (effect-panel AC-18). */
 export interface EffectPos {

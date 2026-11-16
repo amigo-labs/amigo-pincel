@@ -109,8 +109,30 @@ export interface GenTarget {
   /** The strip's image of a finished variant, as PNG. */
   thumbnail(variant: Uint8Array, box: Box, mask: Uint8Array): Uint8Array;
   /** Adds the variant over `box`, limited to `mask`, as a new layer named
-   *  `name` above the active layer — one undo step. */
-  apply(variant: Uint8Array, box: Box, mask: Uint8Array, name: string): void;
+   *  `name` above the active layer — one undo step — that records
+   *  `generation` (comfyui-generation-info AC-01). */
+  apply(variant: Uint8Array, box: Box, mask: Uint8Array, name: string, generation: GenerationRecord): void;
+}
+
+/** What the layer of an applied variant records about its generation
+ *  (docs/specs/comfyui-generation-info.md AC-01). */
+export interface GenerationRecord {
+  prompt: string;
+  /** Empty when none was used (always for Flux). */
+  negative: string;
+  model: string;
+  /** Empty when none was used. */
+  lora: string;
+  loraStrength: number;
+  /** Percent, 1–100: what the generation really used. */
+  strength: number;
+  /** The seed of this variant. */
+  seed: number;
+}
+
+/** `fraction` (0.01–1) in percent without float noise: 0.555 → 55.5. */
+export function strengthPercent(fraction: number): number {
+  return Number((fraction * 100).toPrecision(12));
 }
 
 /** "Generated: " plus the first 30 characters of the prompt (AC-12). A

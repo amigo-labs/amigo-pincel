@@ -10,7 +10,7 @@ use pincel_image_core::generate::{
     apply_mask, fit, fit_mask, generation_input as input_pixels, generation_mask as mask_bytes,
     generation_size as size_for,
 };
-use pincel_image_core::{ImageBuffer, Rect};
+use pincel_image_core::{GenerationInfo, ImageBuffer, Rect};
 use wasm_bindgen::Clamped;
 use wasm_bindgen::prelude::*;
 
@@ -86,24 +86,41 @@ pub fn fit_variant(data: &[u8], w: u32, h: u32, mask: &[u8]) -> Result<Clamped<V
 }
 
 /// Adds a layer named `name` directly above the active layer (inside its
-/// group), holding the `w × h` straight RGBA `rgba` at `x, y` and
-/// transparent elsewhere — one undo step (AC-12).
+/// group), holding the `w × h` straight RGBA `rgba` at `x, y` (`area` is
+/// `[x, y, w, h]`) and transparent elsewhere — one undo step (AC-12).
+/// `generation` is the
+/// variant's generation info as JSON (`GenerationInfo`), recorded on the
+/// layer when its values are valid; empty for none
+/// (docs/specs/comfyui-generation-info.md AC-01).
 #[wasm_bindgen]
 pub fn add_generated_layer(
     handle: u32,
     rgba: &[u8],
-    x: i32,
-    y: i32,
-    w: u32,
-    h: u32,
+    area: &[i32],
     name: &str,
+    generation: &str,
 ) -> Result<(), JsError> {
+    let &[x, y, w, h] = area else {
+        return Err(JsError::new("area must be [x, y, w, h]"));
+    };
+    let (w, h) = (
+        u32::try_from(w).map_err(codec_js)?,
+        u32::try_from(h).map_err(codec_js)?,
+    );
     let pixels = ImageBuffer::from_raw(w, h, rgba.to_vec()).map_err(to_js)?;
+    let info = if generation.is_empty() {
+        None
+    } else {
+        let info: GenerationInfo = serde_json::from_str(generation).map_err(codec_js)?;
+        info.is_valid().then_some(info)
+    };
     with_bus(handle, |bus| {
-        bus.apply(Box::new(
-            PasteLayer::at(pixels, x, y, false).labelled(name, HistoryKind::Generate),
-        ))
-        .map_err(to_js)
+        let paste = PasteLayer::at(pixels, x, y, false).labelled(name, HistoryKind::Generate);
+        let paste = match info {
+            Some(info) => paste.with_generation(info),
+            None => paste,
+        };
+        bus.apply(Box::new(paste)).map_err(to_js)
     })
 }
 
@@ -161,7 +178,7 @@ mod tests {
         assert_eq!(&rgba[0..4], &[0, 0, 255, 255]);
         assert_eq!(&rgba[4..8], &[0, 0, 0, 0]);
         assert_eq!(rgba[11], 128);
-        add_generated_layer(h, &rgba, 3, 5, 2, 2, "Generated: a red apple").unwrap();
+        add_generated_layer(h, &rgba, &[3, 5, 2, 2], "Generated: a red apple", "").unwrap();
         with_doc(h, |doc| {
             assert_eq!(doc.layers().len(), 2);
             assert_eq!(doc.layers()[1].name, "Generated: a red apple");
@@ -181,6 +198,26 @@ mod tests {
         });
         assert!(undo(h).unwrap());
         with_doc(h, |doc| assert_eq!(doc.layers().len(), 1));
+        close_document(h);
+    }
+
+    #[test]
+    fn a_generated_layer_records_its_generation_info_for_the_layers_panel() {
+        let h = create_document(4, 4).unwrap();
+        let info = r#"{"prompt":"a red apple\non a table","negative":"","model":"sd15.safetensors",
+            "lora":"","lora_strength":1,"strength":55.5,"seed":18446744073709551615}"#;
+        add_generated_layer(h, &[0; 16], &[0, 0, 2, 2], "Generated: a red apple", info).unwrap();
+        let infos = with_doc(h, |doc| crate::layer_infos(doc));
+        assert!(infos[0].generation.is_none());
+        let g = infos[1].generation.as_ref().expect("generation info");
+        assert_eq!(g.prompt, "a red apple\non a table");
+        assert_eq!(g.seed, "18446744073709551615");
+        assert_eq!(g.strength, 55.5);
+        assert_eq!(
+            g.text,
+            "Prompt: a red apple\\non a table\nNegative prompt: \nModel: sd15.safetensors\n\
+             LoRA: \nLoRA strength: 1\nStrength: 55.5%\nSeed: 18446744073709551615"
+        );
         close_document(h);
     }
 }

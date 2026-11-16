@@ -34,8 +34,8 @@ pub use command::{
     TransformLift, TransformSettings, UndoStack, auto_crop_rect,
 };
 pub use document::{
-    CanvasSize, ColorProfile, Document, DocumentMetadata, ImageBuffer, Layer, LayerKind,
-    LayerPlacement, MAX_CANVAS_DIM, MAX_LAYERS, MIN_CANVAS_DIM,
+    CanvasSize, ColorProfile, Document, DocumentMetadata, GenerationInfo, ImageBuffer, Layer,
+    LayerKind, LayerPlacement, MAX_CANVAS_DIM, MAX_LAYERS, MIN_CANVAS_DIM,
 };
 pub use error::DocumentError;
 pub use geometry::{Point, Rect, Size};

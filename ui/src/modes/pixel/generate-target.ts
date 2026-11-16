@@ -7,7 +7,7 @@
 // as a new layer (AC-02 – AC-06). The panel, the job and the variants live
 // in `lib/comfyui/generation.svelte`.
 
-import { generationMaskPng, generationSize } from '../../lib/core';
+import { Generation, generationMaskPng, generationSize } from '../../lib/core';
 import { targetBox, type Box, type GenTarget } from '../../lib/comfyui/generate-params';
 import { syncMeta, syncSelection } from './render';
 import { ed, live, tabs, type PixelTab } from './stores/editor.svelte';
@@ -45,9 +45,18 @@ export function pixelTarget(tab: PixelTab): GenTarget {
     blocked: () => (doc === null || doc.canHoldGenerated ? null : 'noVisibleColor'),
     // The strip shows each variant as Apply would write it (AC-02).
     thumbnail: (variant, box, mask) => (doc === null ? variant : doc.generationPreview(variant, area(box), mask)),
-    apply: (variant, box, mask, name) => {
+    apply: (variant, box, mask, name, g) => {
       if (doc === null) return;
-      tab.doc.activeLayerId = doc.addGeneratedLayer(variant, area(box), mask, name);
+      const generation = new Generation(
+        g.prompt,
+        g.negative,
+        g.model,
+        g.lora,
+        g.loraStrength,
+        g.strength,
+        String(g.seed),
+      );
+      tab.doc.activeLayerId = doc.addGeneratedLayer(variant, area(box), mask, name, generation);
       if (tabs.active !== tab) return;
       live.needsRecompose = true;
       syncMeta();

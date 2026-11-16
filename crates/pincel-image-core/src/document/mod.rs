@@ -2,11 +2,13 @@
 
 mod buffer;
 mod canvas;
+pub(crate) mod generation;
 mod layer;
 pub(crate) mod tree;
 
 pub use buffer::ImageBuffer;
 pub use canvas::{CanvasSize, MAX_CANVAS_DIM, MIN_CANVAS_DIM};
+pub use generation::GenerationInfo;
 pub use layer::{Layer, LayerKind};
 pub use tree::LayerPlacement;
 

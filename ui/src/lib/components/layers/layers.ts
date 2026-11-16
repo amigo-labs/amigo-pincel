@@ -25,6 +25,27 @@ export interface LayerRow {
   isGroup?: boolean;
   /** Small tag after the name, e.g. the tilemap / group kind. */
   badge?: string;
+  /** What the layer records about the generation that produced it
+   *  (docs/specs/comfyui-generation-info.md). */
+  generation?: LayerGeneration;
+}
+
+/** A generated layer's generation info (comfyui-generation-info Terms). */
+export interface LayerGeneration {
+  prompt: string;
+  /** Empty when none was used. */
+  negative: string;
+  model: string;
+  /** Empty when none was used. */
+  lora: string;
+  /** `0..=2`. */
+  loraStrength: number;
+  /** Percent, `1..=100`. */
+  strength: number;
+  /** Decimal; a seed can exceed a JS number. */
+  seed: string;
+  /** The text form Copy writes (AC-04). */
+  text: string;
 }
 
 /** Where a dragged layer lands relative to the row it is dropped on. */

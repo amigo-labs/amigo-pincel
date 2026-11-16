@@ -459,6 +459,20 @@ mod tests {
     }
 
     #[test]
+    fn duplicate_layer_copies_the_generation_info_and_redo_keeps_it() {
+        let mut doc = Document::new(8, 8).unwrap();
+        let info = crate::document::generation::sample();
+        doc.layers[0].generation = Some(info.clone());
+        let mut cmd = DuplicateLayer::at(0);
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].generation.as_ref(), Some(&info));
+        cmd.revert(&mut doc).unwrap();
+        cmd.apply(&mut doc).unwrap();
+        assert_eq!(doc.layers[1].generation.as_ref(), Some(&info));
+        assert_eq!(doc.layers[0].generation.as_ref(), Some(&info));
+    }
+
+    #[test]
     fn duplicate_layer_round_trip_restores_active() {
         let mut doc = Document::new(8, 8).unwrap();
         doc.add_layer("Layer 2").unwrap();

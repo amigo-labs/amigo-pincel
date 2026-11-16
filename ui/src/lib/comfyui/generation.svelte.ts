@@ -28,11 +28,13 @@ import {
   layerName,
   nativePixels,
   statusIssue,
+  strengthPercent,
   type Box,
   type Family,
   type GenError,
   type GenImageArgs,
   type GenTarget,
+  type GenerationRecord,
   type Models,
 } from './generate-params';
 import { agentJobs, agentTabs, holdEarly, jobTabs, takeEarly, targets } from './job-routing';
@@ -97,6 +99,10 @@ export interface TabGen {
   thumbs: string[];
   selected: number;
   error: GenError | null;
+  /** What the applied variant's layer records; `seed` is the first
+   *  variant's, `null` until the job started (comfyui-generation-info
+   *  AC-01). */
+  record: Omit<GenerationRecord, 'seed'> & { seed: number | null };
 }
 
 /** Each tab's generation, by `GenTarget.key`. */
@@ -152,6 +158,11 @@ async function readModels(): Promise<void> {
   }
   const models = await generationModels();
   genServer.models = models;
+  checkModels(models);
+}
+
+/** Drops a chosen model or LoRA `models` lacks, with the notice (AC-03). */
+function checkModels(models: Models): void {
   const names = models.checkpoints.map((c) => c.name);
   let gone: string | null = null;
   if (genSettings.model === null || !names.includes(genSettings.model)) {
@@ -188,8 +199,9 @@ function ensureListening(): void {
   ]).catch((err: unknown) => console.error('comfyui listen failed', err));
 }
 
-function starting(taken: Capture, prompt: string): TabGen {
+function starting(taken: Capture, prompt: string, record: TabGen['record']): TabGen {
   return {
+    record,
     phase: 'starting',
     job: null,
     ahead: 0,
@@ -270,7 +282,16 @@ export async function generate(target: GenTarget): Promise<void> {
   const key = target.key;
   clear(key);
   targets.set(key, target);
-  genTabs[key] = starting(taken, prompt);
+  const negative = family === 'flux' ? '' : genSettings.negative;
+  genTabs[key] = starting(taken, prompt, {
+    prompt,
+    negative,
+    model,
+    lora: genSettings.lora ?? '',
+    loraStrength: genSettings.loraStrength,
+    strength: strengthPercent(taken.strength),
+    seed: null,
+  });
   try {
     const started = await startGeneration({
       model,
@@ -278,7 +299,7 @@ export async function generate(target: GenTarget): Promise<void> {
       lora: genSettings.lora,
       loraStrength: genSettings.loraStrength,
       prompt,
-      negative: family === 'flux' ? '' : genSettings.negative,
+      negative,
       seed,
       count: genSettings.count,
       strength: taken.strength,
@@ -294,6 +315,7 @@ export async function generate(target: GenTarget): Promise<void> {
       return;
     }
     current.job = started.job;
+    current.record.seed = started.seed;
     current.phase = 'queued';
     jobTabs.set(started.job, key);
     replay(started.job);
@@ -408,9 +430,37 @@ export function discard(key: string): void {
 export function apply(target: GenTarget): void {
   const gen = genTabs[target.key];
   const variant = gen?.variants[gen.selected];
-  if (!gen || variant === undefined || !target.alive()) return;
-  target.apply(variant, gen.box, gen.mask, layerName(gen.prompt));
+  const first = gen?.record.seed;
+  if (!gen || variant === undefined || first == null || !target.alive()) return;
+  // Variants of one batch have consecutive seeds (comfyui-generate
+  // Technical notes).
+  target.apply(variant, gen.box, gen.mask, layerName(gen.prompt), { ...gen.record, seed: first + gen.selected });
   clear(target.key);
+}
+
+/** Loads a generated layer's values into the panel's fields
+ *  (comfyui-generation-info AC-05); the variant count stays. A model or
+ *  LoRA the server lacks falls back now, or when the list arrives. */
+export function useGeneration(g: {
+  prompt: string;
+  negative: string;
+  model: string;
+  lora: string;
+  loraStrength: number;
+  strength: number;
+  seed: string;
+}): void {
+  genInput.prompt = g.prompt;
+  genInput.seed = g.seed;
+  genSettings.negative = g.negative;
+  genSettings.model = g.model;
+  genSettings.lora = g.lora === '' ? null : g.lora;
+  genSettings.loraStrength = g.loraStrength;
+  // The slider moves in whole percent; halves round up.
+  genSettings.strength = Math.min(100, Math.max(1, Math.floor(g.strength + 0.5)));
+  genServer.gone = null;
+  if (genServer.models !== null) checkModels(genServer.models);
+  saveGenSettings();
 }
 
 /** The tab closed: its generation is cancelled and its variants go
@@ -443,13 +493,14 @@ export async function generateForAgent(
   const family = familyOf(checkpoint, genSettings.families);
   const taken = capture(target, family, args.strength);
   if (taken === null) throw new Error('the selection lies outside the canvas');
+  const negative = family === 'flux' ? '' : args.negative;
   const started = await startGeneration({
     model: args.model,
     family,
     lora: args.lora,
     loraStrength: args.loraStrength,
     prompt: args.prompt,
-    negative: family === 'flux' ? '' : args.negative,
+    negative,
     seed: args.seed,
     count: 1,
     strength: taken.strength,
@@ -478,7 +529,15 @@ export async function generateForAgent(
     await strokeDone();
     if (signal.aborted || !target.alive()) throw new Error('the generation was cancelled');
     const layer = layerName(args.prompt);
-    target.apply(variant, taken.box, taken.mask, layer);
+    target.apply(variant, taken.box, taken.mask, layer, {
+      prompt: args.prompt,
+      negative,
+      model: args.model,
+      lora: args.lora ?? '',
+      loraStrength: args.loraStrength,
+      strength: strengthPercent(taken.strength),
+      seed: started.seed,
+    });
     return { layer, seed: started.seed, model: args.model };
   } finally {
     signal.removeEventListener('abort', abort);

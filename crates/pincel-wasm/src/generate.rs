@@ -9,7 +9,9 @@ use pincel_core::generate::{
     self as generate, add_generated_layer, generation_input, generation_mask, has_visible_color,
     prepare_variant, shown_rgba,
 };
-use pincel_core::{HistoryKind, Layer, LayerId, PixelBuffer, Rect, encode_png, import_png};
+use pincel_core::{
+    GenerationInfo, HistoryKind, Layer, LayerId, PixelBuffer, Rect, encode_png, import_png,
+};
 use wasm_bindgen::prelude::*;
 
 use crate::Document;
@@ -100,8 +102,10 @@ impl Document {
 
     /// Apply: the variant as [`Document::generation_preview`] makes it, as
     /// a new layer named `name` directly above the active layer with a cel
-    /// in the current frame — one undo step (AC-06, AC-09). Returns the
-    /// new layer's id, which becomes active.
+    /// in the current frame — one undo step (AC-06, AC-09). `generation` is
+    /// the variant's generation info, kept as the layer's user-data text
+    /// when its values are valid (comfyui-generation-info AC-01). Returns
+    /// the new layer's id, which becomes active.
     #[wasm_bindgen(js_name = addGeneratedLayer)]
     pub fn add_generated_layer(
         &mut self,
@@ -109,7 +113,9 @@ impl Document {
         area: &[i32],
         mask: &[u8],
         name: &str,
+        generation: Option<Generation>,
     ) -> Result<u32, String> {
+        let info = generation.as_ref().and_then(to_info);
         let (area, pixels) = self.prepared(variant, area, mask)?;
         let new_id = match self.sprite.layers.iter().map(|l| l.id.0).max() {
             None => 0,
@@ -117,9 +123,14 @@ impl Document {
             Some(m) => m + 1,
         };
         let above = self.copy_layer().ok();
+        let layer = Layer::image(LayerId::new(new_id), name);
+        let layer = match &info {
+            Some(info) => layer.with_generation(info),
+            None => layer,
+        };
         let cmd = add_generated_layer(
             &self.sprite,
-            Layer::image(LayerId::new(new_id), name),
+            layer,
             above,
             self.current_frame,
             area,
@@ -138,6 +149,103 @@ impl Document {
         self.events.push(Event::dirty_canvas());
         Ok(new_id)
     }
+
+    /// The generation info of the layer `layer_id`, or none when its user
+    /// data does not hold one (comfyui-generation-info AC-02, AC-04).
+    #[wasm_bindgen(js_name = layerGeneration)]
+    pub fn layer_generation(&self, layer_id: u32) -> Option<Generation> {
+        self.sprite
+            .layer(LayerId::new(layer_id))
+            .and_then(Layer::generation)
+            .map(|g| Generation::from(&g))
+    }
+}
+
+/// A layer's generation info as JS sees it (comfyui-generation-info Terms):
+/// the values, the seed as a decimal string (a `u64` exceeds a JS number)
+/// and the text form Copy writes.
+#[wasm_bindgen]
+#[derive(Debug, Clone, PartialEq)]
+pub struct Generation {
+    /// The prompt.
+    #[wasm_bindgen(getter_with_clone)]
+    pub prompt: String,
+    /// The negative prompt; empty for none.
+    #[wasm_bindgen(getter_with_clone)]
+    pub negative: String,
+    /// The checkpoint name.
+    #[wasm_bindgen(getter_with_clone)]
+    pub model: String,
+    /// The LoRA name; empty for none.
+    #[wasm_bindgen(getter_with_clone)]
+    pub lora: String,
+    /// The LoRA's weight, 0–2.
+    #[wasm_bindgen(js_name = loraStrength)]
+    pub lora_strength: f64,
+    /// The strength in percent, 1–100.
+    pub strength: f64,
+    /// The seed as a decimal string.
+    #[wasm_bindgen(getter_with_clone)]
+    pub seed: String,
+    /// The text form; empty until the info is read back from a layer.
+    #[wasm_bindgen(getter_with_clone)]
+    pub text: String,
+}
+
+#[wasm_bindgen]
+impl Generation {
+    /// The values of a variant's generation, for `addGeneratedLayer`.
+    #[wasm_bindgen(constructor)]
+    pub fn new(
+        prompt: String,
+        negative: String,
+        model: String,
+        lora: String,
+        lora_strength: f64,
+        strength: f64,
+        seed: String,
+    ) -> Self {
+        Self {
+            prompt,
+            negative,
+            model,
+            lora,
+            lora_strength,
+            strength,
+            seed,
+            text: String::new(),
+        }
+    }
+}
+
+impl From<&GenerationInfo> for Generation {
+    fn from(g: &GenerationInfo) -> Self {
+        Self {
+            prompt: g.prompt.clone(),
+            negative: g.negative.clone(),
+            model: g.model.clone(),
+            lora: g.lora.clone(),
+            lora_strength: g.lora_strength,
+            strength: g.strength,
+            seed: g.seed.to_string(),
+            text: g.to_text(),
+        }
+    }
+}
+
+/// The core's generation info for `g`; none when a value is out of range
+/// or the seed is not a whole number from 0 to `u64::MAX`.
+fn to_info(g: &Generation) -> Option<GenerationInfo> {
+    let info = GenerationInfo {
+        prompt: g.prompt.clone(),
+        negative: g.negative.clone(),
+        model: g.model.clone(),
+        lora: g.lora.clone(),
+        lora_strength: g.lora_strength,
+        strength: g.strength,
+        seed: g.seed.parse().ok()?,
+    };
+    info.is_valid().then_some(info)
 }
 
 impl Document {
@@ -250,7 +358,7 @@ mod tests {
         let mut doc = indexed();
         let variant = png(&[0, 0, 255, 255].repeat(4), 2, 2);
         let id = doc
-            .add_generated_layer(&variant, &[2, 2, 2, 2], &[], "Generated: slime")
+            .add_generated_layer(&variant, &[2, 2, 2, 2], &[], "Generated: slime", None)
             .expect("apply");
         assert_eq!(doc.layer_count(), 2);
         assert_eq!(doc.layer_id_at(1).expect("id"), id);
@@ -270,13 +378,83 @@ mod tests {
     }
 
     #[test]
+    fn a_generated_layer_records_its_generation_info_for_the_layers_panel() {
+        let mut doc = indexed();
+        let variant = png(&[0, 0, 255, 255], 1, 1);
+        let input = Generation::new(
+            "a slime\nwith a hat".into(),
+            String::new(),
+            "sdxl.safetensors".into(),
+            String::new(),
+            1.0,
+            100.0,
+            "18446744073709551615".into(),
+        );
+        let id = doc
+            .add_generated_layer(
+                &variant,
+                &[0, 0, 1, 1],
+                &[],
+                "Generated: a slime",
+                Some(input),
+            )
+            .expect("apply");
+        let g = doc.layer_generation(id).expect("generation info");
+        assert_eq!(g.prompt, "a slime\nwith a hat");
+        assert_eq!(g.seed, "18446744073709551615");
+        assert_eq!(g.strength, 100.0);
+        assert_eq!(
+            g.text,
+            "Prompt: a slime\\nwith a hat\nNegative prompt: \nModel: sdxl.safetensors\n\
+             LoRA: \nLoRA strength: 1\nStrength: 100%\nSeed: 18446744073709551615"
+        );
+        let first = doc.layer_id_at(0).expect("id");
+        assert_eq!(doc.layer_generation(first), None);
+        assert!(doc.undo());
+        assert!(doc.redo().expect("redo"));
+        assert_eq!(doc.layer_generation(id), Some(g));
+    }
+
+    #[test]
+    fn a_generation_with_an_invalid_value_is_not_recorded() {
+        let valid = || {
+            Generation::new(
+                "p".into(),
+                String::new(),
+                "m".into(),
+                String::new(),
+                1.0,
+                100.0,
+                "1".into(),
+            )
+        };
+        assert!(to_info(&valid()).is_some());
+        for bad in [
+            Generation {
+                prompt: String::new(),
+                ..valid()
+            },
+            Generation {
+                seed: "-1".into(),
+                ..valid()
+            },
+            Generation {
+                strength: 0.0,
+                ..valid()
+            },
+        ] {
+            assert_eq!(to_info(&bad), None, "{bad:?}");
+        }
+    }
+
+    #[test]
     fn a_palette_without_a_visible_color_refuses_generation() {
         let mut doc = indexed();
         doc.sprite.palette.colors.truncate(1);
         assert!(!doc.can_hold_generated());
         let variant = png(&[0, 0, 255, 255], 1, 1);
         let err = doc
-            .add_generated_layer(&variant, &[0, 0, 1, 1], &[], "g")
+            .add_generated_layer(&variant, &[0, 0, 1, 1], &[], "g", None)
             .expect_err("refused");
         assert_eq!(err, "The palette has no visible color");
         assert_eq!(doc.layer_count(), 1);
@@ -336,7 +514,7 @@ mod tests {
         // Apply: a normal image layer directly above the tilemap.
         let variant = png(&[255, 0, 0, 255], 1, 1);
         let id = doc
-            .add_generated_layer(&variant, &[0, 0, 2, 1], &[], "g")
+            .add_generated_layer(&variant, &[0, 0, 2, 1], &[], "g", None)
             .expect("apply");
         let at = doc
             .sprite
