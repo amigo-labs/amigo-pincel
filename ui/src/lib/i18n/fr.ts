@@ -1552,6 +1552,8 @@ export const fr: Record<MessageKey, string> = {
   'assistant.state.error': 'Erreur',
   'assistant.state.stopped': 'Arrêté',
   'assistant.state.failed': 'Échec',
+  'assistant.toolCalls': '{n, plural, one {# appel d’outil} other {# appels d’outils}}',
+  'assistant.toolErrors': '{n, plural, one {# erreur} other {# erreurs}}',
   'assistant.args': 'Arguments',
   'assistant.result': 'Résultat',
   'assistant.image': 'image ({w}×{h})',

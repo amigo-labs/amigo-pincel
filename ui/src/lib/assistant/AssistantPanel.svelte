@@ -13,7 +13,8 @@
   import { panelSlot } from '../components/layout/panels.svelte';
   import { t } from '../i18n/index.svelte';
   import { session } from '../shell/session.svelte';
-  import type { ChatItem, Failure, ToolState } from './chat-events';
+  import { chatEntries, groupState } from './chat-events';
+  import type { ChatItem, Failure, ToolItem, ToolState } from './chat-events';
   import {
     assistant,
     chatCanSend,
@@ -125,6 +126,12 @@
     return t(`assistant.state.${s}`);
   }
 
+  /** What a group of tool rows reads (AC-06). */
+  function groupLabel(tools: readonly ToolItem[]): string {
+    const g = groupState(tools);
+    return g.kind === 'errors' ? t('assistant.toolErrors', { n: g.n }) : stateLabel(g.kind);
+  }
+
   function hintText(error: Failure): string {
     const id = chat?.cli ?? '';
     const name = assistant.clis?.find((c) => c.id === id)?.name ?? id;
@@ -177,6 +184,69 @@
   </div>
 {/snippet}
 
+{#snippet toolState(failed: boolean, ok: boolean, label: string)}
+  <span
+    class:text-pc-danger-text={failed}
+    class:text-pc-accent-text={ok}
+    class:text-pc-muted={!failed && !ok}
+  >
+    {label}
+  </span>
+{/snippet}
+
+{#snippet toolRow(it: ToolItem)}
+  <details
+    class="rounded-md border border-pc-border bg-pc-raised text-xs"
+    data-role="tool"
+    data-state={it.state}
+  >
+    <summary class="flex cursor-pointer items-center gap-2 px-2 py-1">
+      <span class="min-w-0 flex-1 truncate font-mono">{it.name}</span>
+      {@render toolState(
+        it.state === 'error' || it.state === 'failed',
+        it.state === 'ok',
+        stateLabel(it.state),
+      )}
+    </summary>
+    <div class="flex flex-col gap-1 border-t border-pc-border px-2 py-1.5">
+      <span class="text-pc-faint">{t('assistant.args')}</span>
+      <pre class="overflow-x-auto font-mono whitespace-pre-wrap break-words">{argsText(
+          it.args,
+        )}</pre>
+      {#if it.state !== 'running'}
+        <span class="text-pc-faint">{t('assistant.result')}</span>
+        <pre class="overflow-x-auto font-mono whitespace-pre-wrap break-words">{it.text}</pre>
+        {#each it.images as [w, h], i (i)}
+          <span class="font-mono">{t('assistant.image', { w, h })}</span>
+        {/each}
+      {/if}
+    </div>
+  </details>
+{/snippet}
+
+{#snippet toolGroup(tools: readonly ToolItem[])}
+  {@const g = groupState(tools)}
+  <details
+    class="rounded-md border border-pc-border bg-pc-raised text-xs"
+    data-role="tool-group"
+    data-state={g.kind}
+  >
+    <summary class="flex cursor-pointer items-center gap-2 px-2 py-1">
+      <span class="min-w-0 flex-1 truncate">{t('assistant.toolCalls', { n: tools.length })}</span>
+      {@render toolState(
+        g.kind === 'errors' || g.kind === 'failed',
+        g.kind === 'ok',
+        groupLabel(tools),
+      )}
+    </summary>
+    <div class="flex flex-col gap-1 border-t border-pc-border p-1.5">
+      {#each tools as tool, i (i)}
+        {@render toolRow(tool)}
+      {/each}
+    </div>
+  </details>
+{/snippet}
+
 {#snippet item(it: ChatItem)}
   {#if it.kind === 'user'}
     <div
@@ -188,35 +258,7 @@
   {:else if it.kind === 'agent'}
     <div class="px-0.5" data-role="agent">{@render agentText(it.text)}</div>
   {:else if it.kind === 'tool'}
-    <details
-      class="rounded-md border border-pc-border bg-pc-raised text-xs"
-      data-role="tool"
-      data-state={it.state}
-    >
-      <summary class="flex cursor-pointer items-center gap-2 px-2 py-1">
-        <span class="min-w-0 flex-1 truncate font-mono">{it.name}</span>
-        <span
-          class:text-pc-danger-text={it.state === 'error' || it.state === 'failed'}
-          class:text-pc-accent-text={it.state === 'ok'}
-          class:text-pc-muted={it.state === 'running' || it.state === 'stopped'}
-        >
-          {stateLabel(it.state)}
-        </span>
-      </summary>
-      <div class="flex flex-col gap-1 border-t border-pc-border px-2 py-1.5">
-        <span class="text-pc-faint">{t('assistant.args')}</span>
-        <pre class="overflow-x-auto font-mono whitespace-pre-wrap break-words">{argsText(
-            it.args,
-          )}</pre>
-        {#if it.state !== 'running'}
-          <span class="text-pc-faint">{t('assistant.result')}</span>
-          <pre class="overflow-x-auto font-mono whitespace-pre-wrap break-words">{it.text}</pre>
-          {#each it.images as [w, h], i (i)}
-            <span class="font-mono">{t('assistant.image', { w, h })}</span>
-          {/each}
-        {/if}
-      </div>
-    </details>
+    {@render toolRow(it)}
   {:else if it.kind === 'end'}
     <div class="flex flex-col gap-0.5 text-xs" data-role="end" role="status">
       {#if it.outcome === 'stopped'}
@@ -334,8 +376,12 @@
     role="log"
     aria-label={t('assistant.log')}
   >
-    {#each chat?.items ?? [] as it, i (i)}
-      {@render item(it)}
+    {#each chatEntries(chat?.items ?? []) as entry (entry.at)}
+      {#if entry.kind === 'group'}
+        {@render toolGroup(entry.tools)}
+      {:else}
+        {@render item(entry.item)}
+      {/if}
     {/each}
     {#if answering && chat?.items.at(-1)?.kind === 'user'}
       <span class="text-xs text-pc-faint">{t('assistant.working')}</span>

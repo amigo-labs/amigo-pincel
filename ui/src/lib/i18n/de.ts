@@ -1537,6 +1537,8 @@ export const de: Record<MessageKey, string> = {
   'assistant.state.error': 'Fehler',
   'assistant.state.stopped': 'Gestoppt',
   'assistant.state.failed': 'Fehlgeschlagen',
+  'assistant.toolCalls': '{n, plural, one {# Werkzeugaufruf} other {# Werkzeugaufrufe}}',
+  'assistant.toolErrors': '{n, plural, one {# Fehler} other {# Fehler}}',
   'assistant.args': 'Argumente',
   'assistant.result': 'Ergebnis',
   'assistant.image': 'Bild ({w}×{h})',

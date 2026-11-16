@@ -1534,6 +1534,8 @@ export const ja: Record<MessageKey, string> = {
   'assistant.state.error': 'エラー',
   'assistant.state.stopped': '停止',
   'assistant.state.failed': '失敗',
+  'assistant.toolCalls': '{n, plural, other {#件のツール呼び出し}}',
+  'assistant.toolErrors': '{n, plural, other {#件のエラー}}',
   'assistant.args': '引数',
   'assistant.result': '結果',
   'assistant.image': '画像 ({w}×{h})',

@@ -1521,6 +1521,8 @@ export const en = {
   'assistant.state.error': 'Error',
   'assistant.state.stopped': 'Stopped',
   'assistant.state.failed': 'Failed',
+  'assistant.toolCalls': '{n, plural, one {# tool call} other {# tool calls}}',
+  'assistant.toolErrors': '{n, plural, one {# error} other {# errors}}',
   'assistant.args': 'Arguments',
   'assistant.result': 'Result',
   'assistant.image': 'image ({w}×{h})',

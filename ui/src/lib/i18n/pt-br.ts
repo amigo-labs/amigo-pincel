@@ -1537,6 +1537,8 @@ export const ptBr: Record<MessageKey, string> = {
   'assistant.state.error': 'Erro',
   'assistant.state.stopped': 'Parado',
   'assistant.state.failed': 'Falhou',
+  'assistant.toolCalls': '{n, plural, one {# chamada de ferramenta} other {# chamadas de ferramentas}}',
+  'assistant.toolErrors': '{n, plural, one {# erro} other {# erros}}',
   'assistant.args': 'Argumentos',
   'assistant.result': 'Resultado',
   'assistant.image': 'imagem ({w}×{h})',

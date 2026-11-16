@@ -1544,6 +1544,8 @@ export const es: Record<MessageKey, string> = {
   'assistant.state.error': 'Error',
   'assistant.state.stopped': 'Detenido',
   'assistant.state.failed': 'Fallido',
+  'assistant.toolCalls': '{n, plural, one {# llamada a herramienta} other {# llamadas a herramientas}}',
+  'assistant.toolErrors': '{n, plural, one {# error} other {# errores}}',
   'assistant.args': 'Argumentos',
   'assistant.result': 'Resultado',
   'assistant.image': 'imagen ({w}×{h})',
