@@ -42,9 +42,8 @@
   --color-pc-accent-text: var(--am-accent-ink);
   /* The keyboard-focus ring (amigo-theme AC-12). */
   --color-pc-focus: var(--am-focus);
-  /* Control outlines (checkbox / radio) and slider rails: >= 3:1 on panels. */
+  /* Control outlines (checkbox / radio): >= 3:1 on panels. */
   --color-pc-control: var(--am-border-strong);
-  --color-pc-track: var(--am-border-strong);
   /* Selected rows: accent tint, the accent bar marks the edge. */
   --color-pc-selected: var(--am-accent-subtle);
   /* The fill of the active tool and of toggles that are on. */
