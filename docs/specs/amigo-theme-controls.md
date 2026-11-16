@@ -71,14 +71,16 @@ Terms as in `amigo-theme`. **Shared component**: a control family of `components
 
 ## Open questions
 
+- Touch hit area of dense fields (edge case "Touch input"): a 24 px field outside the options bar (panels, timeline) has a 24 px hit area on a touch screen, 4 px less than before. An input cannot carry a pseudo-element, and a taller field on touch would be a local override of the shared field. Either the shared theme gains a rule for it (for example `am-input--sm` at `control-md` under `pointer: coarse`), or the edge case leaves fields out.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
+| AC-01 | "{Dark, Light}: text buttons are the shared button in its four roles, 24 px in the frame and 32 px elsewhere (AC-01)" in `ui/e2e/amigo-theme-controls.spec.ts` | built  |        |
+| AC-02 | "{Dark, Light}: fields and selects are the shared field, 24 px in the frame and 32 px elsewhere (AC-02)" in `ui/e2e/amigo-theme-controls.spec.ts`; the danger edge of a wrong value also in `ui/e2e/image-resize-autocrop.spec.ts` ("an invalid used field blocks Apply and Enter (AC-07)") | built  |        |
+| AC-03 | "{Dark, Light}: checkboxes and radios are the shared toggle (AC-03)" in `ui/e2e/amigo-theme-controls.spec.ts` | built  |        |
+| AC-04 | "{Dark, Light}: sliders are the shared slider: the travelled part in accent on a border-strong rail (AC-04)" in `ui/e2e/amigo-theme-controls.spec.ts` | built  |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
 | AC-07 |      | open   |        |
@@ -90,3 +92,14 @@ Terms as in `amigo-theme`. **Shared component**: a control family of `components
 ## Decisions
 
 - 2026-11-15: What the shared theme lacks for Pincel (a slider, dense variants) is added in amigo-labs/website and regenerated, never overridden in Pincel, because an override here would be the next private look.
+- 2026-11-16 (build): The markup writes the shared classes itself (`am-btn`, `am-input`, `am-check`, `am-range`); `.panel-btn`, `.opt-field` and the element rules for sliders, checkboxes and radios in `app.css` are gone, and `Button.svelte` renders `am-btn` with its role. A CSS class cannot stand for another one without copying its rules, and a copy would be the private look this spec removes. The technical note "callers do not change" holds for `Button.svelte`'s props; callers that wrote `panel-btn` by hand write `am-btn` now.
+- 2026-11-16 (build): `components.css` is loaded as a whole into the `components` cascade layer (`app.css`), after `tokens.css`. In that layer a layout utility on a control (a width, a flex share, `w-auto` for a field that is not full width) still applies, and nothing in Pincel restyles a shared class. Its base rules come with it: body text is `text-body` (14/20) and the focus ring sits 2 px off the control instead of 1 px.
+- 2026-11-16 (build): Dense or not is decided where the control is written: `am-btn--sm` / `am-input--sm` in the options bars, the panels, the timeline, the status bar and the top bar's tour hint; the plain 32 px classes in dialogs, popovers (colour picker, font picker, effect panel, tour), the notices and on the start screen (its controls were 36 px). The font control finds out by itself whether it sits in a dialog, so `FontPicker` keeps its props.
+- 2026-11-16 (build): AC-01 reads a `filter` as a change of the fill: the shared primary and danger buttons brighten their fill on hover and pressed (`filter: brightness()`), their computed background colour stays. A pressed ghost or danger button looks like the hovered one in the shared theme; both differ from the resting state, which is what the AC asks.
+- 2026-11-16 (build): A busy button is a disabled shared button with the spinner (the edge-case table says so); the former busy look that kept the button's colours is gone. No button can be held busy from a test, so the AC-01 test puts the Create button into the state `Button.svelte` renders (`disabled`, `aria-busy`) and reads it.
+- 2026-11-16 (build): A text button that is a toggle and switched on (Clone Stamp's "Set source", an effect's "Pick", the anchor of Pixel mode's Canvas Size) takes the primary role, because the shared button has no pressed state; that matches the icon buttons, which are `accent-solid` when on.
+- 2026-11-16 (build): What the shared field has no rule for stays as Pincel had it, without touching the field's look: the chevron of a select (now in the unlayered select rule, because the shared field resets `background`), number fields without spin buttons, a textarea's own height (`h-auto` plus its rows or `min-h-*`), and `disabled:opacity-50` where a caller wrote it (the shared field has no disabled look). The soft glow of a focused field is gone: the shared ring replaces the outline. The forced-colours fallback of checkboxes and radios is gone with their element rules; the shared toggle has none.
+- 2026-11-16 (build): Touch hit areas: a dense button gets a transparent `::after` that reaches 2 px above and below it (28 px as before, drawn 24 px), and a tool option's label stretches over the bar's height, so a tap next to its field lands on it. A 24 px field in a panel (Slices, Tilesets, the tag editor) has no such help: an input cannot carry a pseudo-element, see Open questions.
+- 2026-11-16 (build): The frame-duration field inside a timeline cell (transparent until hovered) stays as it is: it is part of the frame cell, which is out of scope. The colour picker's hue and alpha strips keep their own slider look for the same reason; every other slider is `am-range`, its travelled part set by the new action `rangeFill` (`ui/src/lib/range-fill.ts`, new public API).
+- 2026-11-16 (build): Red run before block 1 (build of ac1c67d, all 8 tests of the new spec failed): AC-01 a start-screen button 36 px high with the hairline edge; AC-02 "start screen, Width: height" 36 instead of 32; AC-03 the checkbox 14 px with the old fill; AC-04 no `--am-range-fill` on a slider.
+
