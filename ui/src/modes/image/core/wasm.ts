@@ -70,6 +70,7 @@ import initWasm, {
 } from 'pincel-image-wasm';
 import wasmUrl from 'pincel-image-wasm/pincel_image_wasm_bg.wasm?url';
 import { countCall, publishDocumentCount } from '../../../lib/diagnostics';
+import type { GenerationRecord } from '../../../lib/comfyui/generate-params';
 import type { AgentFile } from '../../../lib/shell/types';
 import type { LiveObjectSpec } from './generated/LiveObjectSpec';
 import type { LiveTransformSpec } from './generated/LiveTransformSpec';
@@ -117,6 +118,22 @@ export interface LayerInfo {
   depth: number;
   /** Whether a group the layer sits in is locked. */
   locked_by_parent: boolean;
+  /** The generation that produced the layer, if any
+   *  (comfyui-generation-info AC-02). */
+  generation?: LayerGenerationInfo;
+}
+
+/** A layer's generation info as the core reports it; `seed` is decimal. */
+export interface LayerGenerationInfo {
+  prompt: string;
+  negative: string;
+  model: string;
+  lora: string;
+  lora_strength: number;
+  strength: number;
+  seed: string;
+  /** The text form Copy writes. */
+  text: string;
 }
 
 export interface DocumentInfo {
@@ -783,16 +800,30 @@ export const core = {
   fitVariant: (data: Uint8Array, w: number, h: number, mask: Uint8Array): Uint8ClampedArray =>
     fit_variant(data, w, h, mask),
   /** Adds the `w × h` RGBA as a new layer `name` above the active layer at
-   *  `x, y`, as one undo step (AC-12). */
+   *  `x, y`, as one undo step (AC-12), recording `generation`
+   *  (comfyui-generation-info AC-01). */
   addGeneratedLayer: (
     handle: number,
     rgba: Uint8ClampedArray,
-    x: number,
-    y: number,
-    w: number,
-    h: number,
+    box: { x: number; y: number; w: number; h: number },
     name: string,
-  ): void => add_generated_layer(handle, new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.length), x, y, w, h, name),
+    generation: GenerationRecord,
+  ): void =>
+    add_generated_layer(
+      handle,
+      new Uint8Array(rgba.buffer, rgba.byteOffset, rgba.length),
+      Int32Array.of(box.x, box.y, box.w, box.h),
+      name,
+      JSON.stringify({
+        prompt: generation.prompt,
+        negative: generation.negative,
+        model: generation.model,
+        lora: generation.lora,
+        lora_strength: generation.loraStrength,
+        strength: generation.strength,
+        seed: generation.seed,
+      }),
+    ),
   /** PNG of the active layer (`merged`: the visible composite) inside the selection (spec §5.4). */
   copySelection: (handle: number, merged: boolean): Uint8Array => copy_selection(handle, merged),
   /** `copySelection` of the active layer, then clears it, as one undo step. */

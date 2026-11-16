@@ -9,8 +9,10 @@
   import {
     blendOptions,
     type DropPlace,
+    type LayerGeneration,
     type LayerRow,
   } from '../../../lib/components/layers/layers';
+  import { generationUser } from '../../../lib/comfyui/use-generation';
   import { blendModeNames, type Document } from '../../../lib/core';
   import { t } from '../../../lib/i18n/index.svelte';
   import { layerTreeOrder } from '../layer-order';
@@ -40,6 +42,29 @@
 
   type Row = LayerRow & { kind: string };
 
+  const useGeneration = generationUser('pixel');
+
+  /** The generation info in layer `id`'s user data, if any
+   *  (comfyui-generation-info AC-02). */
+  function generationOf(doc: Document, id: number): LayerGeneration | undefined {
+    const g = doc.layerGeneration(id);
+    if (!g) return undefined;
+    try {
+      return {
+        prompt: g.prompt,
+        negative: g.negative,
+        model: g.model,
+        lora: g.lora,
+        loraStrength: g.loraStrength,
+        strength: g.strength,
+        seed: g.seed,
+        text: g.text,
+      };
+    } finally {
+      g.free();
+    }
+  }
+
   const rows = $derived.by<Row[]>(() => {
     void p.rev;
     const doc = p.doc;
@@ -48,6 +73,7 @@
     for (const id of layerTreeOrder(doc)) {
       const kind = doc.layerKind(id);
       const editable = doc.layerEditable(id);
+      const generation = generationOf(doc, id);
       list.push({
         key: String(id),
         ref: id,
@@ -63,6 +89,7 @@
         ...(kind === 'image'
           ? {}
           : { badge: t(kind === 'group' ? 'layers.kind.group' : 'layers.kind.tilemap') }),
+        ...(generation ? { generation } : {}),
       });
     }
     return list;
@@ -113,4 +140,5 @@
   onMergeDown={() => active && p.onMergeDown(active.ref)}
   onDelete={() => active && p.onRemoveLayer(active.ref)}
   onFlatten={p.onFlatten}
+  onUseGeneration={useGeneration}
 />

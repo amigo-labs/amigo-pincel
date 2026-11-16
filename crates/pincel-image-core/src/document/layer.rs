@@ -2,6 +2,7 @@
 
 use crate::color::BlendMode;
 use crate::document::buffer::ImageBuffer;
+use crate::document::generation::GenerationInfo;
 use serde::{Deserialize, Serialize};
 use uuid::Uuid;
 
@@ -41,6 +42,10 @@ pub struct Layer {
     pub visible: bool,
     /// Whether pixel edits are blocked.
     pub locked: bool,
+    /// The generation that produced this layer, when it was made from a
+    /// generated variant (docs/specs/comfyui-generation-info.md).
+    #[serde(default, skip_serializing_if = "Option::is_none")]
+    pub generation: Option<GenerationInfo>,
 }
 
 impl Layer {
@@ -61,6 +66,7 @@ impl Layer {
             blend_mode: BlendMode::Normal,
             visible: true,
             locked: false,
+            generation: None,
         }
     }
 

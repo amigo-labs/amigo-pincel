@@ -40,6 +40,7 @@ pub fn to_snapshot_bytes(doc: &Document) -> Vec<u8> {
             blend_mode: l.blend_mode,
             visible: l.visible,
             locked: l.locked,
+            generation: l.generation.clone(),
         })
         .collect();
     let header = Header {
@@ -129,6 +130,7 @@ mod tests {
             .pixels
             .set_pixel(5, 6, Color::rgba(1, 2, 3, 4));
         doc.layers[1].opacity = 0.5;
+        doc.layers[1].generation = Some(crate::document::generation::sample());
         doc.layers[0].pixels.set_pixel(69, 39, Color::WHITE);
         doc.selection = Some(SelectionMask::rectangle(70, 40, Rect::new(3, 4, 20, 10)));
         doc.title = "photo.png".into();

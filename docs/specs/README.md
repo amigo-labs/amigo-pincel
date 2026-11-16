@@ -115,6 +115,8 @@ Owner request 2026-11-06: chat with an agent that edits the image (PixelAssist),
 | I6 | [comfyui-generate-pixel](comfyui-generate-pixel.md) | Pixel | M | comfyui-generate | Downscale + palette mapping in Pixel mode |
 | I7 | [ai-upscale](ai-upscale.md) | Image | L | comfyui-generate, comfyui-install | Owner 2026-11-15: Image ▸ AI Upscale… with an upscale model (Real-ESRGAN in the catalog), result as a new layer, `gen.upscale` |
 | I8 | [ai-upscale-refine](ai-upscale-refine.md) | Image | L | ai-upscale | Tiled image-to-image refine after the upscale; Pincel cuts and blends the tiles |
+| I9 | [generation-self-improvement](generation-self-improvement.md) | both | L | comfyui-generate, comfyui-generate-pixel, ai-chat-clis | Reviewer agent scores variants, loops with a revised prompt, keeps lessons per model family |
+| I10 | [comfyui-generation-info](comfyui-generation-info.md) | both | L | comfyui-generate, comfyui-generate-pixel | Generated layers keep prompt, model, seed; layers panel shows, copies, reuses them; `.ora` / `.aseprite` |
 
 ### J — OCR
 

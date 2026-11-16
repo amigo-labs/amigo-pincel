@@ -89,3 +89,52 @@ export function applyEvent(items: readonly ChatItem[], event: ChatEvent): ChatIt
     }
   }
 }
+
+/** A tool row of the message list. */
+export type ToolItem = Extract<ChatItem, { kind: 'tool' }>;
+
+/** One entry the message list renders: an item, or two or more tool rows
+ *  in a row shown as one group (AC-06). `at` is the index of its first
+ *  item, stable while the list grows. */
+export type ChatEntry =
+  | { readonly kind: 'item'; readonly at: number; readonly item: ChatItem }
+  | { readonly kind: 'group'; readonly at: number; readonly tools: readonly ToolItem[] };
+
+/** `items` as rendered: every run of two or more tool rows is one group. */
+export function chatEntries(items: readonly ChatItem[]): ChatEntry[] {
+  const entries: ChatEntry[] = [];
+  let run: ToolItem[] = [];
+  let runAt = 0;
+  const flush = (): void => {
+    if (run.length >= 2) entries.push({ kind: 'group', at: runAt, tools: run });
+    else for (const tool of run) entries.push({ kind: 'item', at: runAt, item: tool });
+    run = [];
+  };
+  for (const [at, item] of items.entries()) {
+    if (item.kind === 'tool') {
+      if (run.length === 0) runAt = at;
+      run.push(item);
+    } else {
+      flush();
+      entries.push({ kind: 'item', at, item });
+    }
+  }
+  flush();
+  return entries;
+}
+
+/** What a group's row reads (AC-06): a running call first, then an answer
+ *  cut short, then the number of calls that returned an error. */
+export type GroupState =
+  | { readonly kind: 'running' | 'stopped' | 'failed' | 'ok' }
+  | { readonly kind: 'errors'; readonly n: number };
+
+/** The state a group of `tools` reads. */
+export function groupState(tools: readonly ToolItem[]): GroupState {
+  const has = (s: ToolState): boolean => tools.some((t) => t.state === s);
+  if (has('running')) return { kind: 'running' };
+  if (has('stopped')) return { kind: 'stopped' };
+  if (has('failed')) return { kind: 'failed' };
+  const n = tools.filter((t) => t.state === 'error').length;
+  return n > 0 ? { kind: 'errors', n } : { kind: 'ok' };
+}

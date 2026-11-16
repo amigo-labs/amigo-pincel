@@ -35,13 +35,13 @@ export function imageTarget(tab: ImageTab): GenTarget {
     blocked: () => null,
     // The strip shows the variants as they came (comfyui-generate AC-10).
     thumbnail: (variant) => variant,
-    apply: (variant, box, mask, name) => {
+    apply: (variant, box, mask, name, generation) => {
       if (handle === null) return;
       // A pending live object is committed first, as before any command.
       gestureControl.commitLive();
       gestureControl.commitTransform();
       const rgba = core.fitVariant(variant, box.w, box.h, mask);
-      core.addGeneratedLayer(handle, rgba, box.x, box.y, box.w, box.h, name);
+      core.addGeneratedLayer(handle, rgba, box, name, generation);
       if (editor.handle === handle) syncInfo();
     },
   };

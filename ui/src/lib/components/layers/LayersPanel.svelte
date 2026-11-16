@@ -12,8 +12,9 @@
   import IconButton from '../layout/IconButton.svelte';
   import Panel from '../layout/Panel.svelte';
   import { percent, t } from '../../i18n/index.svelte';
+  import GenerationSection from './GenerationSection.svelte';
   import LayerThumbnail from './LayerThumbnail.svelte';
-  import type { BlendOption, DropPlace, LayerRow, Thumb } from './layers';
+  import type { BlendOption, DropPlace, LayerGeneration, LayerRow, Thumb } from './layers';
 
   interface Props {
     /** Top-most first. */
@@ -46,6 +47,9 @@
     onDelete: () => void;
     onMergeVisible?: () => void;
     onFlatten: () => void;
+    /** Loads a generated layer's values into the Generate panel
+     *  (comfyui-generation-info AC-05); absent where there is none. */
+    onUseGeneration?: ((generation: LayerGeneration) => void) | undefined;
   }
   const {
     rows,
@@ -71,6 +75,7 @@
     onDelete,
     onMergeVisible,
     onFlatten,
+    onUseGeneration,
   }: Props = $props();
 
   const active = $derived(rows.find((r) => r.key === activeKey) ?? null);
@@ -236,7 +241,7 @@
     <p class="px-1 text-xs text-pc-faint">{t('layers.none')}</p>
   {:else}
     <ul
-      class="flex min-h-0 flex-1 flex-col gap-0.5 overflow-y-auto rounded bg-pc-bg/50 p-1"
+      class="flex min-h-16 flex-1 flex-col gap-0.5 overflow-y-auto rounded bg-pc-bg/50 p-1"
       aria-label={t('layers.list')}
     >
       {#each shown as row, i (row.key)}
@@ -318,7 +323,7 @@
                 type="button"
                 class="flex w-full min-w-0 items-center gap-1.5 text-left"
                 aria-pressed={isActive}
-                title={row.name}
+                title={row.generation ? `${row.name}\n${row.generation.prompt}` : row.name}
                 onclick={() => onSelect(row)}
                 ondblclick={() => startRename(row)}
               >
@@ -345,7 +350,7 @@
 
   {#if active}
     <div
-      class="flex shrink-0 flex-col gap-1.5 rounded border border-pc-border p-2 text-xs text-pc-muted"
+      class="flex min-h-0 flex-col gap-1.5 overflow-y-auto rounded border border-pc-border p-2 text-xs text-pc-muted"
       role="group"
       aria-label={t('layers.properties')}
     >
@@ -377,6 +382,11 @@
           {/each}
         </select>
       </label>
+      {#if active.generation}
+        {#key active.key}
+          <GenerationSection generation={active.generation} onUse={onUseGeneration} />
+        {/key}
+      {/if}
     </div>
   {/if}
 

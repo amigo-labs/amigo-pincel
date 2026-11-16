@@ -16,8 +16,8 @@ use pincel_image_core::command::spec::{
 use pincel_image_core::command::{CommandBus, HistoryKind, PasteLayer, SetPixels};
 use pincel_image_core::jobs::{self, EncodeFormat, JobError, decode_region, encode_region};
 use pincel_image_core::{
-    BlendMode, Color, Document, Eyedropper, ImageBuffer, Layer, Point, Rect, RenderCache,
-    SampleSize, compose, copy_selection as copy_selection_pixels, delete_selection,
+    BlendMode, Color, Document, Eyedropper, GenerationInfo, ImageBuffer, Layer, Point, Rect,
+    RenderCache, SampleSize, compose, copy_selection as copy_selection_pixels, delete_selection,
 };
 use serde::Serialize;
 use std::cell::{Cell, RefCell};
@@ -755,6 +755,39 @@ struct LayerInfo {
     depth: usize,
     /// Whether a group the layer sits in is locked.
     locked_by_parent: bool,
+    /// The generation that produced the layer, if any
+    /// (docs/specs/comfyui-generation-info.md AC-02).
+    generation: Option<GenerationView>,
+}
+
+/// A layer's generation info for the layers panel: the values, the seed as
+/// a decimal string (a `u64` exceeds a JS number) and the text form Copy
+/// writes (docs/specs/comfyui-generation-info.md AC-04).
+#[derive(Debug, Serialize)]
+struct GenerationView {
+    prompt: String,
+    negative: String,
+    model: String,
+    lora: String,
+    lora_strength: f64,
+    strength: f64,
+    seed: String,
+    text: String,
+}
+
+impl From<&GenerationInfo> for GenerationView {
+    fn from(g: &GenerationInfo) -> Self {
+        Self {
+            prompt: g.prompt.clone(),
+            negative: g.negative.clone(),
+            model: g.model.clone(),
+            lora: g.lora.clone(),
+            lora_strength: g.lora_strength,
+            strength: g.strength,
+            seed: g.seed.to_string(),
+            text: g.to_text(),
+        }
+    }
 }
 
 /// The layers panel's view of every layer, bottom first.
@@ -773,6 +806,7 @@ fn layer_infos(doc: &Document) -> Vec<LayerInfo> {
             parent: doc.parent_index(i),
             depth: doc.depth(i),
             locked_by_parent: doc.locked_by_parent(i),
+            generation: l.generation.as_ref().map(GenerationView::from),
         })
         .collect()
 }
@@ -874,6 +908,7 @@ fn layer_thumbnail_pixels(doc: &Document, layer_id: &str) -> Option<Vec<u8>> {
             blend_mode: l.blend_mode,
             visible: l.visible,
             locked: l.locked,
+            generation: None,
         })
         .collect();
     subtree[0].visible = true;
