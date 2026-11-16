@@ -83,7 +83,11 @@ async function editEntries(page: Page, top: string): Promise<string[]> {
       els.map((el) =>
         el.getAttribute('role') === 'separator'
           ? ''
-          : (el.querySelector('span.flex-1')?.textContent ?? '').trim(),
+          : [...el.childNodes]
+              .filter((n) => n.nodeName !== 'KBD')
+              .map((n) => n.textContent)
+              .join('')
+              .trim(),
       ),
     );
   await page.keyboard.press('Escape');
