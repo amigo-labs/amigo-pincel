@@ -3,7 +3,7 @@
 //! output lines kept for the "ComfyUI stopped" status (AC-06, AC-07).
 
 use std::collections::VecDeque;
-use std::io::{BufRead, BufReader, Read};
+use std::io::{BufRead, BufReader, ErrorKind, Read};
 use std::net::TcpListener;
 use std::process::{Child, Command, Stdio};
 use std::sync::{Arc, Mutex, PoisonError};
@@ -108,6 +108,30 @@ pub fn free_port() -> std::io::Result<u16> {
     Ok(listener.local_addr()?.port())
 }
 
+/// How often [`spawn_command`] retries a start that failed because the
+/// program file was still open for writing.
+const BUSY_RETRIES: u32 = 10;
+
+/// Starts `command`, retrying while the program file is busy.
+///
+/// On Linux, `exec` of a file fails with `ETXTBSY` while any process holds
+/// it open for writing. Pincel writes `uv` and the venv's interpreter just
+/// before it runs them, and a fork on another thread between that write and
+/// its close keeps an inherited copy of the descriptor until the forked
+/// child itself execs. That window is short, so a few short waits end it.
+pub(super) fn spawn_command(command: &mut Command) -> std::io::Result<Child> {
+    let mut attempt = 0;
+    loop {
+        match command.spawn() {
+            Err(e) if e.kind() == ErrorKind::ExecutableFileBusy && attempt < BUSY_RETRIES => {
+                attempt += 1;
+                thread::sleep(Duration::from_millis(10 * u64::from(attempt)));
+            }
+            result => return result,
+        }
+    }
+}
+
 /// Starts `inst` bound to 127.0.0.1 on `port`.
 pub fn spawn(inst: &Installation, port: u16) -> std::io::Result<Process> {
     let mut command = Command::new(&inst.python);
@@ -125,7 +149,7 @@ pub fn spawn(inst: &Installation, port: u16) -> std::io::Result<Process> {
         use std::os::windows::process::CommandExt;
         command.creation_flags(CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn()?;
+    let mut child = spawn_command(&mut command)?;
     let log = Log::default();
     let mut readers = Vec::new();
     if let Some(out) = child.stdout.take() {
@@ -169,6 +193,44 @@ pub fn kill_pid(pid: u32) {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    /// A shell script at a fresh path, still open for writing.
+    #[cfg(target_os = "linux")]
+    fn script_held_open(name: &str) -> (std::path::PathBuf, std::fs::File) {
+        use std::io::Write;
+        use std::os::unix::fs::PermissionsExt;
+        let dir = std::env::temp_dir().join(format!("pincel-busy-{}-{name}", std::process::id()));
+        std::fs::create_dir_all(&dir).expect("temp dir");
+        let path = dir.join("tool");
+        let mut file = std::fs::File::create(&path).expect("create script");
+        file.write_all(b"#!/bin/sh\nexit 0\n")
+            .expect("write script");
+        file.flush().expect("flush script");
+        std::fs::set_permissions(&path, std::fs::Permissions::from_mode(0o755)).expect("chmod");
+        (path, file)
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn spawn_command_program_busy_briefly_starts_once_it_is_closed() {
+        let (path, file) = script_held_open("brief");
+        let closer = thread::spawn(move || {
+            thread::sleep(Duration::from_millis(40));
+            drop(file);
+        });
+        let mut child = spawn_command(&mut Command::new(&path)).expect("starts after the close");
+        assert!(child.wait().expect("wait").success());
+        closer.join().expect("closer");
+    }
+
+    #[cfg(target_os = "linux")]
+    #[test]
+    fn spawn_command_program_busy_throughout_returns_the_busy_error() {
+        let (path, file) = script_held_open("held");
+        let err = spawn_command(&mut Command::new(&path)).expect_err("stays busy");
+        assert_eq!(err.kind(), ErrorKind::ExecutableFileBusy);
+        drop(file);
+    }
 
     #[test]
     fn log_keeps_the_last_lines() {

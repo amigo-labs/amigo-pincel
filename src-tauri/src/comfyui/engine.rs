@@ -526,7 +526,7 @@ fn run_uv(ctx: &Ctx, step: Step, args: &[OsString]) -> Result<(), InstallError> 
         use std::os::windows::process::CommandExt;
         command.creation_flags(process::CREATE_NO_WINDOW);
     }
-    let mut child = command.spawn().map_err(|e| InstallError::Failed {
+    let mut child = process::spawn_command(&mut command).map_err(|e| InstallError::Failed {
         message: format!("uv could not be started: {e}"),
     })?;
     let (tx, rx) = mpsc::channel::<String>();
