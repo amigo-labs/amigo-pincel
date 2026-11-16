@@ -113,7 +113,7 @@
   <div {@attach wake} class="flex flex-col gap-2 text-xs text-pc-muted">
     {#if issue !== null}
       <div class="flex flex-col gap-1.5" data-testid="generate-status">
-        <p role="status" class="text-pc-danger-text">{t(issue.key, issue.params)}</p>
+        <div role="status" class="am-banner am-banner--danger"><div><strong>{t(issue.key, issue.params)}</strong></div></div>
         <button type="button" class="am-btn am-btn--sm self-start" onclick={openImageGeneration}
           >{t('gen.setUp')}</button
         >
@@ -122,7 +122,7 @@
       <p role="status">{t('gen.checking')}</p>
     {/if}
     {#if genServer.gone !== null}
-      <p role="note" class="text-pc-accent-text">{t('gen.noLonger', { name: genServer.gone })}</p>
+      <div role="note" class="am-banner am-banner--warning"><div><strong>{t('gen.noLonger', { name: genServer.gone })}</strong></div></div>
     {/if}
 
     <label class="flex flex-col gap-1">
@@ -257,7 +257,7 @@
       <div class="flex flex-col gap-1.5">
         <p role="status" class="text-pc-text" data-testid="generate-progress">{progressText()}</p>
         {#if gen.live}
-          <img src={gen.live} alt={t('gen.livePreview')} class="max-h-40 self-start rounded border border-pc-border" />
+          <img src={gen.live} alt={t('gen.livePreview')} class="max-h-40 self-start rounded-pc-control border border-pc-border" />
         {/if}
         <button type="button" class="am-btn am-btn--sm" onclick={() => key !== null && cancel(key)}>{t('gen.cancel')}</button>
       </div>
@@ -269,18 +269,18 @@
         onclick={() => target && void generate(target)}>{t('gen.generate')}</button
       >
       {#if blocked === 'noVisibleColor'}
-        <p role="note" class="text-pc-danger-text">{t('gen.noVisibleColor')}</p>
+        <div role="note" class="am-banner am-banner--danger"><div><strong>{t('gen.noVisibleColor')}</strong></div></div>
       {/if}
     {/if}
 
     {#if gen?.error}
       {@const message = errorMessage(gen.error)}
-      <p role="alert" class="text-pc-danger-text">{t(message.key, message.params)}</p>
+      <div role="alert" class="am-banner am-banner--danger"><div><strong>{t(message.key, message.params)}</strong></div></div>
     {/if}
 
     {#if gen && gen.phase === 'done' && gen.variants.length > 0}
       {#if larger}
-        <p role="note" class="text-pc-accent-text">{t('gen.larger')}</p>
+        <div role="note" class="am-banner am-banner--warning"><div><strong>{t('gen.larger')}</strong></div></div>
       {/if}
       <div class="flex flex-wrap gap-1" role="listbox" aria-label={t('gen.strip')}>
         {#each gen.thumbs as src, i (src)}
@@ -289,7 +289,7 @@
             role="option"
             aria-selected={gen.selected === i}
             aria-label={t('gen.variant', { n: i + 1 })}
-            class="h-12 w-12 overflow-hidden rounded border-2"
+            class="h-12 w-12 overflow-hidden rounded-pc-control border-2"
             class:border-pc-accent={gen.selected === i}
             class:border-pc-border={gen.selected !== i}
             onclick={() => key !== null && selectVariant(key, i)}

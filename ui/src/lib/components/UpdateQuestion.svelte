@@ -33,23 +33,27 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div class="w-full max-w-md rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
-    <h2 id="update-question-title" class="mb-3 text-lg font-semibold">
-      {t('update.question')}
-    </h2>
-    <div class="mb-4 space-y-1" role="radiogroup" aria-labelledby="update-question-title">
-      {#each MODES as m (m)}
-        <label class="am-check flex items-center gap-2 text-sm text-pc-text">
-          <input type="radio" name="update-question-mode" value={m} bind:group={mode} />
-          {t(`update.${m}`)}
-        </label>
-      {/each}
+  <div class="am-dialog w-full max-w-md">
+    <header>
+      <h2 id="update-question-title">
+        {t('update.question')}
+      </h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <div class="space-y-1" role="radiogroup" aria-labelledby="update-question-title">
+        {#each MODES as m (m)}
+          <label class="am-check flex items-center gap-2 text-sm text-pc-text">
+            <input type="radio" name="update-question-mode" value={m} bind:group={mode} />
+            {t(`update.${m}`)}
+          </label>
+        {/each}
+      </div>
     </div>
-    <div class="flex justify-end gap-2">
+    <footer>
       <button class="am-btn" onclick={onDismiss}>{t('update.close')}</button>
       <button bind:this={confirmButton} class="am-btn" onclick={() => onConfirm(mode)}>
         {t('update.confirm')}
       </button>
-    </div>
+    </footer>
   </div>
 </div>

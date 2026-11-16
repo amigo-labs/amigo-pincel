@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { menu, newDocument, waitForEditor } from './helpers';
+import { sharedPage } from './controls-helpers';
 import { commandCalls, emit, installTauriMock, launchDesktop, reply, setMock } from './tauri-mock';
 
 // The managed ComfyUI install (docs/specs/comfyui-install.md). The backend
@@ -312,6 +313,34 @@ test.describe('desktop', () => {
       progress: { step, package: null, done: null, total: null, line: null, ...more },
     };
   }
+
+  test('the download bar is the shared progress bar (amigo-theme-controls AC-08)', async ({ page }) => {
+    const wizard = await installing(page);
+    await emit(page, 'comfyui:install', progress('model', { package: 'sd15', done: GIB, total: 4 * GIB }));
+    const bar = wizard.getByRole('progressbar');
+    await expect(bar).toHaveAttribute('aria-valuenow', String(GIB));
+    const look = (el: Locator) =>
+      el.evaluate((node) => {
+        const fill = node.firstElementChild;
+        if (!fill) throw new Error('no fill');
+        const cs = getComputedStyle(node);
+        const fs = getComputedStyle(fill);
+        return {
+          track: cs.backgroundColor,
+          radius: cs.borderTopLeftRadius,
+          height: node.getBoundingClientRect().height,
+          fill: fs.backgroundColor,
+          share: Math.round((fill.getBoundingClientRect().width / node.getBoundingClientRect().width) * 100),
+        };
+      });
+    const alone = await sharedPage(
+      page,
+      'Dark',
+      '<div id="bar" class="am-progress" style="width:200px"><i style="width:25%"></i></div>',
+    );
+    expect(await look(bar)).toEqual(await look(alone.locator('#bar')));
+    await alone.close();
+  });
 
   test('installing shows the step, bytes or the latest line, and Cancel (AC-06)', async ({ page }) => {
     const wizard = await installing(page);

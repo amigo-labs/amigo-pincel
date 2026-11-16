@@ -200,7 +200,7 @@
         </label>
       </div>
       {#if formError}
-        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
+        <p class="am-hint am-hint--error" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
         <button type="button" class="am-btn am-btn--sm" onclick={closeForm}>{t('common.cancel')}</button>
@@ -244,7 +244,7 @@
             </button>
           </div>
           {#if rowError[ts.id]}
-            <p class="text-xs text-pc-danger-text" role="alert">{rowError[ts.id]}</p>
+            <p class="am-hint am-hint--error" role="alert">{rowError[ts.id]}</p>
           {/if}
           {#if doc && ts.tileCount > 1}
             <!-- Tile 0 is the empty tile: never shown, never picked

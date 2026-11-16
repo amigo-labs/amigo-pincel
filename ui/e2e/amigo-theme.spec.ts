@@ -474,13 +474,14 @@ for (const mode of MODES) {
       ).toBeLessThanOrEqual(2);
 
       // A progress fill. The only progress bar of the app sits in the desktop
-      // app's ComfyUI install wizard; the page's own style for <progress> is
-      // what draws it, so a full bar put into the page shows the fill.
+      // app's ComfyUI install wizard and is the shared one (amigo-theme-controls
+      // AC-08); a full bar of that kind put into the page shows the fill.
       await page.evaluate(() => {
-        const bar = document.createElement('progress');
+        const bar = document.createElement('div');
         bar.id = 'theme-probe-progress';
-        bar.max = 1;
-        bar.value = 1;
+        bar.className = 'am-progress';
+        bar.append(document.createElement('i'));
+        (bar.firstChild as HTMLElement).style.width = '100%';
         bar.style.cssText = 'position:fixed;left:8px;top:8px;width:120px;z-index:1000';
         document.body.append(bar);
       });
@@ -857,7 +858,7 @@ for (const mode of MODES) {
       if (mode === 'pixel') {
         const error = page.getByRole('alert').filter({ hasText: 'broken.png' });
         await expect(error).toBeVisible();
-        await check(error.locator('span').first(), 'error text');
+        await check(error.getByText(/broken\.png/).first(), 'error text');
         await error.getByRole('button').click();
       } else {
         const notice = page.getByRole('contentinfo').getByText(/^Could not open image/);

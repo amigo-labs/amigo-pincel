@@ -127,7 +127,7 @@
     tabindex="0"
     aria-label={t('historyPanel.list')}
     aria-activedescendant={`${listId}-${focused}`}
-    class="history-list flex max-h-64 min-h-0 flex-col overflow-y-auto rounded border border-pc-border py-1"
+    class="history-list flex max-h-64 min-h-0 flex-col overflow-y-auto rounded-pc-control border border-pc-border py-1"
     onkeydown={onKeyDown}
   >
     {#each rows as name, i (i)}

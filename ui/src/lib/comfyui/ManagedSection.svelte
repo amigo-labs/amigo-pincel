@@ -35,13 +35,15 @@
       <p class="mb-2">{t('comfy.updateAvailable')}</p>
     {/if}
     {#if install.confirmUninstall}
-      <div class="rounded border border-pc-border p-2" role="alertdialog" aria-label={t('comfy.uninstallTitle')}>
-        <p class="mb-2">{t('comfy.uninstallConfirm', { path: managed.dir })}</p>
-        <div class="flex gap-2">
-          <button class="am-btn" onclick={() => void uninstall()}>{t('comfy.uninstallButton')}</button>
-          <button class="am-btn" onclick={() => (install.confirmUninstall = false)}
-            >{t('common.cancel')}</button
-          >
+      <div class="am-banner am-banner--warning" role="alertdialog" aria-label={t('comfy.uninstallTitle')}>
+        <div>
+          <p class="mb-2">{t('comfy.uninstallConfirm', { path: managed.dir })}</p>
+          <div class="flex justify-end gap-2">
+            <button class="am-btn" onclick={() => (install.confirmUninstall = false)}
+              >{t('common.cancel')}</button
+            >
+            <button class="am-btn am-btn--danger" onclick={() => void uninstall()}>{t('comfy.uninstallButton')}</button>
+          </div>
         </div>
       </div>
     {:else}
@@ -65,7 +67,7 @@
   </section>
 {:else if managed.kind === 'incomplete'}
   <section class="mb-4 border-t border-pc-border pt-3" aria-label={t('comfy.managedTitle')}>
-    <p class="text-pc-danger-text">{t('comfy.incomplete')}</p>
+    <div class="am-banner am-banner--danger mb-2" role="status"><div><strong>{t('comfy.incomplete')}</strong></div></div>
     <p class="mb-2 truncate text-xs text-pc-muted" title={managed.dir}>{managed.dir}</p>
     <div class="flex flex-wrap gap-2">
       <button class="am-btn" disabled={locked} onclick={() => void resumeIncomplete()}

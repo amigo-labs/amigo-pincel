@@ -75,41 +75,45 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div class="w-full max-w-sm rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
-    <h2 id="about-title" class="mb-1 text-lg font-semibold">{t('menu.about')}</h2>
-    <p class="mb-3 text-sm text-pc-muted">{t('about.version', { version })}</p>
-    <p class="mb-4 text-sm text-pc-text">{t('about.tagline')}</p>
-    {#if supported && updater !== null}
-      <fieldset class="mb-4" role="radiogroup" aria-labelledby="about-updates">
-        <legend id="about-updates" class="mb-1 text-sm font-semibold">{t('about.updates')}</legend>
-        {#each MODES as mode (mode)}
-          <label class="am-check flex items-center gap-2 text-sm text-pc-text">
-            <input
-              type="radio"
-              name="about-update-mode"
-              value={mode}
-              checked={updater.mode === mode}
-              onchange={() => void chooseMode(mode)}
-            />
-            {modeLabel(mode)}
-          </label>
-        {/each}
-        {#if help.notSaved}
-          <p class="mt-1 text-xs text-pc-muted">{t('about.notSaved')}</p>
-        {/if}
-      </fieldset>
-    {:else if reason !== null}
-      <p class="mb-4 text-sm text-pc-muted">{reason}</p>
-    {/if}
-    {#if status !== null}
-      <p class="mb-4 text-sm text-pc-accent-text" role="status">{status}</p>
-    {/if}
-    {#if help.restartError !== null}
-      <p class="mb-4 text-sm text-pc-accent-text" role="alert">
-        {t('about.restartFailed', { error: help.restartError })}
-      </p>
-    {/if}
-    <div class="flex flex-wrap justify-end gap-2">
+  <div class="am-dialog w-full max-w-sm">
+    <header>
+      <h2 id="about-title">{t('menu.about')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <p class="text-sm text-pc-muted">{t('about.version', { version })}</p>
+      <p class="text-sm text-pc-text">{t('about.tagline')}</p>
+      {#if supported && updater !== null}
+        <fieldset class="mb-4" role="radiogroup" aria-labelledby="about-updates">
+          <legend id="about-updates" class="mb-1 text-sm font-semibold">{t('about.updates')}</legend>
+          {#each MODES as mode (mode)}
+            <label class="am-check flex items-center gap-2 text-sm text-pc-text">
+              <input
+                type="radio"
+                name="about-update-mode"
+                value={mode}
+                checked={updater.mode === mode}
+                onchange={() => void chooseMode(mode)}
+              />
+              {modeLabel(mode)}
+            </label>
+          {/each}
+          {#if help.notSaved}
+            <p class="mt-1 text-xs text-pc-muted">{t('about.notSaved')}</p>
+          {/if}
+        </fieldset>
+      {:else if reason !== null}
+        <p class="mb-4 text-sm text-pc-muted">{reason}</p>
+      {/if}
+      {#if status !== null}
+        <p class="mb-4 text-sm text-pc-accent-text" role="status">{status}</p>
+      {/if}
+      {#if help.restartError !== null}
+        <p class="mb-4 text-sm text-pc-accent-text" role="alert">
+          {t('about.restartFailed', { error: help.restartError })}
+        </p>
+      {/if}
+    </div>
+    <footer class="flex-wrap">
       {#if supported}
         {#if available !== null}
           <button class="am-btn" onclick={runUpdateCheck}>{t('about.install')}</button>
@@ -126,6 +130,6 @@
       <button bind:this={closeButton} class="am-btn" onclick={onClose}>
         {t('about.close')}
       </button>
-    </div>
+    </footer>
   </div>
 </div>

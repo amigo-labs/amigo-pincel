@@ -77,90 +77,94 @@
   aria-label={t('anim.title')}
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     onsubmit={(e) => {
       e.preventDefault();
       onSubmit({ format, tag, scale, loops });
     }}
   >
-    <h2 class="text-base font-semibold">{t('anim.title')}</h2>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('anim.format')}</span>
-      <select
-        class="am-input w-auto"
-        bind:value={format}
-        aria-label={t('anim.format')}
-      >
-        <option value="apng">{t('anim.apng')}</option>
-        <option value="gif">{t('anim.gif')}</option>
-      </select>
-    </label>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('sheet.frames')}</span>
-      <select
-        class="am-input w-auto"
-        value={tag ?? ''}
-        onchange={(e) => chooseTag(e.currentTarget.value === '' ? null : e.currentTarget.value)}
-        aria-label={t('sheet.frames')}
-      >
-        <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
-        {#each tags as tag (tag.name)}
-          <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
-        {/each}
-      </select>
-    </label>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('anim.scale')}</span>
-      <select
-        class="am-input w-auto"
-        bind:value={scale}
-        aria-label={t('anim.scale')}
-      >
-        {#each SCALES as s (s)}
-          <option value={s}>×{s}</option>
-        {/each}
-      </select>
-    </label>
-    <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-      <legend class="mb-1">{t('anim.loop')}</legend>
-      <label class="am-check flex items-center gap-2">
-        <input type="radio" name="anim-loop" checked={forever} onchange={() => (forever = true)} />
-        {t('anim.forever')}
+    <header>
+      <h2>{t('anim.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('anim.format')}</span>
+        <select
+          class="am-input w-auto"
+          bind:value={format}
+          aria-label={t('anim.format')}
+        >
+          <option value="apng">{t('anim.apng')}</option>
+          <option value="gif">{t('anim.gif')}</option>
+        </select>
       </label>
-      <label class="flex items-center gap-2">
-        <span class="am-check">
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('sheet.frames')}</span>
+        <select
+          class="am-input w-auto"
+          value={tag ?? ''}
+          onchange={(e) => chooseTag(e.currentTarget.value === '' ? null : e.currentTarget.value)}
+          aria-label={t('sheet.frames')}
+        >
+          <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
+          {#each tags as tag (tag.name)}
+            <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
+          {/each}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('anim.scale')}</span>
+        <select
+          class="am-input w-auto"
+          bind:value={scale}
+          aria-label={t('anim.scale')}
+        >
+          {#each SCALES as s (s)}
+            <option value={s}>×{s}</option>
+          {/each}
+        </select>
+      </label>
+      <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+        <legend class="mb-1">{t('anim.loop')}</legend>
+        <label class="am-check flex items-center gap-2">
+          <input type="radio" name="anim-loop" checked={forever} onchange={() => (forever = true)} />
+          {t('anim.forever')}
+        </label>
+        <label class="flex items-center gap-2">
+          <span class="am-check">
+            <input
+              type="radio"
+              name="anim-loop"
+              checked={!forever}
+              onchange={() => (forever = false)}
+              aria-label={t('anim.times')}
+            />
+          </span>
           <input
-            type="radio"
-            name="anim-loop"
-            checked={!forever}
-            onchange={() => (forever = false)}
-            aria-label={t('anim.times')}
+            type="number"
+            min="1"
+            max="65535"
+            bind:value={count}
+            disabled={forever}
+            class="am-input w-20 tabular-nums"
+            aria-label={t('anim.loopCount')}
           />
-        </span>
-        <input
-          type="number"
-          min="1"
-          max="65535"
-          bind:value={count}
-          disabled={forever}
-          class="am-input w-20 tabular-nums"
-          aria-label={t('anim.loopCount')}
-        />
-        {t('anim.timesSuffix')}
-      </label>
-    </fieldset>
-    <p class="text-xs text-pc-muted" aria-live="polite">
-      {t('anim.estimate', { n: frames, w: frameWidth * scale, h: frameHeight * scale })}
-    </p>
-    {#if format === 'gif' && summary?.gifApproximated}
-      <p class="text-xs text-pc-warning-text" role="status">{t('anim.gifApproximated')}</p>
-    {/if}
-    {#if format === 'gif' && summary?.semiTransparent}
-      <p class="text-xs text-pc-muted" role="status">{t('anim.gifAlpha')}</p>
-    {/if}
-    <div class="flex justify-end gap-2">
+          {t('anim.timesSuffix')}
+        </label>
+      </fieldset>
+      <p class="text-xs text-pc-muted" aria-live="polite">
+        {t('anim.estimate', { n: frames, w: frameWidth * scale, h: frameHeight * scale })}
+      </p>
+      {#if format === 'gif' && summary?.gifApproximated}
+        <div class="am-banner am-banner--warning" role="status"><div><strong>{t('anim.gifApproximated')}</strong></div></div>
+      {/if}
+      {#if format === 'gif' && summary?.semiTransparent}
+        <p class="text-xs text-pc-muted" role="status">{t('anim.gifAlpha')}</p>
+      {/if}
+    </div>
+    <footer>
       <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
       <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
-    </div>
+    </footer>
   </form>
 </div>

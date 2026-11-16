@@ -21,11 +21,11 @@
 </script>
 
 <section
-  class="fixed right-3 bottom-3 z-30 flex max-w-sm items-center gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel px-3 py-2 text-sm text-pc-text shadow-xl"
+  class="am-banner fixed right-3 bottom-3 z-30 max-w-sm items-center"
   aria-label={t('update.notice')}
   data-update-notice
 >
-  <span>{t('update.noticeText', { version })}</span>
+  <div>{t('update.noticeText', { version })}</div>
   <button class="am-btn" onkeydown={onKeydown} onclick={onInstall}>{t('about.install')}</button>
   <button class="am-btn" onkeydown={onKeydown} onclick={onLater}>{t('update.later')}</button>
   <button

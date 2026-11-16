@@ -196,9 +196,11 @@
       <summary class="flex cursor-pointer items-center gap-2 px-2 py-1">
         <span class="min-w-0 flex-1 truncate font-mono">{it.name}</span>
         <span
-          class:text-pc-danger-text={it.state === 'error' || it.state === 'failed'}
-          class:text-pc-accent-text={it.state === 'ok'}
-          class:text-pc-muted={it.state === 'running' || it.state === 'stopped'}
+          class={[
+            'am-chip',
+            (it.state === 'error' || it.state === 'failed') && 'am-chip--danger',
+            it.state === 'ok' && 'am-chip--success',
+          ]}
         >
           {stateLabel(it.state)}
         </span>
@@ -218,25 +220,27 @@
       </div>
     </details>
   {:else if it.kind === 'end'}
-    <div class="flex flex-col gap-0.5 text-xs" data-role="end" role="status">
-      {#if it.outcome === 'stopped'}
+    {#if it.outcome === 'stopped'}
+      <div class="flex flex-col gap-0.5 text-xs" data-role="end" role="status">
         <span class="text-pc-muted">{t('assistant.stopped')}</span>
-      {:else}
-        <span class="text-pc-danger-text whitespace-pre-wrap break-words">
-          {t('assistant.failed', { error: it.error?.text ?? '' })}
-        </span>
-        {#if it.error}
-          <span class="text-pc-muted">{hintText(it.error)}</span>
-        {/if}
-      {/if}
-    </div>
+      </div>
+    {:else}
+      <div class="am-banner am-banner--danger text-xs" data-role="end" role="status">
+        <div class="flex flex-col gap-0.5">
+          <strong class="whitespace-pre-wrap break-words">
+            {t('assistant.failed', { error: it.error?.text ?? '' })}
+          </strong>
+          {#if it.error}
+            <span class="text-pc-muted">{hintText(it.error)}</span>
+          {/if}
+        </div>
+      </div>
+    {/if}
   {:else}
-    <div
-      class="text-xs text-pc-danger-text whitespace-pre-wrap break-words"
-      data-role="end"
-      role="status"
-    >
-      {t('assistant.cannotStart', { error: it.text })}
+    <div class="am-banner am-banner--danger text-xs" data-role="end" role="status">
+      <div>
+        <strong class="whitespace-pre-wrap break-words">{t('assistant.cannotStart', { error: it.text })}</strong>
+      </div>
     </div>
   {/if}
 {/snippet}
@@ -390,23 +394,25 @@
       if (e.key === 'Escape') confirmChange(false);
     }}
   >
-    <div
-      class="w-80 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-    >
-      <p class="font-semibold">{t('assistant.newChatQuestion')}</p>
-      <p class="mt-2 text-xs text-pc-muted">{t('assistant.newChatHelp')}</p>
-      <div class="mt-4 flex justify-end gap-2">
-        <button type="button" class="am-btn am-btn--sm" onclick={() => confirmChange(false)}>
+    <div class="am-dialog">
+      <header>
+        <h2>{t('assistant.newChatQuestion')}</h2>
+      </header>
+      <div class="am-body flex flex-col gap-3">
+        <p class="text-xs text-pc-muted">{t('assistant.newChatHelp')}</p>
+      </div>
+      <footer>
+        <button type="button" class="am-btn" onclick={() => confirmChange(false)}>
           {t('common.cancel')}
         </button>
         <button
           type="button"
-          class="am-btn am-btn--sm am-btn--primary"
+          class="am-btn am-btn--primary"
           onclick={() => confirmChange(true)}
         >
           {t('assistant.newChatConfirm')}
         </button>
-      </div>
+      </footer>
     </div>
   </div>
 {/if}

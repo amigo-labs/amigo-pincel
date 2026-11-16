@@ -53,19 +53,21 @@
   <!-- svelte-ignore a11y_click_events_have_key_events -->
   <div
     bind:this={panel}
-    class="max-w-[calc(100vw-2rem)] rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text"
-    class:w-72={!secondary}
-    class:w-96={secondary}
+    class="am-dialog max-w-[calc(100vw-2rem)]"
     role="dialog"
     aria-label={title}
     tabindex="-1"
     onclick={(e) => e.stopPropagation()}
   >
-    <h2 class="mb-3 text-sm font-semibold">{title}</h2>
+    <header>
+      <h2>{title}</h2>
+    </header>
 
-    {@render children()}
+    <div class="am-body">
+      {@render children()}
+    </div>
 
-    <div class="flex justify-end gap-2">
+    <footer>
       <button class="am-btn" onclick={onClose}>{t('common.cancel')}</button>
       {#if secondary}
         <button class="am-btn" onclick={secondary.onClick}>
@@ -79,6 +81,6 @@
       >
         {applyLabel}
       </button>
-    </div>
+    </footer>
   </div>
 </div>

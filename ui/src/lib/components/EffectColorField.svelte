@@ -83,7 +83,7 @@
   </span>
 </div>
 {#if invalid}
-  <p id="{uid}-error" class="text-right text-xs text-pc-danger-text" role="status">
+  <p id="{uid}-error" class="am-hint am-hint--error text-right" role="status">
     {t('effectDlg.hexInvalid')}
   </p>
 {/if}

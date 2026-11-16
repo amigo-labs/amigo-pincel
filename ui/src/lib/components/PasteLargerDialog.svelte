@@ -37,14 +37,16 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="w-96 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
-  >
-    <p class="font-semibold">{t('paste.largerTitle')}</p>
-    <p class="mt-3 text-pc-muted">
-      {t(canExpand ? 'paste.larger' : 'paste.tooLarge', { w: width, h: height })}
-    </p>
-    <div class="mt-4 flex flex-wrap justify-end gap-2">
+  <div class="am-dialog">
+    <header>
+      <h2>{t('paste.largerTitle')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <p class="text-pc-muted">
+        {t(canExpand ? 'paste.larger' : 'paste.tooLarge', { w: width, h: height })}
+      </p>
+    </div>
+    <footer class="flex-wrap">
       <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
       {#if canExpand}
         <button type="button" class="am-btn" onclick={onKeep}>{t('paste.keep')}</button>
@@ -56,6 +58,6 @@
           {t('paste.keep')}
         </button>
       {/if}
-    </div>
+    </footer>
   </div>
 </div>

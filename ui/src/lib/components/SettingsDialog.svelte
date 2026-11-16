@@ -45,73 +45,77 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div class="w-full max-w-sm rounded-pc-dialog border border-pc-border bg-pc-panel p-6 shadow-xl">
-    <h2 id="settings-title" class="mb-4 text-lg font-semibold">{t('settings.title')}</h2>
-    <div class="flex flex-col gap-4 text-sm">
-      <label class="flex items-center justify-between gap-3">
-        <span>{t('settings.language')}</span>
-        <select
-          bind:this={languageField}
-          class="am-input pointer-coarse:min-h-11 w-auto"
-          value={locale()}
-          onchange={(e) => {
-            const v = e.currentTarget.value;
-            if (isLocale(v)) setLocale(v);
-          }}
+  <div class="am-dialog w-full max-w-sm">
+    <header>
+      <h2 id="settings-title">{t('settings.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <div class="flex flex-col gap-4 text-sm">
+        <label class="flex items-center justify-between gap-3">
+          <span>{t('settings.language')}</span>
+          <select
+            bind:this={languageField}
+            class="am-input pointer-coarse:min-h-11 w-auto"
+            value={locale()}
+            onchange={(e) => {
+              const v = e.currentTarget.value;
+              if (isLocale(v)) setLocale(v);
+            }}
+          >
+            {#each LOCALES as l (l.id)}
+              <option value={l.id}>{l.label}</option>
+            {/each}
+          </select>
+        </label>
+        <!-- Theme (docs/specs/amigo-theme.md AC-05, AC-06): applies at once. -->
+        <div
+          class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
+          role="radiogroup"
+          aria-labelledby="settings-theme"
         >
-          {#each LOCALES as l (l.id)}
-            <option value={l.id}>{l.label}</option>
-          {/each}
-        </select>
-      </label>
-      <!-- Theme (docs/specs/amigo-theme.md AC-05, AC-06): applies at once. -->
-      <div
-        class="flex flex-wrap items-center justify-between gap-x-3 gap-y-1"
-        role="radiogroup"
-        aria-labelledby="settings-theme"
-      >
-        <span id="settings-theme">{t('settings.theme')}</span>
-        <span class="am-seg">
-          {#each THEME_CHOICES as choice (choice)}
-            <label>
-              <input
-                type="radio"
-                name="settings-theme"
-                checked={theme.choice === choice}
-                onchange={() => setThemeChoice(choice)}
-              />
-              {t(THEME_LABEL[choice])}
-            </label>
-          {/each}
-        </span>
-      </div>
-      <div class="flex flex-col gap-1">
+          <span id="settings-theme">{t('settings.theme')}</span>
+          <span class="am-seg">
+            {#each THEME_CHOICES as choice (choice)}
+              <label>
+                <input
+                  type="radio"
+                  name="settings-theme"
+                  checked={theme.choice === choice}
+                  onchange={() => setThemeChoice(choice)}
+                />
+                {t(THEME_LABEL[choice])}
+              </label>
+            {/each}
+          </span>
+        </div>
+        <div class="flex flex-col gap-1">
+          <label class="am-check flex items-center gap-2 pointer-coarse:min-h-11">
+            <input
+              type="checkbox"
+              checked={motion.option}
+              aria-describedby={motion.system ? 'settings-motion-system' : undefined}
+              onchange={(e) => setReduceMotion(e.currentTarget.checked)}
+            />
+            {t('settings.reduceMotion')}
+          </label>
+          {#if motion.system}
+            <p id="settings-motion-system" class="ml-6 text-xs text-pc-muted">
+              {t('settings.reduceMotionSystem')}
+            </p>
+          {/if}
+        </div>
         <label class="am-check flex items-center gap-2 pointer-coarse:min-h-11">
           <input
             type="checkbox"
-            checked={motion.option}
-            aria-describedby={motion.system ? 'settings-motion-system' : undefined}
-            onchange={(e) => setReduceMotion(e.currentTarget.checked)}
+            checked={touchGestures.enabled}
+            onchange={(e) => setTouchGestures(e.currentTarget.checked)}
           />
-          {t('settings.reduceMotion')}
+          {t('settings.touchGestures')}
         </label>
-        {#if motion.system}
-          <p id="settings-motion-system" class="ml-6 text-xs text-pc-muted">
-            {t('settings.reduceMotionSystem')}
-          </p>
-        {/if}
       </div>
-      <label class="am-check flex items-center gap-2 pointer-coarse:min-h-11">
-        <input
-          type="checkbox"
-          checked={touchGestures.enabled}
-          onchange={(e) => setTouchGestures(e.currentTarget.checked)}
-        />
-        {t('settings.touchGestures')}
-      </label>
     </div>
-    <div class="mt-6 flex justify-end">
+    <footer>
       <button class="am-btn" onclick={onClose}>{t('common.close')}</button>
-    </div>
+    </footer>
   </div>
 </div>

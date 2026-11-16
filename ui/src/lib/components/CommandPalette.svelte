@@ -110,9 +110,8 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="flex max-h-[70vh] w-full max-w-xl flex-col rounded-pc-dialog border border-pc-border bg-pc-panel shadow-xl"
-  >
+  <!-- The shared dialog's surface; a search box has no title or buttons. -->
+  <div class="am-dialog flex max-h-[70vh] w-full max-w-xl flex-col">
     {#if asking}
       <label class="flex flex-col gap-1 px-4 py-3 text-xs text-pc-muted">
         {t('cmd.frameNumber', { n: frameCount })}
@@ -163,7 +162,7 @@
           >
             <span class="min-w-0 flex-1 truncate">{entry.label}</span>
             {#if entry.shortcut}
-              <kbd class="shrink-0 text-xs text-pc-faint">{entry.shortcut}</kbd>
+              <kbd class="am-kbd shrink-0">{entry.shortcut}</kbd>
             {/if}
           </li>
         {/each}

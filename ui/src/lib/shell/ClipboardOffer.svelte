@@ -68,18 +68,18 @@
      clipboard" row (AC-27): preview on the left, title, size and buttons on
      the right; stacked on narrow screens. -->
 <section
-  class="start-surface mt-3 flex flex-wrap items-stretch gap-3 rounded-pc-panel border border-pc-border bg-pc-panel p-3 text-pc-text"
+  class="am-banner mt-3 flex-wrap items-stretch"
   aria-labelledby="clip-offer-title"
 >
   <div
-    class="flex h-[120px] w-[160px] shrink-0 items-center justify-center rounded border border-pc-border bg-pc-bg"
+    class="flex h-[120px] w-[160px] shrink-0 items-center justify-center rounded-pc-control border border-pc-border bg-pc-bg"
     role="img"
     aria-label={t('offer.preview')}
   >
     <canvas width={size.width} height={size.height} {@attach draw}></canvas>
   </div>
   <div class="flex min-w-[10rem] flex-1 flex-col gap-1">
-    <h2 id="clip-offer-title" class="text-[13px] leading-5 font-semibold">{t('offer.title')}</h2>
+    <h2 id="clip-offer-title"><strong>{t('offer.title')}</strong></h2>
     <p class="text-xs leading-4 text-pc-muted">
       {t('offer.size', { w: image.width, h: image.height })}
     </p>

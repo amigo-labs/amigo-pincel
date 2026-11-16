@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart } from './helpers';
+import { createDocument, gotoStart, menu } from './helpers';
 import {
   PALETTES,
   keyFocus,
@@ -550,6 +550,209 @@ for (const palette of PALETTES) {
     const entry = flyout.locator('button[role="menuitemradio"]:not(:focus)').first();
     await expect(flyout.locator('button:focus')).toHaveAttribute('data-active', '');
     expect(await itemLook(entry), 'flyout entry').toEqual(wantItem);
+    await alone.close();
+  });
+}
+
+// AC-07: a dialog as the shared dialog rendered alone: the surface, the
+// title, and where the buttons sit (bottom right, the action last).
+const DIALOG_ALONE = `
+  <div id="dialog" class="am-dialog">
+    <header><h2 id="dialog-title">Title</h2></header>
+    <div class="am-body">Body</div>
+    <footer><button class="am-btn">Cancel</button><button id="dialog-action" class="am-btn am-btn--primary">OK</button></footer>
+  </div>
+`;
+
+/** What a dialog's surface and title look like, and where its action sits. */
+interface DialogLook {
+  surface: { fill: string; edge: string; radius: string; shadow: string; text: string };
+  title: { font: string; color: string };
+  /** The action's distance from the surface's right and bottom edge. */
+  action: { right: number; bottom: number };
+}
+
+/**
+ * Reads `dialog` (a role=dialog element, the surface itself or the overlay
+ * around it): the surface is the first opaque box around its title.
+ */
+async function dialogLook(title: Locator, action: Locator): Promise<DialogLook> {
+  const a = await action.boundingBox();
+  if (!a) throw new Error('no action button');
+  return title.evaluate(
+    (node, box) => {
+      let surface = node.parentElement;
+      while (surface && getComputedStyle(surface).backgroundColor === 'rgba(0, 0, 0, 0)') {
+        surface = surface.parentElement;
+      }
+      if (!surface) throw new Error('no surface');
+      const cs = getComputedStyle(surface);
+      const ts = getComputedStyle(node);
+      const r = surface.getBoundingClientRect();
+      return {
+        surface: {
+          fill: cs.backgroundColor,
+          edge: `${cs.borderTopWidth} ${cs.borderTopStyle} ${cs.borderTopColor}`,
+          radius: cs.borderTopLeftRadius,
+          shadow: cs.boxShadow,
+          text: cs.color,
+        },
+        title: {
+          font: `${ts.fontWeight} ${ts.fontSize}/${ts.lineHeight} ${ts.letterSpacing}`,
+          color: ts.color,
+        },
+        action: {
+          right: Math.round(r.right - (box.x + box.width)),
+          bottom: Math.round(r.bottom - (box.y + box.height)),
+        },
+      };
+    },
+    a,
+  );
+}
+
+/** `safe` sits left of `action` in its row, and nothing in that row is right of `action`. */
+async function expectActionLast(dialog: Locator, action: Locator, safe: Locator | null, what: string): Promise<void> {
+  const a = await action.boundingBox();
+  if (!a) throw new Error(`${what}: no action`);
+  if (safe) {
+    const s = await safe.boundingBox();
+    if (!s) throw new Error(`${what}: no safe choice`);
+    expect(s.x + s.width, `${what}: the safe choice before the action`).toBeLessThanOrEqual(a.x);
+  }
+  const rights = await dialog.getByRole('button').evaluateAll(
+    (els, row) =>
+      els
+        .map((e) => e.getBoundingClientRect())
+        .filter((r) => r.width > 0 && Math.abs(r.top + r.height / 2 - row) < 4)
+        .map((r) => r.right),
+    a.y + a.height / 2,
+  );
+  expect(Math.max(...rights), `${what}: the action is last in its row`).toBeLessThanOrEqual(a.x + a.width + 0.5);
+}
+
+for (const palette of PALETTES) {
+  test(`${palette}: dialogs are the shared dialog, buttons bottom right with the action last (AC-07)`, async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const alone = await sharedPage(page, palette, DIALOG_ALONE);
+    const want = await dialogLook(alone.locator('#dialog-title'), alone.locator('#dialog-action'));
+    expect(want.surface.radius).toBe(await tokenValue(page, 'radius-lg'));
+    expect(want.surface.fill).toBe(await tokenColor(page, 'surface'));
+    /** `dialog` has the shared look; `action` is last, `safe` before it. */
+    const check = async (dialog: Locator, actionName: string, safeName: string | null, what: string): Promise<void> => {
+      await expect(dialog).toBeVisible();
+      const action = dialog.getByRole('button', { name: actionName, exact: true });
+      const safe = safeName ? dialog.getByRole('button', { name: safeName, exact: true }) : null;
+      const look = await dialogLook(dialog.getByRole('heading').first(), action);
+      expect(look, what).toEqual(want);
+      await expectActionLast(dialog, action, safe, what);
+    };
+
+    // Settings, from the start screen.
+    await page.keyboard.press('Control+,');
+    await check(settings(page), 'Close', null, 'Settings');
+    await settings(page).getByRole('button', { name: 'Close' }).click();
+
+    // Pixel mode: New, Export PNG, Keyboard Shortcuts, Rename layer.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await menu(page, 'File', 'New…');
+    const created = page.getByRole('dialog', { name: 'New document' });
+    await check(created, 'Create', 'Cancel', 'New');
+    await created.getByRole('button', { name: 'Cancel' }).click();
+    await menu(page, 'File', 'Export', 'PNG (current frame)');
+    const png = page.getByRole('dialog', { name: 'Export PNG' });
+    await check(png, 'Export', 'Cancel', 'Export PNG');
+    await png.getByRole('button', { name: 'Cancel' }).click();
+    await menu(page, 'Help', 'Keyboard Shortcuts');
+    const keys = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+    await check(keys, 'Close', null, 'Keyboard Shortcuts');
+    await keys.getByRole('button', { name: 'Close' }).click();
+    await menu(page, 'Layer', 'Rename…');
+    const rename = page.getByRole('dialog', { name: 'Rename layer' });
+    await check(rename, 'Rename', 'Cancel', 'Rename layer');
+    await rename.getByRole('button', { name: 'Cancel' }).click();
+
+    // Image mode's dialog shell (Scale Image) and an effect's floating dialog.
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await menu(page, 'Image', 'Scale Image…');
+    const scale = page.getByRole('dialog', { name: 'Scale Image' });
+    await check(scale, 'Scale', 'Cancel', 'Scale Image');
+    await scale.getByRole('button', { name: 'Cancel' }).click();
+    await menu(page, 'Effects', 'Blurs', 'Gaussian Blur…');
+    const effect = page.getByRole('dialog', { name: /Gaussian Blur/ });
+    await check(effect, 'OK', 'Cancel', 'Gaussian Blur');
+    await effect.getByRole('button', { name: 'Cancel' }).click();
+    await expect(effect).toBeHidden();
+
+    // The unsaved prompt: Cancel first, Save last, Don't Save between.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const prompt = await openUnsavedPrompt(page);
+    await check(prompt, 'Save', 'Cancel', 'unsaved prompt');
+    await prompt.getByRole('button', { name: 'Cancel' }).click();
+    await alone.close();
+  });
+}
+
+// AC-08: notices on the shared banner and chip.
+const NOTICE_ALONE = `
+  <div id="banner" class="am-banner"><div>Text</div></div>
+  <div id="banner-warning" class="am-banner am-banner--warning"><div><strong>Text</strong></div></div>
+  <span id="chip-warning" class="am-chip am-chip--warning">Text</span>
+`;
+
+for (const palette of PALETTES) {
+  test(`${palette}: notices are the shared banner and chip, in the colour of their state (AC-08)`, async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    const alone = await sharedPage(page, palette, NOTICE_ALONE);
+    /** A banner's look without its height (that follows its text). */
+    const bannerLook = async (el: Locator): Promise<Omit<Look, 'height'>> => {
+      const { fill, text, edge, edgeWidth, radius } = await lookOf(el);
+      return { fill, text, edge, edgeWidth, radius };
+    };
+
+    // The tour's offer on the start screen: a neutral banner.
+    const tour = page.getByRole('region', { name: 'Tour', exact: true });
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    await expect(tour).toBeVisible();
+    expect(await bannerLook(tour), 'tour banner').toEqual(await bannerLook(alone.locator('#banner')));
+    expect((await lookOf(tour)).fill).toBe(await tokenColor(page, 'surface-raised'));
+
+    // A taken chord in Keyboard Shortcuts: a warning banner, Cancel before Replace.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await menu(page, 'Help', 'Keyboard Shortcuts');
+    const keys = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
+    await keys
+      .getByRole('row')
+      .filter({ has: page.getByRole('rowheader', { name: 'Undo', exact: true }) })
+      .getByRole('button', { name: 'Change', exact: true })
+      .click();
+    await page.keyboard.press('Control+Shift+z');
+    const warning = keys.getByRole('alert');
+    await expect(warning).toContainText('Redo');
+    expect(await bannerLook(warning), 'conflict banner').toEqual(await bannerLook(alone.locator('#banner-warning')));
+    expect((await lookOf(warning)).fill).toBe(await tokenColor(page, 'warning-subtle'));
+    await expectActionLast(
+      warning,
+      warning.getByRole('button', { name: 'Replace' }),
+      warning.getByRole('button', { name: 'Cancel' }),
+      'conflict',
+    );
+    await warning.getByRole('button', { name: 'Cancel' }).click();
+    await keys.getByRole('button', { name: 'Close' }).click();
+
+    // A refused action in Image mode: the status bar's notice is a warning chip with its text.
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
+    await menu(page, 'Edit', 'Fill Selection');
+    const notice = page.getByText('Layer “Layer 1” is locked', { exact: true });
+    await expect(notice).toBeVisible();
+    expect(await lookOf(notice), 'status notice').toEqual(await lookOf(alone.locator('#chip-warning')));
+    expect((await lookOf(notice)).text).toBe(await tokenColor(page, 'warning-ink'));
     await alone.close();
   });
 }

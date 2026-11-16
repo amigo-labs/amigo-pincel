@@ -50,7 +50,6 @@
   /* The fill of the active tool and of toggles that are on. */
   --color-pc-primary: var(--am-accent-solid);
   --color-pc-danger: var(--am-danger-solid);
-  --color-pc-danger-edge: color-mix(in oklab, var(--am-danger-ink) 45%, var(--am-surface));
   --color-pc-danger-text: var(--am-danger-ink);
   /* Warnings and confirmations as text, always next to their words. */
   --color-pc-warning-text: var(--am-warning-ink);
@@ -86,25 +85,6 @@
   ::placeholder {
     color: var(--color-pc-faint);
     opacity: 1;
-  }
-
-  /* One progress bar everywhere: the slider's rail with an accent fill. */
-  progress {
-    appearance: none;
-    height: 4px;
-    overflow: hidden;
-    border: 0;
-    border-radius: 9999px;
-    background-color: var(--color-pc-track);
-  }
-  progress::-webkit-progress-bar {
-    background-color: var(--color-pc-track);
-  }
-  progress::-webkit-progress-value {
-    background-color: var(--color-pc-accent);
-  }
-  progress::-moz-progress-bar {
-    background-color: var(--color-pc-accent);
   }
 
   /* Selects draw the theme's chevron, not the OS one (the image is in the

@@ -304,7 +304,7 @@
         />
       </label>
       {#if formError}
-        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
+        <p class="am-hint am-hint--error" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
         <button type="button" class="am-btn am-btn--sm" onclick={closeForm}>{t('common.cancel')}</button>
@@ -511,7 +511,7 @@
           {/if}
 
           {#if rowError[s.id]}
-            <p class="text-xs text-pc-danger-text" role="alert">{rowError[s.id]}</p>
+            <p class="am-hint am-hint--error" role="alert">{rowError[s.id]}</p>
           {/if}
         </li>
       {/each}

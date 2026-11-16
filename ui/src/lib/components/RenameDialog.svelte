@@ -45,20 +45,24 @@
   onkeydown={onKeydown}
 >
   <form
-    class="w-80 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
     }}
   >
-    <p class="font-semibold">{t('layers.renameTitle')}</p>
-    <label class="mt-3 flex flex-col gap-1 text-xs text-pc-muted">
-      {t('layers.name')}
-      <input bind:this={input} bind:value={draft} class="am-input w-full" spellcheck="false" />
-    </label>
-    <div class="mt-4 flex justify-end gap-2">
+    <header>
+      <h2>{t('layers.renameTitle')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="flex flex-col gap-1 text-xs text-pc-muted">
+        {t('layers.name')}
+        <input bind:this={input} bind:value={draft} class="am-input w-full" spellcheck="false" />
+      </label>
+    </div>
+    <footer>
       <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
       <button type="submit" class="am-btn am-btn--primary">{t('layers.rename')}</button>
-    </div>
+    </footer>
   </form>
 </div>

@@ -89,7 +89,7 @@
 
 {#snippet hardwareBlock()}
   {#if hardware !== null}
-    <section class="mb-3" aria-label={t('comfy.hardware')}>
+    <section aria-label={t('comfy.hardware')}>
       <p class="text-xs text-pc-muted">{t('comfy.hardware')}</p>
       <p>
         {t(OS[hardware.os] ?? 'comfy.osOther')}
@@ -101,11 +101,15 @@
       </p>
       {#if hardware.unsupported !== null}
         {@const reason = hardware.unsupported}
-        <p class="text-pc-danger-text">
-          {t('comfy.unsupported', {
-            reason: t(REASONS[reason.kind], reason.kind === 'otherGpu' ? { name: reason.name } : {}),
-          })}
-        </p>
+        <div class="am-banner am-banner--danger">
+          <div>
+            <strong>
+              {t('comfy.unsupported', {
+                reason: t(REASONS[reason.kind], reason.kind === 'otherGpu' ? { name: reason.name } : {}),
+              })}
+            </strong>
+          </div>
+        </div>
         <div class="mt-2 flex flex-wrap gap-2">
           <button class="am-btn" onclick={() => void existing()}>{t('comfy.useExisting')}</button>
           <button class="am-btn" onclick={() => void custom()}>{t('comfy.custom')}</button>
@@ -113,7 +117,7 @@
       {:else}
         <p>{t('comfy.supported')}</p>
         {#if hardware.slow}
-          <p class="text-pc-accent-text" role="note">{t('comfy.slow')}</p>
+          <div class="am-banner am-banner--warning" role="note"><div><strong>{t('comfy.slow')}</strong></div></div>
         {/if}
       {/if}
     </section>
@@ -121,7 +125,7 @@
 {/snippet}
 
 {#snippet locationBlock()}
-  <section class="mb-3" aria-label={t('comfy.location')}>
+  <section aria-label={t('comfy.location')}>
     <p class="text-xs text-pc-muted">{t('comfy.location')}</p>
     <div class="flex items-center gap-2">
       <span class="min-w-0 flex-1 truncate" title={check?.target ?? ''}
@@ -135,8 +139,8 @@
           ? t('comfy.spaceUnknown', { required: bytes(need) })
           : t('comfy.space', { free: bytes(check.free), required: bytes(need) })}
       </p>
-      {#if short}<p class="text-pc-danger-text">{t('comfy.spaceShort')}</p>{/if}
-      {#if !check.writable}<p class="text-pc-danger-text">{t('comfy.notWritable')}</p>{/if}
+      {#if short}<div class="am-banner am-banner--danger"><div><strong>{t('comfy.spaceShort')}</strong></div></div>{/if}
+      {#if !check.writable}<div class="am-banner am-banner--danger"><div><strong>{t('comfy.notWritable')}</strong></div></div>{/if}
       {#if check.existing === 'complete'}
         <p>{t('comfy.existingComplete')}</p>
         <button class="am-btn mt-1" onclick={() => void useThisInstallation()}>{t('comfy.useThis')}</button>
@@ -148,7 +152,7 @@
 {/snippet}
 
 {#snippet packagesBlock()}
-  <fieldset class="mb-3">
+  <fieldset>
     <legend class="mb-1 text-xs text-pc-muted">{t('comfy.packages')}</legend>
     {#each catalog as pkg (pkg.id)}
       {@const checked = install.selected.includes(pkg.id)}
@@ -179,19 +183,21 @@
       </div>
     {/each}
     {#if removing !== null}
-      <div class="mt-2 rounded border border-pc-border p-2" role="alertdialog" aria-label={t('comfy.removeTitle')}>
-        <p class="mb-2">
-          {t('comfy.removeLora', {
-            name: removing.name,
-            others: catalog
-              .filter((p) => p.requires === removing.id)
-              .map((p) => p.name)
-              .join(', '),
-          })}
-        </p>
-        <div class="flex gap-2">
-          <button class="am-btn" onclick={() => confirmRemoval(true)}>{t('comfy.removeBoth')}</button>
-          <button class="am-btn" onclick={() => confirmRemoval(false)}>{t('comfy.keep')}</button>
+      <div class="am-banner am-banner--warning mt-2" role="alertdialog" aria-label={t('comfy.removeTitle')}>
+        <div>
+          <p class="mb-2">
+            {t('comfy.removeLora', {
+              name: removing.name,
+              others: catalog
+                .filter((p) => p.requires === removing.id)
+                .map((p) => p.name)
+                .join(', '),
+            })}
+          </p>
+          <div class="flex justify-end gap-2">
+            <button class="am-btn" onclick={() => confirmRemoval(false)}>{t('comfy.keep')}</button>
+            <button class="am-btn am-btn--danger" onclick={() => confirmRemoval(true)}>{t('comfy.removeBoth')}</button>
+          </div>
         </div>
       </div>
     {/if}
@@ -206,99 +212,113 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="max-h-full w-[30rem] max-w-full overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-5 text-sm text-pc-text shadow-xl"
-  >
-    <h2 id="comfy-install-title" class="mb-3 text-lg font-semibold" tabindex="-1" bind:this={first}>
-      {t(install.mode === 'change' ? 'comfy.packagesTitle' : 'comfy.installTitle')}
-    </h2>
+  <div class="am-dialog max-h-full w-[30rem] max-w-full overflow-y-auto">
+    <header>
+      <h2 id="comfy-install-title" tabindex="-1" bind:this={first}>
+        {t(install.mode === 'change' ? 'comfy.packagesTitle' : 'comfy.installTitle')}
+      </h2>
+    </header>
 
-    {#if install.page === 'setup'}
-      {#if install.mode === 'install'}
-        {@render hardwareBlock()}
-        {#if hardware?.unsupported === null}
-          {@render locationBlock()}
+    <div class="am-body flex flex-col gap-3">
+      {#if install.page === 'setup'}
+        {#if install.mode === 'install'}
+          {@render hardwareBlock()}
+          {#if hardware?.unsupported === null}
+            {@render locationBlock()}
+          {/if}
         {/if}
+        {#if hardware?.unsupported === null}
+          {@render packagesBlock()}
+        {/if}
+      {:else if install.page === 'licenses'}
+        <section aria-label={t('comfy.licensesTitle')}>
+          {#each pending as pkg (pkg.id)}
+            <div class="mb-2">
+              <p>{t('comfy.licenseOf', { name: pkg.name, license: pkg.license })}</p>
+              <p class="break-all text-xs text-pc-muted">{pkg.licenseUrl}</p>
+              <label class="am-check flex min-h-8 items-center gap-2">
+                <input
+                  type="checkbox"
+                  checked={install.accepting.includes(pkg.id)}
+                  onchange={(e) => {
+                    install.accepting = e.currentTarget.checked
+                      ? [...install.accepting, pkg.id]
+                      : install.accepting.filter((id) => id !== pkg.id);
+                  }}
+                />
+                {t('comfy.accept', { name: pkg.name })}
+              </label>
+            </div>
+          {/each}
+          {#if install.mode === 'install'}
+            <p class="text-xs text-pc-muted" role="note">{t('comfy.separateNotice')}</p>
+          {/if}
+        </section>
+      {:else if install.page === 'progress'}
+        <div class="flex flex-col gap-2" role="status" aria-live="polite">
+          {#if progress === null}
+            <p>{t('comfy.preparing')}</p>
+          {:else}
+            <p class="font-semibold">{stepText(progress, catalog)}</p>
+            {#if progress.done !== null && progress.total !== null}
+              {@const total = Math.max(progress.total, 1)}
+              <div
+                class="am-progress"
+                role="progressbar"
+                aria-label={stepText(progress, catalog)}
+                aria-valuemin={0}
+                aria-valuemax={total}
+                aria-valuenow={Math.min(progress.done, total)}
+              >
+                <i style:width="{(Math.min(progress.done, total) / total) * 100}%"></i>
+              </div>
+              <p class="text-xs">{t('comfy.bytes', { done: bytes(progress.done), total: bytes(progress.total) })}</p>
+            {:else if progress.line !== null}
+              <p class="truncate font-mono text-xs text-pc-muted" title={progress.line}>{progress.line}</p>
+            {/if}
+          {/if}
+        </div>
+      {:else if install.page === 'failed' && install.error !== null}
+        {@const error = install.error}
+        <div class="am-banner am-banner--danger" role="alert">
+          <div>
+            <strong>{errorText(error)}</strong>
+            {#if (error.kind === 'setupFailed' || error.kind === 'updateNotStarted') && error.log.length > 0}
+              <p class="mt-2 text-xs text-pc-muted">{t('comfy.output')}</p>
+              <pre
+                class="max-h-48 overflow-auto rounded-pc-control border border-pc-border bg-pc-bg p-2 text-xs"
+                aria-label={t('comfy.output')}>{error.log.join('\n')}</pre>
+            {/if}
+          </div>
+        </div>
       {/if}
-      {#if hardware?.unsupported === null}
-        {@render packagesBlock()}
-      {/if}
-      <div class="flex justify-end gap-2">
+    </div>
+
+    <footer>
+      {#if install.page === 'setup'}
         <button class="am-btn" onclick={closeWizard}>{t('common.cancel')}</button>
         {#if install.mode === 'install'}
           {#if hardware?.unsupported === null}
-            <button class="am-btn" disabled={!canInstall} onclick={toLicenses}
+            <button class="am-btn am-btn--primary" disabled={!canInstall} onclick={toLicenses}
               >{t('comfy.installButton')}</button
             >
           {/if}
         {:else}
-          <button class="am-btn" disabled={!changed} onclick={toLicenses}>{t('common.apply')}</button>
+          <button class="am-btn am-btn--primary" disabled={!changed} onclick={toLicenses}>{t('common.apply')}</button>
         {/if}
-      </div>
-    {:else if install.page === 'licenses'}
-      <section class="mb-3" aria-label={t('comfy.licensesTitle')}>
-        {#each pending as pkg (pkg.id)}
-          <div class="mb-2">
-            <p>{t('comfy.licenseOf', { name: pkg.name, license: pkg.license })}</p>
-            <p class="break-all text-xs text-pc-muted">{pkg.licenseUrl}</p>
-            <label class="am-check flex min-h-8 items-center gap-2">
-              <input
-                type="checkbox"
-                checked={install.accepting.includes(pkg.id)}
-                onchange={(e) => {
-                  install.accepting = e.currentTarget.checked
-                    ? [...install.accepting, pkg.id]
-                    : install.accepting.filter((id) => id !== pkg.id);
-                }}
-              />
-              {t('comfy.accept', { name: pkg.name })}
-            </label>
-          </div>
-        {/each}
-        {#if install.mode === 'install'}
-          <p class="text-xs text-pc-muted" role="note">{t('comfy.separateNotice')}</p>
-        {/if}
-      </section>
-      <div class="flex justify-end gap-2">
+      {:else if install.page === 'licenses'}
         <button class="am-btn" onclick={() => (install.page = 'setup')}>{t('comfy.back')}</button>
-        <button class="am-btn" disabled={!allAccepted} onclick={() => void startJob()}>
+        <button class="am-btn am-btn--primary" disabled={!allAccepted} onclick={() => void startJob()}>
           {t(install.mode === 'install' ? 'comfy.installButton' : 'common.apply')}
         </button>
-      </div>
-    {:else if install.page === 'progress'}
-      <div class="mb-3" role="status" aria-live="polite">
-        {#if progress === null}
-          <p>{t('comfy.preparing')}</p>
-        {:else}
-          <p class="font-semibold">{stepText(progress, catalog)}</p>
-          {#if progress.done !== null && progress.total !== null}
-            <progress class="w-full" value={progress.done} max={Math.max(progress.total, 1)}></progress>
-            <p class="text-xs">{t('comfy.bytes', { done: bytes(progress.done), total: bytes(progress.total) })}</p>
-          {:else if progress.line !== null}
-            <p class="truncate font-mono text-xs text-pc-muted" title={progress.line}>{progress.line}</p>
-          {/if}
-        {/if}
-      </div>
-      <div class="flex justify-end">
+      {:else if install.page === 'progress'}
         <button class="am-btn" onclick={cancelJob}>{t('common.cancel')}</button>
-      </div>
-    {:else if install.page === 'failed' && install.error !== null}
-      {@const error = install.error}
-      <div class="mb-3" role="alert">
-        <p class="text-pc-danger-text">{errorText(error)}</p>
-        {#if (error.kind === 'setupFailed' || error.kind === 'updateNotStarted') && error.log.length > 0}
-          <p class="mt-2 text-xs text-pc-muted">{t('comfy.output')}</p>
-          <pre
-            class="max-h-48 overflow-auto rounded border border-pc-border bg-pc-bg p-2 text-xs"
-            aria-label={t('comfy.output')}>{error.log.join('\n')}</pre>
-        {/if}
-      </div>
-      <div class="flex justify-end gap-2">
+      {:else if install.page === 'failed' && install.error !== null}
         <button class="am-btn" onclick={closeWizard}>{t('common.close')}</button>
-        {#if error.kind !== 'generationRunning' && error.kind !== 'busy'}
-          <button class="am-btn" onclick={() => void retry()}>{t('comfy.retry')}</button>
+        {#if install.error.kind !== 'generationRunning' && install.error.kind !== 'busy'}
+          <button class="am-btn am-btn--primary" onclick={() => void retry()}>{t('comfy.retry')}</button>
         {/if}
-      </div>
-    {/if}
+      {/if}
+    </footer>
   </div>
 </div>

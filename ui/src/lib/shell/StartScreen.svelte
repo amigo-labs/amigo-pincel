@@ -374,7 +374,7 @@
       <div class="mt-6 flex max-w-[40rem] flex-col gap-3">
         {#if bannerShown()}
           <div
-            class="start-surface flex flex-wrap items-center gap-x-4 gap-y-3 rounded-pc-panel border border-pc-border bg-pc-panel px-4 py-3"
+            class="am-banner flex-wrap items-center gap-x-4 gap-y-3"
             role="region"
             aria-label={t('tour.title')}
           >
@@ -394,12 +394,9 @@
           </div>
         {/if}
         {#if unsupported}
-          <p
-            role="alert"
-            class="start-surface rounded-pc-panel border border-pc-border bg-pc-panel px-4 py-3 text-sm leading-5"
-          >
-            {t('start.unsupportedBrowser')}
-          </p>
+          <div role="alert" class="am-banner am-banner--warning">
+            <div><strong>{t('start.unsupportedBrowser')}</strong></div>
+          </div>
         {/if}
       </div>
     {/if}

@@ -60,53 +60,57 @@
   aria-label={t('pxRotate.title')}
 >
   <form
-    class="flex w-72 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     onsubmit={(e) => {
       e.preventDefault();
       if (!tooLarge) onApply(angle, method);
     }}
   >
-    <h2 class="text-base font-semibold">{t('pxRotate.title')}</h2>
-    <label class="flex items-center justify-between gap-2 text-xs">
-      <span>{t('pxRotate.angle')}</span>
-      <input
-        type="number"
+    <header>
+      <h2>{t('pxRotate.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('pxRotate.angle')}</span>
+        <input
+          type="number"
+          min={MIN_ANGLE}
+          max={MAX_ANGLE}
+          step="1"
+          value={angle}
+          oninput={(e) => onAngleInput(e.currentTarget)}
+          onchange={(e) => (e.currentTarget.value = String(angle))}
+          class="am-input w-20 tabular-nums"
+          aria-label={t('pxRotate.angle')}
+        />
+      </label>
+      <input class="am-range"
+        type="range"
         min={MIN_ANGLE}
         max={MAX_ANGLE}
         step="1"
-        value={angle}
-        oninput={(e) => onAngleInput(e.currentTarget)}
-        onchange={(e) => (e.currentTarget.value = String(angle))}
-        class="am-input w-20 tabular-nums"
-        aria-label={t('pxRotate.angle')}
+        bind:value={angle}
+        aria-label={t('pxRotate.angleSlider')}
+        use:rangeFill={angle}
       />
-    </label>
-    <input class="am-range"
-      type="range"
-      min={MIN_ANGLE}
-      max={MAX_ANGLE}
-      step="1"
-      bind:value={angle}
-      aria-label={t('pxRotate.angleSlider')}
-      use:rangeFill={angle}
-    />
-    <label class="flex items-center justify-between gap-2 text-xs">
-      <span>{t('pxRotate.method')}</span>
-      <select
-        bind:value={method}
-        class="am-input w-auto"
-        aria-label={t('pxRotate.method')}
-      >
-        <option value="nearest">{t('pxRotate.nearest')}</option>
-        <option value="rotsprite">{t('pxRotate.rotsprite')}</option>
-      </select>
-    </label>
-    {#if tooLarge}
-      <p role="alert" class="text-xs text-pc-accent-text">
-        {t('pxRotate.tooLarge', { max: input.max, w: input.width, h: input.height })}
-      </p>
-    {/if}
-    <footer class="mt-1 flex justify-end gap-2">
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('pxRotate.method')}</span>
+        <select
+          bind:value={method}
+          class="am-input w-auto"
+          aria-label={t('pxRotate.method')}
+        >
+          <option value="nearest">{t('pxRotate.nearest')}</option>
+          <option value="rotsprite">{t('pxRotate.rotsprite')}</option>
+        </select>
+      </label>
+      {#if tooLarge}
+        <p role="alert" class="text-xs text-pc-accent-text">
+          {t('pxRotate.tooLarge', { max: input.max, w: input.width, h: input.height })}
+        </p>
+      {/if}
+    </div>
+    <footer>
       <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
       <button type="submit" class="am-btn am-btn--primary" disabled={tooLarge}>
         {t('common.apply')}

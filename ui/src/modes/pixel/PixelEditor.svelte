@@ -1707,7 +1707,7 @@
     {/if}
     <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{ed.status}</span>
     {#if probe.on}
-      <span class="text-pc-success-text">
+      <span class="am-chip am-chip--success">
         {probe.fpsEma.toFixed(0)} fps · compose {probe.composeMs.toFixed(2)}ms (max
         {probe.composeMaxMs.toFixed(2)}ms)
       </span>

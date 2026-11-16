@@ -240,96 +240,100 @@
        notes below say what the clamp will use. -->
   <form
     bind:this={form}
-    class="max-h-full w-80 max-w-full overflow-y-auto rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog max-h-full overflow-y-auto"
     novalidate
     onsubmit={(e) => {
       e.preventDefault();
       submit();
     }}
   >
-    <p class="font-semibold">{t('newDoc.title')}</p>
+    <header>
+      <h2>{t('newDoc.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
 
-    <div class="mt-3 grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('newDoc.type')}>
-      {@render modeRadio('pixel', t('newDoc.pixel'), '.aseprite')}
-      {@render modeRadio('image', t('newDoc.image'), 'PNG / JPEG / WebP')}
-    </div>
-
-    <div class="mt-3 grid grid-cols-[1fr_auto_1fr] items-start gap-x-2">
-      <div>
-        <label class="flex items-center gap-1 text-xs text-pc-muted">
-          {t('newDoc.w')}
-          <input
-            {@attach focusFirst}
-            bind:this={widthInput}
-            {@attach replaceOnFirstClick}
-            type="number"
-            min="1"
-            max={LIMITS[mode].max}
-            step="1"
-            inputmode="numeric"
-            bind:value={width}
-            oninput={(e) => (widthBad = e.currentTarget.validity.badInput)}
-            class="am-input w-full min-w-0"
-            aria-label={t('common.width')}
-            aria-describedby={widthNote ? `${uid}-wnote` : undefined}
-          />
-        </label>
-        {@render note(`${uid}-wnote`, widthNote)}
+      <div class="grid grid-cols-2 gap-2" role="radiogroup" aria-label={t('newDoc.type')}>
+        {@render modeRadio('pixel', t('newDoc.pixel'), '.aseprite')}
+        {@render modeRadio('image', t('newDoc.image'), 'PNG / JPEG / WebP')}
       </div>
-      <span class="flex h-8 items-center text-pc-faint" aria-hidden="true">×</span>
-      <div>
-        <label class="flex items-center gap-1 text-xs text-pc-muted">
-          {t('newDoc.h')}
-          <input
-            {@attach replaceOnFirstClick}
-            type="number"
-            min="1"
-            max={LIMITS[mode].max}
-            step="1"
-            inputmode="numeric"
-            bind:value={height}
-            oninput={(e) => (heightBad = e.currentTarget.validity.badInput)}
-            class="am-input w-full min-w-0"
-            aria-label={t('common.height')}
-            aria-describedby={heightNote ? `${uid}-hnote` : undefined}
-          />
-          <span class="text-pc-faint">px</span>
-        </label>
-        {@render note(`${uid}-hnote`, heightNote)}
+
+      <div class="grid grid-cols-[1fr_auto_1fr] items-start gap-x-2">
+        <div>
+          <label class="flex items-center gap-1 text-xs text-pc-muted">
+            {t('newDoc.w')}
+            <input
+              {@attach focusFirst}
+              bind:this={widthInput}
+              {@attach replaceOnFirstClick}
+              type="number"
+              min="1"
+              max={LIMITS[mode].max}
+              step="1"
+              inputmode="numeric"
+              bind:value={width}
+              oninput={(e) => (widthBad = e.currentTarget.validity.badInput)}
+              class="am-input w-full min-w-0"
+              aria-label={t('common.width')}
+              aria-describedby={widthNote ? `${uid}-wnote` : undefined}
+            />
+          </label>
+          {@render note(`${uid}-wnote`, widthNote)}
+        </div>
+        <span class="flex h-8 items-center text-pc-faint" aria-hidden="true">×</span>
+        <div>
+          <label class="flex items-center gap-1 text-xs text-pc-muted">
+            {t('newDoc.h')}
+            <input
+              {@attach replaceOnFirstClick}
+              type="number"
+              min="1"
+              max={LIMITS[mode].max}
+              step="1"
+              inputmode="numeric"
+              bind:value={height}
+              oninput={(e) => (heightBad = e.currentTarget.validity.badInput)}
+              class="am-input w-full min-w-0"
+              aria-label={t('common.height')}
+              aria-describedby={heightNote ? `${uid}-hnote` : undefined}
+            />
+            <span class="text-pc-faint">px</span>
+          </label>
+          {@render note(`${uid}-hnote`, heightNote)}
+        </div>
       </div>
+      {@render note(`${uid}-anote`, areaNote)}
+
+      <label class="am-check flex min-h-8 items-center gap-2 text-xs text-pc-muted">
+        <input
+          type="checkbox"
+          checked={startup}
+          onchange={(e) =>
+            setAutoNew(
+              e.currentTarget.checked ? newDocParams(mode, width ?? NaN, height ?? NaN) : null,
+            )}
+        />
+        {t('newDoc.autoOpen')}
+      </label>
+
+      <div id="{uid}-result" class="border-t border-pc-border pt-3 text-xs" aria-live="polite">
+        <p class="text-pc-text">
+          {t(mode === 'pixel' ? 'newDoc.resultPixel' : 'newDoc.resultImage', {
+            w: result.width,
+            h: result.height,
+          })}
+        </p>
+        {#if startup}
+          <p class="mt-0.5 text-pc-muted">{t('newDoc.resultStartup')}</p>
+        {/if}
+      </div>
+
     </div>
-    {@render note(`${uid}-anote`, areaNote)}
-
-    <label class="am-check mt-3 flex min-h-8 items-center gap-2 text-xs text-pc-muted">
-      <input
-        type="checkbox"
-        checked={startup}
-        onchange={(e) =>
-          setAutoNew(
-            e.currentTarget.checked ? newDocParams(mode, width ?? NaN, height ?? NaN) : null,
-          )}
-      />
-      {t('newDoc.autoOpen')}
-    </label>
-
-    <div id="{uid}-result" class="mt-3 border-t border-pc-border pt-3 text-xs" aria-live="polite">
-      <p class="text-pc-text">
-        {t(mode === 'pixel' ? 'newDoc.resultPixel' : 'newDoc.resultImage', {
-          w: result.width,
-          h: result.height,
-        })}
-      </p>
-      {#if startup}
-        <p class="mt-0.5 text-pc-muted">{t('newDoc.resultStartup')}</p>
-      {/if}
-    </div>
-
-    <div class="mt-3 flex justify-end gap-2">
+    <footer>
       <Button onclick={onCancel}>{t('common.cancel')}</Button>
       <Button type="submit" variant="primary" aria-describedby="{uid}-result"
         >{t('common.create')}</Button
       >
-    </div>
+    </footer>
   </form>
 </div>
 
