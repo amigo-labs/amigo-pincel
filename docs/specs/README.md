@@ -25,9 +25,7 @@ Owner priorities lead: performance and MCP. The specs are grouped by area; each 
 
 Agents reach every document-changing capability; live mode last. Runs in parallel with every other group.
 
-| # | Spec | Mode | Size | Depends on | Note |
-| - | ---- | ---- | ---- | ---------- | ---- |
-| A1 | [agent-painting](agent-painting.md) | both | M | mcp-parity-drawing-image, pen-input | `draw.strokes` (batch, one undo step) and per-point `pressure`, so agents can paint pictures stroke by stroke; a painterly brush is a later spec |
+Every spec of this group is done.
 
 ### B — Image live objects
 
@@ -142,6 +140,7 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
+- [agent-painting](agent-painting.md)
 - [amigo-theme](amigo-theme.md)
 - [animated-export](animated-export.md)
 - [app-shell](app-shell.md)

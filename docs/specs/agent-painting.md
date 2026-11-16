@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-16
 size: M
 mode: both
@@ -8,6 +8,15 @@ depends_on: [mcp-parity-drawing, mcp-parity-drawing-image, pen-input]
 ---
 
 # Agent painting: stroke batches and pen pressure
+
+## Summary
+
+> Completed: 2026-11-16
+
+- New MCP tool `draw.strokes` for Image and Pixel documents: 1–1000 strokes with at most 100 000 points per call, each taking `draw.stroke`'s arguments, painted in order on one target layer as one undo step (also one editor undo step in live mode)
+- Every item is validated before the first is painted; a broken limit is reported first, then the first invalid item as `strokes[i]`
+- Image `draw.stroke` and Image items of `draw.strokes` take per-point `pressure` with `pressure_size` (default true) and `pressure_opacity` (default false), matching the editor's Brush and Eraser with pen pressure; Pixel documents refuse them
+- `pincel://guide` documents `draw.strokes`, its limits and the pressure arguments
 
 ## Context
 
@@ -39,21 +48,21 @@ This spec adds a batch tool `draw.strokes` (many strokes, one call, one undo ste
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): `tools/list` contains `draw.strokes`, meeting `mcp-headless-pixel` AC-02, with a required `strokes` array (1–1000 items) whose items take the arguments of `draw.stroke` except `layer`, `frame` and `doc`, plus top-level `doc`, `layer` and `frame` (Pixel) as `draw.stroke` has them.
-- [ ] AC-02 (event): When the client calls `draw.strokes` on an Image document, then the target layer has the same pixels as after calling `draw.stroke` once per item, in list order, with that item's arguments on the same layer.
-- [ ] AC-03 (event): When the client calls `draw.strokes` on a Pixel document, then the target cel has the same pixels as after calling `draw.stroke` once per item, in list order, with that item's arguments on the same layer and frame — including `ink: "shading"`, `mirror` and `wrap`.
-- [ ] AC-04 (always): A successful `draw.strokes` call that changes the document is exactly one undo step, never merged with another call: one `doc.undo` restores the document as it was before the call, and one `doc.redo` repeats the whole call. A call whose strokes change no pixel adds no undo step and reports `changed: false`.
-- [ ] AC-05 (event): When `draw.strokes` succeeds, then its result names the document, the target layer, `changed` as `draw.stroke` does, and `strokes`, the number of strokes painted.
-- [ ] AC-06 (error): If `strokes` is empty or has more than 1000 items, or its items hold more than 100 000 points together, then the call fails with `isError: true` naming the limit that was broken, and the document is unchanged.
-- [ ] AC-07 (error): If any item of `strokes` has an argument `draw.stroke` would refuse (an empty `points` list, a bad color, a value out of range, an argument of the other mode, an unknown `tool`, an unknown argument name) or carries `doc`, `layer` or `frame`, then the call fails with `isError: true` naming the item's index and the argument with the same reason `draw.stroke` gives, no stroke is painted and no undo step is added.
-- [ ] AC-08 (error): If the target layer of `draw.strokes` is locked, lies inside a locked group or is itself a group, then the call fails as `draw.stroke` fails for that target, and the document is unchanged.
-- [ ] AC-09 (event): When an Image `draw.stroke` (brush or eraser) gets `pressure`, a list of numbers 0–1 with one entry per point, then the target layer has the same pixels as after the Image editor's Brush or Eraser stroke along the same points with those pen pressures and the options Pressure → Size set to `pressure_size` (default `true`) and Pressure → Opacity set to `pressure_opacity` (default `false`), the tip at its fixed `angle`.
-- [ ] AC-10 (always): An Image `draw.stroke` without `pressure`, with every entry 1, or with `pressure_size` and `pressure_opacity` both `false`, paints exactly the pixels the same stroke paints without any pressure argument.
-- [ ] AC-11 (event): When an Image item of `draw.strokes` gets `pressure`, `pressure_size` or `pressure_opacity`, then it paints as `draw.stroke` with the same arguments (AC-09).
-- [ ] AC-12 (error): If `pressure` has a different number of entries than `points`, or holds an entry that is not a finite number in 0–1, then the call fails with `isError: true` naming `pressure` (and in `draw.strokes` the item's index), and the document is unchanged.
-- [ ] AC-13 (error): If a `draw.stroke` or an item of `draw.strokes` on a Pixel document gets `pressure`, `pressure_size` or `pressure_opacity`, then the call fails with `isError: true` naming the argument and the document's mode, and the document is unchanged.
-- [ ] AC-14 (event): When an agent calls `draw.strokes` on the document open in the desktop app (live mode), then the whole call is one step in the editor's undo history: the editor's Undo takes back all of its strokes at once.
-- [ ] AC-15 (always): The `pincel://guide` resource names `draw.strokes` with its limits and that it is one undo step, and `draw.stroke`'s `pressure`, `pressure_size` and `pressure_opacity` with their defaults and that they work on Image documents only.
+- [x] AC-01 (always): `tools/list` contains `draw.strokes`, meeting `mcp-headless-pixel` AC-02, with a required `strokes` array (1–1000 items) whose items take the arguments of `draw.stroke` except `layer`, `frame` and `doc`, plus top-level `doc`, `layer` and `frame` (Pixel) as `draw.stroke` has them.
+- [x] AC-02 (event): When the client calls `draw.strokes` on an Image document, then the target layer has the same pixels as after calling `draw.stroke` once per item, in list order, with that item's arguments on the same layer.
+- [x] AC-03 (event): When the client calls `draw.strokes` on a Pixel document, then the target cel has the same pixels as after calling `draw.stroke` once per item, in list order, with that item's arguments on the same layer and frame — including `ink: "shading"`, `mirror` and `wrap`.
+- [x] AC-04 (always): A successful `draw.strokes` call that changes the document is exactly one undo step, never merged with another call: one `doc.undo` restores the document as it was before the call, and one `doc.redo` repeats the whole call. A call whose strokes change no pixel adds no undo step and reports `changed: false`.
+- [x] AC-05 (event): When `draw.strokes` succeeds, then its result names the document, the target layer, `changed` as `draw.stroke` does, and `strokes`, the number of strokes painted.
+- [x] AC-06 (error): If `strokes` is empty or has more than 1000 items, or its items hold more than 100 000 points together, then the call fails with `isError: true` naming the limit that was broken, and the document is unchanged.
+- [x] AC-07 (error): If any item of `strokes` has an argument `draw.stroke` would refuse (an empty `points` list, a bad color, a value out of range, an argument of the other mode, an unknown `tool`, an unknown argument name) or carries `doc`, `layer` or `frame`, then the call fails with `isError: true` naming the item's index and the argument with the same reason `draw.stroke` gives, no stroke is painted and no undo step is added.
+- [x] AC-08 (error): If the target layer of `draw.strokes` is locked, lies inside a locked group or is itself a group, then the call fails as `draw.stroke` fails for that target, and the document is unchanged.
+- [x] AC-09 (event): When an Image `draw.stroke` (brush or eraser) gets `pressure`, a list of numbers 0–1 with one entry per point, then the target layer has the same pixels as after the Image editor's Brush or Eraser stroke along the same points with those pen pressures and the options Pressure → Size set to `pressure_size` (default `true`) and Pressure → Opacity set to `pressure_opacity` (default `false`), the tip at its fixed `angle`.
+- [x] AC-10 (always): An Image `draw.stroke` without `pressure`, with every entry 1, or with `pressure_size` and `pressure_opacity` both `false`, paints exactly the pixels the same stroke paints without any pressure argument.
+- [x] AC-11 (event): When an Image item of `draw.strokes` gets `pressure`, `pressure_size` or `pressure_opacity`, then it paints as `draw.stroke` with the same arguments (AC-09).
+- [x] AC-12 (error): If `pressure` has a different number of entries than `points`, or holds an entry that is not a finite number in 0–1, then the call fails with `isError: true` naming `pressure` (and in `draw.strokes` the item's index), and the document is unchanged.
+- [x] AC-13 (error): If a `draw.stroke` or an item of `draw.strokes` on a Pixel document gets `pressure`, `pressure_size` or `pressure_opacity`, then the call fails with `isError: true` naming the argument and the document's mode, and the document is unchanged.
+- [x] AC-14 (event): When an agent calls `draw.strokes` on the document open in the desktop app (live mode), then the whole call is one step in the editor's undo history: the editor's Undo takes back all of its strokes at once.
+- [x] AC-15 (always): The `pincel://guide` resource names `draw.strokes` with its limits and that it is one undo step, and `draw.stroke`'s `pressure`, `pressure_size` and `pressure_opacity` with their defaults and that they work on Image documents only.
 
 ## Technical notes
 
@@ -101,21 +110,21 @@ This spec adds a batch tool `draw.strokes` (many strokes, one call, one undo ste
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_listed_with_draw_strokes_item_arguments`; `crates/pincel-agent/src/tests/doc.rs` `tool_schemas_are_valid` | built | |
-| AC-02 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_image_match_one_stroke_call_per_item` | built | |
-| AC-03 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_pixel_match_one_stroke_call_per_item` | built | |
-| AC-04 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_one_undo_step_in_both_modes`, `strokes_that_change_nothing_add_no_undo_step`, `strokes_on_pixel_never_merge_with_the_call_before`, `strokes_undo_step_has_the_first_strokes_kind_beyond_the_history_capacity` | built | |
-| AC-05 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_result_names_doc_layer_changed_and_count` | built | |
-| AC-06 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_over_the_limits_fail_and_change_nothing`, `strokes_limits_come_before_item_errors_and_the_count_limit_first` | built | |
-| AC-07 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_with_an_invalid_item_fail_naming_it_and_paint_nothing`, `strokes_report_the_first_invalid_item_by_index` | built | |
-| AC-08 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_a_locked_layer_or_group_fail_as_draw_stroke_does`, `strokes_inside_a_locked_group_or_on_pixel_locks_and_groups_fail_as_draw_stroke_does` | built | |
-| AC-09 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_pressure_matches_the_editor_brush_with_pressure`, `stroke_eraser_pressure_matches_the_editor_eraser` | built | |
-| AC-10 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_without_effective_pressure_paints_as_without_pressure` | built | |
-| AC-11 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_item_pressure_paints_as_draw_stroke` | built | |
-| AC-12 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_with_a_wrong_length_or_value_fails` | built | |
-| AC-13 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_on_a_pixel_document_fails_naming_the_argument_and_mode` | built | |
-| AC-14 | `crates/pincel-agent/src/tests/live.rs` `call_strokes_is_one_editor_undo_step_in_both_modes` | built | |
-| AC-15 | `crates/pincel-agent/src/tests/strokes.rs` `guide_names_draw_strokes_and_pressure`, `guide_gives_the_pressure_defaults_and_that_pressure_is_image_only` | built | |
+| AC-01 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_listed_with_draw_strokes_item_arguments`; `crates/pincel-agent/src/tests/doc.rs` `tool_schemas_are_valid` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-02 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_image_match_one_stroke_call_per_item` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-03 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_pixel_match_one_stroke_call_per_item` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-04 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_is_one_undo_step_in_both_modes`, `strokes_that_change_nothing_add_no_undo_step`, `strokes_on_pixel_never_merge_with_the_call_before`, `strokes_undo_step_has_the_first_strokes_kind_beyond_the_history_capacity` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-05 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_result_names_doc_layer_changed_and_count` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-06 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_over_the_limits_fail_and_change_nothing`, `strokes_limits_come_before_item_errors_and_the_count_limit_first` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-07 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_with_an_invalid_item_fail_naming_it_and_paint_nothing`, `strokes_report_the_first_invalid_item_by_index` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-08 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_on_a_locked_layer_or_group_fail_as_draw_stroke_does`, `strokes_inside_a_locked_group_or_on_pixel_locks_and_groups_fail_as_draw_stroke_does` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-09 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_pressure_matches_the_editor_brush_with_pressure`, `stroke_eraser_pressure_matches_the_editor_eraser` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-10 | `crates/pincel-agent/src/tests/strokes.rs` `stroke_without_effective_pressure_paints_as_without_pressure` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-11 | `crates/pincel-agent/src/tests/strokes.rs` `strokes_item_pressure_paints_as_draw_stroke` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-12 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_with_a_wrong_length_or_value_fails` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-13 | `crates/pincel-agent/src/tests/strokes.rs` `pressure_on_a_pixel_document_fails_naming_the_argument_and_mode` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-14 | `crates/pincel-agent/src/tests/live.rs` `call_strokes_is_one_editor_undo_step_in_both_modes` — passed (spec-check 2026-11-16) | verified | 90baec7 |
+| AC-15 | `crates/pincel-agent/src/tests/strokes.rs` `guide_names_draw_strokes_and_pressure`, `guide_gives_the_pressure_defaults_and_that_pressure_is_image_only` — passed (spec-check 2026-11-16) | verified | 90baec7 |
 
 ## Decisions
 
