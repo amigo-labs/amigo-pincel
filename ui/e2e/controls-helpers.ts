@@ -35,7 +35,8 @@ function read(node: Element): State {
   return {
     fill: cs.backgroundColor,
     text: cs.color,
-    edge: cs.borderTopColor,
+    // Without an edge the colour is only the text colour again.
+    edge: cs.borderTopWidth === '0px' ? 'none' : cs.borderTopColor,
     edgeWidth: cs.borderTopWidth,
     radius: cs.borderTopLeftRadius,
     height: Math.round(node.getBoundingClientRect().height * 100) / 100,
@@ -65,7 +66,11 @@ export async function pseudoOf(
 ): Promise<{ fill: string; edge: string; content: string }> {
   return el.evaluate((node, p) => {
     const cs = getComputedStyle(node, p);
-    return { fill: cs.backgroundColor, edge: cs.borderLeftColor, content: cs.content };
+    return {
+      fill: cs.backgroundColor,
+      edge: cs.borderLeftWidth === '0px' ? 'none' : cs.borderLeftColor,
+      content: cs.content,
+    };
   }, pseudo);
 }
 

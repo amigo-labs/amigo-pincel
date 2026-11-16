@@ -9,9 +9,11 @@ import {
   pixelAt,
   pseudoOf,
   rgb,
+  sharedPage,
   stateOf,
   tokenColor,
   tokenValue,
+  type Look,
   type State,
 } from './controls-helpers';
 
@@ -349,3 +351,202 @@ for (const palette of PALETTES) {
     }
   });
 }
+
+/** The phone layout's panel sheet, open. */
+async function openPanelSheet(page: Page): Promise<Locator> {
+  await page.setViewportSize({ width: 390, height: 800 });
+  await page.getByRole('button', { name: 'Panels', exact: true }).click();
+  const sheet = page.getByRole('dialog', { name: 'Panels' });
+  await expect(sheet).toBeVisible();
+  return sheet;
+}
+
+for (const palette of PALETTES) {
+  test(`${palette}: the phone's panel sheet has the shared tab row (AC-05)`, async ({ page }) => {
+    for (const mode of MODES) {
+      await page.setViewportSize({ width: 1280, height: 720 });
+      await createDocument(page, mode, { width: 16, height: 16 });
+      if (palette === 'Light' && mode === 'pixel') await pickTheme(page, 'Light');
+      const sheet = await openPanelSheet(page);
+      const tabs = sheet.getByRole('tablist').getByRole('tab');
+      expect(await tabs.count()).toBeGreaterThan(1);
+      const on = sheet.getByRole('tab', { selected: true });
+      await expect(on).toHaveCount(1);
+      const selected = await stateOf(on);
+      expect(selected.text, `${mode}: selected tab`).toBe(await tokenColor(page, 'accent-ink'));
+      expect(selected.underline, `${mode}: underline`).toBe(`2px ${await tokenColor(page, 'accent')}`);
+      expect(selected.height).toBe(36);
+      const name = await sheet.getByRole('tab', { selected: false }).first().innerText();
+      const off = sheet.getByRole('tab', { name: name.trim(), exact: true });
+      const rest = await stateOf(off);
+      expect(rest.text, `${mode}: other tab`).toBe(await tokenColor(page, 'text-secondary'));
+      expect(rest.underline, `${mode}: no underline`).toBe(`2px ${TRANSPARENT}`);
+      // The row's hairline, and a pick moves the underline.
+      expect((await stateOf(sheet.getByRole('tablist'))).underline).toBe(`1px ${await tokenColor(page, 'border')}`);
+      await off.click();
+      await expect(off).toHaveAttribute('aria-selected', 'true');
+      expect((await stateOf(off)).text).toBe(await tokenColor(page, 'accent-ink'));
+      await expect(sheet.getByRole('button', { name: 'Close panels' })).toBeVisible();
+    }
+  });
+
+  test(`${palette}: the preview's zoom choice is the shared segmented control (AC-05)`, async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const panel = sidebar(page).locator('section[aria-label="Preview"]');
+    await panel.locator('header button[aria-expanded="false"]').click();
+    const group = panel.getByRole('group', { name: 'Preview zoom' });
+    const box = await lookOf(group);
+    expect(box.fill).toBe(await tokenColor(page, 'surface-raised'));
+    expect(box.edge).toBe(await tokenColor(page, 'border'));
+    expect(box.radius).toBe(await tokenValue(page, 'radius-sm'));
+    expect(box.height, 'dense: 24 px').toBe(24);
+    const on = group.locator('button[aria-pressed="true"]');
+    await expect(on).toHaveCount(1);
+    const selected = await stateOf(on);
+    expect(selected.fill, 'selected segment').toBe(await tokenColor(page, 'surface'));
+    expect(selected.text).toBe(await tokenColor(page, 'text'));
+    expect(selected.shadow, 'raised').not.toBe('none');
+    const off = group.locator('button[aria-pressed="false"]').first();
+    const rest = await stateOf(off);
+    expect(rest.fill).toBe(TRANSPARENT);
+    expect(rest.text).toBe(await tokenColor(page, 'text-secondary'));
+    expect(rest.shadow).toBe('none');
+  });
+}
+
+// AC-10: the app's control against the shared component rendered alone
+// from the theme files (`ui/src/theme/`), property by property.
+const ALONE = `
+  <button id="btn" class="am-btn">Label</button>
+  <button id="btn-sm" class="am-btn am-btn--sm">Label</button>
+  <button id="btn-off" class="am-btn am-btn--sm" disabled>Label</button>
+  <button id="primary" class="am-btn am-btn--primary">Label</button>
+  <button id="ghost-sm" class="am-btn am-btn--ghost am-btn--sm">Label</button>
+  <button id="danger" class="am-btn am-btn--danger">Label</button>
+  <input id="field" class="am-input" value="64" />
+  <input id="field-sm" class="am-input am-input--sm" value="#000000" />
+  <input id="field-bad" class="am-input" aria-invalid="true" value="0" />
+  <select id="select-sm" class="am-input am-input--sm"><option>One</option></select>
+  <label class="am-check"><input id="check" type="checkbox" /> Off</label>
+  <label class="am-check"><input id="check-on" type="checkbox" checked /> On</label>
+  <label class="am-check"><input id="radio" type="radio" name="r" /> Off</label>
+  <label class="am-check"><input id="radio-on" type="radio" name="r" checked /> On</label>
+  <input id="range" type="range" class="am-range" min="0" max="100" value="50" style="--am-range-fill: 50%; width: 80px" />
+  <div id="seg" class="am-seg am-seg--sm"><button id="seg-on" aria-pressed="true">1×</button><button id="seg-off" aria-pressed="false">2×</button></div>
+  <div id="tabs" class="am-tabs"><button id="tab-on" aria-selected="true">Colors</button><button id="tab-off" aria-selected="false">Layers</button></div>
+`;
+
+for (const palette of PALETTES) {
+  test(`${palette}: each control family looks like the shared component rendered alone (AC-10)`, async ({
+    page,
+  }) => {
+    await gotoStart(page);
+    if (palette === 'Light') await pickTheme(page, 'Light');
+    const alone = await sharedPage(page, palette, ALONE);
+    /** The app's control has the look of the shared component `#id`. */
+    const same = async (el: Locator, id: string): Promise<void> => {
+      await el.evaluate((node) => (node as HTMLElement).blur());
+      // A toggle and a slider have no text of their own: their colour is their label's.
+      const textless = await el.evaluate(
+        (node) => node instanceof HTMLInputElement && ['checkbox', 'radio', 'range'].includes(node.type),
+      );
+      const look = async (of: Locator): Promise<Partial<Look>> => {
+        const { text, ...rest } = await lookOf(of);
+        return textless ? rest : { text, ...rest };
+      };
+      const want = await look(alone.locator(`#${id}`));
+      // A control that was just enabled or released still fades its fill.
+      await expect.poll(() => look(el), `the app's control against the shared #${id}`).toEqual(want);
+    };
+    /** The same for what a state adds: a toggle's mark, a tab's underline, a segment's shadow. */
+    const sameState = async (el: Locator, id: string): Promise<void> => {
+      const mine = await stateOf(el);
+      const theirs = await stateOf(alone.locator(`#${id}`));
+      expect({ underline: mine.underline, shadow: mine.shadow }, `#${id}`).toEqual({
+        underline: theirs.underline,
+        shadow: theirs.shadow,
+      });
+      expect(await pseudoOf(el, '::after'), `#${id}: mark`).toEqual(await pseudoOf(alone.locator(`#${id}`), '::after'));
+    };
+
+    // Buttons and fields at 32 px: the start screen and a dialog.
+    await page.getByRole('button', { name: 'Open a sample' }).click();
+    await same(page.getByRole('button', { name: 'Bouncing slime (Pixel)' }), 'btn');
+    await page.getByRole('button', { name: 'New pixel sprite' }).click();
+    const form = page.getByRole('form', { name: 'New pixel sprite' });
+    await same(form.getByRole('button', { name: 'Create' }), 'primary');
+    await same(form.getByRole('spinbutton', { name: 'Width' }), 'field');
+    await same(form.getByRole('checkbox').first(), 'check');
+
+    // The editor frame: 24 px.
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await same(page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Add tag' }), 'btn-sm');
+    await same(sidebar(page).getByRole('button', { name: 'Flatten' }), 'btn-off');
+    await same(page.getByRole('button', { name: 'Fit to window' }), 'ghost-sm');
+    await same(sidebar(page).getByRole('textbox', { name: 'Foreground color hex value' }), 'field-sm');
+    await same(toolOptions(page).getByRole('combobox').first(), 'select-sm');
+    const size = toolOptions(page).getByRole('checkbox', { name: 'Size' });
+    await same(size, 'check-on');
+    await sameState(size, 'check-on');
+    await same(toolOptions(page).getByRole('checkbox', { name: 'Pixel-perfect' }), 'check');
+
+    // The slider: the element, and the same pixels along the rail and on the thumb.
+    const slider = sidebar(page).getByRole('slider', { name: 'Foreground alpha' });
+    await slider.fill('128');
+    await same(slider, 'range');
+    await page.mouse.move(0, 0);
+    const mine = await slider.boundingBox();
+    const theirs = await alone.locator('#range').boundingBox();
+    if (!mine || !theirs) throw new Error('no slider');
+    expect(mine.width, 'both sliders 80 px wide').toBe(theirs.width);
+    for (const [dx, dy] of [[4, 8], [40, 8], [40, 5], [76, 8]] as const) {
+      const a = await pixelAt(page, mine.x + dx, mine.y + dy);
+      const b = await pixelAt(alone, theirs.x + dx, theirs.y + dy);
+      expect(near(a, b), `slider pixel ${dx},${dy}: ${a.join(' ')} against ${b.join(' ')}`).toBe(true);
+    }
+
+    // The segmented control (the preview's zoom).
+    const preview = sidebar(page).locator('section[aria-label="Preview"]');
+    await preview.locator('header button[aria-expanded="false"]').click();
+    const zoom = preview.getByRole('group', { name: 'Preview zoom' });
+    await same(zoom, 'seg');
+    await same(zoom.locator('button[aria-pressed="true"]'), 'seg-on');
+    await sameState(zoom.locator('button[aria-pressed="true"]'), 'seg-on');
+    await same(zoom.locator('button[aria-pressed="false"]').first(), 'seg-off');
+
+    // Radios and a dialog's button: Settings.
+    await page.keyboard.press('Control+,');
+    const theme = settings(page).getByRole('radiogroup', { name: 'Theme' });
+    await same(theme.getByRole('radio', { name: palette, exact: true }), 'radio-on');
+    await sameState(theme.getByRole('radio', { name: palette, exact: true }), 'radio-on');
+    await same(theme.getByRole('radio', { name: 'System', exact: true }), 'radio');
+    await same(settings(page).getByRole('button', { name: 'Close' }), 'btn');
+    await settings(page).getByRole('button', { name: 'Close' }).click();
+
+    // A wrong value in a dialog's field (Image mode).
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await page.getByRole('menubar').getByRole('menuitem', { name: 'Image', exact: true }).click();
+    await page.getByRole('menu', { name: 'Image', exact: true }).getByRole('menuitem', { name: 'Scale Image…' }).click();
+    const scale = page.getByRole('dialog', { name: 'Scale Image' });
+    const percent = scale.getByLabel('Percentage', { exact: true });
+    await percent.fill('0');
+    await same(percent, 'field-bad');
+    await scale.getByRole('button', { name: 'Cancel' }).click();
+    await expect(scale).toBeHidden();
+
+    // The tab row of the phone's panel sheet.
+    const sheet = await openPanelSheet(page);
+    await same(sheet.getByRole('tab', { selected: true }), 'tab-on');
+    await sameState(sheet.getByRole('tab', { selected: true }), 'tab-on');
+    await same(sheet.getByRole('tab', { selected: false }).first(), 'tab-off');
+    await page.setViewportSize({ width: 1280, height: 720 });
+
+    // The danger button: the unsaved prompt (last, it leaves unsaved work behind).
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    const prompt = await openUnsavedPrompt(page);
+    await same(prompt.getByRole('button', { name: "Don't Save" }), 'danger');
+    await alone.close();
+  });
+}
+
