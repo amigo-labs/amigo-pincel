@@ -1,4 +1,5 @@
 <script lang="ts">
+  import { rangeFill } from '../../../../lib/range-fill';
   // The prompts of the Image-mode Save flow (core/save-flow.ts): each one
   // answers the open `savePrompt`, which closes it. A Save shows at most one
   // of them before the save picker (save-original-format AC-10, AC-17).
@@ -60,11 +61,11 @@
     {#if prompt.askQuality}
       <label class="mb-3 flex items-center justify-between gap-2">
         <span class="text-pc-muted">{t('export.quality')}</span>
-        <input type="range" min="1" max="100" bind:value={quality} class="flex-1" />
+        <input type="range" min="1" max="100" bind:value={quality} class="am-range flex-1" use:rangeFill={quality} />
         <span class="w-8 text-right tabular-nums">{quality}</span>
       </label>
     {/if}
-    <label class="mb-4 flex items-center gap-2">
+    <label class="am-check mb-4 flex items-center gap-2">
       <input type="checkbox" bind:checked={dontAsk} />
       <span>{t('save.dontAskAgain')}</span>
     </label>

@@ -56,12 +56,11 @@
     return t('resize.invalidValue');
   }
 
-  const fieldClass =
-    'w-24 rounded border bg-pc-bg px-2 py-1 aria-[invalid=true]:border-pc-danger-text border-pc-border';
+  const fieldClass = 'am-input w-24';
 </script>
 
 <fieldset class="mb-2">
-  <label class="mb-1 flex items-center gap-2">
+  <label class="am-check mb-1 flex items-center gap-2">
     <input
       type="radio"
       name="size-mode"
@@ -87,7 +86,7 @@
     </span>
   </label>
 
-  <label class="mb-1 flex items-center gap-2">
+  <label class="am-check mb-1 flex items-center gap-2">
     <input
       type="radio"
       name="size-mode"
@@ -97,7 +96,7 @@
     <span>{t('resize.byAbsolute')}</span>
   </label>
   <div class="ml-6">
-    <label class="mb-2 flex items-center gap-2">
+    <label class="am-check mb-2 flex items-center gap-2">
       <input
         type="checkbox"
         checked={s.keepAspect}
@@ -126,7 +125,7 @@
         value={s.unit}
         onchange={(e) =>
           (s = changeUnit(s, (e.currentTarget as HTMLSelectElement).value as SizeUnit, doc, locale()))}
-        class="rounded border border-pc-border bg-pc-raised px-2 py-1"
+        class="am-input w-auto"
       >
         {#each UNITS as u (u.id)}
           <option value={u.id}>{t(u.label)}</option>

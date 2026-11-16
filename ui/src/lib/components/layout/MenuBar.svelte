@@ -7,6 +7,7 @@
   // menus marked `liveWithEffect` usable: the others are inert, and the
   // live triggers sit above the top bar's shade (`z-[46]`, app.css 45),
   // on an opaque background so the shade does not show through them.
+  import { activeOnFocus } from './menu-focus';
   import Icon from '../icons/Icon.svelte';
   import type { MenuAction, MenuDef, MenuItem } from './menu';
   import { t } from '../../i18n/index.svelte';
@@ -140,15 +141,20 @@
 
 <svelte:window onkeydown={onKeydown} onresize={onWindowChange} onblur={onWindowChange} />
 
+{#snippet checkMark()}
+  <svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>
+{/snippet}
+
 {#snippet rows(items: MenuItem[], depth: number)}
   {#each items as item, i (i)}
     {#if item.kind === 'separator'}
-      <div class="my-1 border-t border-pc-border" role="separator"></div>
+      <hr />
     {:else if item.kind === 'submenu'}
       {#if compact}
         <button
           type="button"
-          class="menu-row"
+          class="w-full"
+          use:activeOnFocus
           style:padding-left="{0.75 + depth * 0.75}rem"
           role="menuitem"
           aria-haspopup="menu"
@@ -156,8 +162,9 @@
           disabled={item.disabled}
           onclick={() => (expanded[item.label] = !(expanded[item.label] ?? false))}
         >
-          <span class="w-4 shrink-0" aria-hidden="true"></span>
-          <span class="flex-1">{item.label}</span>
+          <span class="am-menu-label"
+            ><span class="am-menu-check align-middle" aria-hidden="true"></span>{item.label}</span
+          >
           <Icon name={expanded[item.label] ? 'chevron-down' : 'chevron-right'} size={14} />
         </button>
         {#if expanded[item.label]}
@@ -166,8 +173,8 @@
       {:else}
         <button
           type="button"
-          class="menu-row"
-          class:bg-pc-hover={sub?.label === item.label}
+          class="w-full"
+          use:activeOnFocus={sub?.label === item.label}
           role="menuitem"
           aria-haspopup="menu"
           aria-expanded={sub?.label === item.label}
@@ -177,15 +184,17 @@
             if (e.pointerType === 'mouse') openSub(item.label, e);
           }}
         >
-          <span class="w-4 shrink-0" aria-hidden="true"></span>
-          <span class="flex-1">{item.label}</span>
+          <span class="am-menu-label"
+            ><span class="am-menu-check align-middle" aria-hidden="true"></span>{item.label}</span
+          >
           <Icon name="chevron-right" size={14} />
         </button>
       {/if}
     {:else}
       <button
         type="button"
-        class="menu-row"
+        class={['w-full', item.danger && 'am-danger']}
+        use:activeOnFocus
         style:padding-left={compact ? `${0.75 + depth * 0.75}rem` : undefined}
         role={item.checked === undefined ? 'menuitem' : 'menuitemcheckbox'}
         aria-checked={item.checked}
@@ -195,11 +204,14 @@
           if (!compact && depth === 0 && sub !== null) scheduleSubClose();
         }}
       >
-        <span class="w-4 shrink-0 text-pc-accent-text" aria-hidden="true">{item.checked ? '✓' : ''}</span>
-        <span class="flex-1">{item.label}</span>
+        <span class="am-menu-label"
+          ><span class="am-menu-check align-middle text-pc-accent-text" aria-hidden="true"
+            >{#if item.checked}{@render checkMark()}{/if}</span
+          >{item.label}</span
+        >
         {#if item.shortcut}
           <!-- Visual hint only: the accessible name stays the label. -->
-          <span class="ml-6 text-xs text-pc-faint" aria-hidden="true">{item.shortcut}</span>
+          <kbd class="am-kbd" aria-hidden="true">{item.shortcut}</kbd>
         {/if}
       </button>
     {/if}
@@ -264,14 +276,14 @@
   {#if openId === '☰'}
     <div
       bind:this={dropdown}
-      class="menu-panel fixed z-50 max-h-[80vh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto"
+      class="am-menu fixed z-50 max-h-[80vh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto *:shrink-0"
       style:left="{anchor.left}px"
       style:top="{anchor.top}px"
       role="menu"
       aria-label={t('frame.menu')}
     >
       {#each menus as m, i (m.id)}
-        {#if i > 0}<div class="my-1 border-t border-pc-border"></div>{/if}
+        {#if i > 0}<hr />{/if}
         <div class="relative" inert={!isLive(m)} data-dimmed={isLive(m) ? undefined : ''}>
           <div class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase">
             {m.label}
@@ -283,7 +295,7 @@
   {:else if openMenu}
     <div
       bind:this={dropdown}
-      class="menu-panel fixed z-50 max-h-[80vh] min-w-56 overflow-y-auto"
+      class="am-menu fixed z-50 max-h-[80vh] min-w-56 overflow-y-auto *:shrink-0"
       style:left="{anchor.left}px"
       style:top="{anchor.top}px"
       role="menu"
@@ -295,7 +307,7 @@
       {@const subItem = openMenu.items.find((it) => it.kind === 'submenu' && it.label === sub?.label)}
       {#if subItem?.kind === 'submenu'}
         <div
-          class="menu-panel fixed z-50 max-h-[70vh] min-w-52 overflow-y-auto"
+          class="am-menu fixed z-50 max-h-[70vh] min-w-52 overflow-y-auto *:shrink-0"
           style:left="{sub.left}px"
           style:top="{sub.top}px"
           role="menu"
@@ -310,37 +322,3 @@
   {/if}
 {/if}
 
-<style>
-  .menu-panel {
-    border-radius: var(--am-radius-md);
-    border: 1px solid var(--color-pc-border);
-    background-color: var(--color-pc-panel);
-    padding: 0.25rem 0;
-    font-size: 0.875rem;
-    box-shadow: var(--am-elev-2);
-  }
-  .menu-row {
-    display: flex;
-    width: calc(100% - 0.5rem);
-    margin: 0 0.25rem;
-    align-items: center;
-    gap: 0.25rem;
-    border-radius: var(--am-radius-sm);
-    padding: 0.375rem 0.5rem 0.375rem 0.25rem;
-    text-align: left;
-    white-space: nowrap;
-  }
-  .menu-row:hover:not(:disabled),
-  .menu-row:focus-visible {
-    background-color: var(--color-pc-hover);
-  }
-  /* The keyboard's item keeps the fill and shows the ring, inset so the
-     menu's edge never clips it (amigo-theme AC-12). */
-  .menu-row:focus-visible {
-    outline: 2px solid var(--am-focus);
-    outline-offset: -2px;
-  }
-  .menu-row:disabled {
-    opacity: 0.45;
-  }
-</style>

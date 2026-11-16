@@ -1561,11 +1561,12 @@
         unit: t(UNIT_SUFFIX[viewAids.units]),
       })} · sRGB</span
     >
-    <span
-      class="min-w-0 flex-1 truncate text-center"
-      class:text-pc-warning-text={loadError !== null || editor.notice !== null}
-      class:text-pc-muted={loadError === null && editor.notice === null}
-      >{loadError ?? editor.notice ?? ''}</span
+    <!-- A notice is a warning chip (amigo-theme-controls AC-08). -->
+    <span class="min-w-0 flex-1 truncate text-center"
+      >{#if loadError !== null || editor.notice !== null}<span
+          class="am-chip am-chip--warning inline-flex max-w-full overflow-hidden"
+          >{loadError ?? editor.notice ?? ''}</span
+        >{/if}</span
     >
   {/snippet}
 </EditorFrame>

@@ -292,7 +292,7 @@
         <input
           type="text"
           bind:value={formName}
-          class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+          class="am-input am-input--sm w-auto"
         />
       </label>
       <label class="flex items-center gap-2 text-xs text-pc-muted">
@@ -304,11 +304,11 @@
         />
       </label>
       {#if formError}
-        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
+        <p class="am-hint am-hint--error" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
-        <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
-        <button type="submit" class="panel-btn panel-btn-primary">{t('common.add')}</button>
+        <button type="button" class="am-btn am-btn--sm" onclick={closeForm}>{t('common.cancel')}</button>
+        <button type="submit" class="am-btn am-btn--sm am-btn--primary">{t('common.add')}</button>
       </div>
     </form>
   {/if}
@@ -345,7 +345,7 @@
             </button>
             <button
               type="button"
-              class="panel-btn"
+              class="am-btn am-btn--sm"
               onclick={() => removeSlice(s.id)}
               aria-label={t('slices.removeNamed', { name: s.name })}
               title={t('slices.remove')}
@@ -368,7 +368,7 @@
                   inputmode="numeric"
                   value={s.x}
                   onchange={(e) => onNumberCommit(s, 'x', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
@@ -379,7 +379,7 @@
                   inputmode="numeric"
                   value={s.y}
                   onchange={(e) => onNumberCommit(s, 'y', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
             </div>
@@ -393,7 +393,7 @@
                   inputmode="numeric"
                   value={s.w}
                   onchange={(e) => onNumberCommit(s, 'w', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
@@ -405,13 +405,13 @@
                   inputmode="numeric"
                   value={s.h}
                   onchange={(e) => onNumberCommit(s, 'h', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
             </div>
           </fieldset>
 
-          <label class="flex items-center gap-2 text-xs text-pc-muted">
+          <label class="am-check flex items-center gap-2 text-xs text-pc-muted">
             <input
               type="checkbox"
               checked={s.hasCenter}
@@ -431,7 +431,7 @@
                     inputmode="numeric"
                     value={s.cx}
                     onchange={(e) => onNumberCommit(s, 'cx', e.target as HTMLInputElement)}
-                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                    class="am-input am-input--sm w-auto"
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
@@ -442,7 +442,7 @@
                     inputmode="numeric"
                     value={s.cy}
                     onchange={(e) => onNumberCommit(s, 'cy', e.target as HTMLInputElement)}
-                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                    class="am-input am-input--sm w-auto"
                   />
                 </label>
               </div>
@@ -456,7 +456,7 @@
                     inputmode="numeric"
                     value={s.cw}
                     onchange={(e) => onNumberCommit(s, 'cw', e.target as HTMLInputElement)}
-                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                    class="am-input am-input--sm w-auto"
                   />
                 </label>
                 <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
@@ -468,14 +468,14 @@
                     inputmode="numeric"
                     value={s.ch}
                     onchange={(e) => onNumberCommit(s, 'ch', e.target as HTMLInputElement)}
-                    class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                    class="am-input am-input--sm w-auto"
                   />
                 </label>
               </div>
             </fieldset>
           {/if}
 
-          <label class="flex items-center gap-2 text-xs text-pc-muted">
+          <label class="am-check flex items-center gap-2 text-xs text-pc-muted">
             <input
               type="checkbox"
               checked={s.hasPivot}
@@ -493,7 +493,7 @@
                   inputmode="numeric"
                   value={s.px}
                   onchange={(e) => onNumberCommit(s, 'px', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
               <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
@@ -504,14 +504,14 @@
                   inputmode="numeric"
                   value={s.py}
                   onchange={(e) => onNumberCommit(s, 'py', e.target as HTMLInputElement)}
-                  class="rounded border border-pc-border bg-pc-panel px-1 py-0.5 text-sm text-pc-text"
+                  class="am-input am-input--sm w-auto"
                 />
               </label>
             </div>
           {/if}
 
           {#if rowError[s.id]}
-            <p class="text-xs text-pc-danger-text" role="alert">{rowError[s.id]}</p>
+            <p class="am-hint am-hint--error" role="alert">{rowError[s.id]}</p>
           {/if}
         </li>
       {/each}

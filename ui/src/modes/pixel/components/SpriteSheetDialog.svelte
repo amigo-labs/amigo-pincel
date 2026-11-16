@@ -66,60 +66,64 @@
   aria-label={t('sheet.title')}
 >
   <form
-    class="flex w-80 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     onsubmit={(e) => {
       e.preventDefault();
       onSubmit({ columns: cols, tag, data, scale });
     }}
   >
-    <h2 class="text-base font-semibold">{t('sheet.title')}</h2>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('sheet.frames')}</span>
-      <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
-        value={tag ?? ''}
-        onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
-        aria-label={t('sheet.frames')}
-      >
-        <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
-        {#each tags as tag (tag.name)}
-          <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
-        {/each}
-      </select>
-    </label>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('sheet.columns')}</span>
-      <input
-        type="number"
-        min="1"
-        max={count}
-        bind:value={columns}
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1 tabular-nums"
-        aria-label={t('sheet.columns')}
-      />
-    </label>
-    <label class="flex flex-col gap-1 text-xs text-pc-text">
-      <span>{t('export.scale')}</span>
-      <select
-        class="rounded border border-pc-border bg-pc-bg px-2 py-1"
-        bind:value={scale}
-        aria-label={t('export.scale')}
-      >
-        {#each EXPORT_SCALES as s (s)}
-          <option value={s}>×{s}</option>
-        {/each}
-      </select>
-    </label>
-    <p class="text-xs text-pc-muted" aria-live="polite">
-      {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
-    </p>
-    <label class="flex items-center gap-2 text-xs text-pc-text">
-      <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
-      {t('sheet.jsonHint')}
-    </label>
-    <div class="flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('menu.export')}</button>
+    <header>
+      <h2>{t('sheet.title')}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('sheet.frames')}</span>
+        <select
+          class="am-input w-auto"
+          value={tag ?? ''}
+          onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
+          aria-label={t('sheet.frames')}
+        >
+          <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
+          {#each tags as tag (tag.name)}
+            <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
+          {/each}
+        </select>
+      </label>
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('sheet.columns')}</span>
+        <input
+          type="number"
+          min="1"
+          max={count}
+          bind:value={columns}
+          class="am-input tabular-nums w-auto"
+          aria-label={t('sheet.columns')}
+        />
+      </label>
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('export.scale')}</span>
+        <select
+          class="am-input w-auto"
+          bind:value={scale}
+          aria-label={t('export.scale')}
+        >
+          {#each EXPORT_SCALES as s (s)}
+            <option value={s}>×{s}</option>
+          {/each}
+        </select>
+      </label>
+      <p class="text-xs text-pc-muted" aria-live="polite">
+        {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
+      </p>
+      <label class="am-check flex items-center gap-2 text-xs text-pc-text">
+        <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
+        {t('sheet.jsonHint')}
+      </label>
     </div>
+    <footer>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
+    </footer>
   </form>
 </div>

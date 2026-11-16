@@ -155,114 +155,109 @@
   tabindex="-1"
   onkeydown={onKeydown}
 >
-  <div
-    class="shortcuts-panel flex max-h-full w-full max-w-3xl flex-col rounded-pc-dialog border border-pc-border bg-pc-panel shadow-xl"
-  >
-    <div class="flex items-center gap-3 border-b border-pc-border px-4 py-3">
-      <h2 id="shortcuts-title" class="flex-1 text-lg font-semibold">{t('menu.shortcuts')}</h2>
-      <button class="panel-btn shortcuts-noprint" onclick={onClose}>{t('common.close')}</button>
-    </div>
-    <div class="shortcuts-noprint border-b border-pc-border px-4 py-2">
-      <input
-        bind:this={filterField}
-        bind:value={query}
-        type="search"
-        class="opt-field w-full py-1 text-sm"
-        placeholder={t('keys.filter')}
-        aria-label={t('keys.filter')}
-      />
-    </div>
-    {#if message !== null}
-      <p
-        class="shortcuts-noprint border-b border-pc-border px-4 py-2 text-sm"
-        class:text-pc-accent-text={message.kind === 'status'}
-        class:text-pc-danger-text={message.kind === 'alert'}
-        role={message.kind}
-      >
-        {message.text}
-      </p>
-    {/if}
-    {#if conflict !== null}
-      <div
-        class="shortcuts-noprint flex flex-wrap items-center gap-2 border-b border-pc-border bg-pc-raised px-4 py-2 text-sm"
-        role="alert"
-      >
-        <span class="flex-1">
-          {t('keys.conflict', {
-            chord: chordLabel(conflict.chord),
-            owner: keymapLabel(conflict.owner, source.groups),
-          })}
-        </span>
-        <button class="panel-btn panel-btn-primary" onclick={replace}>{t('keys.replace')}</button>
-        <button class="panel-btn" onclick={closeConflict}>{t('common.cancel')}</button>
+  <div class="am-dialog shortcuts-panel flex max-h-full w-full max-w-3xl flex-col">
+    <header>
+      <h2 id="shortcuts-title">{t('menu.shortcuts')}</h2>
+    </header>
+    <div class="am-body flex min-h-0 flex-1 flex-col gap-3 pb-0">
+      <div class="shortcuts-noprint">
+        <input
+          bind:this={filterField}
+          bind:value={query}
+          type="search"
+          class="am-input w-full"
+          placeholder={t('keys.filter')}
+          aria-label={t('keys.filter')}
+        />
       </div>
-    {/if}
-    <div class="shortcuts-list min-h-0 flex-1 overflow-y-auto px-4 py-2" data-testid="shortcut-list">
-      {#each sections as s (s.section)}
-        <table class="mb-3 w-full border-collapse text-sm">
-          <caption class="py-1 text-left text-xs font-semibold tracking-wide text-pc-muted uppercase">
-            {t(SECTION_LABEL[s.section])}
-          </caption>
-          <thead class="sr-only">
-            <tr>
-              <th scope="col">{t('keys.colAction')}</th>
-              <th scope="col">{t('keys.colKeys')}</th>
-              <th scope="col">{t('keys.colNote')}</th>
-              <th scope="col" class="shortcuts-noprint">{t('keys.colEdit')}</th>
-            </tr>
-          </thead>
-          <tbody>
-            {#each s.rows as r (r.id)}
-              {@const id = bindable(r)}
-              <tr class="border-t border-pc-border/60">
-                <th scope="row" class="w-1/3 py-1 pr-3 text-left font-normal text-pc-text">
-                  {r.label}
-                </th>
-                <td class="py-1 pr-3 whitespace-nowrap">
-                  {#if id !== null && capturing === id}
-                    <span class="text-xs text-pc-accent-text">{t('keys.capture')}</span>
-                  {:else}
-                    {#each r.chords as chord, i (i)}
-                      <kbd
-                        class="mr-1 inline-block rounded border border-pc-border bg-pc-raised px-1.5 font-mono text-xs text-pc-text"
-                        >{chord}</kbd
-                      >
-                    {/each}
-                  {/if}
-                </td>
-                <td class="py-1 pr-3 text-xs text-pc-muted">{r.note ?? ''}</td>
-                <td class="shortcuts-noprint py-1 text-right whitespace-nowrap">
-                  {#if id !== null}
-                    <button class="panel-btn panel-btn-ghost" onclick={() => startCapture(id)}>
-                      {t('keys.change')}
-                    </button>
-                    <button
-                      class="panel-btn panel-btn-ghost"
-                      disabled={!isOverridden(id)}
-                      onclick={() => resetBinding(id)}
-                    >
-                      {t('keys.reset')}
-                    </button>
-                  {/if}
-                </td>
+      {#if message !== null}
+        <div
+          class={[
+            'am-banner shortcuts-noprint',
+            message.kind === 'alert' ? 'am-banner--danger' : 'am-banner--success',
+          ]}
+          role={message.kind}
+        >
+          <div><strong>{message.text}</strong></div>
+        </div>
+      {/if}
+      {#if conflict !== null}
+        <div class="am-banner am-banner--warning shortcuts-noprint flex-wrap items-center" role="alert">
+          <span class="min-w-0 flex-1">
+            {t('keys.conflict', {
+              chord: chordLabel(conflict.chord),
+              owner: keymapLabel(conflict.owner, source.groups),
+            })}
+          </span>
+          <button class="am-btn" onclick={closeConflict}>{t('common.cancel')}</button>
+          <button class="am-btn am-btn--primary" onclick={replace}>{t('keys.replace')}</button>
+        </div>
+      {/if}
+      <div class="shortcuts-list min-h-0 flex-1 overflow-y-auto pb-2" data-testid="shortcut-list">
+        {#each sections as s (s.section)}
+          <table class="mb-3 w-full border-collapse text-sm">
+            <caption class="py-1 text-left text-xs font-semibold tracking-wide text-pc-muted uppercase">
+              {t(SECTION_LABEL[s.section])}
+            </caption>
+            <thead class="sr-only">
+              <tr>
+                <th scope="col">{t('keys.colAction')}</th>
+                <th scope="col">{t('keys.colKeys')}</th>
+                <th scope="col">{t('keys.colNote')}</th>
+                <th scope="col" class="shortcuts-noprint">{t('keys.colEdit')}</th>
               </tr>
-            {/each}
-          </tbody>
-        </table>
-      {:else}
-        <p class="py-4 text-center text-sm text-pc-muted">{t('keys.empty')}</p>
-      {/each}
+            </thead>
+            <tbody>
+              {#each s.rows as r (r.id)}
+                {@const id = bindable(r)}
+                <tr class="border-t border-pc-border/60">
+                  <th scope="row" class="w-1/3 py-1 pr-3 text-left font-normal text-pc-text">
+                    {r.label}
+                  </th>
+                  <td class="py-1 pr-3 whitespace-nowrap">
+                    {#if id !== null && capturing === id}
+                      <span class="text-xs text-pc-accent-text">{t('keys.capture')}</span>
+                    {:else}
+                      {#each r.chords as chord, i (i)}
+                        <kbd class="am-kbd mr-1 inline-block">{chord}</kbd>
+                      {/each}
+                    {/if}
+                  </td>
+                  <td class="py-1 pr-3 text-xs text-pc-muted">{r.note ?? ''}</td>
+                  <td class="shortcuts-noprint py-1 text-right whitespace-nowrap">
+                    {#if id !== null}
+                      <button class="am-btn am-btn--ghost" onclick={() => startCapture(id)}>
+                        {t('keys.change')}
+                      </button>
+                      <button
+                        class="am-btn am-btn--ghost"
+                        disabled={!isOverridden(id)}
+                        onclick={() => resetBinding(id)}
+                      >
+                        {t('keys.reset')}
+                      </button>
+                    {/if}
+                  </td>
+                </tr>
+              {/each}
+            </tbody>
+          </table>
+        {:else}
+          <p class="py-4 text-center text-sm text-pc-muted">{t('keys.empty')}</p>
+        {/each}
+      </div>
     </div>
-    <div class="shortcuts-noprint flex flex-wrap justify-end gap-2 border-t border-pc-border px-4 py-2">
-      <button class="panel-btn" onclick={() => void importKeymap()}>{t('keys.importKeymap')}</button>
-      <button class="panel-btn" onclick={() => void exportKeymap()}>{t('keys.exportKeymap')}</button>
+    <footer class="shortcuts-noprint flex-wrap">
+      <button class="am-btn" onclick={() => void importKeymap()}>{t('keys.importKeymap')}</button>
+      <button class="am-btn" onclick={() => void exportKeymap()}>{t('keys.exportKeymap')}</button>
       <button
-        class="panel-btn"
+        class="am-btn"
         onclick={() => {
           message = null;
           resetAllBindings();
         }}>{t('keys.resetAll')}</button
       >
-    </div>
+      <button class="am-btn" onclick={onClose}>{t('common.close')}</button>
+    </footer>
   </div>
 </div>

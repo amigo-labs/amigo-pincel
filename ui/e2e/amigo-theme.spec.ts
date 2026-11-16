@@ -107,7 +107,8 @@ function themeChoice(page: Page, name: string): Locator {
 /** Picks a theme in Settings and closes the dialog; waits for the pref. */
 async function pickTheme(page: Page, name: 'Dark' | 'Light' | 'System'): Promise<void> {
   await page.keyboard.press('Control+,');
-  await themeChoice(page, name).check();
+  await // The radio itself is hidden inside its segment: the press lands on its label.
+  await themeChoice(page, name).check({ force: true });
   await expect.poll(() => storedPref(page, 'theme')).toBe(name.toLowerCase());
   await settings(page).getByRole('button', { name: 'Close' }).click();
   await expect(settings(page)).toBeHidden();
@@ -345,7 +346,12 @@ for (const mode of ['pixel', 'image'] as const) {
       settings(page).getByRole('combobox', { name: 'Language' }),
       'surface-raised',
     );
-    await expectFill(page, themeChoice(page, 'Dark'), 'accent-solid');
+    // The theme choice is a segmented control: the selected segment is raised on `surface`.
+    await expectFill(
+      page,
+      settings(page).getByRole('radiogroup', { name: 'Theme' }).locator('label').filter({ hasText: 'Dark' }),
+      'surface',
+    );
   });
 
   test(`${mode}: nothing keeps the former accent blue (AC-03)`, async ({ page }) => {
@@ -468,13 +474,14 @@ for (const mode of MODES) {
       ).toBeLessThanOrEqual(2);
 
       // A progress fill. The only progress bar of the app sits in the desktop
-      // app's ComfyUI install wizard; the page's own style for <progress> is
-      // what draws it, so a full bar put into the page shows the fill.
+      // app's ComfyUI install wizard and is the shared one (amigo-theme-controls
+      // AC-08); a full bar of that kind put into the page shows the fill.
       await page.evaluate(() => {
-        const bar = document.createElement('progress');
+        const bar = document.createElement('div');
         bar.id = 'theme-probe-progress';
-        bar.max = 1;
-        bar.value = 1;
+        bar.className = 'am-progress';
+        bar.append(document.createElement('i'));
+        (bar.firstChild as HTMLElement).style.width = '100%';
         bar.style.cssText = 'position:fixed;left:8px;top:8px;width:120px;z-index:1000';
         document.body.append(bar);
       });
@@ -510,7 +517,7 @@ test('Settings shows Theme with Dark selected, and a pick applies at once and is
   const themeColor = page.locator('meta[name="theme-color"]');
   await expect(themeColor).toHaveAttribute('content', DARK_BG);
 
-  await themeChoice(page, 'Light').check();
+  await themeChoice(page, 'Light').check({ force: true });
   // The editor and the open dialog switch without a reload.
   expect(await token(page, 'bg')).toBe(LIGHT_BG);
   await expectFill(page, page.locator('body'), 'bg');
@@ -718,9 +725,13 @@ for (const mode of MODES) {
       };
       /** A control's outline against what is behind the control. */
       const checkOutline = async (el: Locator, label: string): Promise<void> => {
-        const { behind } = await painted(el);
+        // At rest: the shared field shows the focus ring instead of its outline.
+        await el.blur();
+        const { behind, fill } = await painted(el);
+        // A checked toggle of the shared theme has no outline: its fill is the edge.
+        const checked = await el.evaluate((e) => e instanceof HTMLInputElement && e.checked);
         expect(
-          contrast(await outlineOf(el), behind),
+          contrast(checked ? fill : await outlineOf(el), behind),
           `${palette}: ${label}`,
         ).toBeGreaterThanOrEqual(3);
       };
@@ -777,7 +788,7 @@ for (const mode of MODES) {
       const tip = page.locator('[data-tooltip]');
       await expect(tip).toBeVisible();
       await check(tip, 'tooltip');
-      await check(tip.locator('.keycap'), 'tooltip keycap');
+      await check(tip.locator('.am-kbd'), 'tooltip keycap');
       await page.mouse.move(0, 0);
 
       // An open menu: an item, its shortcut, and the item under the pointer.
@@ -786,24 +797,23 @@ for (const mode of MODES) {
         .getByRole('menu', { name: 'Edit', exact: true })
         .getByRole('menuitem', { name: 'Copy', exact: true });
       await check(copy, 'menu item');
-      await check(copy.locator('.text-pc-faint').first(), 'menu shortcut');
+      await check(copy.locator('kbd'), 'menu shortcut');
       await copy.hover();
       await check(copy, 'hovered menu item');
-      await check(copy.locator('.text-pc-faint').first(), 'hovered menu shortcut');
+      await check(copy.locator('kbd'), 'hovered menu shortcut');
       await page.keyboard.press('Escape');
 
       await page.keyboard.press('Control+,');
       await check(settings(page).getByRole('combobox', { name: 'Language' }), 'field text');
       await checkOutline(settings(page).getByRole('combobox', { name: 'Language' }), 'field outline');
       await check(settings(page).getByRole('button', { name: 'Close' }), 'default button');
-      await checkOutline(themeChoice(page, palette === 'Dark' ? 'Light' : 'Dark'), 'radio outline');
       await settings(page).getByRole('button', { name: 'Close' }).click();
 
       await menu(page, 'File', 'New…');
       const dialog = page.getByRole('dialog', { name: 'New document' });
-      await check(dialog.locator('.panel-btn-primary').first(), 'primary button');
+      await check(dialog.locator('.am-btn--primary').first(), 'primary button');
       await check(
-        dialog.locator('.panel-btn:not(.panel-btn-primary)').first(),
+        dialog.locator('.am-btn:not(.am-btn--primary)').first(),
         'default button in a dialog',
       );
       await checkOutline(dialog.getByRole('checkbox'), 'checkbox outline in a dialog');
@@ -848,7 +858,7 @@ for (const mode of MODES) {
       if (mode === 'pixel') {
         const error = page.getByRole('alert').filter({ hasText: 'broken.png' });
         await expect(error).toBeVisible();
-        await check(error.locator('span').first(), 'error text');
+        await check(error.getByText(/broken\.png/).first(), 'error text');
         await error.getByRole('button').click();
       } else {
         const notice = page.getByRole('contentinfo').getByText(/^Could not open image/);
@@ -860,7 +870,7 @@ for (const mode of MODES) {
       await canvas.click();
       await page.getByRole('button', { name: /^Close (pincel\.aseprite|image\.ora)$/ }).click();
       const prompt = page.getByRole('alertdialog');
-      const dontSave = prompt.locator('.panel-btn-danger');
+      const dontSave = prompt.locator('.am-btn--danger');
       await check(dontSave, 'danger button');
       await dontSave.hover();
       await check(dontSave, 'hovered danger button');
@@ -957,13 +967,13 @@ for (const mode of MODES) {
       await expectRing(page, close, at('button'));
       const language = settings(page).getByRole('combobox', { name: 'Language' });
       await keyFocus(page, language);
-      await expectRing(page, language, at('select'), '1px');
+      await expectRing(page, language, at('select'));
       await close.click();
 
       // A text field, the colour buttons and a slider of a panel.
       const hex = sidebar.getByRole('textbox', { name: 'Foreground color hex value' });
       await keyFocus(page, hex);
-      await expectRing(page, hex, at('field'), '1px');
+      await expectRing(page, hex, at('field'));
       for (const which of ['fg', 'bg'] as const) {
         await keyFocus(page, swatch(page, which));
         await expectRing(page, swatch(page, which), at(`${which} colour button`));
@@ -1076,7 +1086,7 @@ test('a choice that cannot be stored applies until the app is closed (AC-15)', a
   });
   await gotoStart(page);
   await page.keyboard.press('Control+,');
-  await themeChoice(page, 'Light').check();
+  await themeChoice(page, 'Light').check({ force: true });
   expect(await token(page, 'bg')).toBe(LIGHT_BG);
   await settings(page).getByRole('button', { name: 'Close' }).click();
   expect(await token(page, 'bg')).toBe(LIGHT_BG);

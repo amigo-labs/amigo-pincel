@@ -16,7 +16,7 @@ async function openTop(page: Page, top: string): Promise<void> {
 async function entries(page: Page, name: string): Promise<string[]> {
   const menu = page.getByRole('menu', { name, exact: true });
   await expect(menu).toBeVisible();
-  const rows = await menu.locator('[role="menuitem"] > span.flex-1').allTextContents();
+  const rows = await menu.locator('[role="menuitem"] > .am-menu-label').allTextContents();
   return rows.map((r) => r.trim());
 }
 

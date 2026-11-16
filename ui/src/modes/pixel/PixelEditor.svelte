@@ -1382,11 +1382,11 @@
           max="255"
           bind:value={toolState.wandTolerance}
           onchange={relinkWand}
-          class="opt-field w-16 text-right tabular-nums"
+          class="am-input am-input--sm w-16 text-right tabular-nums"
           aria-label={t('px.wandTolerance')}
         />
       </label>
-      <label class="opt">
+      <label class="am-check opt">
         <input
           type="checkbox"
           bind:checked={toolState.wandContiguous}
@@ -1400,7 +1400,7 @@
         <select
           bind:value={toolState.wandSample}
           onchange={relinkWand}
-          class="opt-field"
+          class="am-input am-input--sm w-auto"
           aria-label={t('px.wandSample')}
         >
           <option value="layer">{t('px.layer')}</option>
@@ -1412,7 +1412,7 @@
         {t('opt.kind')}
         <select
           bind:value={toolState.gradientKind}
-          class="opt-field"
+          class="am-input am-input--sm w-auto"
           aria-label={t('px.gradientKind')}
         >
           <option value="linear">{t('opt.gradientLinear')}</option>
@@ -1421,7 +1421,7 @@
       </label>
       <label class="opt">
         {t('opt.dither')}
-        <select bind:value={toolState.gradientDither} class="opt-field" aria-label={t('px.dither')}>
+        <select bind:value={toolState.gradientDither} class="am-input am-input--sm w-auto" aria-label={t('px.dither')}>
           <option value={0}>{t('opt.ditherNone')}</option>
           <option value={2}>{t('opt.bayer2')}</option>
           <option value={4}>{t('opt.bayer4')}</option>
@@ -1437,13 +1437,13 @@
           min="1"
           max="64"
           bind:value={toolState.strokeWidth}
-          class="opt-field w-14 text-right tabular-nums"
+          class="am-input am-input--sm w-14 text-right tabular-nums"
           aria-label={t('px.strokeWidth')}
         />
       </label>
       <label class="opt">
         {t('opt.mode')}
-        <select bind:value={toolState.shapeMode} class="opt-field" aria-label={t('px.shapeMode')}>
+        <select bind:value={toolState.shapeMode} class="am-input am-input--sm w-auto" aria-label={t('px.shapeMode')}>
           <option value="outline">{t('opt.outline')}</option>
           <option value="fill">{t('opt.fillShape')}</option>
           <option value="fill_outline">{t('opt.fillOutline')}</option>
@@ -1457,7 +1457,7 @@
             min="0"
             max="256"
             bind:value={toolState.cornerRadius}
-            class="opt-field w-14 text-right tabular-nums"
+            class="am-input am-input--sm w-14 text-right tabular-nums"
             aria-label={t('px.cornerRadius')}
           />
         </label>
@@ -1470,7 +1470,7 @@
             min="3"
             max="64"
             bind:value={toolState.polygonSides}
-            class="opt-field w-14 text-right tabular-nums"
+            class="am-input am-input--sm w-14 text-right tabular-nums"
             aria-label={t('px.polygonSides')}
           />
         </label>
@@ -1482,7 +1482,7 @@
       <BrushOptions />
       <label class="opt opt-divided">
         {t('opt.symmetry')}
-        <select bind:value={toolState.symmetry} class="opt-field" aria-label={t('opt.symmetry')}>
+        <select bind:value={toolState.symmetry} class="am-input am-input--sm w-auto" aria-label={t('opt.symmetry')}>
           <option value="none">{t('opt.symmetryNone')}</option>
           <option value="x">{t('opt.symmetryX')}</option>
           <option value="y">{t('opt.symmetryY')}</option>
@@ -1492,7 +1492,7 @@
       {#if toolState.tool === 'pencil'}
         <label class="opt opt-divided">
           {t('opt.ink')}
-          <select bind:value={toolState.pencilInk} class="opt-field" aria-label={t('px.pencilInk')}>
+          <select bind:value={toolState.pencilInk} class="am-input am-input--sm w-auto" aria-label={t('px.pencilInk')}>
             <option value="simple">{t('opt.inkSimple')}</option>
             <option value="shading">{t('opt.inkShading')}</option>
           </select>
@@ -1707,7 +1707,7 @@
     {/if}
     <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{ed.status}</span>
     {#if probe.on}
-      <span class="text-pc-success-text">
+      <span class="am-chip am-chip--success">
         {probe.fpsEma.toFixed(0)} fps · compose {probe.composeMs.toFixed(2)}ms (max
         {probe.composeMaxMs.toFixed(2)}ms)
       </span>

@@ -81,73 +81,75 @@
   aria-labelledby="text-title"
 >
   <form
-    class="pointer-events-auto flex w-80 flex-col gap-3 rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-2xl"
+    class="am-dialog pointer-events-auto"
     onsubmit={(e) => {
       e.preventDefault();
       if (params.text.trim().length > 0) onApply(params);
     }}
   >
     <header class="flex items-baseline justify-between">
-      <h2 id="text-title" class="text-base font-semibold">{t('tool.text')}</h2>
+      <h2 id="text-title">{t('tool.text')}</h2>
       <span class="text-xs text-pc-muted">at {x}, {y}</span>
     </header>
-    <!-- svelte-ignore a11y_autofocus -->
-    <textarea
-      bind:value={text}
-      rows="3"
-      autofocus
-      placeholder={t('text.placeholder')}
-      class="rounded border border-pc-border bg-pc-bg px-2 py-1 font-mono text-sm"
-      aria-label={t('text.content')}
-    ></textarea>
-    <div class="flex items-center gap-2 text-xs text-pc-text">
-      <span>{t('font.label')}</span>
-      <FontPicker
-        family={pixelFont.state.family}
-        missing={pixelFont.availability() === 'missing'}
-        onPick={(f) => pixelFont.pick(f)}
-        onAdded={(r) => pixelFont.added(r)}
-      />
-    </div>
-    <div class="flex items-center gap-3 text-xs text-pc-text">
-      <label class="flex items-center gap-1">
-        <span>{t('opt.size')}</span>
-        <input
-          type="number"
-          min="1"
-          max="2000"
-          bind:value={size}
-          class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
-          aria-label={t('text.fontSize')}
+    <div class="am-body flex flex-col gap-3">
+      <!-- svelte-ignore a11y_autofocus -->
+      <textarea
+        bind:value={text}
+        rows="3"
+        autofocus
+        placeholder={t('text.placeholder')}
+        class="am-input py-1 font-mono w-auto h-auto"
+        aria-label={t('text.content')}
+      ></textarea>
+      <div class="flex items-center gap-2 text-xs text-pc-text">
+        <span>{t('font.label')}</span>
+        <FontPicker
+          family={pixelFont.state.family}
+          missing={pixelFont.availability() === 'missing'}
+          onPick={(f) => pixelFont.pick(f)}
+          onAdded={(r) => pixelFont.added(r)}
         />
-      </label>
-      <select
-        bind:value={align}
-        class="rounded border border-pc-border bg-pc-bg px-1 py-0.5"
-        aria-label={t('text.align')}
-      >
-        <option value="left">{t('opt.left')}</option>
-        <option value="center">{t('opt.center')}</option>
-        <option value="right">{t('opt.right')}</option>
-      </select>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-pc-text">
+        <label class="flex items-center gap-1">
+          <span>{t('opt.size')}</span>
+          <input
+            type="number"
+            min="1"
+            max="2000"
+            bind:value={size}
+            class="am-input w-16 text-right tabular-nums"
+            aria-label={t('text.fontSize')}
+          />
+        </label>
+        <select
+          bind:value={align}
+          class="am-input w-auto"
+          aria-label={t('text.align')}
+        >
+          <option value="left">{t('opt.left')}</option>
+          <option value="center">{t('opt.center')}</option>
+          <option value="right">{t('opt.right')}</option>
+        </select>
+      </div>
+      <div class="flex items-center gap-3 text-xs text-pc-text">
+        <label class="am-check flex items-center gap-1">
+          <input type="checkbox" bind:checked={bold} />
+          <span class="font-bold">{t('opt.bold')}</span>
+        </label>
+        <label class="am-check flex items-center gap-1">
+          <input type="checkbox" bind:checked={italic} />
+          <span class="italic">{t('opt.italic')}</span>
+        </label>
+        <label class="am-check flex items-center gap-1">
+          <input type="checkbox" bind:checked={antiAlias} />
+          <span>{t('opt.antiAlias')}</span>
+        </label>
+      </div>
     </div>
-    <div class="flex items-center gap-3 text-xs text-pc-text">
-      <label class="flex items-center gap-1">
-        <input type="checkbox" bind:checked={bold} />
-        <span class="font-bold">{t('opt.bold')}</span>
-      </label>
-      <label class="flex items-center gap-1">
-        <input type="checkbox" bind:checked={italic} />
-        <span class="italic">{t('opt.italic')}</span>
-      </label>
-      <label class="flex items-center gap-1">
-        <input type="checkbox" bind:checked={antiAlias} />
-        <span>{t('opt.antiAlias')}</span>
-      </label>
-    </div>
-    <footer class="mt-1 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary" disabled={params.text.trim().length === 0}>
+    <footer>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary" disabled={params.text.trim().length === 0}>
         {t('text.place')}
       </button>
     </footer>

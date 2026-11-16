@@ -172,7 +172,7 @@
         <input
           type="text"
           bind:value={formName}
-          class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+          class="am-input am-input--sm w-auto"
         />
       </label>
       <div class="flex gap-2">
@@ -184,7 +184,7 @@
             step="1"
             inputmode="numeric"
             bind:value={formTileW}
-            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+            class="am-input am-input--sm w-auto"
           />
         </label>
         <label class="flex flex-1 flex-col gap-1 text-xs text-pc-muted">
@@ -195,16 +195,16 @@
             step="1"
             inputmode="numeric"
             bind:value={formTileH}
-            class="rounded border border-pc-border bg-pc-panel px-2 py-1 text-sm text-pc-text"
+            class="am-input am-input--sm w-auto"
           />
         </label>
       </div>
       {#if formError}
-        <p class="text-xs text-pc-danger-text" role="alert">{formError}</p>
+        <p class="am-hint am-hint--error" role="alert">{formError}</p>
       {/if}
       <div class="flex justify-end gap-1">
-        <button type="button" class="panel-btn" onclick={closeForm}>{t('common.cancel')}</button>
-        <button type="submit" class="panel-btn panel-btn-primary">{t('common.add')}</button>
+        <button type="button" class="am-btn am-btn--sm" onclick={closeForm}>{t('common.cancel')}</button>
+        <button type="submit" class="am-btn am-btn--sm am-btn--primary">{t('common.add')}</button>
       </div>
     </form>
   {/if}
@@ -228,7 +228,7 @@
           <div class="flex gap-1">
             <button
               type="button"
-              class="panel-btn"
+              class="am-btn am-btn--sm"
               onclick={() => addTile(ts.id)}
               aria-label={t('tiles.addTile', { name: ts.name })}
             >
@@ -236,7 +236,7 @@
             </button>
             <button
               type="button"
-              class="panel-btn"
+              class="am-btn am-btn--sm"
               onclick={() => addTilemapLayer(ts.id, ts.name)}
               aria-label={t('tiles.addLayer', { name: ts.name })}
             >
@@ -244,7 +244,7 @@
             </button>
           </div>
           {#if rowError[ts.id]}
-            <p class="text-xs text-pc-danger-text" role="alert">{rowError[ts.id]}</p>
+            <p class="am-hint am-hint--error" role="alert">{rowError[ts.id]}</p>
           {/if}
           {#if doc && ts.tileCount > 1}
             <!-- Tile 0 is the empty tile: never shown, never picked

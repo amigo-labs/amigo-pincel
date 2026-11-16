@@ -230,6 +230,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         { label: t('menu.renameLayer'), disabled: noDoc, run: c.renameLayer },
         {
           label: t('menu.deleteLayer'),
+          danger: true,
           shortcut: hint('deleteLayer'),
           disabled: noDoc || c.layerCount <= 1,
           run: c.removeLayer,
@@ -277,7 +278,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
         },
         { kind: 'separator' },
         { label: t('menu.newFrame'), shortcut: hint('newFrame'), disabled: noDoc, run: c.addFrame },
-        { label: t('menu.deleteFrame'), disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
+        { label: t('menu.deleteFrame'), danger: true, disabled: noDoc || c.frameCount < 2, run: c.removeFrame },
       ],
     },
     ...effectMenus(c.openEffect, noDoc, 'pixel'),

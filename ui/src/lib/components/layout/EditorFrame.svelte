@@ -353,23 +353,25 @@
             inert={effectOpen}
             data-dimmed={dim}
           >
-            <div class="flex shrink-0 items-center gap-1 overflow-x-auto px-2 pt-1.5 [scrollbar-width:none]" role="tablist">
-              {#each panels as p (p.id)}
-                <button
-                  type="button"
-                  class="flex shrink-0 items-center gap-1.5 rounded-pc-control px-2.5 py-1.5 text-xs"
-                  class:bg-pc-active={p.id === sheetTab}
-                  class:text-pc-muted={p.id !== sheetTab}
-                  role="tab"
-                  aria-selected={p.id === sheetTab}
-                  onclick={() => (sheetTab = p.id)}
-                >
-                  <Icon name={p.icon} size={15} />
-                  {p.title}
-                </button>
-              {/each}
-              <span class="flex-1"></span>
-              <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+            <!-- The shared tab row; the close button sits beside it, not in it. -->
+            <div class="flex shrink-0 items-end pr-2 pl-3">
+              <div class="am-tabs min-w-0 flex-1 [scrollbar-width:none]" role="tablist">
+                {#each panels as p (p.id)}
+                  <button
+                    type="button"
+                    class="inline-flex shrink-0 items-center gap-1.5"
+                    role="tab"
+                    aria-selected={p.id === sheetTab}
+                    onclick={() => (sheetTab = p.id)}
+                  >
+                    <Icon name={p.icon} size={15} />
+                    {p.title}
+                  </button>
+                {/each}
+              </div>
+              <span class="flex h-9 shrink-0 items-center border-b border-pc-border pl-2">
+                <IconButton icon="close" label={t('frame.closePanels')} size="sm" onclick={() => (sheetTab = null)} />
+              </span>
             </div>
             <div class="flex min-h-0 flex-1 flex-col overflow-y-auto" role="tabpanel">
               {#key sheetPanel.id}

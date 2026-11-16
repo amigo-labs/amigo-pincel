@@ -58,11 +58,10 @@
     />
   {/snippet}
 
-  <div class="flex items-center gap-1" role="group" aria-label={t('preview.zoom')}>
+  <div class="am-seg am-seg--sm self-start" role="group" aria-label={t('preview.zoom')}>
     {#each ZOOMS as z (z)}
       <button
         type="button"
-        class="zoom-btn"
         aria-pressed={preview.zoom === z}
         onclick={() => (preview.zoom = z)}
       >
@@ -88,17 +87,6 @@
 </Panel>
 
 <style>
-  .zoom-btn {
-    border-radius: 0.25rem;
-    border: 1px solid var(--color-pc-border);
-    padding: 0 0.4rem;
-    font-size: 0.75rem;
-    color: var(--color-pc-muted);
-  }
-  .zoom-btn[aria-pressed='true'] {
-    border-color: var(--color-pc-accent);
-    color: var(--color-pc-text);
-  }
   .preview-stage {
     display: flex;
     height: 12rem;

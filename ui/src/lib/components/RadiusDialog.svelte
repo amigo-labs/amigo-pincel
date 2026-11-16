@@ -47,28 +47,32 @@
   onkeydown={onKeydown}
 >
   <form
-    class="w-72 max-w-full rounded-pc-dialog border border-pc-border bg-pc-panel p-4 text-sm text-pc-text shadow-xl"
+    class="am-dialog"
     onsubmit={(e) => {
       e.preventDefault();
       submit();
     }}
   >
-    <p class="font-semibold">{title}</p>
-    <label class="mt-3 flex flex-col gap-1 text-xs text-pc-muted">
-      {t('select.radius')}
-      <input
-        bind:this={input}
-        bind:value={draft}
-        type="number"
-        min="1"
-        {max}
-        step="1"
-        class="opt-field w-full text-sm"
-      />
-    </label>
-    <div class="mt-4 flex justify-end gap-2">
-      <button type="button" class="panel-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="panel-btn panel-btn-primary">{t('common.apply')}</button>
+    <header>
+      <h2>{title}</h2>
+    </header>
+    <div class="am-body flex flex-col gap-3">
+      <label class="flex flex-col gap-1 text-xs text-pc-muted">
+        {t('select.radius')}
+        <input
+          bind:this={input}
+          bind:value={draft}
+          type="number"
+          min="1"
+          {max}
+          step="1"
+          class="am-input w-full"
+        />
+      </label>
     </div>
+    <footer>
+      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
+      <button type="submit" class="am-btn am-btn--primary">{t('common.apply')}</button>
+    </footer>
   </form>
 </div>

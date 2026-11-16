@@ -260,7 +260,7 @@
     <span class="w-8 text-pc-muted">{t('color.hex')}</span>
     <input
       type="text"
-      class="opt-field min-w-0 flex-1 font-mono"
+      class="am-input min-w-0 flex-1 font-mono"
       spellcheck="false"
       maxlength="9"
       bind:value={hexText}
@@ -286,7 +286,7 @@
           max="255"
           step="1"
           value={value[ch.key]}
-          class="opt-field w-full text-right tabular-nums"
+          class="am-input w-full px-1 text-right tabular-nums"
           onchange={(e) => commitChannel(ch.key, e.currentTarget)}
           onkeydown={(e) => {
             if (e.key === 'Enter') {

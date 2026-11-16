@@ -152,11 +152,11 @@
           >{tour.step + 1} / {steps.length}</span
         >
         <span class="flex-1"></span>
-        <button type="button" class="panel-btn" onclick={endTour}>{t('tour.skip')}</button>
-        <button type="button" class="panel-btn" disabled={tour.step === 0} onclick={back}
+        <button type="button" class="am-btn" onclick={endTour}>{t('tour.skip')}</button>
+        <button type="button" class="am-btn" disabled={tour.step === 0} onclick={back}
           >{t('tour.back')}</button
         >
-        <button type="button" class="panel-btn panel-btn-primary" data-tour-next onclick={next}
+        <button type="button" class="am-btn am-btn--primary" data-tour-next onclick={next}
           >{last ? t('tour.done') : t('tour.next')}</button
         >
       </div>

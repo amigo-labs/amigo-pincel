@@ -125,7 +125,7 @@
     value={value}
     oninput={(e) => onField(e, false)}
     onchange={(e) => onField(e, true)}
-    class="w-16 rounded border border-pc-border bg-pc-bg px-1 py-0.5 text-right tabular-nums"
+    class="am-input w-16 text-right tabular-nums"
     aria-label={t('effectDlg.degrees', { label })}
   />
 </span>

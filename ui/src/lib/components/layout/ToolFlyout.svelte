@@ -4,6 +4,7 @@
   // press or Shift+F10. `ToolRail` owns opening, closing and the keyboard;
   // this component draws the entries and places itself.
   import { tick, untrack } from 'svelte';
+  import { activeOnFocus } from './menu-focus';
   import Icon from '../icons/Icon.svelte';
   import { placeFlyout, type FlyoutPlacement, type ScreenBox, type ToolGroup } from './tools';
 
@@ -52,7 +53,7 @@
 
 <div
   bind:this={el}
-  class="flyout fixed z-50 flex min-w-44 flex-col overflow-y-auto select-none"
+  class="flyout am-menu fixed z-50 min-w-44 overflow-y-auto select-none *:shrink-0"
   style:left="{place?.left ?? 0}px"
   style:top="{place?.top ?? 0}px"
   style:max-height={place ? `${place.maxHeight}px` : undefined}
@@ -73,8 +74,7 @@
     {@const on = tool.id === active}
     <button
       type="button"
-      class="entry"
-      class:entry-hot={hot === tool.id && !tool.disabled}
+      use:activeOnFocus={hot === tool.id && !tool.disabled}
       role="menuitemradio"
       aria-checked={on}
       tabindex="-1"
@@ -85,49 +85,23 @@
         if (!tool.disabled) onChoose(tool.id);
       }}
     >
-      <span class="w-4 shrink-0 text-pc-accent-text" aria-hidden="true">{on ? '✓' : ''}</span>
-      <Icon name={tool.icon} size={17} />
-      <span class="flex-1">{tool.label}</span>
+      <span class="am-menu-label inline-flex items-center"
+        ><span class="am-menu-check text-pc-accent-text" aria-hidden="true"
+          >{#if on}<svg viewBox="0 0 16 16" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3.5 8.5l3 3 6-7" /></svg>{/if}</span
+        ><Icon
+          name={tool.icon}
+          size={17}
+        /><span class="ml-2">{tool.label}</span></span
+      >
     </button>
   {/each}
 </div>
 
 <style>
   .flyout {
-    border-radius: var(--am-radius-md);
-    border: 1px solid var(--color-pc-border);
-    background-color: var(--color-pc-panel);
-    padding: 0.25rem 0;
-    font-size: 0.875rem;
-    box-shadow: var(--am-elev-2);
     -webkit-touch-callout: none;
   }
   .flyout:focus {
     outline: none;
-  }
-  .entry {
-    display: flex;
-    flex-shrink: 0;
-    width: 100%;
-    align-items: center;
-    gap: 0.5rem;
-    padding: 0.35rem 0.75rem 0.35rem 0.5rem;
-    text-align: left;
-    white-space: nowrap;
-    color: var(--color-pc-text);
-  }
-  .entry:hover:not(:disabled),
-  .entry:focus,
-  .entry-hot {
-    background-color: var(--color-pc-hover);
-  }
-  /* Opened with the keyboard, the entry also shows the ring (inset: the
-     flyout scrolls and would clip it). */
-  .entry:focus-visible {
-    outline: 2px solid var(--am-focus);
-    outline-offset: -2px;
-  }
-  .entry:disabled {
-    opacity: 0.4;
   }
 </style>
