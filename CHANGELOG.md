@@ -1,5 +1,29 @@
 # Changelog
 
+## [1.16.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.15.0...v1.16.0) (2026-11-16)
+
+
+### Features
+
+* group assistant tool calls and keep generation info on generated layers ([73e7338](https://github.com/amigo-labs/amigo-pincel/commit/73e733842329069221dcfbf67fce16141d44d829))
+* **pincel-agent:** draw.strokes batch tool with per-point pressure ([84dfc99](https://github.com/amigo-labs/amigo-pincel/commit/84dfc9978477f7320e81b3bea9ef12cae719103e))
+* **pincel-agent:** draw.strokes batch tool with per-point pressure (AC-01 – AC-15) ([90baec7](https://github.com/amigo-labs/amigo-pincel/commit/90baec7062cacd34b62efb9c41f8521a8c5dd3e5))
+* **pincel-core:** keep generation info as a layer's user-data text (AC-07, AC-08, AC-10, AC-12) ([4a246ae](https://github.com/amigo-labs/amigo-pincel/commit/4a246aea478dadf734bc705e5d26f05a27d98879))
+* **pincel-image-core:** keep generation info on layers and in OpenRaster (AC-01, AC-07, AC-08, AC-09, AC-11, AC-12) ([aeda5f1](https://github.com/amigo-labs/amigo-pincel/commit/aeda5f1da5b74065afd810bfee5bd3558b126f7f))
+* **pincel-image-wasm:** record generation info on generated layers and report it per layer (AC-01, AC-02, AC-04) ([c310a8b](https://github.com/amigo-labs/amigo-pincel/commit/c310a8b0ca6d07e6c2f01cdaa4bdfa70c2b6513d))
+* **pincel-wasm:** record generation info on generated layers and read it per layer (AC-01, AC-02, AC-04) ([afaaa11](https://github.com/amigo-labs/amigo-pincel/commit/afaaa11594bd8811836bbbfe793c9209af8aa293))
+* **ui:** docked panels, floating banners and warning hints on the shared amigo theme ([8c0ac43](https://github.com/amigo-labs/amigo-pincel/commit/8c0ac43c9e6aa2c53fafc7ac261424a1646c9961))
+* **ui:** docked panels, floating notices and warning hints on the shared theme (AC-07, AC-08, AC-10) ([68a9fac](https://github.com/amigo-labs/amigo-pincel/commit/68a9faca3d341582771074d9239055128226e45b))
+* **ui:** group consecutive assistant tool calls into one row (AC-06) ([078b6d9](https://github.com/amigo-labs/amigo-pincel/commit/078b6d9b77f0ffeb5fa24c946c2d5a956d10def1))
+* **ui:** show, copy and reuse the generation info of generated layers (AC-01 – AC-13) ([647053a](https://github.com/amigo-labs/amigo-pincel/commit/647053a07e0d80bdfdbf1708bc9099a0622868f2))
+
+
+### Bug Fixes
+
+* **pincel-agent:** draw.strokes limits first, first stroke's undo kind (AC-04, AC-06, AC-08, AC-15) ([432ca9c](https://github.com/amigo-labs/amigo-pincel/commit/432ca9cdd5102d1dcffb7d304c4dbb9a6dc01193))
+* **pincel-image-core:** declare the pincel namespace in stack.xml only when a layer has generation info ([b1e82da](https://github.com/amigo-labs/amigo-pincel/commit/b1e82dac50a5e002f11c4669552ae16ccec80ba4))
+* **tauri:** retry starting uv and ComfyUI while the program file is busy ([d758459](https://github.com/amigo-labs/amigo-pincel/commit/d758459dcd9fcb3b4c2a26473cc097e0a97f3fcd))
+
 ## [1.15.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.14.2...v1.15.0) (2026-11-16)
 
 
