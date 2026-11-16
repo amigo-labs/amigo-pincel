@@ -42,13 +42,16 @@ type Role = keyof typeof ROLES;
 /** `el` is the shared button in `role`, `height` px high. */
 async function expectButton(page: Page, el: Locator, role: Role, height: 24 | 32, what: string): Promise<void> {
   const want = ROLES[role];
-  // The shared button fades its fill: one that was just enabled is still on its way.
+  // The shared button fades its fill and its outline (`.am-btn` transition):
+  // one that was just enabled is still on its way.
   await expect
     .poll(async () => (await lookOf(el)).fill, `${what}: fill`)
     .toBe(want.fill ? await tokenColor(page, want.fill) : TRANSPARENT);
+  await expect
+    .poll(async () => (await lookOf(el)).edge, `${what}: outline`)
+    .toBe(want.edge ? await tokenColor(page, want.edge) : TRANSPARENT);
   const look = await lookOf(el);
   expect(look.text, `${what}: text`).toBe(await tokenColor(page, want.text));
-  expect(look.edge, `${what}: outline`).toBe(want.edge ? await tokenColor(page, want.edge) : TRANSPARENT);
   expect(look.edgeWidth, `${what}: outline width`).toBe('1px');
   expect(look.radius, `${what}: radius`).toBe(await tokenValue(page, 'radius-sm'));
   expect(look.height, `${what}: height`).toBe(height);
