@@ -512,3 +512,29 @@ fn call_wire_fonts_feed_font_list_and_matching() {
             .is_some_and(|e| e.contains("font.list"))
     );
 }
+
+/// `draw.strokes` on the open document is one step of the editor's undo
+/// history (docs/specs/agent-painting.md AC-14).
+#[test]
+fn call_strokes_is_one_editor_undo_step_in_both_modes() {
+    let strokes = json!({ "strokes": [
+        { "points": [[1, 1], [6, 6]], "color": "#ff0000" },
+        { "points": [[6, 1], [1, 6]], "color": "#00ff00" },
+        { "points": [[0, 3], [7, 3]], "color": "#0000ff" },
+    ] });
+    let mut ed = Editor::new(8, 8);
+    let before = (ed.sprite.clone(), ed.cels.clone());
+    ed.ok("draw.strokes", strokes.clone());
+    assert_ne!(ed.cels, before.1);
+    assert_eq!(ed.bus.undo_depth(), 1);
+    assert!(ed.bus.undo(&mut ed.sprite, &mut ed.cels));
+    assert_eq!((ed.sprite.clone(), ed.cels.clone()), before);
+
+    let mut ed = ImageEditor::new(8, 8);
+    let before = ed.bus.document.clone();
+    ed.ok("draw.strokes", strokes);
+    assert_ne!(ed.bus.document, before);
+    assert_eq!(ed.bus.history.undo_depth(), 1);
+    assert!(ed.bus.undo().expect("undo"));
+    assert_eq!(ed.bus.document, before);
+}

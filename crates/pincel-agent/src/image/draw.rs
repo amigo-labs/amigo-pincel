@@ -200,7 +200,7 @@ pub(super) fn points_arg(args: &Args) -> Result<Vec<[f32; 2]>, AgentError> {
 
 pub(crate) const STROKE: Tool = Tool {
     name: "draw.stroke",
-    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true), `blend` normal (default) / overwrite for the brush; the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
+    description: "Paint a stroke through `points` ([[x, y], …]; one point is a single stamp) with `tool` brush (default), or erase with `tool: \"eraser\"`; `color` default #000000; every call is one undo step. `layer` and `frame` (Pixel only) default to the paint target. Image documents (the Brush): `size` 1–500 px (default 8), `hardness` and `opacity` in % (default 100), `shape` hard_round (default) / soft_round / flat, `angle` 0–180 degrees of the tip (default 45), `anti_alias` for a smooth edge of the hard round tip (default true), `blend` normal (default) / overwrite for the brush, `pressure` (one 0–1 value per point; a light point paints a smaller dab while `pressure_size` is on (default true) and a fainter one while `pressure_opacity` is on (default false)); the eraser takes `eraser_mode` to_transparent (default) / to_background, which paints `background` (default #FFFFFF). Pixel documents (the Pencil): integer points, `size` 1–8 (default 1), `shape` square (default) / round, `pixel_perfect` (default false), `ink` simple (default) / shading with `ramp_from` / `ramp_to` (palette indexes, default the whole palette) and `step` 1 (default) / -1, symmetry `mirror` x / y / xy (default none) with `axis_x2` / `axis_y2` (half pixels, default the centre), tiled `wrap` x / y / xy (default none).",
     schema: || {
         edit_schema(
             json!({
@@ -230,6 +230,9 @@ pub(crate) const STROKE: Tool = Tool {
                 "angle": angle_prop(),
                 "anti_alias": { "type": "boolean", "description": "Image: anti-aliased edge of the hard round tip; default true" },
                 "blend": blend_prop(),
+                "pressure": pressure_prop(),
+                "pressure_size": { "type": "boolean", "description": "Image: pressure varies the dab size; default true" },
+                "pressure_opacity": { "type": "boolean", "description": "Image: pressure varies the dab opacity; default false" },
                 "frame": crate::pixel::frame_prop(),
             }),
             &["points"],
@@ -240,87 +243,246 @@ pub(crate) const STROKE: Tool = Tool {
             refuse_pixel_blend(ctx, args)?;
             return crate::pixel::paint::stroke(ctx, args);
         }
-        let blend = blend_arg(args)?;
-        if args.str("tool") == Some("eraser") && args.get("blend").is_some() {
-            return Err(AgentError::tool(
-                "argument `blend` does not apply to `tool: \"eraser\"`, which removes paint instead of compositing it",
-            ));
-        }
-        refuse_pixel_args(
-            ctx,
-            args,
-            &[
-                "pixel_perfect",
-                "ink",
-                "ramp_from",
-                "ramp_to",
-                "step",
-                "mirror",
-                "axis_x2",
-                "axis_y2",
-                "wrap",
-            ],
-        )?;
-        if let Some(s @ ("square" | "round")) = args.str("shape") {
-            let id = ctx.ws.resolve(args)?;
-            return Err(AgentError::tool(format!(
-                "argument `shape`: {s:?} works on Pixel documents only; document `{id}` is an Image document (hard_round, soft_round, flat)"
-            )));
-        }
+        check_image_stroke(ctx, args)?;
         edit_checked(ctx, args, |layer, stroke_id| {
-            let points = points_arg(args)?;
-            let size = image_ranged(args, "size", 1.0, Some(500.0), BRUSH_SIZE as f64)? as u32;
-            let (opacity, hardness) = (percent(args, "opacity"), percent(args, "hardness"));
-            let shape = str_or(args, "shape", "hard_round").to_owned();
-            Ok(if args.str("tool") == Some("eraser") {
-                CommandSpec::EraserStroke {
-                    layer,
-                    size,
-                    opacity,
-                    shape,
-                    hardness,
-                    mode: str_or(args, "eraser_mode", "to_transparent").to_owned(),
-                    background: match args.get("background") {
-                        Some(_) => color_arg(args, "background")?,
-                        None => [255, 255, 255, 255],
-                    },
-                    points,
-                    pressure: Vec::new(),
-                    pressure_size: false,
-                    pressure_opacity: false,
-                    azimuth: Vec::new(),
-                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
-                    tilt_angle: false,
-                    anti_alias: args.bool("anti_alias").unwrap_or(true),
-                    stroke_id,
-                }
-            } else {
-                let color = match args.get("color") {
-                    Some(_) => color_arg(args, "color")?,
-                    None => [0, 0, 0, 255],
-                };
-                CommandSpec::PencilStroke {
-                    layer,
-                    size,
-                    color,
-                    opacity,
-                    shape,
-                    hardness,
-                    points,
-                    pressure: Vec::new(),
-                    pressure_size: false,
-                    pressure_opacity: false,
-                    azimuth: Vec::new(),
-                    angle: num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE)),
-                    tilt_angle: false,
-                    anti_alias: args.bool("anti_alias").unwrap_or(true),
-                    blend: blend.clone(),
-                    stroke_id,
-                }
-            })
+            image_stroke_spec(args, layer, stroke_id)
         })
     },
 };
+
+/// Refuse the arguments of an Image `draw.stroke` the Image Brush or
+/// Eraser does not take.
+fn check_image_stroke(ctx: &Ctx<'_>, args: &Args) -> Result<(), AgentError> {
+    blend_arg(args)?;
+    if args.str("tool") == Some("eraser") && args.get("blend").is_some() {
+        return Err(AgentError::tool(
+            "argument `blend` does not apply to `tool: \"eraser\"`, which removes paint instead of compositing it",
+        ));
+    }
+    refuse_pixel_args(
+        ctx,
+        args,
+        &[
+            "pixel_perfect",
+            "ink",
+            "ramp_from",
+            "ramp_to",
+            "step",
+            "mirror",
+            "axis_x2",
+            "axis_y2",
+            "wrap",
+        ],
+    )?;
+    if let Some(s @ ("square" | "round")) = args.str("shape") {
+        let id = ctx.ws.resolve(args)?;
+        return Err(AgentError::tool(format!(
+            "argument `shape`: {s:?} works on Pixel documents only; document `{id}` is an Image document (hard_round, soft_round, flat)"
+        )));
+    }
+    Ok(())
+}
+
+/// The editor's Brush or Eraser command for one Image stroke on `layer`.
+fn image_stroke_spec(args: &Args, layer: usize, stroke_id: u64) -> Result<CommandSpec, AgentError> {
+    let blend = blend_arg(args)?;
+    let points = points_arg(args)?;
+    let pressure = pressure_arg(args, points.len())?;
+    let pressure_size = args.bool("pressure_size").unwrap_or(true);
+    let pressure_opacity = args.bool("pressure_opacity").unwrap_or(false);
+    let size = image_ranged(args, "size", 1.0, Some(500.0), BRUSH_SIZE as f64)? as u32;
+    let (opacity, hardness) = (percent(args, "opacity"), percent(args, "hardness"));
+    let shape = str_or(args, "shape", "hard_round").to_owned();
+    let angle = num_or(args, "angle", f64::from(DEFAULT_BRUSH_ANGLE));
+    let anti_alias = args.bool("anti_alias").unwrap_or(true);
+    Ok(if args.str("tool") == Some("eraser") {
+        CommandSpec::EraserStroke {
+            layer,
+            size,
+            opacity,
+            shape,
+            hardness,
+            mode: str_or(args, "eraser_mode", "to_transparent").to_owned(),
+            background: match args.get("background") {
+                Some(_) => color_arg(args, "background")?,
+                None => [255, 255, 255, 255],
+            },
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth: Vec::new(),
+            angle,
+            tilt_angle: false,
+            anti_alias,
+            stroke_id,
+        }
+    } else {
+        let color = match args.get("color") {
+            Some(_) => color_arg(args, "color")?,
+            None => [0, 0, 0, 255],
+        };
+        CommandSpec::PencilStroke {
+            layer,
+            size,
+            color,
+            opacity,
+            shape,
+            hardness,
+            points,
+            pressure,
+            pressure_size,
+            pressure_opacity,
+            azimuth: Vec::new(),
+            angle,
+            tilt_angle: false,
+            anti_alias,
+            blend,
+            stroke_id,
+        }
+    })
+}
+
+/// Schema of the per-point `pressure` list.
+fn pressure_prop() -> Value {
+    json!({
+        "type": "array",
+        "items": { "type": "number", "minimum": 0, "maximum": 1 },
+        "description": "Image: pen pressure 0–1, one value per point (docs/specs/agent-painting.md)",
+    })
+}
+
+/// The `pressure` list: empty without one, else one value in 0–1 per
+/// point (docs/specs/agent-painting.md AC-12).
+fn pressure_arg(args: &Args, points: usize) -> Result<Vec<f32>, AgentError> {
+    let Some(v) = args.get("pressure") else {
+        return Ok(Vec::new());
+    };
+    let items = v
+        .as_array()
+        .ok_or_else(|| AgentError::tool("argument `pressure` must be a list of numbers 0–1"))?;
+    if items.len() != points {
+        return Err(AgentError::tool(format!(
+            "argument `pressure` has {} values for {points} points; give one value per point",
+            items.len()
+        )));
+    }
+    items
+        .iter()
+        .enumerate()
+        .map(|(i, p)| match p.as_f64() {
+            Some(n) if n.is_finite() && (0.0..=1.0).contains(&n) => Ok(n as f32),
+            _ => Err(AgentError::tool(format!(
+                "pressure[{i}] must be a number 0–1 (got {p})"
+            ))),
+        })
+        .collect()
+}
+
+/// Most strokes one `draw.strokes` call takes (docs/specs/agent-painting.md
+/// AC-06).
+const MAX_STROKES: u64 = 1000;
+/// Most points the strokes of one `draw.strokes` call hold together.
+const MAX_STROKE_POINTS: usize = 100_000;
+
+pub(crate) const STROKES: Tool = Tool {
+    name: "draw.strokes",
+    description: "Paint many strokes in one call: `strokes` is a list of 1–1000 strokes (at most 100000 points together), each taking the arguments of draw.stroke for the document's mode except `doc`, `layer` and `frame`, which are given once for the whole call. The strokes are painted in list order on one target layer, with the same pixels as one draw.stroke call per stroke, and the whole call is one undo step. If any stroke is invalid, the call fails naming its index (strokes[i], from 0) and nothing is painted. Use it to paint a picture stroke by stroke without a round trip per stroke.",
+    schema: || {
+        let mut item = (STROKE.schema)();
+        if let Some(props) = item["properties"].as_object_mut() {
+            for key in ["doc", "layer", "frame"] {
+                props.remove(key);
+            }
+        }
+        edit_schema(
+            json!({
+                "strokes": {
+                    "type": "array",
+                    "minItems": 1,
+                    "maxItems": MAX_STROKES,
+                    "items": item,
+                    "description": "The strokes, painted in order; each takes draw.stroke's arguments except doc, layer and frame",
+                },
+                "frame": crate::pixel::frame_prop(),
+            }),
+            &["strokes"],
+        )
+    },
+    run: |ctx, args| {
+        let items = stroke_items(args)?;
+        if ctx.ws.is_image(args)? {
+            refuse_pixel_blend_top(ctx, args)?;
+            for (i, item) in items.iter().enumerate() {
+                at(i, check_image_stroke(ctx, item))?;
+                at(i, image_stroke_spec(item, 0, 0))?;
+            }
+            let (id, doc) = ctx.ws.image_mut(args)?;
+            let layer = doc.target(args)?;
+            let specs = items
+                .iter()
+                .map(|item| image_stroke_spec(item, layer, doc.next_stroke()))
+                .collect::<Result<Vec<_>, _>>()?;
+            let changed = doc.run_strokes(layer, specs)?;
+            return Ok(ToolOutput::json(json!({
+                "doc": id,
+                "layer": doc.layer_id(layer),
+                "changed": changed,
+                "strokes": items.len(),
+            })));
+        }
+        let mut strokes = Vec::with_capacity(items.len());
+        for (i, item) in items.iter().enumerate() {
+            at(i, refuse_pixel_blend(ctx, item))?;
+            strokes.push(at(i, crate::pixel::paint::prepare_stroke(ctx, item))?);
+        }
+        let mut out = crate::pixel::paint::strokes(ctx, args, &strokes)?;
+        out.json["strokes"] = json!(items.len());
+        Ok(out)
+    },
+};
+
+/// The items of `strokes` as the arguments of single strokes on the call's
+/// document, after the point limit (AC-06).
+fn stroke_items(args: &Args) -> Result<Vec<Args>, AgentError> {
+    let list = args
+        .get("strokes")
+        .and_then(Value::as_array)
+        .ok_or_else(|| AgentError::tool("missing required argument `strokes`"))?;
+    let points: usize = list
+        .iter()
+        .map(|item| {
+            item.get("points")
+                .and_then(Value::as_array)
+                .map_or(0, Vec::len)
+        })
+        .sum();
+    if points > MAX_STROKE_POINTS {
+        return Err(AgentError::tool(format!(
+            "`strokes` hold {points} points together; one call takes at most {MAX_STROKE_POINTS} points, split the strokes over several calls"
+        )));
+    }
+    Ok(list
+        .iter()
+        .map(|item| {
+            let mut map = item.as_object().cloned().unwrap_or_default();
+            if let Some(doc) = args.get("doc") {
+                map.insert("doc".to_owned(), doc.clone());
+            }
+            Args::new(map)
+        })
+        .collect())
+}
+
+/// `result` with a failure prefixed by the stroke's place in `strokes`.
+fn at<T>(i: usize, result: Result<T, AgentError>) -> Result<T, AgentError> {
+    result.map_err(|e| AgentError::tool(format!("strokes[{i}]: {e}")))
+}
+
+/// `draw.strokes` takes no top-level `frame` on an Image document.
+fn refuse_pixel_blend_top(ctx: &Ctx<'_>, args: &Args) -> Result<(), AgentError> {
+    refuse_pixel_args(ctx, args, &["frame"])
+}
 
 fn angle_prop() -> Value {
     json!({ "type": "number", "minimum": 0, "maximum": 180, "description": "Image: flat-nib angle in degrees 0–180; default 45 (a round tip ignores it)" })

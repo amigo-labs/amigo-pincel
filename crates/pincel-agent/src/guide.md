@@ -14,7 +14,7 @@ Each document has a mode, and the mode follows the file, as in the editor:
 | Image | Photos, screenshots, mockups, artwork with brushes, shapes, text and selections (up to 16384 px per side, 64 Mpx) | `doc.new` with `mode: "image"`, `doc.open` of `.ora`, Photoshop `.psd`, PNG, JPEG, WebP, BMP, GIF, TIFF, TGA, DDS, ICO or JPEG XL | OpenRaster `.ora` (`doc.save`, keeps layers); PNG, JPEG, WebP, BMP or TIFF (`doc.save`, `flatten: true` when layered); `export.png`, `export.jpeg`, `export.webp`, `export.bmp`, `export.tiff`, `export.svg` |
 
 Shared tools work on both: `doc.*`, `layer.*` (except the two below),
-`select.*` (except `select.feather`), `draw.stroke`, `draw.shape`,
+`select.*` (except `select.feather`), `draw.stroke`, `draw.strokes`, `draw.shape`,
 `draw.text`, `draw.gradient`, `draw.fill`, `effect.apply`,
 `adjust.apply`, `canvas.resize`, `image.scale`, `image.crop_to_selection`,
 `image.flip`, `image.rotate`, `export.png` and `export.svg`. Pixel-only:
@@ -40,6 +40,21 @@ and so does an argument only the other mode's editor offers.
   (default 8), `hardness` and `opacity` in % (default 100) and `shape`
   `hard_round` (default), `soft_round` or `flat`. Both: `tool: "eraser"`,
   `color` default `#000000`.
+- Pen pressure (Image documents only, brush and eraser): `pressure` gives
+  one value 0–1 per point; a light point paints a smaller dab while
+  `pressure_size` is on (default true) and a fainter one while
+  `pressure_opacity` is on (default false), as the editor's Pressure
+  options do. Without `pressure` a stroke paints at full pressure.
+  Tapering strokes (light, firm, light) look painted.
+- `draw.strokes`: many strokes in one call. `strokes` is a list of 1–1000
+  strokes with at most 100000 points together; each takes the arguments
+  of `draw.stroke` except `doc`, `layer` and `frame`, which are given once
+  for the call. The strokes are painted in order on one layer, with the
+  pixels of one `draw.stroke` call each, and the whole call is one undo
+  step (`doc.undo` takes it all back). If one stroke is invalid, nothing is
+  painted and the error names it as `strokes[i]` (from 0). Use it to paint
+  a picture stroke by stroke: lay in large shapes with wide strokes,
+  preview, then refine with smaller ones.
 - `draw.shape`: give `stroke` (the outline color), `fill` or both. Pixel
   documents draw `rect`, `rounded` (`corner_radius`
   0–256, default 4), `ellipse` and `polygon` (`sides` 3–64, default 6,

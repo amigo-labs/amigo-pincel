@@ -13,8 +13,10 @@ use std::any::Any;
 use std::fmt;
 
 use pincel_image_core::command::spec::{CommandSpec, StrokeScratch, run_command};
-use pincel_image_core::command::{Command, CommandBus, DEFAULT_UNDO_CAPACITY, HistoryKind};
-use pincel_image_core::{Document, DocumentError, FontFace};
+use pincel_image_core::command::{
+    Command, CommandBus, DEFAULT_UNDO_CAPACITY, HistoryKind, SetPixels,
+};
+use pincel_image_core::{Document, DocumentError, FontFace, ImageBuffer, Rect};
 use serde_json::{Value, json};
 
 use crate::args::{Args, parse_hex};
@@ -34,6 +36,7 @@ pub(crate) const MAX_AREA: u64 = 8192 * 8192;
 /// Image-only tools, in `tools/list` order.
 pub(crate) static TOOLS: &[Tool] = &[
     draw::STROKE,
+    draw::STROKES,
     draw::SHAPE,
     draw::TEXT,
     draw::GRADIENT,
@@ -435,6 +438,39 @@ impl ImageDoc {
         self.apply(build())
     }
 
+    /// Run the editor commands `specs` (strokes on the layer at `layer`) in
+    /// order as one undo step: they run on a copy, and the difference of
+    /// that layer becomes one `SetPixels` of the first stroke's history
+    /// kind, so the pixels equal one call per command while undo takes
+    /// them back at once (docs/specs/agent-painting.md AC-02, AC-04).
+    /// Returns whether a step was recorded.
+    pub fn run_strokes(
+        &mut self,
+        layer: usize,
+        specs: Vec<CommandSpec>,
+    ) -> Result<bool, AgentError> {
+        for spec in &specs {
+            self.check_spec(spec)?;
+        }
+        let mut copy = CommandBus::new(self.bus.document.clone());
+        let mut scratch = StrokeScratch::default();
+        for spec in specs {
+            run_command(&mut copy, spec, &mut scratch, &[FONT.into()]).map_err(core_err)?;
+        }
+        let Some(kind) = copy.history.undo_kinds().next() else {
+            return Ok(false);
+        };
+        let before = &self.bus.document.layers()[layer].pixels;
+        let after = &copy.document.layers()[layer].pixels;
+        let Some(region) = changed_rect(before, after) else {
+            return Ok(false);
+        };
+        let pixels = after.copy_region(region).map_err(core_err)?;
+        self.apply(vec![Box::new(
+            SetPixels::new(layer, region, pixels).with_kind(kind),
+        )])
+    }
+
     fn recorded(&mut self, before: usize) -> bool {
         // A full history drops its oldest entry on push, so the depth stays
         // put; count that case as recorded.
@@ -471,4 +507,37 @@ impl ImageDoc {
             "redo_depth": self.bus.history.redo_depth(),
         })
     }
+}
+
+/// The smallest rectangle holding every pixel that differs between two
+/// buffers of one size; `None` when they are equal.
+fn changed_rect(a: &ImageBuffer, b: &ImageBuffer) -> Option<Rect> {
+    if a.data() == b.data() {
+        return None;
+    }
+    let w = a.width() as usize;
+    let (mut x0, mut y0, mut x1, mut y1) = (usize::MAX, usize::MAX, 0, 0);
+    let rows = a
+        .data()
+        .chunks_exact(w * 4)
+        .zip(b.data().chunks_exact(w * 4));
+    for (y, (ra, rb)) in rows.enumerate() {
+        if ra == rb {
+            continue;
+        }
+        let first = (0..w).find(|&x| ra[x * 4..x * 4 + 4] != rb[x * 4..x * 4 + 4])?;
+        let last = (0..w)
+            .rev()
+            .find(|&x| ra[x * 4..x * 4 + 4] != rb[x * 4..x * 4 + 4])?;
+        x0 = x0.min(first);
+        x1 = x1.max(last);
+        y0 = y0.min(y);
+        y1 = y1.max(y);
+    }
+    Some(Rect::new(
+        x0 as i32,
+        y0 as i32,
+        (x1 - x0 + 1) as u32,
+        (y1 - y0 + 1) as u32,
+    ))
 }

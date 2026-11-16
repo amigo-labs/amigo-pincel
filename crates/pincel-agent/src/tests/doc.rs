@@ -48,6 +48,7 @@ const EXPECTED_TOOLS: &[&str] = &[
     "effect.apply",
     // Image tools (mcp-headless-image)
     "draw.stroke",
+    "draw.strokes",
     "draw.shape",
     "draw.text",
     "draw.gradient",
@@ -207,6 +208,7 @@ fn example(name: &str) -> Value {
         "layer.import" => json!({ "path": "a.png", "x": -2, "y": 3, "expand": true }),
         "export.selection" => json!({ "path": "c.png", "cut": true, "layer": 0, "frame": 0 }),
         "effect.apply" => json!({ "id": "gaussian_blur", "params": { "radius": 2 } }),
+        "draw.strokes" => json!({ "strokes": [{ "points": [[1, 1], [2, 2]] }] }),
         "draw.stroke" => {
             json!({ "points": [[1, 2], [8.5, 3]], "tool": "brush", "color": "#ff000080", "size": 4, "hardness": 50, "opacity": 80, "shape": "soft_round", "layer": 0 })
         }

@@ -194,10 +194,47 @@ fn run_stroke(
     Ok(())
 }
 
-/// `draw.stroke` on a Pixel document.
-pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+/// One Pixel stroke of `draw.stroke` / `draw.strokes`, its arguments
+/// checked and resolved against the document.
+pub(crate) struct PixelStroke {
+    points: Vec<Point>,
+    size: u8,
+    shape: BrushShape,
+    color: Rgba,
+    ink: Ink,
+    pixel_perfect: bool,
+    wrap: Wrap,
+    mirror: Option<Mirror>,
+    /// The history kind of the editor tool the stroke mirrors.
+    pub kind: HistoryKind,
+}
+
+impl PixelStroke {
+    /// Paint the stroke on `cel` alone.
+    fn run(&self, sprite: &Sprite, cel: &mut Cel) -> Result<(), AgentError> {
+        let mut cmd = PencilStroke::new(
+            cel.layer,
+            cel.frame,
+            self.color,
+            PixelBrush::new(self.size, self.shape),
+            self.pixel_perfect,
+            self.points[0],
+            1.0,
+        )
+        .with_ink(self.ink.clone())
+        .with_wrap(self.wrap);
+        if let Some(m) = self.mirror {
+            cmd = cmd.with_mirror(m);
+        }
+        run_stroke(sprite, cel, cmd, &self.points[1..])
+    }
+}
+
+/// Check the arguments of one Pixel stroke and resolve its colors, ink and
+/// symmetry against the document `args` names.
+pub(crate) fn prepare_stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<PixelStroke, AgentError> {
     {
-        let (id, doc) = ctx.ws.doc(args)?;
+        let (id, _) = ctx.ws.doc(args)?;
         refuse_image_args(
             &id,
             args,
@@ -208,6 +245,9 @@ pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
                 "background",
                 "angle",
                 "anti_alias",
+                "pressure",
+                "pressure_size",
+                "pressure_opacity",
             ],
         )?;
         if let Some(s @ ("hard_round" | "soft_round" | "flat")) = args.str("shape") {
@@ -215,7 +255,6 @@ pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
                 "argument `shape`: {s:?} works on Image documents only; document `{id}` is a Pixel document (square, round)"
             )));
         }
-        let _ = doc;
     }
     let points = stroke_points(args)?;
     let size = ranged(args, "size", 1, 8, 1)? as u8;
@@ -240,41 +279,54 @@ pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, Agent
     }
     let pixel_perfect = args.bool("pixel_perfect").unwrap_or(false);
     let (wx, wy) = axes(args.str("wrap"), "wrap")?;
-    let (ink, color, mirror) = {
-        let (_, doc) = ctx.ws.doc(args)?;
-        let ink = if shading {
-            shading_ink(doc, args)?
-        } else {
-            Ink::Simple
-        };
-        let color = if eraser || shading {
-            Rgba::TRANSPARENT
-        } else {
-            color_or_black(doc, args, "color")?
-        };
-        (ink, color, mirror_arg(doc, args)?)
+    let (_, doc) = ctx.ws.doc(args)?;
+    let ink = if shading {
+        shading_ink(doc, args)?
+    } else {
+        Ink::Simple
     };
-    let history_kind = match (eraser, shading) {
+    let color = if eraser || shading {
+        Rgba::TRANSPARENT
+    } else {
+        color_or_black(doc, args, "color")?
+    };
+    let kind = match (eraser, shading) {
         (true, _) => HistoryKind::Eraser,
         (false, true) => HistoryKind::Shading,
         (false, false) => HistoryKind::Pencil,
     };
-    paint(ctx, args, history_kind, |doc, cel| {
-        let mut cmd = PencilStroke::new(
-            cel.layer,
-            cel.frame,
-            color,
-            PixelBrush::new(size, shape),
-            pixel_perfect,
-            points[0],
-            1.0,
-        )
-        .with_ink(ink.clone())
-        .with_wrap(Wrap { x: wx, y: wy });
-        if let Some(m) = mirror {
-            cmd = cmd.with_mirror(m);
-        }
-        run_stroke(&doc.sprite, cel, cmd, &points[1..])
+    Ok(PixelStroke {
+        points,
+        size,
+        shape,
+        color,
+        ink,
+        pixel_perfect,
+        wrap: Wrap { x: wx, y: wy },
+        mirror: mirror_arg(doc, args)?,
+        kind,
+    })
+}
+
+/// `draw.stroke` on a Pixel document.
+pub(crate) fn stroke(ctx: &mut Ctx<'_>, args: &Args) -> Result<ToolOutput, AgentError> {
+    let stroke = prepare_stroke(ctx, args)?;
+    paint(ctx, args, stroke.kind, |doc, cel| {
+        stroke.run(&doc.sprite, cel)
+    })
+}
+
+/// `draw.strokes` on a Pixel document: `strokes` (already checked) painted
+/// in order on one cel and committed as one undo step of the first
+/// stroke's kind (docs/specs/agent-painting.md AC-03, AC-04).
+pub(crate) fn strokes(
+    ctx: &mut Ctx<'_>,
+    args: &Args,
+    strokes: &[PixelStroke],
+) -> Result<ToolOutput, AgentError> {
+    let kind = strokes.first().map_or(HistoryKind::Pencil, |s| s.kind);
+    paint(ctx, args, kind, |doc, cel| {
+        strokes.iter().try_for_each(|s| s.run(&doc.sprite, cel))
     })
 }
 
