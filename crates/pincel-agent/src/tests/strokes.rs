@@ -613,7 +613,9 @@ fn guide_gives_the_pressure_defaults_and_that_pressure_is_image_only() {
         .collect::<Vec<_>>()
         .join(" ");
     let start = guide.find("- Pen pressure").expect("pressure bullet");
-    let bullet = &guide[start..start + guide[start + 1..].find("\n- ").unwrap_or(600).min(600)];
+    // The bullet and what follows it, cut by characters (never past the
+    // end of the guide or inside a multi-byte character).
+    let bullet: String = guide[start..].chars().take(600).collect();
     for needle in [
         "Image documents only",
         "`pressure_size` is on (default true)",
