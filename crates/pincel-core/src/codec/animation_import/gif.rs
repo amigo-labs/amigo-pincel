@@ -13,13 +13,12 @@ use super::{AnimationImportError, Delay, Header, frame_duration_ms};
 /// budget's bytes, so any frame of an animation within the limits fits).
 const FRAME_MEMORY_LIMIT: u64 = 1 << 30;
 
-fn options(skip: bool) -> DecodeOptions {
+fn options() -> DecodeOptions {
     let mut options = DecodeOptions::new();
     options.set_color_output(ColorOutput::RGBA);
     if let Some(limit) = NonZeroU64::new(FRAME_MEMORY_LIMIT) {
         options.set_memory_limit(MemoryLimit::Bytes(limit));
     }
-    options.skip_frame_decoding(skip);
     options
 }
 
@@ -31,25 +30,66 @@ fn incomplete(e: impl std::fmt::Display) -> AnimationImportError {
     AnimationImportError::Incomplete(e.to_string())
 }
 
-/// Screen size and image descriptor count; `None` with fewer than two
-/// descriptors. The first frame is decoded; the others are only counted
-/// (a file that breaks off after the second descriptor still counts it).
-pub(super) fn probe(bytes: &[u8]) -> Result<Option<Header>, AnimationImportError> {
-    let mut counter = options(true).read_info(bytes).map_err(unreadable)?;
-    let (width, height) = (u32::from(counter.width()), u32::from(counter.height()));
-    let mut frame_count: u32 = 0;
+/// Length of a colour table whose size field (low three bits of a packed
+/// byte) is `flags & 7`, when bit 7 says the table is present.
+fn table_len(flags: u8) -> usize {
+    if flags & 0x80 == 0 {
+        0
+    } else {
+        3 << ((flags & 0x07) + 1)
+    }
+}
+
+/// Position after the sub-block sequence starting at `pos`, or `None` when
+/// the file ends first.
+fn skip_sub_blocks(bytes: &[u8], mut pos: usize) -> Option<usize> {
     loop {
-        match counter.next_frame_info() {
-            Ok(Some(_)) => frame_count = frame_count.saturating_add(1),
-            Ok(None) => break,
-            Err(e) if frame_count == 0 => return Err(unreadable(e)),
-            Err(_) => break,
+        let len = usize::from(*bytes.get(pos)?);
+        pos += 1;
+        if len == 0 {
+            return Some(pos);
+        }
+        pos += len;
+    }
+}
+
+/// Image descriptors in the block structure, without decoding any image
+/// data (AC-01); a descriptor counts even when the data after it is broken
+/// or cut off.
+fn count_image_descriptors(bytes: &[u8]) -> u32 {
+    let Some(&flags) = bytes.get(10) else {
+        return 0;
+    };
+    let mut pos = 13 + table_len(flags);
+    let mut count: u32 = 0;
+    while let Some(&block) = bytes.get(pos) {
+        let next = match block {
+            0x2c => {
+                count = count.saturating_add(1);
+                let local = bytes.get(pos + 9).copied().unwrap_or(0);
+                // Descriptor, local table, LZW minimum code size, data.
+                skip_sub_blocks(bytes, pos + 10 + table_len(local) + 1)
+            }
+            0x21 => skip_sub_blocks(bytes, pos + 2),
+            _ => None,
+        };
+        match next {
+            Some(n) => pos = n,
+            None => break,
         }
     }
+    count
+}
+
+/// Screen size and image descriptor count; `None` with fewer than two
+/// descriptors. The first frame is decoded; the others are only counted.
+pub(super) fn probe(bytes: &[u8]) -> Result<Option<Header>, AnimationImportError> {
+    let frame_count = count_image_descriptors(bytes);
     if frame_count < 2 {
         return Ok(None);
     }
-    let mut first = options(false).read_info(bytes).map_err(unreadable)?;
+    let mut first = options().read_info(bytes).map_err(unreadable)?;
+    let (width, height) = (u32::from(first.width()), u32::from(first.height()));
     match first.read_next_frame() {
         Ok(Some(_)) => {}
         Ok(None) => return Err(unreadable("no image data")),
@@ -67,7 +107,7 @@ pub(super) fn decode(
     bytes: &[u8],
     compositor: &mut Compositor,
 ) -> Result<(), AnimationImportError> {
-    let mut decoder = options(false).read_info(bytes).map_err(incomplete)?;
+    let mut decoder = options().read_info(bytes).map_err(incomplete)?;
     while let Some(frame) = decoder.read_next_frame().map_err(incomplete)? {
         let dispose = match frame.dispose {
             DisposalMethod::Any | DisposalMethod::Keep => Dispose::None,
@@ -262,6 +302,33 @@ pub(super) mod tests {
         assert!(probe_animation(cut).expect("probe").is_some());
         assert!(matches!(
             import_animation(cut),
+            Err(AnimationImportError::Incomplete(_))
+        ));
+    }
+
+    #[test]
+    fn import_animation_gif_undecodable_later_frame_is_counted_and_incomplete() {
+        let mut bytes = gif_bytes(
+            2,
+            2,
+            &[
+                GifFrame::full(2, 2, vec![0; 4]),
+                GifFrame::full(2, 2, vec![1; 4]),
+            ],
+        );
+        // The second image descriptor's LZW minimum code size: 12 (> 11).
+        let second = bytes
+            .iter()
+            .enumerate()
+            .filter(|&(i, &b)| i >= 25 && b == 0x2c)
+            .map(|(i, _)| i)
+            .nth(1)
+            .expect("second image separator");
+        bytes[second + 10] = 12;
+        let probe = probe_animation(&bytes).expect("probe").expect("animated");
+        assert_eq!(probe.frame_count, 2);
+        assert!(matches!(
+            import_animation(&bytes),
             Err(AnimationImportError::Incomplete(_))
         ));
     }
