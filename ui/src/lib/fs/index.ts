@@ -144,7 +144,7 @@ const IMAGE_EXTENSIONS = [
 const OPEN_EXTENSIONS = ['aseprite', 'ase', 'ora', ...IMAGE_EXTENSIONS, 'psd'];
 
 /** What a picker asks for: a document to edit, a palette or a keymap file. */
-export type PickKind = 'document' | 'palette' | 'keymap';
+export type PickKind = 'document' | 'palette' | 'keymap' | 'png';
 
 const GPL_TYPES: FilePickerAcceptType[] = [
   { description: 'GIMP palette', accept: { 'text/plain': ['.gpl'] } },
@@ -193,6 +193,12 @@ const PICK: Record<
     types: [{ description: 'Pincel keymap', accept: { 'application/json': ['.json'] } }],
     extensions: ['json'],
     filters: [{ name: 'Pincel keymap', extensions: ['json'] }],
+  },
+  // File ▸ Import Sprite Sheet… (sprite-sheet-import).
+  png: {
+    types: [{ description: 'PNG image', accept: { 'image/png': ['.png'] } }],
+    extensions: ['png'],
+    filters: [{ name: 'PNG image', extensions: ['png'] }],
   },
 };
 

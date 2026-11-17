@@ -184,6 +184,10 @@ export interface EditorProps {
   /** Re-open a recent through the shell, which reads the file (FSA handle
    *  or Tauri path) and routes it to the mode the format belongs to. */
   onOpenRecent: (recent: RecentFile) => void;
+  /** File ▸ Import Sprite Sheet…: the shell picks a PNG, shows the import
+   *  dialog and opens the result as a new Pixel-mode tab
+   *  (docs/specs/sprite-sheet-import.md). */
+  onImportSheet: () => void;
   /** Show the shell's dismissable error notice, e.g. when reading a file
    *  the editor opens itself fails (docs/specs/file-access.md AC-14, AC-16). */
   onNotice: (message: string) => void;

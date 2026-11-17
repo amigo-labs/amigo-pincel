@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-17
 size: L
 mode: Pixel
@@ -42,24 +42,24 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When the user chooses File ▸ Import Sprite Sheet… in either mode and picks a PNG file, then the Import sprite sheet dialog opens with a preview of the sheet, the grid fields filled with the suggested grid (or, when none is detected, the values of AC-10) and the grid drawn over the preview.
-- [ ] AC-02 (always): The grid has cells of `cell width × cell height`, the first cell's top-left at `(offset X, offset Y)`, and each next cell `cell width + spacing X` to the right and `cell height + spacing Y` below; only cells that lie completely inside the sheet count. A sheet row is one row of grid cells.
-- [ ] AC-03 (event): When the user changes a grid field or an option, then the grid over the preview and the dialog's summary ("n frames, m tags") follow the new values without closing the dialog.
-- [ ] AC-04 (event): When the user confirms the dialog, then a new Pixel-mode document opens in its own tab whose canvas is `cell width × cell height`, with one image layer named "Layer 1" and one frame per used cell, in row-major order (left to right, top to bottom), each frame holding exactly its cell's pixels.
-- [ ] AC-05 (always): A cell is empty when every pixel in it is fully transparent after the background step. A cell is used unless it is empty and no non-empty cell follows it in its row; so empty cells at a row's end and fully empty rows produce no frame, while an empty cell between non-empty cells of a row becomes an empty frame.
-- [ ] AC-06 (option): Where "Rows as tags" is on (default), every sheet row with at least one used cell becomes one tag spanning that row's frames, direction Forward (Aseprite's default), named "Row k" where k is the row's 1-based index in the grid (document content, not translated); where it is off, the document has no tags.
-- [ ] AC-07 (option): Where "Make background transparent" is on, every sheet pixel exactly equal in all four RGBA channels to the chosen colour becomes fully transparent before cells are cut and tested for emptiness. When the dialog opens, the colour is the sheet's top-left pixel, and the option is on if that pixel is fully opaque and off otherwise.
-- [ ] AC-08 (always): Every imported frame has the duration from the dialog's frame-duration field, an integer from 1 to 65535 ms, default 100 ms (the duration of a new frame in Pixel mode).
-- [ ] AC-09 (always): Where the sheet (after the background step) is made of sprites placed in a grid of P × Q px cells with offset (X, Y) and spacing 0, each sprite's non-transparent pixels (alpha > 0) inside its cell at the same position within the cell for every sprite, at least one fully transparent column and row between neighbouring sprites, and at least one pair of sprites in horizontally adjacent cells and one pair in vertically adjacent cells, then the suggested grid is P × Q with spacing 0 and an offset at which every sprite lies inside one cell.
-- [ ] AC-18 (always): A fully transparent sheet, a sheet with a single sprite, and a sheet with no fully transparent column or no fully transparent row after the background step get no suggestion. For sheets that fit neither this nor AC-09, any suggestion or none is acceptable.
-- [ ] AC-10 (state): While no grid is suggested, the dialog shows "No grid detected" and the grid fields hold the values of the last confirmed import in this app session, or 32 × 32, offset 0, spacing 0 when there was none (a common pixel-art cell size). Frame duration and "Rows as tags" likewise start with the last confirmed import's values, or 100 ms and on; the background option and colour always come from the sheet (AC-07).
-- [ ] AC-11 (event): When the user presses "Detect", then the fields are set to the suggestion for the current background setting, or "No grid detected" is shown and the fields stay as they are.
-- [ ] AC-12 (error): If the grid yields no complete cell, all cells are empty, it would create more than 65535 frames, or a field is out of range or not a whole number (cell size 1–4096; offset X 0 to sheet width − 1, offset Y 0 to sheet height − 1; spacing X 0 to sheet width, spacing Y 0 to sheet height; duration 1–65535), then Import is disabled and the dialog says which of these applies; no document is created.
-- [ ] AC-13 (error): If the chosen file is not a decodable PNG, the sheet is wider or taller than 16384 px or has more than 67 108 864 pixels, or memory runs out while decoding or creating the document, then a notice says the file cannot be read as a sprite sheet (naming the size limit when it was exceeded), no document is created and the open documents are unchanged.
-- [ ] AC-14 (event): When the user cancels the file picker or the dialog, then no document is created and the open documents are unchanged.
-- [ ] AC-15 (always): The new document is unsaved, named after the sheet's file name with its extension replaced by `.aseprite` (`hero.png` → `hero.aseprite`), has the RGBA colour mode and the palette a document from File ▸ New gets, and its first Save asks for a location. A name already open in another tab is allowed, as for any open.
-- [ ] AC-16 (always): A sheet written by Pincel's Export Sprite Sheet (all frames, no tag filter, scale 1) and imported with cell size = the exported canvas size, offset 0, spacing 0 and "Make background transparent" off gives back the same frames with the same pixels in the same order, provided no exported frame is fully transparent.
-- [ ] AC-17 (always): Every user-visible string of the dialog and the menu entry has a translated key in every UI language's string table (the existing key-parity check passes); the tag names of AC-06 are document content and not translated.
+- [x] AC-01 (event): When the user chooses File ▸ Import Sprite Sheet… in either mode and picks a PNG file, then the Import sprite sheet dialog opens with a preview of the sheet, the grid fields filled with the suggested grid (or, when none is detected, the values of AC-10) and the grid drawn over the preview.
+- [x] AC-02 (always): The grid has cells of `cell width × cell height`, the first cell's top-left at `(offset X, offset Y)`, and each next cell `cell width + spacing X` to the right and `cell height + spacing Y` below; only cells that lie completely inside the sheet count. A sheet row is one row of grid cells.
+- [x] AC-03 (event): When the user changes a grid field or an option, then the grid over the preview and the dialog's summary ("n frames, m tags") follow the new values without closing the dialog.
+- [x] AC-04 (event): When the user confirms the dialog, then a new Pixel-mode document opens in its own tab whose canvas is `cell width × cell height`, with one image layer named "Layer 1" and one frame per used cell, in row-major order (left to right, top to bottom), each frame holding exactly its cell's pixels.
+- [x] AC-05 (always): A cell is empty when every pixel in it is fully transparent after the background step. A cell is used unless it is empty and no non-empty cell follows it in its row; so empty cells at a row's end and fully empty rows produce no frame, while an empty cell between non-empty cells of a row becomes an empty frame.
+- [x] AC-06 (option): Where "Rows as tags" is on (default), every sheet row with at least one used cell becomes one tag spanning that row's frames, direction Forward (Aseprite's default), named "Row k" where k is the row's 1-based index in the grid (document content, not translated); where it is off, the document has no tags.
+- [x] AC-07 (option): Where "Make background transparent" is on, every sheet pixel exactly equal in all four RGBA channels to the chosen colour becomes fully transparent before cells are cut and tested for emptiness. When the dialog opens, the colour is the sheet's top-left pixel, and the option is on if that pixel is fully opaque and off otherwise.
+- [x] AC-08 (always): Every imported frame has the duration from the dialog's frame-duration field, an integer from 1 to 65535 ms, default 100 ms (the duration of a new frame in Pixel mode).
+- [x] AC-09 (always): Where the sheet (after the background step) is made of sprites placed in a grid of P × Q px cells with offset (X, Y) and spacing 0, each sprite's non-transparent pixels (alpha > 0) inside its cell at the same position within the cell for every sprite and covering a contiguous range of columns and a contiguous range of rows of its cell (no fully transparent column or row inside a sprite), at least one fully transparent column and row between neighbouring sprites, and at least one pair of sprites in horizontally adjacent cells and one pair in vertically adjacent cells, then the suggested grid is P × Q with spacing 0 and an offset at which every sprite lies inside one cell.
+- [x] AC-18 (always): A fully transparent sheet, a sheet with a single sprite, and a sheet with no fully transparent column or no fully transparent row after the background step get no suggestion. For sheets that fit neither this nor AC-09 (including sprites with a fully transparent column or row inside them), any suggestion or none is acceptable.
+- [x] AC-10 (state): While no grid is suggested, the dialog shows "No grid detected" and the grid fields hold the values of the last confirmed import in this app session, or 32 × 32, offset 0, spacing 0 when there was none (a common pixel-art cell size). Frame duration and "Rows as tags" likewise start with the last confirmed import's values, or 100 ms and on; the background option and colour always come from the sheet (AC-07).
+- [x] AC-11 (event): When the user presses "Detect", then the fields are set to the suggestion for the current background setting, or "No grid detected" is shown and the fields stay as they are.
+- [x] AC-12 (error): If the grid yields no complete cell, all cells are empty, it would create more than 65535 frames, or a field is out of range or not a whole number (cell size 1–4096; offset X 0 to sheet width − 1, offset Y 0 to sheet height − 1; spacing X 0 to sheet width, spacing Y 0 to sheet height; duration 1–65535), then Import is disabled and the dialog says which of these applies; no document is created.
+- [x] AC-13 (error): If the chosen file is not a decodable PNG, the sheet is wider or taller than 16384 px or has more than 67 108 864 pixels, or memory runs out while decoding or creating the document, then a notice says the file cannot be read as a sprite sheet (naming the size limit when it was exceeded), no document is created and the open documents are unchanged.
+- [x] AC-14 (event): When the user cancels the file picker or the dialog, then no document is created and the open documents are unchanged.
+- [x] AC-15 (always): The new document is unsaved, named after the sheet's file name with its extension replaced by `.aseprite` (`hero.png` → `hero.aseprite`), has the RGBA colour mode and the palette a document from File ▸ New gets, and its first Save asks for a location. A name already open in another tab is allowed, as for any open.
+- [x] AC-16 (always): A sheet written by Pincel's Export Sprite Sheet (all frames, no tag filter, scale 1) and imported with cell size = the exported canvas size, offset 0, spacing 0 and "Make background transparent" off gives back the same frames with the same pixels in the same order, provided no exported frame is fully transparent.
+- [x] AC-17 (always): Every user-visible string of the dialog and the menu entry has a translated key in every UI language's string table (the existing key-parity check passes); the tag names of AC-06 are document content and not translated.
 
 ## Technical notes
 
@@ -90,6 +90,15 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 | Dialog values of the last confirmed import are kept for the app session, not stored (AC-10) | No owner request for persistence; avoids a new IndexedDB pref | Low |
 | Tags get the default tag colour | Tag colours are editable in the timeline | Low |
 
+## Summary
+
+> Completed: 2026-11-17
+
+- `pincel-core` `Sheet`: PNG sheet decode with size and memory limits, grid planning (complete cells, trailing empty cells and empty rows skipped), exact-RGBA background removal, row-major cut and "Row k" tags
+- Grid suggestion from runs of occupied columns and rows (cell = smallest run-start distance, smallest fitting offset)
+- `pincel-wasm` `SpriteSheet` / `SheetSummary`: decode, preview, suggest, summary and build into a new document
+- File ▸ Import Sprite Sheet… in both editors: shell dialog with preview, grid overlay, Detect, background option, duration, Rows as tags; the result opens as an unsaved `.aseprite` tab in Pixel mode
+
 ## Open questions
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
@@ -98,26 +107,44 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-01 | `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode as a new tagged document`, `imports from Image mode, keeps a name already open and drops the tags when asked` | verified | 617f0c5d |
+| AC-02 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `grid_columns_and_rows_count_only_complete_cells`, `cut_offset_and_spacing_grid_frames_hold_their_cell_pixels` | verified | 95b6becc |
+| AC-03 | `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (grid overlay `data-grid` / `data-cells`, screenshot changes, summary); `crates/pincel-wasm/src/sheet_import.rs`: `summary_counts_frames_and_tags_or_names_the_error` | verified | 3a1aa1ea |
+| AC-04 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `cut_offset_and_spacing_grid_frames_hold_their_cell_pixels`; `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` | verified | 95b6becc |
+| AC-05 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `plan_skips_trailing_empty_cells_and_empty_rows_keeps_inner_gaps` | verified | 95b6becc |
+| AC-06 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `row_tags_name_rows_by_grid_index_and_span_their_frames`; `crates/pincel-wasm/src/sheet_import.rs`: `build_names_one_forward_tag_per_row_or_none`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …`, `imports from Image mode …` | verified | 95b6becc |
+| AC-07 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `background_exact_match_turns_transparent_before_cutting`; `ui/e2e/sprite-sheet-import.spec.ts`: `the background option starts from the top-left pixel and changes the cut` | verified | 95b6becc |
+| AC-08 | `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (frame duration fields); AC-12 test for the range | verified | 3a1aa1ea |
+| AC-09 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `suggest_grid_finds_the_grid_of_aligned_sprites` (300 generated sheets), `suggest_grid_works_after_the_background_step` (generated sprites are solid boxes, so gap-free as the revised AC requires), `suggest_grid_sprites_at_the_cells_far_edge_finds_the_grid` (sprites touching the cell's right / bottom edge, which the generator never produces) | verified | 95b6becc |
+| AC-10 | `ui/e2e/sprite-sheet-import.spec.ts`: `without a suggestion the dialog starts from the last confirmed import` | verified | 617f0c5d |
+| AC-11 | `ui/e2e/sprite-sheet-import.spec.ts`: `without a suggestion the dialog starts from the last confirmed import`; `crates/pincel-wasm/src/sheet_import.rs`: `suggest_reports_the_grid_for_the_background_setting` | verified | 3a1aa1ea |
+| AC-12 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `plan_reports_each_grid_error`; `ui/e2e/sprite-sheet-import.spec.ts`: `Import is disabled with the reason for an unusable grid` | verified | 95b6becc |
+| AC-13 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `decode_rejects_garbage_oversized_sheets_and_reports_out_of_memory`; `crates/pincel-wasm/src/sheet_import.rs`: `decode_maps_errors_to_codes_and_preview_resamples`; `ui/e2e/sprite-sheet-import.spec.ts`: `an unreadable or oversized file gives a notice and changes nothing` | verified | 95b6becc |
+| AC-14 | `ui/e2e/sprite-sheet-import.spec.ts`: `cancelling the picker or the dialog creates nothing`, `keys pressed while the dialog is open do not reach the editor behind it` | verified | 617f0c5d |
+| AC-15 | `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels` (RGBA, DB32 palette, Layer 1); `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (name, Save asks), `imports from Image mode …` (name already open) | verified | 3a1aa1ea |
+| AC-16 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `exported_sheet_reimports_to_the_same_frames` | verified | 95b6becc |
+| AC-17 | `node scripts/ui-lint.mjs` (en/de key parity) and `pnpm check` (de, es, fr, ja, pt-br typed as `Record<MessageKey, string>`) | verified | 617f0c5d |
+| AC-18 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `suggest_grid_gives_none_for_blank_single_and_gapless_sheets` | verified | 95b6becc |
 
 ## Decisions
 
 - 2026-11-17: New document, grid with suggestion, rows as tags (default on), empty cells at row ends skipped, background-to-transparent and one frame duration as dialog options; no JSON sidecar (owner).
 - 2026-11-17: Clarification pass: empty cells inside a row stay as empty frames (pauses), only trailing empty cells and empty rows are dropped; the background option starts on when the top-left pixel is opaque, so the suggestion works on sheets with a solid background.
+- 2026-11-17 (spec-build): The import dialog lives in the shell (`ui/src/lib/sheet-import/`, loaded on demand by `App.svelte`) and both editors reach it through a new `EditorProps.onImportSheet`; the cut document crosses to the Pixel editor as an unsaved `.aseprite` file through the normal open path, so no new editor-session API is needed.
+- 2026-11-17 (spec-build): "Unsaved" (AC-15) means no save location, as for a PNG opened in Pixel mode: the tab has no unsaved-changes marker until edited, and its first Save asks where to save.
+- 2026-11-17 (spec-build): Tags use `Tag::new`'s default colour, as the spec's Assumptions say, not the timeline's colour cycle.
+- 2026-11-17 (spec-build): An invalid hex in the background colour field disables Import with its own message, so the colour used is always the one shown.
+- 2026-11-17 (spec-build): The grid suggestion takes, per axis, the smallest distance between the starts of consecutive runs of occupied columns / rows as the cell size and the smallest offset that puts every run inside one complete cell; an axis with a single run (a one-row strip) takes the whole sheet as its cell. AC-09 is covered by 300 generated sheets in a deterministic test instead of `proptest`, which is not a dependency of `pincel-core`.
+- 2026-11-17 (spec-build): Memory exhaustion (AC-13) is caught by fallible allocation in the PNG decoder and the frame cut (`try_reserve`, tested with an impossible size) and by catching a wasm trap in the UI; e2e cannot exhaust memory.
+- 2026-11-17 (spec-build): The grid crosses the wasm boundary as one six-value `Uint32Array`, so the exported functions stay below clippy's argument limit without a suppression.
+- 2026-11-17: AC-09 revised (owner, option (a) "only gap-free sprites"): the suggestion is promised only for sprites whose non-transparent pixels cover a contiguous range of columns and rows in their cell; for sprites with an inner transparent column or row (two legs) several periods fit the old wording, and any suggestion is acceptable there.
+- 2026-11-17: Red-first evidence, recorded after the build: each change below was made alone in `crates/pincel-core/src/codec/sprite_sheet/`, the covering test run with `cargo test -p pincel-core --lib <test>`, and the file restored with `git checkout` (clean `git status` between runs). Every run failed on the named assertion:
+  - AC-02 — `SheetGrid::count` divides by `cell` instead of `cell + spacing`: `grid_columns_and_rows_count_only_complete_cells` fails at `assert_eq!(grid.columns(10), 2)` (left 3, right 2).
+  - AC-04 — `SheetGrid::origin` steps columns by `cell_width` without `spacing_x`: `cut_offset_and_spacing_grid_frames_hold_their_cell_pixels` fails with "frame at (4, 1) in row-major order" (the frame starts at x = 3).
+  - AC-05 — `Sheet::plan` takes the first non-empty cell of a row instead of the last (`.rev()` dropped): `plan_skips_trailing_empty_cells_and_empty_rows_keeps_inner_gaps` fails at the `plan.rows` assertion (left `PlannedRow { row: 0, used: 1 }`, right `used: 3`).
+  - AC-06 — `SheetPlan::row_tags` names a row by its 0-based index: `row_tags_name_rows_by_grid_index_and_span_their_frames` fails at `tags[0].name` (left "Row 0", right "Row 1").
+  - AC-07 — `clear` compares only RGB with the background colour: `background_exact_match_turns_transparent_before_cutting` fails at `assert!(soft.plan(&grid, Some(WHITE)).is_ok())`.
+  - AC-09 — `period` takes the largest distance between run starts instead of the smallest: `suggest_grid_finds_the_grid_of_aligned_sprites` fails on case 14 at the cell-size assertion (left (9, 32), right (9, 16)).
+  - AC-18 — the "no clear column or row" guard in `suggest` removed: `suggest_grid_gives_none_for_blank_single_and_gapless_sheets` fails with "no transparent column" (left `Some(SheetGrid { cell_width: 8, cell_height: 4, … })`, right `None`).
+  - AC-16 — `Sheet::cut` reads sheet rows with the cell width as stride: `exported_sheet_reimports_to_the_same_frames` fails at `assert_eq!(got, expected)` (frame pixels from the wrong sheet rows).
+- 2026-11-17: AC-09 gained `suggest_grid_sprites_at_the_cells_far_edge_finds_the_grid` for sprites that touch their cell's right / bottom edge (gap on the left / top), a case the generated sheets never produce. It passed on the existing suggestion code, so no bug was found; it has teeth: with `period` requiring a clear column before the cell's end (`e + 1 < end`) it fails with "P 8 Q 8 X 0 Y 0 far true/true: no suggestion" while `suggest_grid_finds_the_grid_of_aligned_sprites` stays green.

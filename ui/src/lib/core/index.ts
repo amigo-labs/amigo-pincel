@@ -17,8 +17,10 @@ import init, {
   openDocumentCount,
   probeAnimation,
   registerFont,
+  SpriteSheet,
   type AnimationProbe,
   type ComposeFrame,
+  type SheetSummary,
   type Event as PincelEvent,
   type VectorizeResult,
   type Vectorizer,
@@ -31,10 +33,11 @@ import init, {
 import wasmUrl from '@amigo-labs/pincel-wasm/pincel_wasm_bg.wasm?url';
 import { publishDocumentCount } from '../diagnostics';
 
-export type { AnimationProbe, ComposeFrame, PincelEvent, VectorizeResult, Vectorizer };
+export type { AnimationProbe, ComposeFrame, PincelEvent, SheetSummary, VectorizeResult, Vectorizer };
 export {
   Document,
   Generation,
+  SpriteSheet,
   blendModeNames,
   effectNames,
   generationMaskPng,

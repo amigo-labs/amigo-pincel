@@ -141,9 +141,10 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 
 Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each other.
 
+Every spec of this group is done.
+
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| L1 | [sprite-sheet-import](sprite-sheet-import.md) | Pixel | L | — | File ▸ Import Sprite Sheet…: grid with suggestion, rows as tags, background to transparent |
 
 ## Done
 
@@ -218,6 +219,7 @@ Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
+- [sprite-sheet-import](sprite-sheet-import.md)
 - [system-fonts-mcp](system-fonts-mcp.md)
 - [tilemaps](tilemaps.md)
 - [tool-variant-flyout](tool-variant-flyout.md)

@@ -60,6 +60,8 @@ export interface PixelMenuContext {
   /** The active tab is being saved: File ▸ Close does nothing (AC-17). */
   saving: boolean;
   importPng(): void;
+  /** File ▸ Import Sprite Sheet… (sprite-sheet-import). */
+  importSheet(): void;
   exportPng(): void;
   exportSheet(): void;
   exportAnimation(): void;
@@ -143,6 +145,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           : []),
         { kind: 'separator' },
         { label: t('menu.importPng'), disabled: noDoc, run: c.importPng },
+        { label: t('menu.importSheet'), disabled: c.busy, run: c.importSheet },
         {
           kind: 'submenu',
           label: t('menu.export'),

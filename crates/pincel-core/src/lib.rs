@@ -21,12 +21,13 @@ pub use codec::{
 };
 pub use codec::{
     AnimationFormat, AnimationInfo, AnimationOptions, AsepriteReadOutput, AtlasFrame,
-    AtlasManifest, AtlasOptions, AtlasOutput, CodecError, ExportError, GplError, ImportError,
-    ImportedImage, PaletteFormat, PaletteFormatError, animation_frames, animation_info,
-    aseprite_sheet_json, detect_palette_format, encode_png, export_animation, export_atlas_png,
-    export_frame_png, export_frame_png_scaled, import_png, palette_from_png, palette_to_png,
-    read_aseprite, read_gpl, read_hex, read_jasc_pal, read_palette, write_aseprite, write_gpl,
-    write_hex, write_jasc_pal,
+    AtlasManifest, AtlasOptions, AtlasOutput, CodecError, ExportError, GplError, GridError,
+    ImportError, ImportedImage, MAX_SHEET_CELL, MAX_SHEET_FRAMES, MAX_SHEET_PIXELS, MAX_SHEET_SIDE,
+    PaletteFormat, PaletteFormatError, PlannedRow, Sheet, SheetError, SheetGrid, SheetPlan,
+    animation_frames, animation_info, aseprite_sheet_json, detect_palette_format, encode_png,
+    export_animation, export_atlas_png, export_frame_png, export_frame_png_scaled, import_png,
+    palette_from_png, palette_to_png, read_aseprite, read_gpl, read_hex, read_jasc_pal,
+    read_palette, write_aseprite, write_gpl, write_hex, write_jasc_pal,
 };
 pub use command::{
     AddEmptyCel, AddFrame, AddLayer, AddPaletteEntry, AddSlice, AddTag, AddTile, AddTilemapLayer,
