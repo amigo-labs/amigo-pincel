@@ -78,6 +78,7 @@ pub(super) fn answer(chat: &str, program: PathBuf) -> Answer {
         prompt: "<editor-context>\ndocument: a.png\n</editor-context>\n\nDraw it".to_owned(),
         system_prompt: "Du bist „PixelAssist“.\nZeile 2".to_owned(),
         model: Some("opus".to_owned()),
+        effort: None,
         session: Some("sess-1".to_owned()),
         mcp_url: "http://127.0.0.1:39217/mcp".to_owned(),
         mcp_token: "tok-123".to_owned(),
