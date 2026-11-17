@@ -143,7 +143,6 @@ Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each
 
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| L1 | [sprite-sheet-import](sprite-sheet-import.md) | Pixel | L | — | File ▸ Import Sprite Sheet…: grid with suggestion, rows as tags, background to transparent |
 | L2 | [animated-image-import](animated-image-import.md) | shell | L | — | Animated GIF / WebP / APNG: ask on open, all frames into Pixel mode; new dependency `image-webp` |
 
 ## Done
@@ -218,6 +217,7 @@ Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
 - [slices](slices.md)
+- [sprite-sheet-import](sprite-sheet-import.md)
 - [system-fonts-mcp](system-fonts-mcp.md)
 - [tilemaps](tilemaps.md)
 - [tool-variant-flyout](tool-variant-flyout.md)
