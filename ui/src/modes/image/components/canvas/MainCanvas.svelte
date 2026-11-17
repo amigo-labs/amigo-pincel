@@ -17,6 +17,7 @@
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
   import { readCompositeRegion, redo, undo } from '../../core/controller';
   import { TapTracker } from '../../../../lib/view/taps';
+  import { keepInView } from '../../../../lib/view/keep-in-view';
   import { touchGestures } from '../../../../lib/shell/touch-gestures.svelte';
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
@@ -135,6 +136,15 @@
     view.panY = vy - worldY * next;
     view.zoom = next;
     view.fit = false;
+    clampPan();
+  }
+
+  /** Keeps part of the document in the viewport after a zoom or pan, so
+   *  zooming about empty space cannot lose it off screen. */
+  function clampPan(): void {
+    if (!viewport) return;
+    view.panX = keepInView(view.panX, editor.width * view.zoom, viewport.clientWidth);
+    view.panY = keepInView(view.panY, editor.height * view.zoom, viewport.clientHeight);
   }
 
   function onWheel(e: WheelEvent): void {
@@ -270,6 +280,7 @@
       zoomAround(pinchZoom0 * f.scale, f.midX - rect.left, f.midY - rect.top);
       view.panX += f.dx;
       view.panY += f.dy;
+      clampPan();
       return;
     }
     if (pinch.suppressing) e.stopPropagation();
@@ -373,6 +384,7 @@
     // middle of the viewport.
     view.panX += viewport.clientWidth / 2 - cx;
     view.panY += viewport.clientHeight / 2 - cy;
+    clampPan();
   }
 
   function startPan(e: PointerEvent): void {
@@ -396,6 +408,7 @@
     view.panX = panStart.panX + (e.clientX - panStart.x);
     view.panY = panStart.panY + (e.clientY - panStart.y);
     view.fit = false;
+    clampPan();
   }
 
   function onPointerUp(e: PointerEvent): void {
