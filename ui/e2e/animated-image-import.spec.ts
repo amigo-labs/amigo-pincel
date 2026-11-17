@@ -418,6 +418,8 @@ test.describe('desktop', () => {
     expect(await tabNames(page)).toEqual(['a.aseprite']);
     // Cancel the second; the static third opens after it.
     await dialog(page).getByRole('button', { name: 'Cancel' }).click();
+    // c.png is the first Image-mode document: its editor loads first.
+    await waitForEditor(page, 'image');
     await expect(tab(page, 'c.png')).toHaveAttribute('aria-selected', 'true');
     expect(await tabNames(page)).toEqual(['a.aseprite', 'c.png']);
   });
