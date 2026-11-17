@@ -1,5 +1,27 @@
 # Changelog
 
+## [1.18.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.17.0...v1.18.0) (2026-11-17)
+
+
+### Features
+
+* import PNG sprite sheets into a new Pixel document ([9c73681](https://github.com/amigo-labs/amigo-pincel/commit/9c736813d5d5d4fbf19211583da263e9319c3b8b))
+* open animated GIF, WebP and APNG as Pixel-mode animations ([c441c7a](https://github.com/amigo-labs/amigo-pincel/commit/c441c7a42ada1856fd638511b6542ffb2a1f3391))
+* **pincel-core:** count GIF image descriptors from the block structure (AC-01, AC-09) ([843ff06](https://github.com/amigo-labs/amigo-pincel/commit/843ff063cb658818f55b3735b2087a796b98208c))
+* **pincel-core:** cut a PNG sprite sheet into frames along a grid (AC-02, AC-04, AC-05, AC-06, AC-07, AC-09, AC-12, AC-13, AC-16, AC-18) ([95b6bec](https://github.com/amigo-labs/amigo-pincel/commit/95b6becc449354805cf71b7397a56082dbcbd552))
+* **pincel-core:** decode animated GIF, APNG and WebP frames (AC-01, AC-02, AC-04, AC-05, AC-08, AC-09, AC-11, AC-13) ([4dc454b](https://github.com/amigo-labs/amigo-pincel/commit/4dc454b3bb85c687bcd2e3e8fcfaadd4e6f8c80f))
+* **pincel-wasm:** expose probeAnimation and Document.openAnimation (AC-03, AC-08, AC-10) ([b85efce](https://github.com/amigo-labs/amigo-pincel/commit/b85efce0c56e00ce9446454515b8dc889f97120d))
+* **pincel-wasm:** expose SpriteSheet decode, preview, suggest, summary and build (AC-03, AC-04, AC-06, AC-08, AC-11, AC-12, AC-13, AC-15) ([3a1aa1e](https://github.com/amigo-labs/amigo-pincel/commit/3a1aa1eab0b4b0ff627327bfb4eab3384781a2d0))
+* **ui:** add File ▸ Import Sprite Sheet… with a grid preview dialog (AC-01, AC-03, AC-04, AC-06, AC-07, AC-08, AC-10, AC-11, AC-12, AC-13, AC-14, AC-15, AC-17) ([617f0c5](https://github.com/amigo-labs/amigo-pincel/commit/617f0c5ddc99f2c61666abf0e62dc621eb4e3cc4))
+* **ui:** ask animation or first frame when opening an animated image (AC-01 - AC-15) ([dad5410](https://github.com/amigo-labs/amigo-pincel/commit/dad5410b56a89f006b1f27163586a11b5bc3d58f))
+
+
+### Bug Fixes
+
+* **ui:** keep keys in the sprite sheet import dialog away from the editor (AC-14) ([3be0406](https://github.com/amigo-labs/amigo-pincel/commit/3be0406a4194ee138b38d271c2687bc74b627d00))
+* **ui:** keep UI text from being selected ([f5a1407](https://github.com/amigo-labs/amigo-pincel/commit/f5a140714410673d3dc2d4de7daf2b60828b9f50))
+* **ui:** keep UI text from being selected; specs for sprite-sheet and animated-image import ([b006c5d](https://github.com/amigo-labs/amigo-pincel/commit/b006c5d26d33527118d1848086bdaaeb732e146c))
+
 ## [1.17.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.16.0...v1.17.0) (2026-11-17)
 
 
