@@ -48,6 +48,9 @@ pub struct Answer {
     pub system_prompt: String,
     /// The model; `None` for the CLI's default (AC-04).
     pub model: Option<String>,
+    /// The effort, a variant name (ai-chat-clis AC-11, AC-15); `None` for
+    /// the CLI's default.
+    pub effort: Option<String>,
     /// The CLI session to continue (AC-12).
     pub session: Option<String>,
     /// The live endpoint's URL and the chat's token (`mcp-live-desktop`

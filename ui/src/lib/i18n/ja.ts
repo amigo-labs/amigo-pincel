@@ -1527,6 +1527,8 @@ export const ja: Record<MessageKey, string> = {
   'assistant.cli': 'コマンドラインツール',
   'assistant.model': 'モデル',
   'assistant.modelDefault': 'デフォルト',
+  'assistant.effort': '思考量',
+  'assistant.effortInvalid': '英字、数字、- または _ を使用してください',
   'assistant.imageAccess': 'エージェントに画像の閲覧を許可',
   'assistant.imageNotice': '画像はモデルの提供元に送信されます',
   'assistant.newChat': '新しいチャット',

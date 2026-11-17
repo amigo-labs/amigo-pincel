@@ -101,6 +101,9 @@ pub fn launch(answer: &Answer, _dir: &Path) -> Launch {
         set(&format!("features.{feature}"), "false".to_owned());
     }
     set("developer_instructions", toml_str(&answer.system_prompt));
+    if let Some(effort) = &answer.effort {
+        set("model_reasoning_effort", toml_str(effort));
+    }
     if let Some(model) = answer.model.as_deref().filter(|m| !m.trim().is_empty()) {
         args.extend(["-m".to_owned(), model.trim().to_owned()]);
     }

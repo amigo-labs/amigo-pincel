@@ -6,7 +6,7 @@
 //! --include-partial-messages`, `--mcp-config <file> --strict-mcp-config`,
 //! `--tools` (the built-in tools it has at all), `--allowedTools`,
 //! `--disallowedTools`, `--append-system-prompt-file`, `--model`,
-//! `--resume`.
+//! `--effort` (from 2.1.72), `--resume`.
 
 use std::path::Path;
 
@@ -69,6 +69,9 @@ pub fn launch(answer: &Answer, dir: &Path) -> Launch {
     .collect();
     if let Some(model) = answer.model.as_deref().filter(|m| !m.trim().is_empty()) {
         args.extend(["--model".to_owned(), model.trim().to_owned()]);
+    }
+    if let Some(effort) = &answer.effort {
+        args.extend(["--effort".to_owned(), effort.clone()]);
     }
     if let Some(session) = &answer.session {
         args.extend(["--resume".to_owned(), session.clone()]);

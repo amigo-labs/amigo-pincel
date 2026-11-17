@@ -8,6 +8,7 @@ use std::sync::mpsc;
 use std::time::Duration;
 
 use super::adapter::Kind;
+use super::effort::EffortDef;
 
 /// A supported CLI.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -25,10 +26,13 @@ pub struct CliDef {
     /// The oldest version offering the tool limits, streamed JSON output
     /// and session resume Pincel relies on (ai-chat-clis AC-04).
     pub min_version: [u32; 3],
+    /// The effort it takes on its command line (ai-chat-clis AC-10).
+    pub effort: EffortDef,
 }
 
 /// The supported CLIs, in the picker's order (ai-chat-clis AC-01). The
-/// minimum versions are recorded in docs/specs/ai-chat-clis.md, Decisions.
+/// minimum versions and effort levels are recorded in
+/// docs/specs/ai-chat-clis.md, Decisions.
 pub const CLIS: &[CliDef] = &[
     CliDef {
         id: "claude",
@@ -37,6 +41,10 @@ pub const CLIS: &[CliDef] = &[
         install_url: "https://docs.claude.com/en/docs/claude-code",
         kind: Kind::Claude,
         min_version: [2, 1, 69],
+        effort: EffortDef::Levels {
+            since: [2, 1, 72],
+            levels: &["low", "medium", "high", "xhigh", "max"],
+        },
     },
     CliDef {
         id: "codex",
@@ -45,6 +53,10 @@ pub const CLIS: &[CliDef] = &[
         install_url: "https://github.com/openai/codex",
         kind: Kind::Codex,
         min_version: [0, 122, 0],
+        effort: EffortDef::Levels {
+            since: [0, 122, 0],
+            levels: &["minimal", "low", "medium", "high", "xhigh"],
+        },
     },
     CliDef {
         id: "gemini",
@@ -53,6 +65,7 @@ pub const CLIS: &[CliDef] = &[
         install_url: "https://github.com/google-gemini/gemini-cli",
         kind: Kind::Gemini,
         min_version: [0, 34, 0],
+        effort: EffortDef::None,
     },
     CliDef {
         id: "opencode",
@@ -61,6 +74,7 @@ pub const CLIS: &[CliDef] = &[
         install_url: "https://opencode.ai",
         kind: Kind::Opencode,
         min_version: [1, 1, 1],
+        effort: EffortDef::Text { since: [1, 1, 1] },
     },
 ];
 

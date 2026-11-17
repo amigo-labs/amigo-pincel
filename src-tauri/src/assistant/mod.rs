@@ -8,6 +8,7 @@
 mod adapter;
 mod claude;
 mod codex;
+mod effort;
 mod find;
 mod gemini;
 mod opencode;
@@ -17,6 +18,8 @@ mod run;
 mod tests;
 #[cfg(test)]
 mod tests_clis;
+#[cfg(test)]
+mod tests_effort;
 
 use std::path::PathBuf;
 use std::sync::Arc;
@@ -182,6 +185,25 @@ pub(crate) struct CliStatus {
     min_version: String,
     /// Installed with a known version of at least `min_version`.
     supported: bool,
+    /// The installed version takes an effort (ai-chat-clis AC-10).
+    effort: bool,
+    /// The effort levels the field lists; empty for free text.
+    effort_levels: &'static [&'static str],
+}
+
+/// The status of CLI `c`, found or not, with its `version` if read.
+fn cli_status(c: &find::CliDef, installed: bool, version: Option<[u32; 3]>) -> CliStatus {
+    CliStatus {
+        id: c.id,
+        name: c.name,
+        install_url: c.install_url,
+        installed,
+        version: version.map(probe::version_text),
+        min_version: probe::version_text(c.min_version),
+        supported: version.is_some_and(|v| v >= c.min_version),
+        effort: c.effort.offered(version),
+        effort_levels: c.effort.levels(),
+    }
 }
 
 /// The supported CLIs, looked up afresh with their versions (AC-03,
@@ -210,15 +232,7 @@ pub(crate) async fn assistant_clis() -> Result<Vec<CliStatus>, String> {
     Ok(found
         .iter()
         .zip(versions)
-        .map(|((c, program), version)| CliStatus {
-            id: c.id,
-            name: c.name,
-            install_url: c.install_url,
-            installed: program.is_some(),
-            version: version.map(probe::version_text),
-            min_version: probe::version_text(c.min_version),
-            supported: version.is_some_and(|v| v >= c.min_version),
-        })
+        .map(|((c, program), version)| cli_status(c, program.is_some(), version))
         .collect())
 }
 
@@ -244,6 +258,10 @@ pub(crate) struct SendRequest {
     chat: String,
     cli: String,
     model: Option<String>,
+    /// The effort; `None` or empty for the CLI's default (ai-chat-clis
+    /// AC-11).
+    #[serde(default)]
+    effort: Option<String>,
     /// The user's message with its editor-context block.
     prompt: String,
     system_prompt: String,
@@ -262,6 +280,7 @@ pub(crate) async fn assistant_send(
     let def = find::cli(&request.cli).ok_or_else(|| format!("unknown CLI `{}`", request.cli))?;
     let (program, path) = find::locate(def.program);
     let program = program.ok_or_else(|| format!("{} is not installed", def.name))?;
+    let effort = effort::of_request(request.effort)?;
     let chat = request.chat;
     let access = endpoint.chat_start(&chat, request.image_access)?;
     let answer = Answer {
@@ -272,6 +291,7 @@ pub(crate) async fn assistant_send(
         prompt: request.prompt,
         system_prompt: request.system_prompt,
         model: request.model,
+        effort,
         session: request.session,
         mcp_url: access.url,
         mcp_token: access.token,

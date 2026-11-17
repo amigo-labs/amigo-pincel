@@ -3,7 +3,7 @@
 //!
 //! As of opencode 1.19 (`packages/opencode/src/cli/cmd/run.ts` and the V1
 //! config schema, 2026-11): `run --format json` with the prompt on stdin,
-//! `-m <provider/model>`, `--session <id>`. Its JSON lines (`step_start`,
+//! `-m <provider/model>`, `--variant <name>`, `--session <id>`. Its JSON lines (`step_start`,
 //! `text`, `tool_use`, `step_finish`, `error`) all carry the `sessionID`;
 //! a tool shows up once it has finished. The MCP server, the permissions
 //! and the system prompt go into a config file named by `OPENCODE_CONFIG`,
@@ -60,6 +60,9 @@ pub fn launch(answer: &Answer, dir: &Path) -> Launch {
         .collect();
     if let Some(model) = answer.model.as_deref().filter(|m| !m.trim().is_empty()) {
         args.extend(["-m".to_owned(), model.trim().to_owned()]);
+    }
+    if let Some(effort) = &answer.effort {
+        args.extend(["--variant".to_owned(), effort.clone()]);
     }
     if let Some(session) = &answer.session {
         args.extend(["--session".to_owned(), session.clone()]);
