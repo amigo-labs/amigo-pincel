@@ -13,7 +13,7 @@ Decision Log: spec §15, 2026-10-26.
   changelog and make a release; `docs`, `ci`, `chore`, `refactor`,
   `test`, `build` don't.
 - **Every push to `main` opens or refreshes the release PR**
-  ("chore: release pincel X.Y.Z"): the version in `Cargo.toml`,
+  ("chore: release Pincel X.Y.Z"): the version in `Cargo.toml`,
   `ui/package.json`, `src-tauri/tauri.conf.json` and `Cargo.lock`, plus
   the new `CHANGELOG.md` entry.
 - **Merge the release PR to release.** release-please tags `vX.Y.Z` and
