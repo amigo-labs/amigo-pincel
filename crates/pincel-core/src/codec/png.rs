@@ -505,6 +505,17 @@ pub enum ImportError {
     /// The decoder produced a colour layout this importer does not handle.
     #[error("unsupported png colour layout {0:?}")]
     UnsupportedLayout(String),
+    /// The decoded image does not fit in memory.
+    #[error("png decode ran out of memory")]
+    OutOfMemory,
+}
+
+/// An empty buffer with room for `len` bytes, or [`ImportError::OutOfMemory`].
+fn try_buffer(len: usize) -> Result<Vec<u8>, ImportError> {
+    let mut v = Vec::new();
+    v.try_reserve_exact(len)
+        .map_err(|_| ImportError::OutOfMemory)?;
+    Ok(v)
 }
 
 /// A decoded raster image, straight-alpha RGBA8, row-major.
@@ -525,7 +536,8 @@ pub struct ImportedImage {
 /// [`ImportError::Decode`] for malformed or truncated input;
 /// [`ImportError::UnsupportedLayout`] if the decoder hands back a layout
 /// other than 8-bit gray / gray+alpha / RGB / RGBA (not expected after
-/// normalisation, kept as a guard rather than a panic).
+/// normalisation, kept as a guard rather than a panic);
+/// [`ImportError::OutOfMemory`] when the pixels cannot be allocated.
 pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
     let mut decoder = ::png::Decoder::new(std::io::Cursor::new(bytes));
     decoder.set_transformations(::png::Transformations::normalize_to_color8());
@@ -535,7 +547,8 @@ pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
     let size = reader
         .output_buffer_size()
         .ok_or_else(|| ImportError::Decode("image too large to buffer".to_owned()))?;
-    let mut buf = vec![0u8; size];
+    let mut buf = try_buffer(size)?;
+    buf.resize(size, 0);
     let info = reader
         .next_frame(&mut buf)
         .map_err(|e| ImportError::Decode(e.to_string()))?;
@@ -550,21 +563,21 @@ pub fn import_png(bytes: &[u8]) -> Result<ImportedImage, ImportError> {
     let rgba = match info.color_type {
         ::png::ColorType::Rgba => buf,
         ::png::ColorType::Rgb => {
-            let mut out = Vec::with_capacity(pixel_count * 4);
+            let mut out = try_buffer(pixel_count * 4)?;
             for px in buf.as_chunks::<3>().0 {
                 out.extend_from_slice(&[px[0], px[1], px[2], 255]);
             }
             out
         }
         ::png::ColorType::Grayscale => {
-            let mut out = Vec::with_capacity(pixel_count * 4);
+            let mut out = try_buffer(pixel_count * 4)?;
             for &g in &buf {
                 out.extend_from_slice(&[g, g, g, 255]);
             }
             out
         }
         ::png::ColorType::GrayscaleAlpha => {
-            let mut out = Vec::with_capacity(pixel_count * 4);
+            let mut out = try_buffer(pixel_count * 4)?;
             for px in buf.as_chunks::<2>().0 {
                 out.extend_from_slice(&[px[0], px[0], px[0], px[1]]);
             }

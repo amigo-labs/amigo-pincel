@@ -10,6 +10,9 @@
 //!
 //! [`gpl`] and [`palette_formats`] read and write palette files (spec §3.7).
 //!
+//! [`sprite_sheet`] imports a PNG sprite sheet as frames along a grid
+//! (docs/specs/sprite-sheet-import.md).
+//!
 //! [`animation`] adds the animated export (APNG, GIF) on the same path,
 //! sharing the nearest-neighbour upscale in `scale` (spec §7.5).
 
@@ -22,6 +25,7 @@ mod palette_formats;
 mod png;
 mod scale;
 mod sheet_data;
+mod sprite_sheet;
 
 pub use animation::{
     AnimationFormat, AnimationInfo, AnimationOptions, animation_frames, animation_info,
@@ -40,3 +44,7 @@ pub use png::{
     encode_png, export_atlas_png, export_frame_png, export_frame_png_scaled, import_png,
 };
 pub use sheet_data::aseprite_sheet_json;
+pub use sprite_sheet::{
+    GridError, MAX_SHEET_CELL, MAX_SHEET_FRAMES, MAX_SHEET_PIXELS, MAX_SHEET_SIDE, PlannedRow,
+    Sheet, SheetError, SheetGrid, SheetPlan,
+};
