@@ -181,6 +181,12 @@
   } | null>(null);
   // Dropped images are being added as layers, one after another.
   let addingLayers = false;
+  // The open Import sprite sheet dialog (`importSheet` below).
+  let sheetImport = $state<{
+    flow: typeof import('./lib/sheet-import/open');
+    sheet: SpriteSheet;
+    fileName: string;
+  } | null>(null);
 
   // Autosave recovery (document-tabs AC-15, autosave-recovery AC-04): the
   // snapshots of both modes, offered when the first editor starts; Recover
@@ -206,6 +212,7 @@
       unsaved.prompt !== null ||
       fileAssocOpen ||
       dropDialog !== null ||
+      sheetImport !== null ||
       helpDialogOpen(),
   );
 
@@ -377,28 +384,24 @@
   // picked PNG opens in the import dialog (loaded on demand with the Pixel
   // core); Import opens the cut document as a new Pixel-mode tab. A cancel
   // anywhere, or a file that cannot be read, leaves the tabs alone.
-  let sheetImport = $state<{
-    flow: typeof import('./lib/sheet-import/open');
-    sheet: SpriteSheet;
-    fileName: string;
-  } | null>(null);
 
   async function importSheet(): Promise<void> {
     if (picking || promptBusy() || sheetImport !== null) return;
+    // `picking` holds until the dialog shows, so a second menu click
+    // cannot open a second dialog.
     picking = true;
-    let opened: OpenedFile | null = null;
     try {
-      opened = await pickAndOpen('png');
+      const opened = await pickAndOpen('png');
+      if (!opened) return;
+      const flow = await import('./lib/sheet-import/open');
+      const sheet = await flow.readSheet(opened);
+      if (typeof sheet === 'string') shellError = sheet;
+      else sheetImport = { flow, sheet, fileName: opened.name };
     } catch (err) {
       shellError = t('shell.openFailed', { error: errText(err) });
     } finally {
       picking = false;
     }
-    if (!opened) return;
-    const flow = await import('./lib/sheet-import/open');
-    const sheet = await flow.readSheet(opened);
-    if (typeof sheet === 'string') shellError = sheet;
-    else sheetImport = { flow, sheet, fileName: opened.name };
   }
 
   function closeSheetImport(values: SheetImportValues | null): void {

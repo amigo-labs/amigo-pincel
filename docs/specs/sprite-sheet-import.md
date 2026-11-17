@@ -111,7 +111,7 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 | AC-11 | `ui/e2e/sprite-sheet-import.spec.ts`: `without a suggestion the dialog starts from the last confirmed import`; `crates/pincel-wasm/src/sheet_import.rs`: `suggest_reports_the_grid_for_the_background_setting` | built |  |
 | AC-12 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `plan_reports_each_grid_error`; `ui/e2e/sprite-sheet-import.spec.ts`: `Import is disabled with the reason for an unusable grid` | built |  |
 | AC-13 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `decode_rejects_garbage_oversized_sheets_and_reports_out_of_memory`; `crates/pincel-wasm/src/sheet_import.rs`: `decode_maps_errors_to_codes_and_preview_resamples`; `ui/e2e/sprite-sheet-import.spec.ts`: `an unreadable or oversized file gives a notice and changes nothing` | built |  |
-| AC-14 | `ui/e2e/sprite-sheet-import.spec.ts`: `cancelling the picker or the dialog creates nothing` | built |  |
+| AC-14 | `ui/e2e/sprite-sheet-import.spec.ts`: `cancelling the picker or the dialog creates nothing`, `keys pressed while the dialog is open do not reach the editor behind it` | built |  |
 | AC-15 | `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels` (RGBA, DB32 palette, Layer 1); `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (name, Save asks), `imports from Image mode …` (name already open) | built |  |
 | AC-16 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `exported_sheet_reimports_to_the_same_frames` | built |  |
 | AC-17 | `node scripts/ui-lint.mjs` (en/de key parity) and `pnpm check` (de, es, fr, ja, pt-br typed as `Record<MessageKey, string>`) | built |  |

@@ -353,3 +353,21 @@ test('cancelling the picker or the dialog creates nothing (AC-14)', async ({ pag
   await expect(again).toBeHidden();
   await expect(page.getByRole('tab')).toHaveCount(1);
 });
+
+test('keys pressed while the dialog is open do not reach the editor behind it (AC-14)', async ({
+  page,
+}) => {
+  await start(page, 'pixel');
+  const timeline = page.getByRole('region', { name: 'Timeline' });
+  await expect(timeline.getByRole('button', { name: /^Frame \d+$/ })).toHaveCount(1);
+  const dialog = await openSheet(page, 'hero.png');
+  // Alt+N adds a frame in the editor; a click on the preview leaves no field focused.
+  await dialog.getByRole('img', { name: 'Sheet preview' }).click();
+  await page.keyboard.press('Alt+n');
+  await dialog.getByLabel('Cell width', { exact: true }).focus();
+  await page.keyboard.press('Alt+n');
+  await dialog.getByRole('button', { name: 'Cancel' }).click();
+  await expect(dialog).toBeHidden();
+  await expect(timeline.getByRole('button', { name: /^Frame \d+$/ })).toHaveCount(1);
+  await expect(page.getByRole('tab')).toHaveCount(1);
+});

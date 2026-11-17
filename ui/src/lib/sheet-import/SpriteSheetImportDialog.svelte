@@ -127,8 +127,11 @@
 
   let previewCanvas: HTMLCanvasElement | undefined = $state();
   let gridCanvas: HTMLCanvasElement | undefined = $state();
+  let dialogEl: HTMLDivElement | undefined = $state();
 
   onMount(() => {
+    // The focus moves into the dialog, so its key handler sees every key.
+    dialogEl?.querySelector<HTMLInputElement>('input')?.focus();
     const ctx = previewCanvas?.getContext('2d');
     if (!ctx) return;
     const rgba = sheet.preview(previewW, previewH);
@@ -152,7 +155,10 @@
     onImport({ grid, background, duration: durationMs, rowsAsTags });
   }
 
+  // Keys typed in the dialog must not reach the mounted editors'
+  // window-level shortcut maps (AC-14: the open documents stay unchanged).
   function onKeydown(e: KeyboardEvent) {
+    e.stopPropagation();
     if (e.key === 'Escape') {
       e.preventDefault();
       onCancel();
@@ -160,13 +166,14 @@
   }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
 <div
+  bind:this={dialogEl}
   class="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
   role="dialog"
   aria-modal="true"
   aria-label={t('sheetImport.title')}
+  tabindex="-1"
+  onkeydown={onKeydown}
 >
   <form class="am-dialog max-h-full overflow-auto" style:width="min(560px, 100%)" onsubmit={submit}>
     <header>
