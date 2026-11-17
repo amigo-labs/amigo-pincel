@@ -96,6 +96,13 @@ export interface AgentFile {
   bytes: Uint8Array;
 }
 
+/** How `EditorSession.open` reads a file. */
+export interface OpenOptions {
+  /** Open an animated GIF, APNG or WebP with all its frames (Pixel mode
+   *  only; docs/specs/animated-image-import.md AC-03). */
+  animation?: boolean;
+}
+
 /** What an editor does with the documents the shell routes to it
  *  (docs/specs/document-tabs.md AC-02, AC-03, AC-15). Each resolves once
  *  the document is open as a new, active tab — or the tab holding the
@@ -103,7 +110,7 @@ export interface AgentFile {
 export interface EditorSession {
   /** Open an already-read file; resolves `null` once open, or the error
    *  that kept it from opening (no tab opens, the active tab stays). */
-  open(file: OpenedFile): Promise<string | null>;
+  open(file: OpenedFile, options?: OpenOptions): Promise<string | null>;
   /** Create a blank document; resolves like `open`. */
   create(params: NewDocParams): Promise<string | null>;
   /** Open a recovered autosave snapshot as an unsaved tab that continues

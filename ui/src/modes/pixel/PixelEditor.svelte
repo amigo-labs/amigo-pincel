@@ -799,11 +799,11 @@
     // The documents the shell routes here open as tabs (document-tabs
     // AC-02, AC-15).
     const unregisterSession = registerSession({
-      open: (opened) =>
+      open: (opened, options) =>
         whenReady(async () => {
           file.busy = true;
           try {
-            return await openOpened(opened);
+            return await openOpened(opened, options?.animation === true);
           } finally {
             file.busy = false;
           }

@@ -94,22 +94,32 @@ Owner decisions of 2026-11-17: ask on open (no fixed routing, no frames in Image
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-01 | `Open… asks first, then opens an unsaved Pixel sprite with every frame`, `an animated APNG and an animated WebP ask and open with all frames`, `File ▸ Open… in both modes and drops onto the start screen or an editor ask`, `Open Recent asks as well`, `OS hand-overs wait for the dialog …` (ui/e2e/animated-image-import.spec.ts); `probe_animation_gif_counts_image_descriptors`, `probe_animation_apng_reads_the_actl_frame_count`, `probe_animation_webp_counts_anmf_chunks` (crates/pincel-core/src/codec/animation_import/) | built |  |
+| AC-02 | `a static GIF, a one-frame APNG and a still WebP open without the dialog` (ui/e2e/animated-image-import.spec.ts); `probe_animation_single_frame_gif_is_static`, `probe_animation_one_frame_apng_and_plain_png_are_static`, `probe_animation_one_frame_webp_is_static` (crates/pincel-core/src/codec/animation_import/) | built |  |
+| AC-03 | `Open… asks first, then opens an unsaved Pixel sprite with every frame`, `an animated APNG and an animated WebP ask and open with all frames` (ui/e2e/animated-image-import.spec.ts); `open_animation_builds_one_frame_per_animation_frame` (crates/pincel-wasm/src/import.rs) | built |  |
+| AC-04 | `import_animation_gif_offsets_transparency_and_local_tables`, `import_animation_gif_frame_beyond_the_screen_is_cut_off`, `import_animation_gif_disposal_background_and_previous` (gif.rs); `import_animation_apng_blend_and_dispose_ops`, `import_animation_apng_separate_default_image_is_no_frame` (apng.rs); `import_animation_webp_offsets_blend_and_disposal` (webp.rs); `push_*`, `over_partial_alpha_mixes_by_weight` (canvas.rs) — all in crates/pincel-core/src/codec/animation_import/ | built |  |
+| AC-05 | `frame_duration_ms_*` (crates/pincel-core/src/codec/animation_import/mod.rs); `import_animation_gif_durations_follow_the_delays`, `import_animation_apng_durations_from_num_and_den`, `import_animation_webp_durations_in_ms` (crates/pincel-core/src/codec/animation_import/) | built |  |
+| AC-06 | `"Open first frame" opens the file in Image mode as before`, `an APNG through Pixel File ▸ Open… opens its first frame as a one-frame sprite` (ui/e2e/animated-image-import.spec.ts) | built |  |
+| AC-07 | `Cancel opens nothing and leaves the open documents as they were` (ui/e2e/animated-image-import.spec.ts) | built |  |
+| AC-08 | `a canvas wider than 4096 px disables "Open as animation" and names the limit`, `frames × width × height above the pixel budget disables "Open as animation"` (ui/e2e/animated-image-import.spec.ts); `exceeded_limit_side_before_pixels` (crates/pincel-core/src/codec/animation_import/mod.rs); `probe_animation_js_reports_size_frames_and_limits` (crates/pincel-wasm/src/import.rs) | built |  |
+| AC-09 | `a broken later frame opens no animation, says so, and the first frame still opens` (ui/e2e/animated-image-import.spec.ts); `import_animation_gif_undecodable_later_frame_is_counted_and_incomplete`, `import_animation_gif_truncated_inside_a_frame_is_incomplete`, `import_animation_apng_ending_before_the_frame_count_is_incomplete`, `import_animation_webp_broken_later_frame_is_incomplete` (crates/pincel-core/src/codec/animation_import/); `open_animation_refuses_a_static_or_truncated_file` (crates/pincel-wasm/src/import.rs) | built |  |
+| AC-10 | `Open… asks first, then opens an unsaved Pixel sprite with every frame` (ui/e2e/animated-image-import.spec.ts: name, unsaved title, Save asks); `open_animation_builds_one_frame_per_animation_frame` (crates/pincel-wasm/src/import.rs: palette of a new document) | built |  |
+| AC-11 | `import_animation_reads_back_an_apng_export_exactly`, `import_animation_reads_back_a_gif_export_where_it_was_exact` (crates/pincel-core/tests/animation_import_roundtrip.rs) | built |  |
+| AC-12 | `every string of the dialog has a translation in every UI language` (ui/e2e/animated-image-import.spec.ts); `every translation has exactly the placeholders of its English source` (ui/e2e/i18n-format.spec.ts); typed locale tables (`pnpm check`); `node scripts/ui-lint.mjs` | built |  |
+| AC-13 | `an undecodable first frame shows no dialog and fails like an unreadable image` (ui/e2e/animated-image-import.spec.ts); `probe_animation_gif_broken_first_frame_is_unreadable`, `probe_animation_gif_zero_width_screen_is_unreadable`, `probe_animation_apng_broken_default_image_is_unreadable`, `probe_animation_webp_broken_first_frame_is_unreadable` (crates/pincel-core/src/codec/animation_import/) | built |  |
+| AC-14 | `OS hand-overs wait for the dialog and open in arrival order from the bytes read` (ui/e2e/animated-image-import.spec.ts) | built |  |
+| AC-15 | `the dialog is modal: drops and the editor menus are blocked`, `OS hand-overs wait for the dialog and open in arrival order from the bytes read` (ui/e2e/animated-image-import.spec.ts) | built |  |
 
 ## Decisions
 
 - 2026-11-17: Ask on open; GIF, WebP and APNG; `image-webp` as WebP decoder in `pincel-core`; first-frame fallback above the size limit (owner).
+- 2026-11-17: "Unsaved" (AC-10) is read as the tab's unsaved marker: the animation tab starts dirty (like a recovered snapshot), so closing it asks before its frames are lost; a PNG opened in Pixel mode keeps its clean start.
+- 2026-11-17: A file whose first frame cannot be decoded (AC-13) leaves the probe with an error and goes the usual open path unchanged, which then fails with the notice it shows today — one place produces that notice.
+- 2026-11-17: A header look in TypeScript (`ui/src/lib/fs/animation-hint.ts`: `acTL` frames, `VP8X` animation flag plus two `ANMF`, two GIF image descriptors) decides whether the Pixel core is loaded for the probe, so a static GIF / PNG / WebP never fetches the Pixel wasm module; the Rust probe has the final say.
+- 2026-11-17: Animated WebP: the RIFF container is walked in `pincel-core` and each frame's bitstream is decoded by `image-webp` as a still image; offsets, blending and disposal go through the same canvas as GIF and APNG (`image-webp`'s own compositing fills disposed areas with the `ANIM` background colour, which the edge-case table rules out). A `VP8` frame without `ALPH` is opaque.
+- 2026-11-17: "Over" blending of partial alpha is straight-alpha source-over in integer arithmetic, rounded to nearest (`canvas.rs` `over`), so wasm and native give the same bytes.
+- 2026-11-17: The GIF frame count is the number of image descriptors in the block structure, walked without decoding image data, so a frame with broken data still counts (AC-01, AC-09).
+- 2026-11-17: Files the desktop app's MCP live host opens skip the dialog (`ask: false`): agent tools are out of scope and an agent cannot answer a dialog; they open the first frame as before.
+- 2026-11-17: A Cancel in the dialog counts as handled, not as a skipped file, in the notice of a multi-file drop.
+- 2026-11-17: The dialog's strings live under `animOpen.*`; `anim.*` already belongs to the animation export dialog.
+- 2026-11-17: The core decoder tests and the e2e spec were written together with the code in one pass, so no red run of them was recorded; the GIF later-frame test (`import_animation_gif_undecodable_later_frame_is_counted_and_incomplete`) ran red before its fix.
