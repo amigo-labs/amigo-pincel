@@ -1,5 +1,20 @@
 # Changelog
 
+## [1.17.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.16.0...v1.17.0) (2026-11-17)
+
+
+### Features
+
+* **tauri:** pass the chat's effort to claude, codex and opencode (AC-10, AC-11, AC-15) ([567f618](https://github.com/amigo-labs/amigo-pincel/commit/567f618c6700cb268ba8494ea2f057a6202a99de))
+* **ui:** effort field beside the Assistant's model field ([06697b4](https://github.com/amigo-labs/amigo-pincel/commit/06697b4fc14cdf923ff145ad7407ca012c40af5a))
+* **ui:** effort field beside the Assistant's model field (AC-10 - AC-15) ([e543a15](https://github.com/amigo-labs/amigo-pincel/commit/e543a15c2bf8e55bd4115901feee4c2a253f1b77))
+
+
+### Bug Fixes
+
+* **ui:** keep the image in view when zooming about empty space ([cc2660f](https://github.com/amigo-labs/amigo-pincel/commit/cc2660f273d5cef1a0a43ed1a6c68467831cef82))
+* **ui:** keep the image in view when zooming about empty space ([c42140c](https://github.com/amigo-labs/amigo-pincel/commit/c42140c55d74308e548f954dd5b6dd73fa724272))
+
 ## [1.16.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.15.0...v1.16.0) (2026-11-16)
 
 
