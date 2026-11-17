@@ -137,6 +137,15 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 | K2 | [sidebar-tab-groups](sidebar-tab-groups.md) | both | L | — | Fixed groups: Layers \| History, Preview \| Tilesets \| Slices, Generate \| Assistant; Colors and Palette stay single |
 | K3 | [panel-visibility](panel-visibility.md) | both | M | menu-structure, sidebar-tab-groups | View ▸ Panels with a check mark per panel, Reset Panels |
 
+### L — Sprite and animation import
+
+Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each other.
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| L1 | [sprite-sheet-import](sprite-sheet-import.md) | Pixel | L | — | File ▸ Import Sprite Sheet…: grid with suggestion, rows as tags, background to transparent |
+| L2 | [animated-image-import](animated-image-import.md) | shell | L | — | Animated GIF / WebP / APNG: ask on open, all frames into Pixel mode; new dependency `image-webp` |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
