@@ -19,6 +19,7 @@ import { applyEvent, type ChatEvent, type ChatItem } from './chat-events';
 import { bindChatTab, unbindChatTab } from './chat-tabs';
 import { withContext, type EditorContext } from './context';
 import { defaultPrompt } from './prompts';
+import { effortOfSend, effortValid } from './effort';
 
 /** A supported CLI as `assistant_clis` reports it (AC-03; ai-chat-clis
  *  AC-04: its version against the oldest Pincel works with). */
@@ -32,6 +33,10 @@ export interface CliStatus {
   minVersion: string;
   /** Installed with a known version of at least `minVersion`. */
   supported: boolean;
+  /** The installed version takes an effort (ai-chat-clis AC-10). */
+  effort: boolean;
+  /** The effort levels the field lists; empty for free text. */
+  effortLevels: string[];
 }
 
 /** A model of the model field's list (ai-chat-clis AC-05). */
@@ -75,10 +80,14 @@ export interface Chat {
    *  none (AC-25). */
   cli: string | null;
   model: string;
+  /** The effort this chat's next message goes with (ai-chat-clis AC-11 –
+   *  AC-13); `null` follows the effort last chosen for its CLI. */
+  effort: string | null;
 }
 
 const PREF_CLI = 'assistantCli';
 const PREF_MODELS = 'assistantModels';
+const PREF_EFFORTS = 'assistantEfforts';
 const PREF_PROMPT = 'assistantPrompt';
 
 /** How long closing the app waits for stopped answers to end (AC-22). */
@@ -93,6 +102,9 @@ class AssistantState {
   cli = $state<string | null>(null);
   /** The last model per CLI; empty is the CLI's default (AC-04). */
   models = $state<Record<string, string>>({});
+  /** The last effort per CLI; empty is the CLI's default (ai-chat-clis
+   *  AC-13). */
+  efforts = $state<Record<string, string>>({});
   /** The user's system prompt; `null` is the default (AC-18, AC-19). */
   prompt = $state<string | null>(null);
   /** The model list per CLI (ai-chat-clis AC-05); missing or empty: the
@@ -143,6 +155,7 @@ export function chatOf(key: number): Chat {
     imageAccess: false,
     cli: null,
     model: '',
+    effort: null,
   };
   bindChatTab(`chat-${key}-1`, key);
   return assistant.chats[key];
@@ -168,10 +181,38 @@ export function chatCli(chat: Chat): string | null {
   return usable.find((c) => c.id === assistant.cli)?.id ?? usable[0]?.id ?? null;
 }
 
-/** The send of `chat` would go to an installed CLI Pincel works with. */
+/** The send of `chat` would go to an installed CLI Pincel works with,
+ *  with an effort it may send (ai-chat-clis AC-15). */
 export function chatCanSend(chat: Chat): boolean {
   const cli = chatCli(chat);
-  return cli !== null && usableClis().some((c) => c.id === cli);
+  return cli !== null && usableClis().some((c) => c.id === cli) && effortValid(chatEffort(chat));
+}
+
+/** The status of `chat`'s CLI when its installed version takes an effort
+ *  (ai-chat-clis AC-10), else `null`: no effort field. */
+export function chatEffortCli(chat: Chat): CliStatus | null {
+  const cli = chatCli(chat);
+  return usableClis().find((c) => c.id === cli && c.effort) ?? null;
+}
+
+/** The effort a send in `chat` uses, as the field shows it; empty is the
+ *  CLI's default (ai-chat-clis AC-11, AC-13). */
+export function chatEffort(chat: Chat): string {
+  const cli = chatEffortCli(chat);
+  if (cli === null) return '';
+  return chat.effort ?? assistant.efforts[cli.id] ?? '';
+}
+
+/** Sets `chat`'s effort; it goes with the next message, the chat and its
+ *  session stay (AC-12). A sendable effort is also remembered for the
+ *  CLI's next new chats (AC-13). */
+export function setEffort(chat: Chat, effort: string): void {
+  const cli = chatEffortCli(chat);
+  if (cli === null) return;
+  chat.effort = effort;
+  if (!effortValid(effort)) return;
+  assistant.efforts = { ...assistant.efforts, [cli.id]: effort.trim() };
+  void savePref(PREF_EFFORTS, $state.snapshot(assistant.efforts));
 }
 
 /** `chat` runs a local model: the image switch is hidden and the agent
@@ -228,6 +269,8 @@ export async function refreshClis(): Promise<void> {
 export function choose(chat: Chat, cli: string, model: string): void {
   if (chat.answering) return;
   if (chat.items.length > 0) newChat(chat);
+  // Another CLI starts with its own remembered effort (AC-13).
+  if (cli !== chatCli(chat)) chat.effort = null;
   assistant.cli = cli;
   assistant.models = { ...assistant.models, [cli]: model.trim() };
   void savePref(PREF_CLI, cli);
@@ -261,6 +304,7 @@ export function newChat(chat: Chat): void {
   chat.imageAccess = false;
   chat.cli = null;
   chat.model = '';
+  chat.effort = null;
   bindChatTab(chat.id, chat.key);
 }
 
@@ -281,11 +325,15 @@ export async function send(tab: ShellTab, text: string): Promise<void> {
   if (text.trim() === '' || chat.answering || cli === null || assistantBusy()) return;
   if (!chatCanSend(chat)) return;
   const model = chatModel(chat);
+  const effort = chatEffort(chat);
   // A local model sees the image; the switch is hidden (ai-chat-clis AC-06).
   const imageAccess = chat.imageAccess || isLocalModel(cli, model);
   const prompt = withContext(editorContext(tab), text);
   chat.cli = cli;
   chat.model = model;
+  // The chat keeps the effort it sent with; a CLI's newer memory is for
+  // new chats only (AC-13).
+  if (chatEffortCli(chat) !== null) chat.effort = effort;
   chat.items = [...chat.items, { kind: 'user', text }];
   chat.answering = true;
   tab.doc.assistantBegin();
@@ -295,6 +343,7 @@ export async function send(tab: ShellTab, text: string): Promise<void> {
         chat: chat.id,
         cli,
         model: model === '' ? null : model,
+        effort: effortOfSend(effort),
         prompt,
         systemPrompt: systemPrompt(),
         session: chat.session,
@@ -390,15 +439,24 @@ async function savePref(key: string, value: unknown): Promise<void> {
 
 async function loadPrefs(): Promise<void> {
   try {
-    const [cli, models, prompt] = await Promise.all([
+    const [cli, models, efforts, prompt] = await Promise.all([
       getPref(PREF_CLI),
       getPref(PREF_MODELS),
+      getPref(PREF_EFFORTS),
       getPref(PREF_PROMPT),
     ]);
     if (typeof cli === 'string') assistant.cli = cli;
     if (isRecord(models)) {
       assistant.models = Object.fromEntries(
         Object.entries(models).filter((e): e is [string, string] => typeof e[1] === 'string'),
+      );
+    }
+    // An unreadable or unsendable stored effort counts as "Default" (AC-13).
+    if (isRecord(efforts)) {
+      assistant.efforts = Object.fromEntries(
+        Object.entries(efforts).filter(
+          (e): e is [string, string] => typeof e[1] === 'string' && effortValid(e[1]),
+        ),
       );
     }
     if (typeof prompt === 'string' && prompt.trim() !== '') assistant.prompt = prompt;

@@ -1514,6 +1514,8 @@ export const en = {
   'assistant.cli': 'Command-line tool',
   'assistant.model': 'Model',
   'assistant.modelDefault': 'Default',
+  'assistant.effort': 'Effort',
+  'assistant.effortInvalid': 'Use letters, digits, - or _',
   'assistant.imageAccess': 'Agent may see the image',
   'assistant.imageNotice': "The image is sent to the model's provider",
   'assistant.newChat': 'New chat',

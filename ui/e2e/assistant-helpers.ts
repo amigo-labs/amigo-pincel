@@ -21,13 +21,25 @@ const CLIS = {
 
 export type CliId = keyof typeof CLIS;
 
+/** The effort levels each CLI offers (ai-chat-clis AC-10): a list, `[]`
+ *  for free text, `null` for none. */
+export const EFFORTS: Record<CliId, readonly string[] | null> = {
+  claude: ['low', 'medium', 'high', 'xhigh', 'max'],
+  codex: ['minimal', 'low', 'medium', 'high', 'xhigh'],
+  gemini: null,
+  opencode: [],
+};
+
 /** One CLI's status: installed with `version` (its minimum by default,
- *  `null` for an unreadable one), or not installed. */
+ *  `null` for an unreadable one), or not installed. `effort` says whether
+ *  the installed version takes an effort (by default: when the CLI has
+ *  the option at all). */
 export function cliStatus(
   id: CliId,
   installed: boolean,
   version: string | null = CLIS[id][2],
   supported: boolean = installed && version !== null,
+  effort: boolean = EFFORTS[id] !== null,
 ): Record<string, unknown> {
   const [name, installUrl, minVersion] = CLIS[id];
   return {
@@ -38,6 +50,8 @@ export function cliStatus(
     version: installed ? version : null,
     minVersion,
     supported: installed && supported,
+    effort: installed && supported && effort,
+    effortLevels: EFFORTS[id] ?? [],
   };
 }
 

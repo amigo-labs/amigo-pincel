@@ -19,6 +19,8 @@
     assistant,
     chatCanSend,
     chatCli,
+    chatEffort,
+    chatEffortCli,
     chatIsLocal,
     chatModel,
     chatOf,
@@ -28,11 +30,13 @@
     refreshClis,
     refreshModels,
     send,
+    setEffort,
     setImageAccess,
     stopAnswer,
     type Chat,
     type CliStatus,
   } from './chat.svelte';
+  import { effortValid } from './effort';
   import { segments } from './context';
   import AssistantPromptDialog from './AssistantPromptDialog.svelte';
 
@@ -50,6 +54,10 @@
   const cli = $derived(chat ? chatCli(chat) : null);
   const canSend = $derived(chat ? chatCanSend(chat) : false);
   const local = $derived(chat ? chatIsLocal(chat) : false);
+  /** The chat's CLI when it takes an effort (ai-chat-clis AC-10). */
+  const effortCli = $derived(chat ? chatEffortCli(chat) : null);
+  const effort = $derived(chat ? chatEffort(chat) : '');
+  const effortBad = $derived(!effortValid(effort));
   /** The model list of the chat's CLI; empty: free text (ai-chat-clis
    *  AC-05). */
   const modelList = $derived(cli ? (assistant.modelLists[cli] ?? []) : []);
@@ -113,6 +121,12 @@
     const before = chatModel(chat);
     if (el.value.trim() === before) return;
     change(chatCli(chat) ?? '', el.value, () => (el.value = before));
+  }
+
+  /** A changed effort: no new chat, it goes with the next message
+   *  (ai-chat-clis AC-12). */
+  function onEffort(value: string): void {
+    if (chat) setEffort(chat, value);
   }
 
   function confirmChange(yes: boolean): void {
@@ -323,7 +337,7 @@
       </select>
       {#if modelList.length > 0}
         <select
-          class="am-input am-input--sm min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1 basis-32"
           aria-label={t('assistant.model')}
           value={chatModel(chat)}
           disabled={answering}
@@ -342,7 +356,7 @@
         </select>
       {:else}
         <input
-          class="am-input am-input--sm min-w-0 flex-1"
+          class="am-input am-input--sm min-w-0 flex-1 basis-32"
           aria-label={t('assistant.model')}
           placeholder={t('assistant.modelDefault')}
           value={chatModel(chat)}
@@ -352,7 +366,44 @@
           onchange={onModelChange}
         />
       {/if}
+      {#if effortCli}
+        <label class="flex items-center gap-1">
+          <span aria-hidden="true">{t('assistant.effort')}</span>
+          {#if effortCli.effortLevels.length > 0}
+            <select
+              class="am-input am-input--sm w-auto"
+              aria-label={t('assistant.effort')}
+              value={effort}
+              onchange={(e) => onEffort(e.currentTarget.value)}
+            >
+              <option value="">{t('assistant.modelDefault')}</option>
+              {#if effort !== '' && !effortCli.effortLevels.includes(effort)}
+                <option value={effort}>{effort}</option>
+              {/if}
+              {#each effortCli.effortLevels as level (level)}
+                <option value={level}>{level}</option>
+              {/each}
+            </select>
+          {:else}
+            <input
+              class="am-input am-input--sm w-24"
+              aria-label={t('assistant.effort')}
+              placeholder={t('assistant.modelDefault')}
+              value={effort}
+              spellcheck="false"
+              aria-invalid={effortBad ? 'true' : 'false'}
+              aria-describedby={effortBad ? 'assistant-effort-error' : undefined}
+              oninput={(e) => onEffort(e.currentTarget.value)}
+            />
+          {/if}
+        </label>
+      {/if}
     </div>
+    {#if effortBad}
+      <p id="assistant-effort-error" class="am-hint am-hint--error" role="status">
+        {t('assistant.effortInvalid')}
+      </p>
+    {/if}
     {#if !local}
       <label class="am-check flex items-center gap-2 text-xs text-pc-muted">
         <input

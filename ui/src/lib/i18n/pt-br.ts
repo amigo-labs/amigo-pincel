@@ -1530,6 +1530,8 @@ export const ptBr: Record<MessageKey, string> = {
   'assistant.cli': 'Ferramenta de linha de comando',
   'assistant.model': 'Modelo',
   'assistant.modelDefault': 'Padrão',
+  'assistant.effort': 'Esforço',
+  'assistant.effortInvalid': 'Use letras, dígitos, - ou _',
   'assistant.imageAccess': 'O agente pode ver a imagem',
   'assistant.imageNotice': 'A imagem é enviada ao provedor do modelo',
   'assistant.newChat': 'Novo chat',

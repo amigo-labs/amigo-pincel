@@ -1530,6 +1530,8 @@ export const de: Record<MessageKey, string> = {
   'assistant.cli': 'Kommandozeilenwerkzeug',
   'assistant.model': 'Modell',
   'assistant.modelDefault': 'Standard',
+  'assistant.effort': 'Aufwand',
+  'assistant.effortInvalid': 'Buchstaben, Ziffern, - oder _ verwenden',
   'assistant.imageAccess': 'Agent darf das Bild sehen',
   'assistant.imageNotice': 'Das Bild wird an den Anbieter des Modells gesendet',
   'assistant.newChat': 'Neuer Chat',

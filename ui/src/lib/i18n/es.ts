@@ -1537,6 +1537,8 @@ export const es: Record<MessageKey, string> = {
   'assistant.cli': 'Herramienta de línea de comandos',
   'assistant.model': 'Modelo',
   'assistant.modelDefault': 'Predeterminado',
+  'assistant.effort': 'Esfuerzo',
+  'assistant.effortInvalid': 'Usa letras, dígitos, - o _',
   'assistant.imageAccess': 'El agente puede ver la imagen',
   'assistant.imageNotice': 'La imagen se envía al proveedor del modelo',
   'assistant.newChat': 'Chat nuevo',
