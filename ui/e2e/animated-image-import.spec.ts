@@ -39,6 +39,25 @@ function dialog(page: Page): Locator {
   return page.getByRole('dialog', { name: TITLE });
 }
 
+/** Opening a file the header look finds animated loads the Pixel core
+ *  for the probe first (dev wasm, slow under load): like editor start-up
+ *  (`waitForEditor`) that wait gets its own budget. */
+const START_BUDGET = 60_000;
+
+async function withStartBudget(wait: () => Promise<void>): Promise<void> {
+  const info = test.info();
+  const base = info.timeout;
+  info.setTimeout(base + START_BUDGET);
+  const started = Date.now();
+  await wait();
+  info.setTimeout(base + (Date.now() - started));
+}
+
+/** Waits for the dialog to appear after an open. */
+async function waitForDialog(page: Page): Promise<void> {
+  await withStartBudget(() => expect(dialog(page)).toBeVisible({ timeout: START_BUDGET }));
+}
+
 function notice(page: Page): Locator {
   return page.getByRole('alert');
 }
@@ -82,6 +101,7 @@ test.describe('input fallback', () => {
   }) => {
     await gotoStart(page);
     await openFromStart(page, 'walk.gif', walkGif(3, 6, 4));
+    await waitForDialog(page);
     await expect(dialog(page)).toBeVisible();
     await expect(dialog(page)).toContainText('walk.gif has 3 frames (6 × 4 px)');
     // No document opens before the choice.
@@ -125,6 +145,7 @@ test.describe('input fallback', () => {
         50,
       ),
     );
+    await waitForDialog(page);
     await expect(dialog(page)).toContainText('blink.png has 2 frames (4 × 2 px)');
     await dialog(page).getByRole('button', { name: AS_ANIMATION }).click();
     await waitForEditor(page, 'pixel');
@@ -132,6 +153,7 @@ test.describe('input fallback', () => {
     await expect(timeline(page).getByLabel('Frame 2 duration (ms)')).toHaveValue('50');
 
     await choose(page, () => menu(page, 'File', 'Open…'), 'spin.webp', webp);
+    await waitForDialog(page);
     await expect(dialog(page)).toContainText('spin.webp has 4 frames (8 × 6 px)');
     await dialog(page).getByRole('button', { name: AS_ANIMATION }).click();
     await expect(tab(page, 'spin.aseprite')).toHaveAttribute('aria-selected', 'true');
@@ -163,6 +185,7 @@ test.describe('input fallback', () => {
   test('AC-06: "Open first frame" opens the file in Image mode as before', async ({ page }) => {
     await gotoStart(page);
     await openFromStart(page, 'walk.gif', walkGif(3, 6, 4));
+    await waitForDialog(page);
     await dialog(page).getByRole('button', { name: FIRST_FRAME }).click();
     await waitForEditor(page, 'image');
     await expect(sizeShown(page, 'image', 6, 4)).toBeVisible();
@@ -179,6 +202,7 @@ test.describe('input fallback', () => {
       [0, 0, 255, 255],
     ]);
     await choose(page, () => menu(page, 'File', 'Open…'), 'blink.png', bytes);
+    await waitForDialog(page);
     await dialog(page).getByRole('button', { name: FIRST_FRAME }).click();
     await expect(tab(page, 'blink.aseprite')).toHaveAttribute('aria-selected', 'true');
     await expect(sizeShown(page, 'pixel', 5, 3)).toBeVisible();
@@ -191,6 +215,7 @@ test.describe('input fallback', () => {
     await createDocument(page, 'image');
     const before = await tabNames(page);
     await choose(page, () => menu(page, 'File', 'Open…'), 'walk.gif', walkGif());
+    await waitForDialog(page);
     await expect(dialog(page)).toBeVisible();
     await dialog(page).getByRole('button', { name: 'Cancel' }).click();
     await expect(dialog(page)).toBeHidden();
@@ -198,6 +223,7 @@ test.describe('input fallback', () => {
     await expect(notice(page)).toHaveCount(0);
     // Escape cancels too.
     await choose(page, () => menu(page, 'File', 'Open…'), 'walk.gif', walkGif());
+    await waitForDialog(page);
     await expect(dialog(page)).toBeVisible();
     await page.keyboard.press('Escape');
     await expect(dialog(page)).toBeHidden();
@@ -213,6 +239,7 @@ test.describe('input fallback', () => {
       { width: 1, height: 1, fill: 1 },
     ]);
     await openFromStart(page, 'wide.gif', bytes);
+    await waitForDialog(page);
     await expect(dialog(page).getByRole('button', { name: AS_ANIMATION })).toBeDisabled();
     await expect(dialog(page).getByTestId('animation-limit')).toHaveText(
       'Too large to open as an animation: 5120 × 300 px, the limit is 4096 px per side',
@@ -229,6 +256,7 @@ test.describe('input fallback', () => {
     await gotoStart(page);
     const frames = Array.from({ length: 17 }, (_, i) => ({ width: 1, height: 1, fill: i % 3 }));
     await openFromStart(page, 'long.gif', animatedGif(2048, 2048, frames));
+    await waitForDialog(page);
     await expect(dialog(page).getByRole('button', { name: AS_ANIMATION })).toBeDisabled();
     await expect(dialog(page).getByTestId('animation-limit')).toHaveText(
       'Too large to open as an animation: 17 frames × 2048 × 2048 px = 71303168 pixels, the limit is 67108864 pixels',
@@ -245,6 +273,7 @@ test.describe('input fallback', () => {
       { width: 4, height: 4, fill: 1, broken: true },
     ]);
     await openFromStart(page, 'broken.gif', bytes);
+    await waitForDialog(page);
     await dialog(page).getByRole('button', { name: AS_ANIMATION }).click();
     await expect(notice(page)).toContainText(
       'broken.gif: the animation cannot be read completely.',
@@ -253,6 +282,7 @@ test.describe('input fallback', () => {
     await page.getByRole('button', { name: 'Dismiss' }).click();
 
     await openFromStart(page, 'broken.gif', bytes);
+    await waitForDialog(page);
     await dialog(page).getByRole('button', { name: FIRST_FRAME }).click();
     await waitForEditor(page, 'image');
     await expect(sizeShown(page, 'image', 4, 4)).toBeVisible();
@@ -267,7 +297,10 @@ test.describe('input fallback', () => {
       { width: 4, height: 4, fill: 1 },
     ]);
     await openFromStart(page, 'bad.gif', bytes);
-    await expect(notice(page)).toContainText('bad.gif could not be opened');
+    // The probe loads the Pixel core, then the Image editor fails to open it.
+    await withStartBudget(() =>
+      expect(notice(page)).toContainText('bad.gif could not be opened', { timeout: START_BUDGET }),
+    );
     await expect(dialog(page)).toHaveCount(0);
     await expect(tabs(page)).toHaveCount(0);
   });
@@ -279,6 +312,7 @@ test.describe('input fallback', () => {
     // A file dropped onto the start screen.
     await gotoStart(page);
     await dispatchDrop(page, [{ name: 'walk.gif', bytes: gif }]);
+    await waitForDialog(page);
     await expect(dialog(page)).toBeVisible();
     await expect(tabs(page)).toHaveCount(0);
     await dialog(page).getByRole('button', { name: 'Cancel' }).click();
@@ -287,6 +321,7 @@ test.describe('input fallback', () => {
       await createDocument(page, mode);
       // Pixel / Image File ▸ Open….
       await choose(page, () => menu(page, 'File', 'Open…'), 'walk.gif', gif);
+      await waitForDialog(page);
       await expect(dialog(page)).toBeVisible();
       await expect(tabs(page)).toHaveCount(1);
       await dialog(page).getByRole('button', { name: 'Cancel' }).click();
@@ -296,6 +331,7 @@ test.describe('input fallback', () => {
         .getByRole('dialog', { name: 'Dropped images' })
         .getByRole('button', { name: 'Open as document' })
         .click();
+      await waitForDialog(page);
       await expect(dialog(page)).toBeVisible();
       await expect(tabs(page)).toHaveCount(1);
       await dialog(page).getByRole('button', { name: 'Cancel' }).click();
@@ -306,6 +342,7 @@ test.describe('input fallback', () => {
   test('AC-15: the dialog is modal: drops and the editor menus are blocked', async ({ page }) => {
     await createDocument(page, 'pixel');
     await choose(page, () => menu(page, 'File', 'Open…'), 'walk.gif', walkGif());
+    await waitForDialog(page);
     await expect(dialog(page)).toBeVisible();
     // The menu bar sits under the dialog's backdrop.
     const fileMenu = page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true });
@@ -331,6 +368,7 @@ test('AC-01: Open Recent asks as well', async ({ page }) => {
   await gotoStart(page);
   await fakeFs(page, { pick: 'walk.gif' });
   await page.getByRole('button', { name: 'Open…' }).click();
+  await waitForDialog(page);
   await dialog(page).getByRole('button', { name: FIRST_FRAME }).click();
   await waitForEditor(page, 'image');
   // Close the tab (it is unchanged), then reopen it from the recents.
@@ -340,6 +378,7 @@ test('AC-01: Open Recent asks as well', async ({ page }) => {
     .getByRole('button', { name: /walk\.gif/ })
     .first()
     .click();
+  await waitForDialog(page);
   await expect(dialog(page)).toBeVisible();
   await expect(tabs(page)).toHaveCount(0);
   await dialog(page).getByRole('button', { name: AS_ANIMATION }).click();
@@ -363,6 +402,7 @@ test.describe('desktop', () => {
     await putFile(page, '/u/b.gif', walkGif(2));
     await putFile(page, '/u/c.png', PNG_1X1);
     await emit(page, 'open-file', '/u/a.gif');
+    await waitForDialog(page);
     await expect(dialog(page)).toContainText('a.gif has 3 frames');
     await emit(page, 'open-file', '/u/b.gif');
     await emit(page, 'open-file', '/u/c.png');
