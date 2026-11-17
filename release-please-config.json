@@ -8,7 +8,7 @@
   "draft": true,
   "force-tag-creation": true,
   "bootstrap-sha": "c31a957bbe46867681fab82e52a9157efaa62dfc",
-  "pull-request-title-pattern": "chore: release pincel ${version}",
+  "pull-request-title-pattern": "chore: release Pincel ${version}",
   "pull-request-header": "Automated release proposed by release-please. Merging this PR tags the version and builds and publishes the release (web bundle; Windows, macOS, Linux installers; signed updater artifacts; SHA256SUMS).",
   "changelog-sections": [
     {"type": "feat", "section": "Features"},
