@@ -33,6 +33,7 @@ mod layer_ops;
 mod rotate;
 mod selection_ops;
 mod shapes;
+mod sheet_import;
 mod stroke;
 mod text;
 mod timeline;
@@ -44,6 +45,7 @@ pub use clipboard::CopiedImage;
 pub use effects::effect_names;
 pub use events::Event;
 pub use layer_ops::blend_mode_names;
+pub use sheet_import::{SheetSummary, SpriteSheet};
 pub use text::register_font;
 pub use vectorize::{VectorizeResult, Vectorizer};
 
@@ -95,6 +97,24 @@ pub struct Document {
     stroke: Option<stroke::LiveStroke>,
     /// Counts this document in [`open_document_count`] while it lives.
     _live: LiveDocument,
+}
+
+impl Document {
+    /// A document over an already-built sprite and its cels, with empty
+    /// history, frame 0 current and no view state.
+    pub(crate) fn from_parts(sprite: Sprite, cels: CelMap) -> Self {
+        Self {
+            sprite,
+            cels,
+            bus: Bus::new(),
+            events: EventQueue::new(),
+            active_layer: None,
+            current_frame: FrameIndex::new(0),
+            onion_skin: None,
+            stroke: None,
+            _live: LiveDocument::new(),
+        }
+    }
 }
 
 thread_local! {
@@ -177,17 +197,7 @@ impl Document {
     pub fn open_aseprite(bytes: &[u8]) -> Result<Document, String> {
         let AsepriteReadOutput { sprite, cels } =
             read_aseprite(bytes).map_err(|e| format!("failed to open Aseprite: {e}"))?;
-        Ok(Self {
-            sprite,
-            cels,
-            bus: Bus::new(),
-            events: EventQueue::new(),
-            active_layer: None,
-            current_frame: FrameIndex::new(0),
-            onion_skin: None,
-            stroke: None,
-            _live: LiveDocument::new(),
-        })
+        Ok(Self::from_parts(sprite, cels))
     }
 
     /// Serialize this document to an Aseprite v1.3 byte vector.
