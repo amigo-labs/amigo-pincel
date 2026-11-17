@@ -94,6 +94,10 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 
 <!-- One bullet per open question; empty means: everything settled, spec-build may start -->
 
+- AC-09 is ambiguous, so no suggestion can satisfy it for every sheet (found by spec-check, 2026-11-17). Take 6 × 6 cells in a 3 × 2 grid where every sprite is the two pixels (1, 1) and (3, 1), e.g. two legs. The precondition holds for P = 6 (two-pixel sprites), and it holds just as well for P = 2 (single-pixel sprites at offset 1, with empty cells). The same happens with solid sprites when a multiple of P also fits, e.g. P = 12 with four used columns. So AC-09 demands two different suggestions for one sheet. The build suggests the smallest such period, here 2 instead of 6. Owner decision needed:
+  - (a) Narrow AC-09 so that each sprite covers a contiguous range of columns and rows: no fully transparent column or row inside a sprite. The current algorithm meets that, and its test generates exactly such sheets.
+  - (b) Define which period wins when several fit (e.g. the one whose cells hold the fewest separate column / row runs, or the largest gap between sprites), then add sprites with holes to the AC-09 test.
+
 ## Evidence
 
 | AC    | Test | Status | Commit |
