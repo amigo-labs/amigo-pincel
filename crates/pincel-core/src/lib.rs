@@ -16,6 +16,10 @@ pub mod selection;
 
 pub use clipboard::{CopiedPixels, CopyError, CopySource, copy_pixels};
 pub use codec::{
+    ANIMATION_MAX_PIXELS, ANIMATION_MAX_SIDE, AnimatedFormat, AnimationImportError, AnimationLimit,
+    AnimationProbe, ImportedAnimation, ImportedFrame, import_animation, probe_animation,
+};
+pub use codec::{
     AnimationFormat, AnimationInfo, AnimationOptions, AsepriteReadOutput, AtlasFrame,
     AtlasManifest, AtlasOptions, AtlasOutput, CodecError, ExportError, GplError, ImportError,
     ImportedImage, PaletteFormat, PaletteFormatError, animation_frames, animation_info,
