@@ -12,6 +12,8 @@ aseprite-loader = { workspace = true }
 aseprite-writer = { workspace = true }
 png = { workspace = true }
 gif = { workspace = true }
+# Animated WebP import (docs/specs/pincel.md §15, 2026-11-17).
+image-webp = { workspace = true }
 ab_glyph = { workspace = true }
 thiserror = { workspace = true }
 # Gradient parameter math shared with pincel-image-core (docs/specs/pincel.md

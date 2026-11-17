@@ -15,8 +15,12 @@
 //!
 //! [`animation`] adds the animated export (APNG, GIF) on the same path,
 //! sharing the nearest-neighbour upscale in `scale` (spec §7.5).
+//!
+//! [`animation_import`] reads animated GIF, APNG and WebP into full-canvas
+//! frames (docs/specs/animated-image-import.md).
 
 mod animation;
+mod animation_import;
 mod aseprite_read;
 mod aseprite_write;
 mod error;
@@ -30,6 +34,10 @@ mod sprite_sheet;
 pub use animation::{
     AnimationFormat, AnimationInfo, AnimationOptions, animation_frames, animation_info,
     export_animation,
+};
+pub use animation_import::{
+    ANIMATION_MAX_PIXELS, ANIMATION_MAX_SIDE, AnimatedFormat, AnimationImportError, AnimationLimit,
+    AnimationProbe, ImportedAnimation, ImportedFrame, import_animation, probe_animation,
 };
 pub use aseprite_read::{AsepriteReadOutput, read_aseprite};
 pub use aseprite_write::write_aseprite;

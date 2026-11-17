@@ -141,9 +141,10 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 
 Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each other.
 
+Every spec of this group is done.
+
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
-| L2 | [animated-image-import](animated-image-import.md) | shell | L | — | Animated GIF / WebP / APNG: ask on open, all frames into Pixel mode; new dependency `image-webp` |
 
 ## Done
 
@@ -151,6 +152,7 @@ Owner 2026-11-17. Both add Pixel-core decoders and a dialog; independent of each
 - [agent-painting](agent-painting.md)
 - [amigo-theme](amigo-theme.md)
 - [animated-export](animated-export.md)
+- [animated-image-import](animated-image-import.md)
 - [app-shell](app-shell.md)
 - [autosave-recovery](autosave-recovery.md)
 - [clone-stamp](clone-stamp.md)
