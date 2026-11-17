@@ -360,6 +360,66 @@ fn suggest_grid_finds_the_grid_of_aligned_sprites() {
 }
 
 #[test]
+fn suggest_grid_sprites_at_the_cells_far_edge_finds_the_grid() {
+    // AC-09 with each sprite touching the right and / or bottom edge of
+    // its cell, the clear gap on its left / top instead (the generated
+    // sheets above always keep the gap on the right / bottom).
+    for (p, q, ox, oy, far_x, far_y) in [
+        (8, 8, 0, 0, true, true),
+        (8, 6, 3, 2, true, true),
+        (5, 7, 4, 6, true, false),
+        (6, 5, 1, 0, false, true),
+        (3, 3, 2, 1, true, true),
+    ] {
+        // Sprite box: from column 1 / row 1 to the cell's far edge where
+        // `far_*`, else from 0 to one before it.
+        let span = |far: bool, n: u32| if far { 1..n } else { 0..n - 1 };
+        let (xs, ys) = (span(far_x, p), span(far_y, q));
+        let (cols, rows) = (3u32, 2u32);
+        let used = |c: u32, r: u32| (c, r) != (2, 1);
+        let (w, h) = (ox + cols * p, oy + rows * q);
+        let sheet = sheet_from(w, h, |x, y| {
+            if x < ox || y < oy {
+                return [0; 4];
+            }
+            let (c, r) = ((x - ox) / p, (y - oy) / q);
+            let (ix, iy) = ((x - ox) % p, (y - oy) % q);
+            if used(c, r) && xs.contains(&ix) && ys.contains(&iy) {
+                [(c * 40) as u8, (r * 40) as u8, 9, 255]
+            } else {
+                [0; 4]
+            }
+        });
+        let label = format!("P {p} Q {q} X {ox} Y {oy} far {far_x}/{far_y}");
+        let g = sheet
+            .suggest_grid(None)
+            .unwrap_or_else(|| panic!("{label}: no suggestion"));
+        assert_eq!(
+            (g.cell_width, g.cell_height, g.spacing_x, g.spacing_y),
+            (p, q, 0, 0),
+            "{label}"
+        );
+        let plan = sheet.plan(&g, None).expect("plan");
+        let area = xs.len() * ys.len();
+        let whole = sheet
+            .cut(&g, &plan, None)
+            .expect("cut")
+            .iter()
+            .filter(|f| {
+                f.data
+                    .as_chunks::<4>()
+                    .0
+                    .iter()
+                    .filter(|px| px[3] > 0)
+                    .count()
+                    == area
+            })
+            .count();
+        assert_eq!(whole, 5, "{label}: every sprite whole in one frame");
+    }
+}
+
+#[test]
 fn suggest_grid_works_after_the_background_step() {
     // AC-09 with an opaque background removed first (AC-07).
     let sheet = sheet_from(
