@@ -24,6 +24,7 @@ import { isIdbAvailable } from '../../lib/idb/db';
 import type { RecentFile } from '../../lib/idb/recent-files';
 import { forgetRecent, recentIsGone } from '../../lib/fs/recents';
 import { hasNativeMenu, isTauri } from '../../lib/platform';
+import { animationDocName } from '../../lib/shell/animation-open';
 import type { EditorMode, NewDocParams } from '../../lib/shell/types';
 import type {
   AnimationExportOptions,
@@ -141,21 +142,30 @@ async function activateSameFile(location: FileLocation): Promise<boolean> {
 // Open the already-read `opened` file as a new tab (a file the shell
 // routes here), or activate the tab that holds it. Resolves `null` once it
 // is open, else the error (also shown in the status bar); the active tab
-// stays.
-export async function openOpened(opened: OpenedFile): Promise<string | null> {
+// stays. With `animation`, an animated GIF, APNG or WebP opens with all
+// its frames as an unsaved sprite (docs/specs/animated-image-import.md
+// AC-03, AC-10).
+export async function openOpened(opened: OpenedFile, animation = false): Promise<string | null> {
   try {
-    if (await activateSameFile(opened)) return null;
+    if (!animation && (await activateSameFile(opened))) return null;
     // A PNG opens as a fresh single-layer sprite; its save target is a
     // sibling .aseprite (never the PNG itself), so the first Save asks.
-    const png = isPngBytes(opened.bytes);
-    const next = png ? Document.openPng(opened.bytes) : Document.openAseprite(opened.bytes);
+    const png = !animation && isPngBytes(opened.bytes);
+    const next = animation
+      ? Document.openAnimation(opened.bytes)
+      : png
+        ? Document.openPng(opened.bytes)
+        : Document.openAseprite(opened.bytes);
     const tab = openTab(
       next,
-      png
-        ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
-        : { name: opened.name, handle: opened.handle, path: opened.path },
+      animation
+        ? { name: animationDocName(opened.name), handle: null, path: null }
+        : png
+          ? { name: opened.name.replace(/\.png$/i, '') + '.aseprite', handle: null, path: null }
+          : { name: opened.name, handle: opened.handle, path: opened.path },
     );
-    tab.doc.lastSavedUndoDepth = next.undoDepth;
+    // An animation has never been saved as a sprite: it shows as unsaved.
+    tab.doc.lastSavedUndoDepth = animation ? -1 : next.undoDepth;
     tab.doc.origin = opened.origin ?? 'open';
     attachTab(tab);
     ed.status = t('px.opened', { name: opened.name, w: next.width, h: next.height });
@@ -414,7 +424,12 @@ export async function exportAnimation(options: AnimationExportOptions) {
   file.busy = true;
   try {
     const bytes = new Uint8Array(
-      ed.doc.exportAnimation(options.format, options.tag ?? undefined, options.scale, options.loops),
+      ed.doc.exportAnimation(
+        options.format,
+        options.tag ?? undefined,
+        options.scale,
+        options.loops,
+      ),
     );
     const base = file.saveTarget.name.replace(/\.(aseprite|ase)$/i, '');
     const saved =

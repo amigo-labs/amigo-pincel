@@ -39,6 +39,8 @@ pincel-trace = { version = "1.17.0", path = "crates/pincel-trace" } # x-release-
 png = "0.18"
 # Animated GIF export in pincel-core, encoder side only (docs/specs/pincel.md §15, 2026-10-29).
 gif = { version = "0.14", default-features = false, features = ["std"] }
+# Animated WebP decoding in pincel-core (docs/specs/pincel.md §15, 2026-11-17).
+image-webp = "0.2"
 ab_glyph = "0.2"
 thiserror = "2"
 wasm-bindgen = "0.2"

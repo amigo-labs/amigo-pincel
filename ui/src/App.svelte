@@ -38,6 +38,12 @@
   import StartScreen from './lib/shell/StartScreen.svelte';
   import ClipboardOffer from './lib/shell/ClipboardOffer.svelte';
   import DropDialog from './lib/shell/DropDialog.svelte';
+  import AnimationDialog from './lib/shell/AnimationDialog.svelte';
+  import {
+    probeAnimatedFile,
+    type AnimatedFile,
+    type AnimationChoice,
+  } from './lib/shell/animation-open';
   import TooltipLayer from './lib/shell/TooltipLayer.svelte';
   import { dropChoice, loadDropChoice, setDropChoice } from './lib/shell/drop-choice.svelte';
   import { loadTouchGestures } from './lib/shell/touch-gestures.svelte';
@@ -179,6 +185,14 @@
   } | null>(null);
   // Dropped images are being added as layers, one after another.
   let addingLayers = false;
+  // An animated file awaiting "Open as animation" / "Open first frame" /
+  // Cancel (animated-image-import AC-01). The open queue (`serial`) waits
+  // for the answer, so later files wait too (AC-15).
+  let animationDialog = $state<{
+    name: string;
+    info: AnimatedFile;
+    answer: (choice: AnimationChoice) => void;
+  } | null>(null);
 
   // Autosave recovery (document-tabs AC-15, autosave-recovery AC-04): the
   // snapshots of both modes, offered when the first editor starts; Recover
@@ -204,6 +218,7 @@
       unsaved.prompt !== null ||
       fileAssocOpen ||
       dropDialog !== null ||
+      animationDialog !== null ||
       helpDialogOpen(),
   );
 
@@ -283,7 +298,7 @@
   // unsaved-changes prompt is open (unsaved-changes-prompt AC-08).
   async function routeFile(
     opened: OpenedFile,
-    opts: { mode?: EditorMode; quiet?: boolean } = {},
+    opts: { mode?: EditorMode; quiet?: boolean; ask?: boolean } = {},
   ): Promise<boolean> {
     if (promptBusy()) {
       shellError = t('shell.ignoredPrompt', { name: opened.name });
@@ -299,10 +314,54 @@
       if (!opts.quiet) shellError = mode.error;
       return false;
     }
+    // An animated file asks first (animated-image-import AC-01); "Open
+    // first frame" goes on below as before (AC-06). A cancel opens
+    // nothing and reports nothing (AC-07).
+    if (opts.ask !== false) {
+      const choice = await askAnimation(opened);
+      if (choice === 'cancel') return true;
+      if (choice === 'animation') return openAnimation(opened);
+    }
     if (!(await psdReadable(opened, opts.quiet === true))) return false;
     const failed = await openIn(mode, (s) => s.open(opened));
     if (failed === null) return true;
     if (!opts.quiet) reportOpenFailure(mode, opened.name, failed);
+    return false;
+  }
+
+  // The dialog's answer for an animated file, or `'first'` for any other
+  // file (no dialog). The file's bytes were read before; the answer opens
+  // them, whatever happens to the file meanwhile (AC-14).
+  async function askAnimation(opened: OpenedFile): Promise<AnimationChoice> {
+    let info: AnimatedFile | null;
+    try {
+      info = await probeAnimatedFile(opened);
+    } catch (err) {
+      // The Pixel core could not be loaded: open as before.
+      console.error('animation probe failed', err);
+      info = null;
+    }
+    if (info === null) return 'first';
+    const found = info;
+    return new Promise<AnimationChoice>((resolve) => {
+      animationDialog = {
+        name: opened.name,
+        info: found,
+        answer: (choice) => {
+          animationDialog = null;
+          resolve(choice);
+        },
+      };
+    });
+  }
+
+  // "Open as animation": a Pixel tab with every frame (AC-03); a file that
+  // cannot be read completely opens nothing and says so (AC-09).
+  async function openAnimation(opened: OpenedFile): Promise<boolean> {
+    const failed = await openIn('pixel', (s) => s.open(opened, { animation: true }));
+    if (failed === null) return true;
+    console.error('animation open failed', failed);
+    shellError = t('animOpen.incomplete', { name: opened.name });
     return false;
   }
 
@@ -440,6 +499,7 @@
       offer.opening ||
       clipOpening ||
       newDialog !== null ||
+      animationDialog !== null ||
       helpDialogOpen()
     ) {
       return false;
@@ -782,7 +842,9 @@
       ? startLiveHost({
           openFile: (opened, mode) =>
             new Promise<boolean>((resolve) => {
-              void serial(async () => resolve(await routeFile(opened, mode ? { mode } : {})));
+              void serial(async () =>
+                resolve(await routeFile(opened, mode ? { mode, ask: false } : { ask: false })),
+              );
             }),
         })
       : null;
@@ -825,10 +887,10 @@
         });
       wireNativeMenu({
         'menu:new': () => {
-          if (!assistantBusy()) requestNew(activeMode ?? 'pixel');
+          if (!assistantBusy() && animationDialog === null) requestNew(activeMode ?? 'pixel');
         },
         'menu:open': () => {
-          if (!assistantBusy()) void openFromPicker();
+          if (!assistantBusy() && animationDialog === null) void openFromPicker();
         },
         'menu:quit': () => requestClose(),
         'menu:about': () => {
@@ -852,7 +914,7 @@
         // While an Assistant answer runs only its zoom and view items
         // (ai-chat-panel AC-10).
         editor: () => {
-          if (promptBusy() || recoveryOpen) return null;
+          if (promptBusy() || recoveryOpen || animationDialog !== null) return null;
           const handlers = menuHandlers(activeMode);
           return assistantBusy() ? viewItems(handlers) : handlers;
         },
@@ -986,6 +1048,11 @@
     onChoose={chooseDrop}
     onCancel={() => (dropDialog = null)}
   />
+{/if}
+
+{#if animationDialog}
+  {@const pending = animationDialog}
+  <AnimationDialog name={pending.name} info={pending.info} onChoose={pending.answer} />
 {/if}
 
 {#if agentAccess.dialogOpen}

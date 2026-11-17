@@ -3462,6 +3462,7 @@ dependencies = [
  "criterion",
  "flate2",
  "gif",
+ "image-webp",
  "pincel-effects",
  "pincel-palette",
  "png",
