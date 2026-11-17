@@ -53,6 +53,8 @@ export interface ImageMenuContext {
   save(asNew: boolean): void;
   exportAs(format: 'png' | 'jpeg' | 'webp'): void;
   exportSvg(): void;
+  /** File ▸ Import Sprite Sheet… (sprite-sheet-import). */
+  importSheet(): void;
   print(): void;
   undo(): void;
   redo(): void;
@@ -122,6 +124,7 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
         { label: t('menu.save'), shortcut: hint('save'), disabled: noDoc, run: () => c.save(false) },
         { label: t('menu.saveAs'), shortcut: hint('saveAs'), disabled: noDoc, run: () => c.save(true) },
         { kind: 'separator' },
+        { label: t('menu.importSheet'), run: c.importSheet },
         {
           kind: 'submenu',
           label: t('menu.export'),

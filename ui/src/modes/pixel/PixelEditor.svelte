@@ -221,6 +221,7 @@
     registerSession,
     onEmpty,
     onNotice,
+    onImportSheet,
     registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
@@ -405,6 +406,7 @@
       close: () => requestCloseTab(),
       saving: runningSave() !== null,
       importPng: () => void importPngLayer(),
+      importSheet: () => onImportSheet(),
       exportPng: openPngDialog,
       exportSheet: openSheetDialog,
       exportAnimation: openAnimationDialog,

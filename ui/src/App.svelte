@@ -98,6 +98,8 @@
     type OpenedFile,
   } from './lib/fs';
   import type { AutosaveSnapshotMeta } from './lib/idb/autosave';
+  import type { SpriteSheet } from './lib/core';
+  import type { SheetImportValues } from './lib/sheet-import/open';
   import { isIdbAvailable } from './lib/idb/db';
   import { RecoveryOffer } from './lib/idb/autosave-session.svelte';
   import { getPref, setPref } from './lib/idb/prefs';
@@ -369,6 +371,44 @@
       picking = false;
     }
     if (opened) openFile(opened);
+  }
+
+  // File ▸ Import Sprite Sheet… of either editor (sprite-sheet-import): the
+  // picked PNG opens in the import dialog (loaded on demand with the Pixel
+  // core); Import opens the cut document as a new Pixel-mode tab. A cancel
+  // anywhere, or a file that cannot be read, leaves the tabs alone.
+  let sheetImport = $state<{
+    flow: typeof import('./lib/sheet-import/open');
+    sheet: SpriteSheet;
+    fileName: string;
+  } | null>(null);
+
+  async function importSheet(): Promise<void> {
+    if (picking || promptBusy() || sheetImport !== null) return;
+    picking = true;
+    let opened: OpenedFile | null = null;
+    try {
+      opened = await pickAndOpen('png');
+    } catch (err) {
+      shellError = t('shell.openFailed', { error: errText(err) });
+    } finally {
+      picking = false;
+    }
+    if (!opened) return;
+    const flow = await import('./lib/sheet-import/open');
+    const sheet = await flow.readSheet(opened);
+    if (typeof sheet === 'string') shellError = sheet;
+    else sheetImport = { flow, sheet, fileName: opened.name };
+  }
+
+  function closeSheetImport(values: SheetImportValues | null): void {
+    const open = sheetImport;
+    if (!open) return;
+    sheetImport = null;
+    const file = values ? open.flow.buildSheetFile(open.sheet, open.fileName, values) : null;
+    open.flow.releaseSheet(open.sheet);
+    if (typeof file === 'string') shellError = file;
+    else if (file) openFile(file, 'pixel');
   }
 
   async function readPath(path: string): Promise<Uint8Array> {
@@ -956,6 +996,7 @@
           registerSession={(s) => registerSession(mode, s)}
           onEmpty={() => releaseIfEmpty(mode)}
           onNotice={(message) => (shellError = message)}
+          onImportSheet={() => void importSheet()}
           registerDropTarget={(d) => (dropTargets[mode] = d)}
           registerMenuHandlers={(h) => setMenuHandlers(mode, h)}
         />
@@ -999,6 +1040,15 @@
       onCancel={() => (newDialog = null)}
     />
   {/key}
+{/if}
+
+{#if sheetImport}
+  {@const SheetImportDialog = sheetImport.flow.SheetImportDialog}
+  <SheetImportDialog
+    sheet={sheetImport.sheet}
+    onImport={(values) => closeSheetImport(values)}
+    onCancel={() => closeSheetImport(null)}
+  />
 {/if}
 
 {#if recoveryOpen}

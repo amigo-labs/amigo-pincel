@@ -202,6 +202,7 @@
     reportError,
     registerSession,
     onEmpty,
+    onImportSheet,
     registerDropTarget,
     registerMenuHandlers,
   }: EditorProps = $props();
@@ -1376,6 +1377,7 @@
       save: (asNew) => void save(asNew),
       exportAs: (format) => runExport(format),
       exportSvg: openSvgExport,
+      importSheet: onImportSheet,
       print: () => void openPrint(),
       undo,
       redo,

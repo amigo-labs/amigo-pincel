@@ -98,26 +98,33 @@ Owner decisions of 2026-11-17: new document (not appended to the open one); grid
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-01 | `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode as a new tagged document`, `imports from Image mode, keeps a name already open and drops the tags when asked` | built |  |
+| AC-02 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `grid_columns_and_rows_count_only_complete_cells`, `cut_offset_and_spacing_grid_frames_hold_their_cell_pixels` | built |  |
+| AC-03 | `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (grid overlay `data-grid` / `data-cells`, screenshot changes, summary); `crates/pincel-wasm/src/sheet_import.rs`: `summary_counts_frames_and_tags_or_names_the_error` | built |  |
+| AC-04 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `cut_offset_and_spacing_grid_frames_hold_their_cell_pixels`; `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` | built |  |
+| AC-05 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `plan_skips_trailing_empty_cells_and_empty_rows_keeps_inner_gaps` | built |  |
+| AC-06 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `row_tags_name_rows_by_grid_index_and_span_their_frames`; `crates/pincel-wasm/src/sheet_import.rs`: `build_names_one_forward_tag_per_row_or_none`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …`, `imports from Image mode …` | built |  |
+| AC-07 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `background_exact_match_turns_transparent_before_cutting`; `ui/e2e/sprite-sheet-import.spec.ts`: `the background option starts from the top-left pixel and changes the cut` | built |  |
+| AC-08 | `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels`; `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (frame duration fields); AC-12 test for the range | built |  |
+| AC-09 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `suggest_grid_finds_the_grid_of_aligned_sprites` (300 generated sheets), `suggest_grid_works_after_the_background_step` | built |  |
+| AC-10 | `ui/e2e/sprite-sheet-import.spec.ts`: `without a suggestion the dialog starts from the last confirmed import` | built |  |
+| AC-11 | `ui/e2e/sprite-sheet-import.spec.ts`: `without a suggestion the dialog starts from the last confirmed import`; `crates/pincel-wasm/src/sheet_import.rs`: `suggest_reports_the_grid_for_the_background_setting` | built |  |
+| AC-12 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `plan_reports_each_grid_error`; `ui/e2e/sprite-sheet-import.spec.ts`: `Import is disabled with the reason for an unusable grid` | built |  |
+| AC-13 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `decode_rejects_garbage_oversized_sheets_and_reports_out_of_memory`; `crates/pincel-wasm/src/sheet_import.rs`: `decode_maps_errors_to_codes_and_preview_resamples`; `ui/e2e/sprite-sheet-import.spec.ts`: `an unreadable or oversized file gives a notice and changes nothing` | built |  |
+| AC-14 | `ui/e2e/sprite-sheet-import.spec.ts`: `cancelling the picker or the dialog creates nothing` | built |  |
+| AC-15 | `crates/pincel-wasm/src/sheet_import.rs`: `build_creates_one_frame_per_used_cell_with_its_pixels` (RGBA, DB32 palette, Layer 1); `ui/e2e/sprite-sheet-import.spec.ts`: `imports a sheet from Pixel mode …` (name, Save asks), `imports from Image mode …` (name already open) | built |  |
+| AC-16 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `exported_sheet_reimports_to_the_same_frames` | built |  |
+| AC-17 | `node scripts/ui-lint.mjs` (en/de key parity) and `pnpm check` (de, es, fr, ja, pt-br typed as `Record<MessageKey, string>`) | built |  |
+| AC-18 | `crates/pincel-core/src/codec/sprite_sheet/tests.rs`: `suggest_grid_gives_none_for_blank_single_and_gapless_sheets` | built |  |
 
 ## Decisions
 
 - 2026-11-17: New document, grid with suggestion, rows as tags (default on), empty cells at row ends skipped, background-to-transparent and one frame duration as dialog options; no JSON sidecar (owner).
 - 2026-11-17: Clarification pass: empty cells inside a row stay as empty frames (pauses), only trailing empty cells and empty rows are dropped; the background option starts on when the top-left pixel is opaque, so the suggestion works on sheets with a solid background.
+- 2026-11-17 (spec-build): The import dialog lives in the shell (`ui/src/lib/sheet-import/`, loaded on demand by `App.svelte`) and both editors reach it through a new `EditorProps.onImportSheet`; the cut document crosses to the Pixel editor as an unsaved `.aseprite` file through the normal open path, so no new editor-session API is needed.
+- 2026-11-17 (spec-build): "Unsaved" (AC-15) means no save location, as for a PNG opened in Pixel mode: the tab has no unsaved-changes marker until edited, and its first Save asks where to save.
+- 2026-11-17 (spec-build): Tags use `Tag::new`'s default colour, as the spec's Assumptions say, not the timeline's colour cycle.
+- 2026-11-17 (spec-build): An invalid hex in the background colour field disables Import with its own message, so the colour used is always the one shown.
+- 2026-11-17 (spec-build): The grid suggestion takes, per axis, the smallest distance between the starts of consecutive runs of occupied columns / rows as the cell size and the smallest offset that puts every run inside one complete cell; an axis with a single run (a one-row strip) takes the whole sheet as its cell. AC-09 is covered by 300 generated sheets in a deterministic test instead of `proptest`, which is not a dependency of `pincel-core`.
+- 2026-11-17 (spec-build): Memory exhaustion (AC-13) is caught by fallible allocation in the PNG decoder and the frame cut (`try_reserve`, tested with an impossible size) and by catching a wasm trap in the UI; e2e cannot exhaust memory.
+- 2026-11-17 (spec-build): The grid crosses the wasm boundary as one six-value `Uint32Array`, so the exported functions stay below clippy's argument limit without a suppression.
