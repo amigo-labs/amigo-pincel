@@ -106,6 +106,17 @@
   body {
     @apply bg-pc-bg text-pc-text antialiased;
     font-family: var(--am-font-sans);
+    /* An app, not a page: labels, menus and panels are not selectable
+       (Ctrl+A or a stray drag would highlight the whole UI). Text fields
+       stay selectable, and text meant to be copied opts back in with the
+       `select-text` utility (Assistant transcript, generation info). */
+    user-select: none;
+  }
+
+  input,
+  textarea,
+  [contenteditable]:not([contenteditable='false']) {
+    user-select: text;
   }
 }
 
