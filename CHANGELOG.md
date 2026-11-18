@@ -1,5 +1,15 @@
 # Changelog
 
+## [1.19.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.18.0...v1.19.0) (2026-11-18)
+
+
+### Features
+
+* **pincel-image-core:** split the composite at a moved layer (AC-01, AC-03) ([187e6d9](https://github.com/amigo-labs/amigo-pincel/commit/187e6d9ed1883d18ff8c65f0b63b48bf0f6e0c0e))
+* **pincel-image-wasm:** hand over the Move Layer drag preview (AC-01) ([bf01347](https://github.com/amigo-labs/amigo-pincel/commit/bf01347d346ff7ade5c4d376537c53ad4a7466d1))
+* **ui:** Image Move Layer live drag preview ([91cb8f0](https://github.com/amigo-labs/amigo-pincel/commit/91cb8f0049d46d7f640b01afadf4216fd2bd4865))
+* **ui:** show the layer live while dragging with Move Layer (AC-01 – AC-10) ([f1d075b](https://github.com/amigo-labs/amigo-pincel/commit/f1d075b29d0504c4f44115bae9531dfa5fe39a1f))
+
 ## [1.18.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.17.0...v1.18.0) (2026-11-17)
 
 
