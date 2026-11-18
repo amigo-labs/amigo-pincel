@@ -418,6 +418,11 @@ function shiftMatters(c: Chord): boolean {
 
 function chordMatches(e: KeyboardEvent, c: Chord): boolean {
   if (c.menu === true && hasNativeMenu()) return false;
+  return keyMatches(e, c);
+}
+
+/** `e` is the key of chord `c`, whoever owns it. */
+function keyMatches(e: KeyboardEvent, c: Chord): boolean {
   const mod = e.ctrlKey || e.metaKey;
   if ((c.mod === true || c.ctrl === true) !== mod || Boolean(c.alt) !== e.altKey) return false;
   if (c.ctrl === true && (!e.ctrlKey || e.metaKey)) return false;
@@ -541,14 +546,68 @@ export function menuAccelerator(c: Chord): string | null {
 }
 
 /**
- * True when the native menu (where `hasNativeMenu()` holds) fires `action`
- * itself, so the editors must leave its key alone. A rebound chord the
- * menu can't express as an accelerator stays with the editors instead.
+ * The actions whose chords the native menu bound before it mirrored the
+ * editor menus: `NATIVE_MENU_ACTIONS` plus New and Close. While a text
+ * field has focus the mirrored menu binds only these
+ * (docs/specs/macos-native-menu.md AC-13).
  */
-export function nativeMenuOwns(action: ShortcutAction): boolean {
-  if (!NATIVE_MENU_ACTIONS.has(action)) return false;
+export const FORMERLY_NATIVE_ACTIONS: ReadonlySet<ShortcutAction> = new Set<ShortcutAction>([
+  ...NATIVE_MENU_ACTIONS,
+  'newDocument',
+  'closeTab',
+]);
+
+/**
+ * `chord` as the accelerator of a mirrored native menu entry
+ * (`CmdOrCtrl+Shift+S`, `Ctrl+Alt+1`), or `null` where the native menu must
+ * not take the key: a chord without ⌘, ⌃ or ⌥ (a native key equivalent
+ * would take it from text fields), or one bound to a physical punctuation
+ * key, which a key equivalent can't name (macos-native-menu AC-10).
+ */
+export function nativeChord(c: Chord): string | null {
+  if (c.mod !== true && c.ctrl !== true && c.alt !== true) return null;
+  if (c.code !== undefined && !/^(Key[A-Z]|Digit[0-9])$/.test(c.code)) return null;
+  const plain = menuAccelerator({ key: c.key });
+  if (plain === null) return null;
+  const mods = [c.mod ? 'CmdOrCtrl' : '', c.ctrl ? 'Ctrl' : '', c.alt ? 'Alt' : '', c.shift ? 'Shift' : ''];
+  return [...mods.filter(Boolean), plain].join('+');
+}
+
+/** The actions the start screen's fixed native menu binds
+ *  (src-tauri/src/native_menu.rs `start_menus`, macos-native-menu AC-09). */
+const START_MENU_ACTIONS: ReadonlySet<ShortcutAction> = new Set<ShortcutAction>([
+  'newDocument',
+  'open',
+  'shortcuts',
+  'settings',
+]);
+
+/** The actions the installed native menu binds. */
+let nativeBound: ReadonlySet<ShortcutAction> = START_MENU_ACTIONS;
+
+/** Records which actions the installed native menu binds (macos-native-menu
+ *  AC-10, AC-14): called once the menu is in place, `null` for the start
+ *  screen's fixed menu. */
+export function setNativeBound(actions: ReadonlySet<ShortcutAction> | null): void {
+  nativeBound = actions ?? START_MENU_ACTIONS;
+}
+
+/**
+ * True when the native menu (where `hasNativeMenu()` holds) fires `action`
+ * itself, so the editors must leave its key alone: the installed menu binds
+ * it — the mirrored editor menus, or the start screen's fixed menu until
+ * one is in place. A rebound chord the menu can't express as an
+ * accelerator stays with the editors instead. With the key event `e`, only
+ * the chord the menu binds (the action's first) counts: a second chord,
+ * like ⌘Y for Redo or ⌥W for Close, stays with the editors
+ * (macos-native-menu AC-10).
+ */
+export function nativeMenuOwns(action: ShortcutAction, e?: KeyboardEvent): boolean {
+  if (!nativeBound.has(action)) return false;
   const first = effectiveChords(action)[0];
-  return first === undefined || menuAccelerator(first) !== null;
+  if (first === undefined) return true;
+  if (menuAccelerator(first) === null) return false;
+  return e === undefined || keyMatches(e, first);
 }
 
 /**

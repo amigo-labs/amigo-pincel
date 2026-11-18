@@ -894,9 +894,9 @@ test.describe('desktop on macOS', () => {
       .getByRole('button', { name: 'Create' })
       .click();
     await waitForEditor(page, 'pixel');
-    const menubar = page.getByRole('menubar');
-    await expect(menubar.getByRole('menuitem', { name: 'File', exact: true })).toBeVisible();
-    await expect(menubar.getByRole('menuitem', { name: 'Help', exact: true })).toHaveCount(0);
+    // The native bar has every menu, Help included; the window draws none
+    // (docs/specs/macos-native-menu.md AC-01, AC-08).
+    await expect(page.getByRole('menubar')).toHaveCount(0);
   });
 
   test('a browser on macOS keeps the in-app Help menu (AC-20)', async ({ page }) => {

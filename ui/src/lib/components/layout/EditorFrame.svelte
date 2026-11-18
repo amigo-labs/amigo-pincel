@@ -13,9 +13,15 @@
   // While an Assistant answer runs, the tool rail, options bar, tab bar,
   // quick actions and every menu but View are inert (ai-chat-panel AC-10);
   // the canvas still zooms and pans, the panels stay usable.
+  // In the macOS desktop app the frame draws no menus: the native menu bar
+  // mirrors them while this editor's tab is active (macos-native-menu).
   import { onMount, tick, untrack, type Snippet } from 'svelte';
   import AgentIndicator from '../../agent/AgentIndicator.svelte';
   import { assistantBusy } from '../../assistant/chat.svelte';
+  import { buildMirror } from '../../menu/native-mirror';
+  import { showEditorMenus } from '../../menu/native-sync';
+  import { textFocus, trackTextFocus } from '../../menu/text-focus.svelte';
+  import { hasNativeMenu } from '../../platform';
   import Icon from '../icons/Icon.svelte';
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
@@ -68,6 +74,9 @@
     effectPanel?: { title: string; body: Snippet } | null;
     /** The open documents, drawn as a tab bar above the canvas. */
     tabs?: TabBarProps;
+    /** This editor's tab is the shown one; only then does it feed the
+     *  native menu bar (macos-native-menu AC-05). */
+    active?: boolean;
   }
   const {
     mode,
@@ -83,6 +92,7 @@
     headerHint,
     effectPanel = null,
     tabs,
+    active = true,
   }: Props = $props();
 
   let layout = $state<FrameLayout>({ collapsed: {}, sidebar: true });
@@ -100,6 +110,22 @@
   const ASSISTANT_PANEL = 'assistant';
   /** Menus that stay usable while an answer runs (AC-10). */
   const liveMenus = $derived(answering ? ['view'] : null);
+
+  /** The OS draws the menu bar: the frame draws none (macos-native-menu AC-01). */
+  const nativeMenu = hasNativeMenu();
+
+  // Mirror the menus into the native bar while this tab shows, with the
+  // inert menus dimmed (AC-03 – AC-06) and the text-editing entries
+  // following the focus (AC-12, AC-13).
+  $effect(() => {
+    if (!nativeMenu || !active) return;
+    trackTextFocus();
+    // Help stays usable, as the native Help did before (AC-06).
+    const isLive = (m: MenuDef) =>
+      m.id === 'help' ||
+      ((!effectOpen || m.liveWithEffect === true) && (liveMenus === null || liveMenus.includes(m.id)));
+    showEditorMenus(buildMirror(menus, { live: isLive, textFocus: textFocus.on }));
+  });
 
   // The effect panel's place (AC-18 – AC-20): the stored offset from the
   // canvas area's top-right corner, clamped so the panel stays wholly
@@ -291,7 +317,8 @@
     class="relative flex h-11 shrink-0 items-center gap-1 border-b border-pc-border bg-pc-panel pr-2 pl-1 sm:pl-3"
     data-dimmed={dim}
   >
-    {#if size === 'narrow'}
+    <!-- In the macOS desktop app the native menu bar has the menus (AC-01). -->
+    {#if size === 'narrow' && !nativeMenu}
       <MenuBar {menus} compact restricted={effectOpen} only={liveMenus} />
     {:else if size === 'wide'}
       <span class="mr-1 text-sm font-semibold tracking-wide" inert={effectOpen}>Pincel</span>
@@ -302,7 +329,7 @@
     >
       {t(`mode.${mode}`)}
     </span>
-    {#if size !== 'narrow'}
+    {#if size !== 'narrow' && !nativeMenu}
       <MenuBar {menus} restricted={effectOpen} only={liveMenus} />
     {/if}
     <span class="flex min-w-0 flex-1 justify-center overflow-hidden" inert={effectOpen}>

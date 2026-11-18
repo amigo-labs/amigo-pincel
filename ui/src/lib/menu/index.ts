@@ -15,6 +15,9 @@
 // list is pushed back to Rust so it can rebuild the `Open Recent`
 // submenu. Only entries with a `path` make sense as native-menu
 // targets (FSA handles can't be re-opened by the OS).
+//
+// While an editor tab shows on macOS, the native bar mirrors the editor's
+// own menus instead (`native-sync.ts`); their entries carry `ed:` ids.
 
 import { invoke } from '@tauri-apps/api/core';
 import { listen, type UnlistenFn } from '@tauri-apps/api/event';
@@ -50,13 +53,15 @@ export interface ShellMenuHandlers {
   /** Help ▸ Tour: the tour for the start screen or the mounted editor
    *  (first-run-tutorial AC-12). */
   'menu:tour': MenuHandler;
-  /** Edit ▸ Settings… (⌘,): the shell's Settings dialog (settings-dialog AC-08). */
+  /** App menu ▸ Settings… (⌘,): the shell's Settings dialog (settings-dialog AC-08). */
   'menu:settings': MenuHandler;
-  /** macOS Help ▸ About Pincel: the in-app About dialog (desktop-app AC-17). */
+  /** macOS App menu ▸ About Pincel: the in-app About dialog (desktop-app AC-17). */
   'menu:about': MenuHandler;
-  /** macOS Help ▸ Check for Updates…: reports in the About dialog (AC-16). */
+  /** macOS App menu ▸ Check for Updates…: reports in the About dialog (AC-16). */
   'menu:check-updates': MenuHandler;
   recent: RecentHandler;
+  /** A mirrored editor entry (`ed:…`, docs/specs/macos-native-menu.md). */
+  editorEntry: (id: string) => void;
   /** Current editor handlers (`null` while the start screen shows). */
   editor: () => EditorMenuHandlers | null;
 }
@@ -64,6 +69,10 @@ export interface ShellMenuHandlers {
 export async function wireNativeMenu(handlers: ShellMenuHandlers): Promise<UnlistenFn> {
   return listen<string>('menu', (event) => {
     const payload = event.payload;
+    if (payload.startsWith('ed:')) {
+      handlers.editorEntry(payload);
+      return;
+    }
     if (payload.startsWith('recent:')) {
       const id = payload.slice('recent:'.length);
       if (id === '_empty') return;

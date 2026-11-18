@@ -47,7 +47,7 @@
     type ShortcutAction,
   } from '../../lib/shell/shortcuts';
   import { toggleUi } from '../../lib/components/layout/chrome.svelte';
-  import { pixelMenus, probeItem } from './menus';
+  import { pixelMenus } from './menus';
   import TextDialog from './components/TextDialog.svelte';
   import BrushOptions from './components/BrushOptions.svelte';
   import {
@@ -357,8 +357,6 @@
   function openCommandPalette(): void {
     openPalette({
       menus: () => menus,
-      // Where the OS draws Help, the probe has no menu entry (menu-structure AC-06).
-      extras: () => (nativeMenuHost ? [probeItem({ probeOn: probe.on, toggleProbe })] : []),
       groups: () => railGroups,
       selectTool: (id) => {
         if (groupOf(railGroups, id as typeof toolState.tool))
@@ -534,7 +532,7 @@
     // them here too would double-fire. Everywhere else they are ours.
     const action = actionFor(e);
     if (action !== null) {
-      if (nativeMenuHost && nativeMenuOwns(action)) return;
+      if (nativeMenuHost && nativeMenuOwns(action, e)) return;
       // Tab toggles the UI only on the canvas stage; elsewhere it moves focus.
       if (action === 'toggleUi' && !isStageTarget(e.target)) return;
       if (runShortcut(action)) e.preventDefault();
@@ -1276,6 +1274,7 @@
 <EditorFrame
   mode="pixel"
   {menus}
+  {active}
   title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
   dirty={isDirty}
   effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}

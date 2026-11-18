@@ -4,6 +4,7 @@ import { expect, test, type Locator, type Page } from '@playwright/test';
 import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
 import {
   closeWindow,
+  commandCalls,
   destroyed,
   diskPaths,
   emit,
@@ -86,7 +87,10 @@ async function paint(page: Page, mode: 'pixel' | 'image'): Promise<void> {
 /** File ▸ New… in the current mode, or in `mode`: a new tab. */
 async function newTab(page: Page, mode?: 'pixel' | 'image'): Promise<void> {
   const before = await tabs(page).count();
-  await menu(page, 'File', 'New…');
+  // On macOS the window draws no menus: the native File ▸ New does it
+  // (docs/specs/macos-native-menu.md AC-01).
+  if ((await page.getByRole('menubar').count()) === 0) await emit(page, 'menu', 'menu:new');
+  else await menu(page, 'File', 'New…');
   const dialog = page.getByRole('dialog', { name: 'New document' });
   if (mode) {
     await dialog.getByRole('radio', { name: mode === 'image' ? /^Image/ : /^Pixel sprite/ }).click();
@@ -445,11 +449,17 @@ test.describe('desktop app', () => {
         'title',
         'Close (⌘W)',
       );
-      await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
-      await expect(
-        page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: /^Close/ }),
-      ).toContainText('⌘W');
-      await page.keyboard.press('Escape');
+      // The native File ▸ Close carries ⌘W (docs/specs/macos-native-menu.md AC-10).
+      await expect
+        .poll(async () => {
+          const sent = (await commandCalls(page, 'set_editor_menu')).at(-1)?.args.menus as
+            | { label: string; items: { label?: string; accelerator?: string }[] }[]
+            | null
+            | undefined;
+          const file = sent?.find((m) => m.label === 'File');
+          return file?.items.find((i) => i.label?.startsWith('Close'))?.accelerator;
+        })
+        .toBe('CmdOrCtrl+W');
       // ⌘W is the native menu's accelerator: the key itself closes nothing,
       // the menu item does.
       await page.keyboard.press('Meta+w');

@@ -69,7 +69,7 @@ export const fsAccessAvailable = hasFsAccess();
 export const tauriHost = isTauri();
 
 /** True only where the OS draws the menu bar (macOS desktop app), which
- *  is then the owner of the `NATIVE_MENU_ACTIONS` chords (spec §9.4). */
+ *  then owns the chords it binds (`nativeMenuOwns`, spec §9.4). */
 export const nativeMenuHost = hasNativeMenu();
 
 export const idbAvailable = isIdbAvailable();

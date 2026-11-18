@@ -1028,7 +1028,7 @@
     const action = actionFor(e);
     // Only a native menu bar fires these as accelerators (spec §9.4);
     // without one the editor has to handle them itself.
-    if (action !== null && hasNativeMenu() && nativeMenuOwns(action)) return;
+    if (action !== null && hasNativeMenu() && nativeMenuOwns(action, e)) return;
     // An action chord wins over a tool key, so Shift+H flips instead of
     // picking the Hand (power-user-shortcuts-coverage AC-04, AC-07). Tab
     // toggles the UI only on the canvas stage; elsewhere it moves focus.
@@ -1473,6 +1473,7 @@
 <EditorFrame
   mode="image"
   {menus}
+  {active}
   title={editor.handle === null ? t('px.noDocument') : editor.fileName}
   {dirty}
   effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}

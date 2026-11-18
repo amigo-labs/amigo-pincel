@@ -347,14 +347,14 @@ test.describe('desktop on macOS', () => {
     await installTauriMock(page);
   });
 
-  test('pixel: no in-window Help; F2 and the palette reach the probe (AC-01, AC-06)', async ({
+  // The window draws no menus there; the native bar mirrors them, Help with
+  // the probe included (docs/specs/macos-native-menu.md AC-01, AC-08).
+  test('pixel: no in-window menus; F2 and the palette reach the probe under Help (AC-06)', async ({
     page,
   }) => {
     await launchDesktop(page);
     await newDocument(page, 'pixel');
-    const bar = await tops(page);
-    expect(bar).not.toContain('Help');
-    expect(bar.at(-1)).toBe('Tools');
+    await expect(page.getByRole('menubar')).toHaveCount(0);
 
     await page.keyboard.press('F2');
     await expect(page.getByText(/fps · compose/)).toBeVisible();
@@ -362,8 +362,7 @@ test.describe('desktop on macOS', () => {
     await expect(page.getByText(/fps · compose/)).toBeHidden();
 
     await openPalette(page);
-    await expect(paletteOption(page, 'Help ▸ Frame-Time Probe')).toHaveCount(0);
-    const probe = paletteOption(page, 'Frame-Time Probe');
+    const probe = paletteOption(page, 'Help ▸ Frame-Time Probe');
     await expect(probe).toHaveCount(1);
     await probe.click();
     await expect(page.getByText(/fps · compose/)).toBeVisible();
