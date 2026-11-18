@@ -48,8 +48,83 @@ pub fn compose(layers: &[Layer]) -> ImageBuffer {
         return ImageBuffer::new_transparent(0, 0);
     };
     let mut out = ImageBuffer::new_transparent(w, h);
-    composite_run(&mut out, layers, 0, 0);
+    composite_run(&mut out, layers, 0, 0, Shown::All);
     out
+}
+
+/// The three composites a Move Layer drag preview draws
+/// (docs/specs/image-move-layer-preview.md): everything below the moved
+/// subtree, the moved subtree on its own, and everything above it. Each is
+/// canvas-sized; drawn bottom to top with `moved` shifted they show the
+/// drag, exactly for opaque Normal content.
+#[derive(Debug, Clone, PartialEq, Eq)]
+pub struct ComposeSplit {
+    /// The visible layers below the moved subtree.
+    pub below: ImageBuffer,
+    /// The moved layer (a group: its whole subtree) on a transparent canvas,
+    /// with its own and its groups' opacity applied.
+    pub moved: ImageBuffer,
+    /// The visible layers above the moved subtree.
+    pub above: ImageBuffer,
+}
+
+/// Splits the composite of `layers` at the subtree rooted at `index`
+/// (see [`ComposeSplit`]). The groups the moved layer sits in stay in all
+/// three parts, so their visibility and opacity still apply. Returns `None`
+/// for an out-of-range index.
+pub fn compose_split(layers: &[Layer], index: usize) -> Option<ComposeSplit> {
+    if index >= layers.len() {
+        return None;
+    }
+    let (w, h) = canvas_size(layers)?;
+    let end = subtree_end(layers, index);
+    let mut ancestor = vec![false; layers.len()];
+    let mut parent = layers[index].parent;
+    while let Some(id) = parent {
+        let Some(at) = layers[..index].iter().rposition(|l| l.id == id) else {
+            break;
+        };
+        ancestor[at] = true;
+        parent = layers[at].parent;
+    }
+    let part = |keep: &dyn Fn(usize) -> bool| {
+        let shown: Vec<bool> = (0..layers.len()).map(|j| ancestor[j] || keep(j)).collect();
+        let mut out = ImageBuffer::new_transparent(w, h);
+        composite_run(&mut out, layers, 0, 0, Shown::Only(&shown));
+        out
+    };
+    Some(ComposeSplit {
+        below: part(&|j| j < index),
+        moved: part(&|j| (index..end).contains(&j)),
+        above: part(&|j| j >= end),
+    })
+}
+
+/// Which layers [`composite_run`] may draw besides their own visibility.
+#[derive(Clone, Copy)]
+enum Shown<'a> {
+    /// Every visible layer.
+    All,
+    /// Only the layers flagged `true`, indexed from the start of the slice
+    /// the outermost run was given.
+    Only(&'a [bool]),
+}
+
+impl Shown<'_> {
+    fn allows(self, index: usize) -> bool {
+        match self {
+            Self::All => true,
+            Self::Only(flags) => flags.get(index).copied().unwrap_or(false),
+        }
+    }
+
+    /// The same filter for a run that starts `by` layers further in.
+    fn skip(self, by: usize) -> Self {
+        match self {
+            Self::All => Self::All,
+            Self::Only(flags) => Self::Only(flags.get(by..).unwrap_or(&[])),
+        }
+    }
 }
 
 /// The size of the first raster layer, which every raster layer shares.
@@ -62,14 +137,20 @@ fn canvas_size(layers: &[Layer]) -> Option<(u32, u32)> {
 
 /// Blends a run of whole subtrees onto `dst`, which covers the canvas from
 /// `(ox, oy)`. Without groups this is exactly the flat bottom-to-top loop.
-fn composite_run(dst: &mut ImageBuffer, layers: &[Layer], ox: u32, oy: u32) {
+fn composite_run(dst: &mut ImageBuffer, layers: &[Layer], ox: u32, oy: u32, shown: Shown<'_>) {
     let mut i = 0;
     while let Some(layer) = layers.get(i) {
         let end = subtree_end(layers, i);
-        if layer.visible && layer.opacity > 0.0 {
+        if layer.visible && layer.opacity > 0.0 && shown.allows(i) {
             if layer.is_group() {
                 let mut isolated = ImageBuffer::new_transparent(dst.width(), dst.height());
-                composite_run(&mut isolated, &layers[i + 1..end], ox, oy);
+                composite_run(
+                    &mut isolated,
+                    &layers[i + 1..end],
+                    ox,
+                    oy,
+                    shown.skip(i + 1),
+                );
                 let folded = Layer {
                     pixels: isolated,
                     ..Layer::from_pixels(String::new(), ImageBuffer::new_transparent(0, 0))
@@ -100,7 +181,7 @@ pub fn compose_region(layers: &[Layer], region: Rect) -> ImageBuffer {
     let x1 = (i64::from(region.x) + i64::from(region.w)).clamp(0, cw);
     let y1 = (i64::from(region.y) + i64::from(region.h)).clamp(0, ch);
     let mut out = ImageBuffer::new_transparent((x1 - x0) as u32, (y1 - y0) as u32);
-    composite_run(&mut out, layers, x0 as u32, y0 as u32);
+    composite_run(&mut out, layers, x0 as u32, y0 as u32, Shown::All);
     out
 }
 
@@ -420,6 +501,48 @@ mod tests {
             }
         }));
         out
+    }
+
+    #[test]
+    fn compose_split_parts_stack_to_the_composite() {
+        let bottom = solid_layer(2, 1, Color::rgba(0, 0, 255, 255));
+        let mut mid_px = ImageBuffer::new_transparent(2, 1);
+        mid_px.set_pixel(0, 0, Color::rgba(255, 0, 0, 255));
+        let mid = Layer::from_pixels("mid", mid_px);
+        let mut top_px = ImageBuffer::new_transparent(2, 1);
+        top_px.set_pixel(1, 0, Color::rgba(0, 255, 0, 255));
+        let top = Layer::from_pixels("top", top_px);
+        let layers = vec![bottom.clone(), mid.clone(), top.clone()];
+        let split = compose_split(&layers, 1).expect("split");
+        assert_eq!(split.below, compose(std::slice::from_ref(&bottom)));
+        assert_eq!(split.moved, compose(std::slice::from_ref(&mid)));
+        assert_eq!(split.above, compose(std::slice::from_ref(&top)));
+    }
+
+    #[test]
+    fn compose_split_keeps_the_moved_layers_groups() {
+        let bg = solid_layer(1, 1, Color::rgba(0, 0, 255, 255));
+        let sibling = solid_layer(1, 1, Color::rgba(0, 255, 0, 255));
+        let moved = solid_layer(1, 1, Color::rgba(255, 0, 0, 255));
+        let mut layers = vec![bg];
+        layers.extend(grouped(
+            Layer::new_group("G").with_visible(false),
+            vec![moved, sibling],
+        ));
+        // A hidden group hides the moved child and its sibling above it.
+        let split = compose_split(&layers, 2).expect("split");
+        assert_eq!(split.moved.get_pixel(0, 0), Some(Color::TRANSPARENT));
+        assert_eq!(split.above.get_pixel(0, 0), Some(Color::TRANSPARENT));
+        assert_eq!(
+            split.below.get_pixel(0, 0),
+            Some(Color::rgba(0, 0, 255, 255))
+        );
+    }
+
+    #[test]
+    fn compose_split_out_of_range_is_none() {
+        let layers = vec![solid_layer(1, 1, Color::rgba(0, 0, 0, 255))];
+        assert!(compose_split(&layers, 1).is_none());
     }
 
     #[test]
