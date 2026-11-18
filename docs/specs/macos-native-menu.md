@@ -125,9 +125,9 @@ Terms:
 | AC-04 |      | open   |        |
 | AC-05 |      | open   |        |
 | AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
+| AC-07 | `app_menu_updatable_lists_the_standard_entries_in_order`, `app_menu_not_updatable_has_no_update_entry`, `app_menu_german_labels` (src-tauri/src/native_menu.rs) | built  |        |
 | AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
+| AC-09 | `start_menus_lists_app_file_edit_help`, `start_menus_open_recent_lists_recents_or_placeholder`, `start_menus_rebound_open_shows_new_chord` (src-tauri/src/native_menu.rs) | built  |        |
 | AC-10 |      | open   |        |
 | AC-11 |      | open   |        |
 | AC-12 |      | open   |        |
@@ -144,3 +144,5 @@ Terms:
 - 2026-11-18: Option chords are not bound while a text field has focus — because on macOS ⌥ plus a letter types a character (´, ®, …), and the owner's "all ⌥ chords" would otherwise take those characters away from text fields.
 - 2026-11-18: Second clarification pass — who builds the App / start-screen menu, system items marked in the menu data, chord clashes between editor entries (AC-18), failure = rejected call (AC-14).
 - 2026-11-18: Clarification pass — key routing inside AppKit (which key reaches a field, the menu or the page) cannot be observed without a real Mac; AC-12 / AC-13 now state what the native bar offers (observable on the mocked bridge) and AC-16 checks the routing by hand. Added AC-17 (stale pick), AC-18 (rebind onto an App menu chord).
+- 2026-11-18 (build): The shell describes the bar as data (`native_menu::Node`) and builds the Tauri menu from it last, so the App and start-screen menus are unit-tested without an app; the recents live in a static instead of being read back from the installed menu, because the editor menu replaces the Open Recent submenu and switching back would lose them. Tests were written with the module; the red run broke the update-entry gate and the App-chord filter (3 tests failed) and reverted.
+- 2026-11-18 (build): The start screen's File ▸ Quit, Close, Save, exports, Print, Undo, Redo and View are gone (AC-09), so their labels left `menu_labels.rs`; Quit is now "Quit Pincel" in the App menu (AC-07), translated in all six languages.

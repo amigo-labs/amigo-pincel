@@ -7,10 +7,8 @@ use std::path::{Path, PathBuf};
 use std::sync::Mutex;
 use std::time::Duration;
 
-use serde::Deserialize;
-use tauri::menu::{Menu, MenuItem, MenuItemBuilder, PredefinedMenuItem, Submenu, SubmenuBuilder};
 use tauri::webview::PageLoadEvent;
-use tauri::{AppHandle, Emitter, Manager, Wry};
+use tauri::{AppHandle, Emitter, Manager};
 
 mod assistant;
 mod comfyui;
@@ -19,6 +17,7 @@ mod fonts;
 mod linux_install;
 mod mcp;
 mod menu_labels;
+mod native_menu;
 mod open_files;
 #[cfg(test)]
 mod test_support;
@@ -69,29 +68,51 @@ async fn write_file_bytes(path: String, bytes: Vec<u8>) -> Result<(), String> {
 /// the type check.
 const NATIVE_MENU: bool = cfg!(target_os = "macos");
 
-#[derive(Deserialize)]
-struct RecentMenuItem {
-    id: String,
-    name: String,
-}
+/// The start screen's recent files (the renderer pushes them with
+/// `set_recent_menu`); kept here so a rebuilt menu lists them again.
+static RECENTS: Mutex<Vec<native_menu::RecentEntry>> = Mutex::new(Vec::new());
+
+/// The active editor's menus (`set_editor_menu`), or `None` while the
+/// start screen shows (docs/specs/macos-native-menu.md).
+static EDITOR_MENU: Mutex<Option<Vec<native_menu::Node>>> = Mutex::new(None);
 
 // Rebuild the `Open Recent` submenu from the JS side. The renderer
 // owns the IDB-backed recents list; it re-calls this whenever the
 // list changes. Empty list yields a disabled "(no recent files)"
 // placeholder so the submenu remains visible but inert.
 #[tauri::command]
-async fn set_recent_menu(app: AppHandle, items: Vec<RecentMenuItem>) -> Result<(), String> {
+async fn set_recent_menu(
+    app: AppHandle,
+    items: Vec<native_menu::RecentEntry>,
+) -> Result<(), String> {
+    if let Ok(mut recents) = RECENTS.lock() {
+        *recents = items;
+    }
     if !NATIVE_MENU {
         // No native menu to feed; the in-app File menu lists the recents.
         return Ok(());
     }
-    let menu = app.menu().ok_or_else(|| "no menu installed".to_string())?;
-    let submenu = find_submenu(&menu, RECENT_MENU_ID)
-        .ok_or_else(|| "open-recent submenu not found".to_string())?;
-    rebuild_recent_submenu(&app, &submenu, &items).map_err(|e| e.to_string())
+    rebuild_menu(&app)
 }
 
-const RECENT_MENU_ID: &str = "open-recent";
+// The active editor's menus, mirrored into the native menu bar while its
+// tab shows; `None` brings back the start-screen menu
+// (docs/specs/macos-native-menu.md AC-03, AC-15). A failed build leaves
+// the previous menu in place and rejects (AC-14).
+#[tauri::command]
+async fn set_editor_menu(
+    app: AppHandle,
+    menus: Option<Vec<native_menu::Node>>,
+) -> Result<(), String> {
+    if !NATIVE_MENU {
+        // Only macOS draws a native menu bar; elsewhere the in-app bar shows.
+        return Ok(());
+    }
+    if let Ok(mut current) = EDITOR_MENU.lock() {
+        *current = menus;
+    }
+    rebuild_menu(&app)
+}
 
 // Rebuild the whole native menu in `lang`.
 #[tauri::command]
@@ -122,22 +143,7 @@ fn accelerator(id: &str, default: &str) -> Option<String> {
     }
 }
 
-/// A menu item whose accelerator the renderer may rebind.
-fn bound_item(
-    app: &AppHandle,
-    id: &str,
-    label: &str,
-    default: &str,
-) -> tauri::Result<MenuItem<Wry>> {
-    let builder = MenuItemBuilder::with_id(id, label);
-    match accelerator(id, default) {
-        Some(a) => builder.accelerator(a),
-        None => builder,
-    }
-    .build(app)
-}
-
-// Push the keymap's rebound native-menu chords (`menu:undo` →
+// Push the keymap's rebound native-menu chords (`menu:open` →
 // `CmdOrCtrl+U`) and rebuild the menu, so its accelerators and the hints
 // it draws follow the user's keymap. A no-op where there is no native menu.
 #[tauri::command]
@@ -151,198 +157,32 @@ async fn set_menu_accelerators(app: AppHandle, map: HashMap<String, String>) -> 
     rebuild_menu(&app)
 }
 
-// Rebuild the whole native menu (labels and accelerators), keeping the
-// Open Recent entries the renderer pushed earlier.
-fn rebuild_menu(app: &AppHandle) -> Result<(), String> {
-    let recents: Vec<RecentMenuItem> = app
-        .menu()
-        .and_then(|menu| find_submenu(&menu, RECENT_MENU_ID))
-        .and_then(|sub| sub.items().ok())
-        .unwrap_or_default()
-        .into_iter()
-        .filter_map(|item| {
-            let entry = item.as_menuitem()?;
-            let id = entry.id().0.strip_prefix("recent:")?.to_string();
-            if id == "_empty" {
-                return None;
-            }
-            Some(RecentMenuItem {
-                id,
-                name: entry.text().ok()?,
-            })
-        })
-        .collect();
-    let menu = build_menu(app).map_err(|e| e.to_string())?;
-    app.set_menu(menu.clone()).map_err(|e| e.to_string())?;
-    if !recents.is_empty() {
-        let submenu = find_submenu(&menu, RECENT_MENU_ID)
-            .ok_or_else(|| "open-recent submenu not found".to_string())?;
-        rebuild_recent_submenu(app, &submenu, &recents).map_err(|e| e.to_string())?;
-    }
-    Ok(())
-}
-
-/// Depth-first search for the submenu with `id`. Non-submenu entries are
-/// *skipped*, not fatal — the previous split implementation used `?` on
-/// `as_submenu()`, which aborted the scan at the first plain item, so
-/// "Open Recent" (which sits after "New" / "Open…" in the File menu) was
-/// never found and the recents submenu never synced.
-fn find_submenu(menu: &Menu<Wry>, id: &str) -> Option<Submenu<Wry>> {
-    fn walk(items: Vec<tauri::menu::MenuItemKind<Wry>>, id: &str) -> Option<Submenu<Wry>> {
-        for item in items {
-            let Some(sub) = item.as_submenu() else {
-                continue;
-            };
-            if sub.id().0 == id {
-                return Some(sub.clone());
-            }
-            if let Some(nested) = walk(sub.items().unwrap_or_default(), id) {
-                return Some(nested);
-            }
-        }
-        None
-    }
-    walk(menu.items().ok()?, id)
-}
-
-fn rebuild_recent_submenu(
-    app: &AppHandle,
-    submenu: &Submenu<Wry>,
-    items: &[RecentMenuItem],
-) -> tauri::Result<()> {
-    // Clear by removing every existing item.
-    if let Ok(existing) = submenu.items() {
-        for item in existing {
-            let _ = submenu.remove(&item);
-        }
-    }
-    if items.is_empty() {
-        let placeholder =
-            MenuItemBuilder::with_id("recent:_empty", menu_labels::current().no_recent)
-                .enabled(false)
-                .build(app)?;
-        submenu.append(&placeholder)?;
-        return Ok(());
-    }
-    for it in items {
-        let id = format!("recent:{}", it.id);
-        let entry = MenuItemBuilder::with_id(id, &it.name).build(app)?;
-        submenu.append(&entry)?;
-    }
-    Ok(())
-}
-
-fn build_menu(app: &AppHandle) -> tauri::Result<Menu<Wry>> {
+/// The native menu bar for the current state: the editor's menus while
+/// one was pushed, else the start screen's.
+fn menu_nodes() -> Vec<native_menu::Node> {
     let l = menu_labels::current();
-    // File items
-    let new_item = MenuItemBuilder::with_id("menu:new", l.new)
-        .accelerator("CmdOrCtrl+N")
-        .build(app)?;
-    let open_item = bound_item(app, "menu:open", l.open, "CmdOrCtrl+O")?;
-    let recent_placeholder = MenuItemBuilder::with_id("recent:_empty", l.no_recent)
-        .enabled(false)
-        .build(app)?;
-    let recent_submenu = SubmenuBuilder::with_id(app, RECENT_MENU_ID, l.open_recent)
-        .item(&recent_placeholder)
-        .build()?;
-    let save_item = bound_item(app, "menu:save", l.save, "CmdOrCtrl+S")?;
-    let save_as_item = bound_item(app, "menu:saveAs", l.save_as, "CmdOrCtrl+Shift+S")?;
-    // File ▸ Close closes the active tab; the menu owns Cmd+W on macOS
-    // (docs/specs/document-tabs.md "Tab keys").
-    let close_item = bound_item(app, "menu:close", l.close, "CmdOrCtrl+W")?;
-
-    // Export items: the mounted editor serves them (Pixel mode both,
-    // Image mode the PNG export); unserved ids are ignored by the shell.
-    let export_png_item = bound_item(app, "menu:exportPng", l.export_png, "CmdOrCtrl+E")?;
-    let export_sheet_item = bound_item(app, "menu:exportSheet", l.export_sheet, "CmdOrCtrl+Alt+E")?;
-    let export_animation_item =
-        MenuItemBuilder::with_id("menu:exportAnimation", l.export_animation).build(app)?;
-    let export_svg_item = MenuItemBuilder::with_id("menu:exportSvg", l.export_svg).build(app)?;
-    // Image mode's File ▸ Print… (docs/specs/image-formats-more-print.md
-    // AC-10); the Pixel editor and the start screen ignore it.
-    let print_item = bound_item(app, "menu:print", l.print, "CmdOrCtrl+P")?;
-
-    // A custom Quit: the predefined one ends the app without a window
-    // close request, so the UI could not ask about unsaved changes first
-    // (docs/specs/unsaved-changes-prompt.md AC-09). The UI closes the
-    // window itself once the prompt allows it.
-    let quit_item = MenuItemBuilder::with_id("menu:quit", l.quit)
-        .accelerator("CmdOrCtrl+Q")
-        .build(app)?;
-
-    let file = SubmenuBuilder::new(app, l.file)
-        .item(&new_item)
-        .item(&open_item)
-        .item(&recent_submenu)
-        .separator()
-        .item(&close_item)
-        .separator()
-        .item(&save_item)
-        .item(&save_as_item)
-        .separator()
-        .item(&export_png_item)
-        .item(&export_sheet_item)
-        .item(&export_animation_item)
-        .item(&export_svg_item)
-        .separator()
-        .item(&print_item)
-        .separator()
-        .item(&quit_item)
-        .build()?;
-
-    // Edit items
-    let undo_item = bound_item(app, "menu:undo", l.undo, "CmdOrCtrl+Z")?;
-    let redo_item = bound_item(app, "menu:redo", l.redo, "CmdOrCtrl+Shift+Z")?;
-    // Edit ▸ Settings…: the shell's Settings dialog (settings-dialog AC-08).
-    let settings_item = bound_item(app, "menu:settings", l.settings, "CmdOrCtrl+,")?;
-    let edit = SubmenuBuilder::new(app, l.edit)
-        .item(&undo_item)
-        .item(&redo_item)
-        .separator()
-        .item(&PredefinedMenuItem::cut(app, Some(l.cut))?)
-        .item(&PredefinedMenuItem::copy(app, Some(l.copy))?)
-        .item(&PredefinedMenuItem::paste(app, Some(l.paste))?)
-        .separator()
-        .item(&settings_item)
-        .build()?;
-
-    // View items
-    let zoom_in = MenuItemBuilder::with_id("menu:zoomIn", l.zoom_in)
-        .accelerator("CmdOrCtrl+Plus")
-        .build(app)?;
-    let zoom_out = MenuItemBuilder::with_id("menu:zoomOut", l.zoom_out)
-        .accelerator("CmdOrCtrl+-")
-        .build(app)?;
-    let reset_zoom = MenuItemBuilder::with_id("menu:resetZoom", l.reset_zoom)
-        .accelerator("CmdOrCtrl+0")
-        .build(app)?;
-    let view = SubmenuBuilder::new(app, l.view)
-        .item(&zoom_in)
-        .item(&zoom_out)
-        .item(&reset_zoom)
-        .build()?;
-
-    // Help ▸ Keyboard Shortcuts: the mounted editor opens its overview
-    // (docs/specs/shortcut-overview.md); the start screen ignores it.
-    let shortcuts = bound_item(app, "menu:shortcuts", l.shortcuts, "CmdOrCtrl+/")?;
-    // Help ▸ Tour starts the tour for the current context
-    // (docs/specs/first-run-tutorial.md AC-12).
-    let tour = MenuItemBuilder::with_id("menu:tour", l.tour).build(app)?;
-    let help = SubmenuBuilder::new(app, l.help)
-        .item(&shortcuts)
-        .item(&tour)
-        .separator()
-        // The in-app About dialog, which also checks for updates (AC-17,
-        // AC-31), rather than the native panel.
-        .item(&MenuItemBuilder::with_id(updater::MENU_ABOUT, l.about).build(app)?)
-        .build()?;
-    if updater::supported() {
-        let check = MenuItemBuilder::with_id(updater::MENU_CHECK, l.check_updates).build(app)?;
-        help.append(&PredefinedMenuItem::separator(app)?)?;
-        help.append(&check)?;
+    let updatable = updater::supported();
+    let editor = EDITOR_MENU.lock().ok().and_then(|m| m.clone());
+    match editor {
+        Some(menus) => native_menu::editor_menus(
+            l,
+            updatable,
+            accelerator(native_menu::MENU_SETTINGS, native_menu::SETTINGS_DEFAULT),
+            &menus,
+        ),
+        None => {
+            let recents = RECENTS.lock().map(|r| r.clone()).unwrap_or_default();
+            native_menu::start_menus(l, updatable, &recents, &accelerator)
+        }
     }
+}
 
-    Menu::with_items(app, &[&file, &edit, &view, &help])
+// Rebuild the whole native menu (labels, accelerators, recents, the
+// mirrored editor menus). On error the previous menu stays installed.
+fn rebuild_menu(app: &AppHandle) -> Result<(), String> {
+    let menu = native_menu::materialize(app, &menu_nodes()).map_err(|e| e.to_string())?;
+    app.set_menu(menu).map_err(|e| e.to_string())?;
+    Ok(())
 }
 
 // Pull the first non-binary CLI argument that looks like a sprite path.
@@ -397,6 +237,7 @@ fn main() {
             files_exist,
             write_file_bytes,
             set_recent_menu,
+            set_editor_menu,
             set_menu_language,
             set_menu_accelerators,
             open_files::take_open_files,
@@ -465,7 +306,7 @@ fn main() {
             // folders a crashed run left behind (AC-22).
             app.manage(assistant::create(handle));
             if NATIVE_MENU {
-                let menu = build_menu(handle)?;
+                let menu = native_menu::materialize(handle, &menu_nodes())?;
                 app.set_menu(menu)?;
             }
             comfyui::setup(handle);
