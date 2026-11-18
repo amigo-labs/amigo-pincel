@@ -33,7 +33,7 @@ Owner report 2026-11-18: "while holding the image you don't see live where it is
 ## Acceptance criteria
 
 - [ ] AC-01 (state): While a Move Layer drag is in progress, the canvas shows the active layer's content shifted by the offset between the press and the current pointer position in document pixels, each axis rounded to the nearest whole pixel (the same rounding the release uses), updated as the pointer moves, while the document stays as before the drag: its pixels, its undo history and its dirty state do not change until release.
-- [ ] AC-02 (always): For a document whose layers all use the Normal blend mode (any opacity, any number of layers above and below the moved layer, the moved layer visible), the canvas during a drag at offset (dx, dy) looks the same as the canvas after the drag is released at (dx, dy) — compared as element screenshots of the canvas at the same view.
+- [ ] AC-02 (always): For a document whose layers all use the Normal blend mode at 100 % opacity and whose pixels are each fully opaque or fully transparent (any number of layers above and below the moved layer, the moved layer visible), at a zoom of 100 % or more, the canvas during a drag at offset (dx, dy) looks the same as the canvas after the drag is released at (dx, dy) — compared as element screenshots of the canvas at the same view.
 - [ ] AC-03 (state): While a Move Layer drag is in progress, layers above the moved layer stay drawn above it and layers below stay below it: where an opaque Normal layer at 100 % opacity lies above the moved layer, the canvas shows that layer's pixels there during the drag, whatever the moved layer's blend mode; where the moved layer (Normal, 100 % opacity) has opaque pixels over a layer below, the canvas shows the moved layer's pixels there.
 - [ ] AC-04 (event): When the pointer is released at a non-zero offset, then the layer moves by that offset as one undo step, and the result equals a single move by that offset, however many pointer moves the drag had.
 - [ ] AC-05 (event): When the pointer leaves the canvas during a drag and comes back before release, then the result depends only on the release position: a drag that ends where it started changes nothing and adds no undo step.
@@ -46,7 +46,7 @@ Owner report 2026-11-18: "while holding the image you don't see live where it is
 ## Technical notes
 
 - Model: the transform-box preview (Decision Log 2026-11-13). When the drag starts, the core hands the editor once, through the wasm adapter, what it needs to draw the drag: the composite of the layers below the moved layer, the moved layer's content (a group: its own composite) with its opacity and blend mode, and the composite of the layers above. Every frame the editor draws below, the moved content at the offset, and above, with a canvas transform; a view change (zoom, pan, resize) asks the core again. Canvas pixels are never read (AGENTS.md §9).
-- Blend modes other than Normal on the moved layer or above it may be approximated during the drag (AC-03 still holds); the release gives the exact result. AC-02 pins the Normal case.
+- Blend modes other than Normal, opacities below 100 % and semi-transparent pixels may be approximated during the drag (the browser blends in sRGB, the core in linear light; AC-03 still holds); the release gives the exact result. AC-02 pins the case the browser draws exactly.
 - Once `image-move-layer-offcanvas` is built, the handed-over content includes the pixels outside the canvas of the moved layer (for a group: of every raster layer in it), so they come into view during the drag (its AC-09).
 - e2e can count the core applies of AC-04 with `countCall`, as `image-transform-handles` AC-23 does.
 
@@ -90,3 +90,4 @@ Owner report 2026-11-18: "while holding the image you don't see live where it is
 ## Decisions
 
 - 2026-11-18: Split from the owner's report together with `image-move-layer-offcanvas`; the preview is built first because it is independent and smaller (owner).
+- 2026-11-18 (revision): AC-02 narrowed to fully opaque / fully transparent pixels at 100 % opacity and zoom ≥ 100 % (owner): the drag preview is drawn by the browser, which blends semi-transparent pixels in sRGB while the core blends in linear light; exact per-frame core composites would miss the AC-10 budget on 4K. Release stays exact.
