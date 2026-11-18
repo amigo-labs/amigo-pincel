@@ -2,7 +2,9 @@
 //! (docs/specs/image-transform-handles.md AC-20, AC-23): once per drag the
 //! editor gets the lifted selection content and the visible composite with
 //! the hole the lift leaves, draws both itself while the pointer moves, and
-//! sends the final box to the core when the drag ends.
+//! sends the final box to the core when the drag ends. A Move Layer drag
+//! (docs/specs/image-move-layer-preview.md) gets the composites below,
+//! of and above the moved layer the same way, once per drag.
 
 use js_sys::{Array, Object, Reflect, Uint8ClampedArray};
 use pincel_effects::EffectImage;
@@ -125,6 +127,42 @@ pub fn transform_preview(
             &out,
             "hole",
             &Uint8ClampedArray::from(hole.as_slice()).into(),
+        )?;
+        Ok(out.into())
+    })
+}
+
+/// The composites of a Move Layer drag preview
+/// (docs/specs/image-move-layer-preview.md AC-01 – AC-03): the layers below
+/// the moved `layer`, the moved layer (a group: its subtree) alone, and the
+/// layers above, each straight RGBA8 of `size`. `size` is the canvas, or
+/// less when its longer side passes 4096 px (the editor scales them back).
+/// Returns `{ size: [w, h], below, moved, above }`, or `null` for an
+/// out-of-range layer. The document and its history are not touched.
+#[wasm_bindgen]
+pub fn move_preview(handle: u32, layer: usize) -> Result<JsValue, JsError> {
+    with_bus(handle, |bus| {
+        let Some(split) = pincel_image_core::compose_split(bus.document.layers(), layer) else {
+            return Ok(JsValue::NULL);
+        };
+        let out = Object::new();
+        let mut size = (0, 0);
+        for (key, buf) in [
+            ("below", split.below),
+            ("moved", split.moved),
+            ("above", split.above),
+        ] {
+            let (w, h) = (buf.width(), buf.height());
+            let image = EffectImage::from_rgba8(w, h, buf.into_raw())
+                .map_err(|e| JsError::new(&e.to_string()))?;
+            let image = preview_patch(image);
+            size = (image.width(), image.height());
+            set(&out, key, &Uint8ClampedArray::from(image.data()).into())?;
+        }
+        set(
+            &out,
+            "size",
+            &numbers(&[f64::from(size.0), f64::from(size.1)]),
         )?;
         Ok(out.into())
     })

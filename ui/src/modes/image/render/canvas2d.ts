@@ -43,7 +43,8 @@ function scratchCanvas(width: number, height: number): HTMLCanvasElement {
   return scratch;
 }
 
-function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
+/** The transparency checkerboard, cached per page. */
+export function checkerPattern(ctx: CanvasRenderingContext2D): CanvasPattern | null {
   if (checker) return checker;
   const tile = document.createElement('canvas');
   tile.width = tile.height = CHECKER_SIZE * 2;

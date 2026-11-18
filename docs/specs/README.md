@@ -35,6 +35,8 @@ Shapes, line, gradient, text and selection transforms stay editable until commit
 | - | ---- | ---- | ---- | ---------- | ---- |
 | B1 | [image-live-objects](image-live-objects.md) | Image | L | — | Core live-object record (shapes, line, gradient); text, curves and handles build on it |
 | B2 | [image-live-objects-ui](image-live-objects-ui.md) | Image | L | image-live-objects | Handles and commit / cancel for live shapes, line, gradient |
+| B3 | [image-move-layer-preview](image-move-layer-preview.md) | Image | M | — | Owner report 2026-11-18: Move Layer shows the layer live while dragging |
+| B4 | [image-move-layer-offcanvas](image-move-layer-offcanvas.md) | Image | M | image-move-layer-preview | Owner report 2026-11-18: pixels moved past the canvas edge are kept (layer overhang) |
 
 ### C — Editor feedback
 

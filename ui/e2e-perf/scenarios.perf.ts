@@ -247,6 +247,33 @@ test('image 4K, 10 layers: live transform of a 2048² selection', async ({ page 
   await page.keyboard.press('Escape');
 });
 
+test('image 4K, 10 layers: Move Layer drag preview', async ({ page }) => {
+  // docs/specs/image-move-layer-preview.md AC-10: during a Move Layer drag
+  // the editor draws the layer at the offset (the core moves it once, on
+  // release); the budget is pointer move → presented frame
+  // (`dab-latency-p95`), the draw latency is recorded beside it.
+  const surface = await imageDoc4k(page);
+  const b = await surface.boundingBox();
+  if (!b) throw new Error('surface not visible');
+  await page.keyboard.press('v');
+  await expect(page.getByRole('button', { name: 'Move: Move Layer' })).toHaveAttribute(
+    'aria-pressed',
+    'true',
+  );
+  const from: [number, number] = [b.x + b.width * 0.5, b.y + b.height * 0.5];
+  await startRecording(page);
+  await page.mouse.move(from[0], from[1]);
+  await page.mouse.down();
+  await sweep(page, from, [from[0] - b.width * 0.2, from[1] + b.height * 0.1], 60);
+  await page.mouse.up();
+  const rec = await stopRecording(page);
+  expect(rec.latencies.length).toBeGreaterThan(0);
+  record('image-move-layer-4k', 'Move Layer drag preview, Image 4K 10 layers', {
+    ...frameMetrics(rec),
+    ...latencyMetrics(rec),
+  });
+});
+
 test('image 4K, 10 layers: memory after 50 undo steps', async ({ page }) => {
   const surface = await imageDoc4k(page);
   await page.keyboard.press('b');

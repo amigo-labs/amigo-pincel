@@ -31,6 +31,7 @@ import type { PointPair, SelectionMode } from '../core/wasm';
 import { beginGradient, beginShape, cancelLiveGesture, commitLive, editLive } from '../core/live';
 import { transformBox } from '../core/transform';
 import { transformDrags } from './transform-drag';
+import { beginMoveDrag, endMoveDrag, moveDragCurrent, setMoveOffset } from './move-drag';
 import {
   cursorOf,
   dragLine,
@@ -185,6 +186,9 @@ export function attachTools(
   // The tool that started the drag: keyboard tool switches mid-drag must not
   // change how the in-flight gesture is interpreted or committed.
   let gestureKind: ToolKind = 'pencil';
+  /** Whether the gesture in flight is a previewed Move Layer drag
+   *  (docs/specs/image-move-layer-preview.md). */
+  let movePreviewed = false;
   let last: [number, number] | null = null;
   let lastPressure = 1;
   let lastAzimuth: number | null = null;
@@ -621,7 +625,17 @@ export function attachTools(
         sampleColor(point[0], point[1], useBackground);
         break;
       case 'move':
+        movePreviewed = true;
+        beginMoveDrag(kind);
+        break;
       case 'move_selection':
+        // Without a selection it moves the whole layer: same preview
+        // (image-move-layer-preview AC-07).
+        if (!editor.hasSelection) {
+          movePreviewed = true;
+          beginMoveDrag(kind);
+        }
+        break;
       case 'move_mask':
         break;
     }
@@ -705,6 +719,16 @@ export function attachTools(
       } else {
         const shape = gestureKind === 'ellipse_select' ? 'ellipse' : 'rect';
         selectionPreview.value = { shape, points: snappedCorners(start, point) };
+      }
+      last = point;
+      return;
+    }
+
+    // A Move Layer drag shows the layer at the whole-pixel offset the
+    // release would apply (image-move-layer-preview AC-01).
+    if (movePreviewed && start) {
+      if (moveDragCurrent()) {
+        setMoveOffset(Math.round(point[0] - start[0]), Math.round(point[1] - start[1]));
       }
       last = point;
       return;
@@ -813,7 +837,14 @@ export function attachTools(
     } else if (MOVE_TOOLS.has(gestureKind) && start && last) {
       const dx = Math.round(last[0] - start[0]);
       const dy = Math.round(last[1] - start[1]);
-      if (gestureKind === 'move_selection') moveSelectionContent(dx, dy);
+      // A previewed drag that something else ended (Undo, a menu command,
+      // a layer or tool switch) moves nothing (image-move-layer-preview AC-06).
+      const dropped = movePreviewed && !moveDragCurrent();
+      movePreviewed = false;
+      endMoveDrag();
+      if (dropped) {
+        // Nothing to apply; the canvas already shows the document.
+      } else if (gestureKind === 'move_selection') moveSelectionContent(dx, dy);
       else if (gestureKind === 'move_mask') moveSelectionMask(dx, dy);
       else moveLayer(dx, dy);
       redraw();
@@ -858,7 +889,14 @@ export function attachTools(
     polygonPoints = [];
     selectionPreview.value = null;
     shapePreview.value = null;
+    movePreviewed = false;
+    if (endMoveDrag()) redraw();
     return inProgress;
+  };
+
+  // Losing the window ends a Move Layer drag unapplied (AC-06).
+  const onBlur = (): void => {
+    if (active && movePreviewed) void abort();
   };
 
   // A cancelled pointer (touch scroll, palm rejection, window loss) abandons
@@ -899,6 +937,7 @@ export function attachTools(
   stage.addEventListener('pointercancel', onCancel);
   stage.addEventListener('dblclick', onDblClick);
   stage.addEventListener('contextmenu', onContextMenu);
+  window.addEventListener('blur', onBlur);
   gestureControl.cancel = abort;
   gestureControl.commitPolygon = () => {
     if (tool.kind !== 'polygon_lasso' || polygonPoints.length === 0) return false;
@@ -907,7 +946,8 @@ export function attachTools(
   };
   // Undo during a transform-box drag drops that drag, nothing of it applied
   // (image-transform-handles, Edge cases).
-  gestureControl.cancelLiveDrag = () => cancelLiveDrag() || boxDrags.drop();
+  gestureControl.cancelLiveDrag = () =>
+    cancelLiveDrag() || boxDrags.drop() || (active && movePreviewed && abort());
   gestureControl.inProgress = () => active || boxDrags.busy();
   const detachCloneHover = attachCloneHover(stage, (e) => toCanvasPoint(canvas, e));
 
@@ -925,5 +965,7 @@ export function attachTools(
     stage.removeEventListener('pointercancel', onCancel);
     stage.removeEventListener('dblclick', onDblClick);
     stage.removeEventListener('contextmenu', onContextMenu);
+    window.removeEventListener('blur', onBlur);
+    endMoveDrag();
   };
 }

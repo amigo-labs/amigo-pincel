@@ -1,6 +1,7 @@
 // Application logic bridging the WASM core and reactive state. Components call
 // these functions on events; no business logic lives in components (CLAUDE.md §5.4).
 import type { Rgba8 } from '../../../lib/color';
+import { countCall } from '../../../lib/diagnostics';
 import { noteUsed } from '../../../lib/colors/recent.svelte';
 import {
   core,
@@ -833,6 +834,8 @@ export function moveLayer(dx: number, dy: number): void {
   if (editor.handle === null || (dx === 0 && dy === 0)) {
     return;
   }
+  // e2e specs pin one move per drag (image-move-layer-preview AC-04).
+  countCall('image.moveLayer');
   const cmd: TranslateLayerCommand = {
     type: 'translate_layer',
     layer: editor.activeLayer,
@@ -849,6 +852,8 @@ export function moveSelectionContent(dx: number, dy: number): void {
   if (editor.handle === null || (dx === 0 && dy === 0)) {
     return;
   }
+  // e2e specs pin one move per drag (image-move-layer-preview AC-04).
+  countCall('image.moveLayer');
   const cmd: TranslateSelectionCommand = {
     type: 'translate_selection',
     layer: editor.activeLayer,

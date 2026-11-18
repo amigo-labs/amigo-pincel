@@ -22,6 +22,8 @@
   import { PinchTracker } from '../../../../lib/view/pinch';
   import { drawViewport, sampleFullBuffer } from '../../render/canvas2d';
   import { drawDragPreview } from '../../render/transform-preview';
+  import { drawMovePreview } from '../../render/move-preview';
+  import { moveDragCurrent, movePreviewOf } from '../../tools/move-drag';
   import { attachTools, gestureControl } from '../../tools/pointer';
   import { boxPreview } from '../../tools/transform-drag';
   import { canvasPick, type CanvasPickPhase } from '../../../../lib/effects/canvas-pick.svelte';
@@ -64,6 +66,11 @@
       // A transform-box drag in flight is drawn by the editor, not the core
       // (image-transform-handles AC-20, AC-23).
       boxPreview.current === null ? '' : JSON.stringify(live.transformDrag?.box ?? null),
+      // A Move Layer drag in flight, drawn by the editor as well
+      // (image-move-layer-preview AC-01).
+      // `moveOffset` is read first so the drawing effect tracks it from
+      // before a drag starts.
+      JSON.stringify(live.moveOffset) + (moveDragCurrent() ? ':move' : ''),
     ].join(':');
   }
 
@@ -86,7 +93,15 @@
     const preview = editor.previewComposite;
     drawnPreview = preview;
     const drag = preview ? null : boxPreview.current;
-    if (drag === null || !drawDragPreview(canvas, editor.width, editor.height, view, drag)) {
+    const move = preview || !moveDragCurrent() ? null : movePreviewOf();
+    const offset = live.moveOffset;
+    if (
+      move !== null &&
+      offset !== null &&
+      drawMovePreview(canvas, editor.width, editor.height, view, move, offset)
+    ) {
+      // The Move Layer drag is on screen.
+    } else if (drag === null || !drawDragPreview(canvas, editor.width, editor.height, view, drag)) {
       const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
       drawViewport(canvas, editor.width, editor.height, view, sample);
     }
