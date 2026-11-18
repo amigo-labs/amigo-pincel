@@ -27,7 +27,7 @@ Terms:
 - **Editor menus**: the menus the active editor tab lists (today rendered by the in-window bar), in their order, with their labels, dimmed state, check marks, separators and submenus.
 - **Text field**: an element where keyboard input is typing (input, textarea, contenteditable — what the editors already treat as a typing target), including the hidden field of a live text object.
 - **Modifier chord**: a shortcut with ⌘ or ⌃ (and optionally ⇧ / ⌥). An **option chord** uses ⌥ (with or without ⇧) but neither ⌘ nor ⌃. A chord is **expressible** when the native menu can draw it as a key equivalent: every modifier and option chord of a typed key is; a chord bound to a physical key position (the keymap's `code` chords, e.g. the bracket keys on a German layout) is not.
-- **Formerly native-owned actions**: Open, Save, Save As, Export PNG (frame), Export Sheet, Print, Undo, Redo, Keyboard Shortcuts, Settings — the chords the native menu bound before this spec.
+- **Formerly native-owned actions**: New, Open, Close, Save, Save As, Export PNG (frame), Export Sheet, Print, Undo, Redo, Keyboard Shortcuts, Settings — the chords the native menu bound before this spec.
 - **Updatable installation**: a release build the updater can update (`updater::supported()`), the condition under which Windows and Linux list Check for Updates… in their Help menu.
 - **Text-editing entries**: Cut, Copy, Paste (Edit menu) and Select All (Select menu).
 - **Inert menu**: as in `menu-structure` — while an effect is open every menu except Effects and Adjustments is inert; while an Assistant answer runs every menu except View is inert.
@@ -119,24 +119,24 @@ Terms:
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
+| AC-01 | `no in-window menus at any width; title, mode and quick buttons stay (AC-01)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-02 | `a browser on macOS keeps the in-window bar with Help (AC-02)`, `the Windows desktop app keeps the in-window bar and sends no menus (AC-02)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-03 | `pixel: the native bar lists the editor menus in order, Help last (AC-03, AC-08)`, `image: Help has no probe; View holds its own aids (AC-03, AC-08)`; shell: `editor_menus_app_menu_first_then_sent_menus` (src-tauri/src/native_menu.rs) (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-04 | `a picked entry runs its action once; a state change reaches the bar (AC-04, AC-05)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-05 | `a picked entry runs its action once; a state change reaches the bar (AC-04, AC-05)`, `switching to a tab of the other mode switches the menus (AC-05)`, `the language follows into the native bar (AC-05)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-06 | `an open effect dims every menu but Effects and Adjustments (AC-06)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
 | AC-07 | `app_menu_updatable_lists_the_standard_entries_in_order`, `app_menu_not_updatable_has_no_update_entry`, `app_menu_german_labels` (src-tauri/src/native_menu.rs) | built  |        |
-| AC-08 |      | open   |        |
+| AC-08 | `pixel: the native bar lists the editor menus in order, Help last (AC-03, AC-08)`, `image: Help has no probe; View holds its own aids (AC-03, AC-08)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
 | AC-09 | `start_menus_lists_app_file_edit_help`, `start_menus_open_recent_lists_recents_or_placeholder`, `start_menus_rebound_open_shows_new_chord` (src-tauri/src/native_menu.rs) | built  |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
+| AC-10 | `modifier chords show and belong to the menu; single keys stay with the editor (AC-10)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-11 | `a rebound action shows its new chord; one rebound to a single key goes back to the editor (AC-11)`; shell: `start_menus_rebound_open_shows_new_chord`, `app_menu_not_updatable_has_no_update_entry` (src-tauri/src/native_menu.rs) (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-12 | `a focused text field gets the system text items and keeps only the old chords (AC-12, AC-13)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-13 | `a focused text field gets the system text items and keeps only the old chords (AC-12, AC-13)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-14 | `a failed update keeps the editor working and its keys with the editor (AC-14)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-15 | `closing the last tab brings back the start-screen menu (AC-15)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
 | AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
+| AC-17 | `a stale entry id does nothing (AC-17)`, `an open effect dims every menu but Effects and Adjustments (AC-06)` (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
+| AC-18 | `a rebind onto an App menu chord or a taken chord shows none (AC-18)`; shell: `editor_menus_entry_on_app_chord_loses_it`, `editor_menus_rebound_settings_chord_is_reserved` (src-tauri/src/native_menu.rs) (ui/e2e/macos-native-menu.spec.ts unless named) | built  |        |
 
 ## Decisions
 
@@ -146,3 +146,11 @@ Terms:
 - 2026-11-18: Clarification pass — key routing inside AppKit (which key reaches a field, the menu or the page) cannot be observed without a real Mac; AC-12 / AC-13 now state what the native bar offers (observable on the mocked bridge) and AC-16 checks the routing by hand. Added AC-17 (stale pick), AC-18 (rebind onto an App menu chord).
 - 2026-11-18 (build): The shell describes the bar as data (`native_menu::Node`) and builds the Tauri menu from it last, so the App and start-screen menus are unit-tested without an app; the recents live in a static instead of being read back from the installed menu, because the editor menu replaces the Open Recent submenu and switching back would lose them. Tests were written with the module; the red run broke the update-entry gate and the App-chord filter (3 tests failed) and reverted.
 - 2026-11-18 (build): The start screen's File ▸ Quit, Close, Save, exports, Print, Undo, Redo and View are gone (AC-09), so their labels left `menu_labels.rs`; Quit is now "Quit Pincel" in the App menu (AC-07), translated in all six languages.
+- 2026-11-18 (build): Red run of `ui/e2e/macos-native-menu.spec.ts` before the renderer was wired: 14 of 16 failed (no `set_editor_menu` call, in-window bar shown); the two AC-02 tests passed at once, because the behavior outside macOS already held — they guard it against this change.
+- 2026-11-18 (build): The formerly native-owned list gains New and Close: the old native menu bound ⌘N and ⌘W too (fixed in `build_menu`), which the first list missed.
+- 2026-11-18 (build): Paste is always the system's Paste item, not only while a text field has focus: the editors take a paste from the `paste` event the browser fires (`SHORTCUTS.paste` is a menu hint only), and the system item is what makes WKWebView fire it — a custom item with ⌘V would swallow the key.
+- 2026-11-18 (build): The mirror finds an entry's action by its shortcut hint (the hint string → action map of the effective keymap), so the menus' data model needed no new field; an entry without a hint carries no accelerator.
+- 2026-11-18 (build): Entry ids are `ed:<menu>.<path>|<label>`, so a pick from a menu opened before an unrelated update still finds its entry, and one whose entry is gone or dimmed finds nothing (AC-17).
+- 2026-11-18 (build): The editors leave a key to the native menu per chord, not per action (`nativeMenuOwns(action, e)`): the menu binds only an action's first chord, so ⌘Y (Redo) and ⌥W (Close) stay with the editors. Found red by `document-tabs-desktop` (⌥W closed nothing).
+- 2026-11-18 (build): Until a mirrored menu is in place, the editors leave only the start-screen menu's chords (New, Open, Keyboard Shortcuts, Settings) to it, so a failed first push keeps ⌘Z & co. working (AC-14).
+- 2026-11-18 (build): The Pixel editor's command-palette `extras` (the probe without a menu path on macOS, `menu-structure` AC-06) are gone: the mirrored Help lists the probe, so the palette finds it under Help (`menu-structure` AC-06 dropped).
