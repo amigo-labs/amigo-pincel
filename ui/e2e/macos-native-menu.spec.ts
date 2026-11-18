@@ -9,6 +9,7 @@ import {
   putFile,
   reply,
   setMock,
+  timedCommandCalls,
 } from './tauri-mock';
 
 // docs/specs/macos-native-menu.md: in the macOS desktop app the editor
@@ -211,7 +212,7 @@ test.describe('macOS desktop app', () => {
     const before = await page.evaluate(() => performance.now());
     await pick(page, 'Help', 'Frame-Time Probe');
     await menusWhere(page, (m) => item(m, 'Help', 'Frame-Time Probe').checked === true);
-    const calls = await commandCalls(page, 'set_editor_menu');
+    const calls = await timedCommandCalls(page, 'set_editor_menu');
     const flipped = calls.find(
       (c) =>
         c.t > before &&

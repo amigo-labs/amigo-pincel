@@ -46,7 +46,9 @@ export interface TauriMock {
    *  rejects. A command without answers resolves `null`. */
   replies: Record<string, unknown[]>;
   /** Calls of those commands, in order. */
-  calls: { cmd: string; args: Record<string, unknown>; t: number }[];
+  calls: { cmd: string; args: Record<string, unknown> }[];
+  /** `performance.now()` of each entry of `calls`, in the same order. */
+  callTimes: number[];
   /** Commands whose calls wait in `held` until released (in call order). */
   hold: string[];
   held: (() => void)[];
@@ -92,6 +94,7 @@ export async function installTauriMock(page: Page): Promise<void> {
       images: {},
       replies: {},
       calls: [],
+      callTimes: [],
       hold: [],
       held: [],
       mcpReplies: {},
@@ -210,11 +213,8 @@ export async function installTauriMock(page: Page): Promise<void> {
           delete mock.images[Number(args.rid)];
           return null;
         default: {
-          mock.calls.push({
-            cmd,
-            args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown>,
-            t: performance.now(),
-          });
+          mock.calls.push({ cmd, args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown> });
+          mock.callTimes.push(performance.now());
           if (mock.hold.includes(cmd)) {
             await new Promise<void>((resolve) => mock.held.push(resolve));
           }
@@ -397,9 +397,21 @@ export async function reply(page: Page, cmd: string, ...answers: unknown[]): Pro
 export async function commandCalls(
   page: Page,
   cmd?: string,
-): Promise<{ cmd: string; args: Record<string, unknown>; t: number }[]> {
+): Promise<{ cmd: string; args: Record<string, unknown> }[]> {
   const calls = await page.evaluate(() => (window as unknown as MockWindow).__mock.calls);
   return cmd === undefined ? calls : calls.filter((c) => c.cmd === cmd);
+}
+
+/** The calls of app command `cmd` with the `performance.now()` they came at. */
+export async function timedCommandCalls(
+  page: Page,
+  cmd: string,
+): Promise<{ args: Record<string, unknown>; t: number }[]> {
+  const { calls, times } = await page.evaluate(() => {
+    const mock = (window as unknown as MockWindow).__mock;
+    return { calls: mock.calls, times: mock.callTimes };
+  });
+  return calls.flatMap((c, i) => (c.cmd === cmd ? [{ args: c.args, t: times[i] ?? NaN }] : []));
 }
 
 /** Holds (or stops holding) the calls of `cmds` that start from now on. */
