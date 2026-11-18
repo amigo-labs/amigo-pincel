@@ -7,8 +7,10 @@ import { hint } from '../shell/shortcuts';
 import { help, openAbout, openSettings, runUpdateCheck } from './state.svelte';
 import { startTour, type TourContext } from '../tour/tour-state.svelte';
 
-/** The end of both editors' Edit menu: Settings… (docs/specs/settings-dialog.md). */
+/** The end of both editors' Edit menu: Settings… (docs/specs/settings-dialog.md);
+ *  nothing on macOS, where the native App menu holds it (macos-native-menu AC-08). */
 export function settingsMenuItems(): MenuItem[] {
+  if (hasNativeMenu()) return [];
   return [
     { kind: 'separator' },
     { label: t('menu.settings'), shortcut: hint('settings'), run: openSettings },
@@ -16,17 +18,16 @@ export function settingsMenuItems(): MenuItem[] {
 }
 
 /**
- * The Help menu (Keyboard Shortcuts, the mode's `diagnostics` entries, About,
- * the updater's entries), or nothing where the OS already draws one: on macOS the
- * native menu bar owns Help, and a second copy inside the window would be
- * the duplication this menu exists to avoid (spec §11.3).
+ * The Help menu (Keyboard Shortcuts, Tour, the mode's `diagnostics` entries,
+ * About, the updater's entries). On macOS the native menu bar mirrors it, and
+ * About and the updater live in the native App menu instead
+ * (docs/specs/macos-native-menu.md AC-08).
  */
 export function helpMenus(
   openShortcuts: () => void,
   tourContext?: TourContext,
   diagnostics: MenuItem[] = [],
 ): MenuDef[] {
-  if (hasNativeMenu()) return [];
   const updater = help.updater;
   // No update entries where nothing can be installed: a browser, a debug
   // build, or a copy a package manager owns (`updater::supported()`).
@@ -47,9 +48,9 @@ export function helpMenus(
           ? [{ label: t('menu.tour'), run: () => startTour(tourContext) } satisfies MenuItem]
           : []),
         ...diagnostics,
-        { kind: 'separator' },
-        { label: t('menu.about'), run: openAbout },
-        ...updates,
+        ...(hasNativeMenu()
+          ? []
+          : [{ kind: 'separator' } satisfies MenuItem, { label: t('menu.about'), run: openAbout }, ...updates]),
       ]),
     },
   ];

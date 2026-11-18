@@ -46,7 +46,7 @@ export interface TauriMock {
    *  rejects. A command without answers resolves `null`. */
   replies: Record<string, unknown[]>;
   /** Calls of those commands, in order. */
-  calls: { cmd: string; args: Record<string, unknown> }[];
+  calls: { cmd: string; args: Record<string, unknown>; t: number }[];
   /** Commands whose calls wait in `held` until released (in call order). */
   hold: string[];
   held: (() => void)[];
@@ -210,7 +210,11 @@ export async function installTauriMock(page: Page): Promise<void> {
           delete mock.images[Number(args.rid)];
           return null;
         default: {
-          mock.calls.push({ cmd, args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown> });
+          mock.calls.push({
+            cmd,
+            args: JSON.parse(JSON.stringify(args ?? {})) as Record<string, unknown>,
+            t: performance.now(),
+          });
           if (mock.hold.includes(cmd)) {
             await new Promise<void>((resolve) => mock.held.push(resolve));
           }
@@ -393,7 +397,7 @@ export async function reply(page: Page, cmd: string, ...answers: unknown[]): Pro
 export async function commandCalls(
   page: Page,
   cmd?: string,
-): Promise<{ cmd: string; args: Record<string, unknown> }[]> {
+): Promise<{ cmd: string; args: Record<string, unknown>; t: number }[]> {
   const calls = await page.evaluate(() => (window as unknown as MockWindow).__mock.calls);
   return cmd === undefined ? calls : calls.filter((c) => c.cmd === cmd);
 }

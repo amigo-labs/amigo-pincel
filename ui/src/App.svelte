@@ -117,6 +117,7 @@
     wireNativeMenu,
     type EditorMenuHandlers,
   } from './lib/menu';
+  import { showEditorMenus, runEditorEntry } from './lib/menu/native-sync';
   import { hasNativeMenu, isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
   import { assistantBusy, startAssistant } from './lib/assistant/chat.svelte';
@@ -150,6 +151,8 @@
 
   const MODES: readonly EditorMode[] = ['pixel', 'image'];
   const tauriHost = isTauri();
+  /** The OS draws the menu bar (macOS desktop app, spec §11.3). */
+  const nativeMenuHost = hasNativeMenu();
   const recentsAvailable = (hasFsAccess() || tauriHost) && isIdbAvailable();
   const FILE_ASSOC_PREF = 'fileAssocPromptShown';
   const platform: 'macos' | 'windows' | 'linux' | 'unknown' = (() => {
@@ -809,6 +812,12 @@
     });
   });
 
+  // While the start screen shows, the native bar shows its fixed menu
+  // again (macos-native-menu AC-15); a shown editor sends its own.
+  $effect(() => {
+    if (nativeMenuHost && showStart) showEditorMenus(null);
+  });
+
   // While the start screen shows, the shell keeps the native Open Recent
   // submenu in sync; a shown Pixel editor does the same from its list.
   $effect(() => {
@@ -943,6 +952,11 @@
         'menu:tour': () => startTour(activeMode ?? 'start'),
         'menu:settings': () => {
           if (!helpDialogOpen()) openSettings();
+        },
+        // A mirrored editor entry, guarded like the editor handlers below.
+        editorEntry: (id) => {
+          if (promptBusy() || recoveryOpen || animationDialog !== null) return;
+          runEditorEntry(id);
         },
         recent: async (id) => {
           // The native menu only knows the id; look the row up fresh so
