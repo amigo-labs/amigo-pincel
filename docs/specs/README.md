@@ -138,6 +138,7 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 | K1 | [menu-structure](menu-structure.md) | both | M | settings-dialog | Tools menu for the AI setup (desktop), OCR into Image, probe into Help, Layer ▸ Transform, one order in both modes; replaces the planned `ai-panel` |
 | K2 | [sidebar-tab-groups](sidebar-tab-groups.md) | both | L | — | Fixed groups: Layers \| History, Preview \| Tilesets \| Slices, Generate \| Assistant; Colors and Palette stay single |
 | K3 | [panel-visibility](panel-visibility.md) | both | M | menu-structure, sidebar-tab-groups | View ▸ Panels with a check mark per panel, Reset Panels |
+| K4 | [macos-native-menu](macos-native-menu.md) | shell | L | menu-structure | Owner request 2026-11-18: on macOS only the native menu bar — it mirrors the editor menus, App menu in front; the in-window menus go |
 
 ### L — Sprite and animation import
 
