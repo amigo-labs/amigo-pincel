@@ -277,6 +277,9 @@ export const live = $state({
   /** A drag of the transform box in flight: the box when it began and the
    *  box it shows now; the core has not seen it yet (AC-20, AC-23). */
   transformDrag: null as { start: BoxState; box: BoxState } | null,
+  /** A Move Layer drag in flight: the whole-pixel offset it shows; the
+   *  core moves the layer on release (image-move-layer-preview). */
+  moveOffset: null as [number, number] | null,
   /** The selection's bounds `[x, y, w, h]`, `null` without a selection that
    *  selects a pixel: where the transform box shows before a drag. */
   selectionBox: null as [number, number, number, number] | null,

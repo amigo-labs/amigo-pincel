@@ -76,18 +76,22 @@ Owner report 2026-11-18: "while holding the image you don't see live where it is
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-01 | e2e `the layer follows the drag; the release shows the same picture as one step (AC-01 – AC-04)` (ui/e2e/image-move-layer-preview.spec.ts); `compose_split_parts_stack_to_the_composite` (crates/pincel-image-core/src/render/mod.rs) | built |        |
+| AC-02 | e2e `the layer follows the drag; the release shows the same picture as one step (AC-01 – AC-04)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-03 | e2e `the layer above stays on top of the moved layer, whatever its blend mode (AC-03)` (ui/e2e/image-move-layer-preview.spec.ts); `compose_split_keeps_the_moved_layers_groups` (crates/pincel-image-core/src/render/mod.rs) | built |        |
+| AC-04 | e2e `the layer follows the drag; the release shows the same picture as one step (AC-01 – AC-04)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-05 | e2e `a drag that comes back to its start changes nothing (AC-05)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-06 | e2e `Escape …`, `Undo …`, `a tool switch …`, `the window losing focus during the drag drops it unapplied (AC-06)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-07 | e2e `Move Selected Pixels without a selection previews the whole layer (AC-07)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-08 | e2e `a group follows the drag and moves as one step (AC-08)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-09 | e2e `a locked layer shows no preview and the notice (AC-09)` (ui/e2e/image-move-layer-preview.spec.ts) | built |        |
+| AC-10 | perf `image 4K, 10 layers: Move Layer drag preview` (ui/e2e-perf/scenarios.perf.ts, metric `browser/image-move-layer-4k/dab-latency-p95`, budget in ui/e2e-perf/budgets.json) | built |        |
 
 ## Decisions
 
 - 2026-11-18: Split from the owner's report together with `image-move-layer-offcanvas`; the preview is built first because it is independent and smaller (owner).
 - 2026-11-18 (revision): AC-02 narrowed to fully opaque / fully transparent pixels at 100 % opacity and zoom ≥ 100 % (owner): the drag preview is drawn by the browser, which blends semi-transparent pixels in sRGB while the core blends in linear light; exact per-frame core composites would miss the AC-10 budget on 4K. Release stays exact.
+- 2026-11-18 (spec-build): The core hands over three canvas-sized composites (below, moved, above) once per drag through `move_preview` (pincel-image-wasm, new public API) backed by `compose_split` (pincel-image-core, new public API), instead of view-rect composites as for the transform box — because they do not depend on the view, so a zoom or pan during the drag needs no second handover; canvases over 4096 px are downscaled for the preview only.
+- 2026-11-18 (spec-build): A drag is tied to the document, its revision, the active layer and the tool it began with; any change of these drops it unapplied (AC-06). Menu commands and Undo change the revision, so they need no hook of their own; Undo during the drag is caught before it runs (`gestureControl.cancelLiveDrag`), so it does not undo an earlier step.
+- 2026-11-18 (spec-build): Red run before the fix: AC-01/02/04, AC-06 (Undo, tool switch, window blur), AC-07 and AC-08 failed; AC-03, AC-05, AC-06 (Escape) and AC-09 were green before, because without a preview the canvas never changes during a drag — their tests guard the new code against regressions (a preview drawn above the upper layers fails AC-03).
+- 2026-11-18 (spec-build): AC-10 is measured by `pnpm perf` on the reference machine; this container is not one, so the budget check of that run stays with the owner.

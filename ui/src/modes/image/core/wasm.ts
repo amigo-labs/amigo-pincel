@@ -57,6 +57,7 @@ import initWasm, {
   live_object,
   live_transform,
   transform_preview,
+  move_preview,
   text_layout,
   register_font,
   read_palette_file,
@@ -673,6 +674,16 @@ export interface TransformFields {
 
 /** What a drag preview of the Move tools' transform box gets from the core
  *  once per drag (docs/specs/image-transform-handles.md AC-20, AC-23). */
+/** What a Move Layer drag preview draws (docs/specs/image-move-layer-preview.md):
+ *  the composites below, of and above the moved layer, straight RGBA8 of
+ *  `size` (the canvas, or less for a canvas over 4096 px). */
+export interface MovePreviewData {
+  size: [number, number];
+  below: Uint8ClampedArray<ArrayBuffer>;
+  moved: Uint8ClampedArray<ArrayBuffer>;
+  above: Uint8ClampedArray<ArrayBuffer>;
+}
+
 export interface TransformPreviewData {
   /** The selection's bounds when the transform began, `[x, y, w, h]`. */
   bounds: [number, number, number, number];
@@ -1004,6 +1015,9 @@ export const core = {
     view: readonly number[],
   ): TransformPreviewData | null =>
     transform_preview(handle, layer, pixels, Uint32Array.from(view)) as TransformPreviewData | null,
+  /** The composites a Move Layer drag draws, once per drag. */
+  movePreview: (handle: number, layer: number): MovePreviewData | null =>
+    move_preview(handle, layer) as MovePreviewData | null,
   /** The outline polygon of a box shape over a drag, as the core draws it
    *  (docs/specs/image-shapes-curves-shapes.md AC-12); empty for other
    *  kinds or a box without area. */
