@@ -1,5 +1,14 @@
 # Changelog
 
+## [1.20.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.19.0...v1.20.0) (2026-11-18)
+
+
+### Features
+
+* **tauri:** macOS App menu, start-screen menu and set_editor_menu (AC-07, AC-09) ([38ccd6d](https://github.com/amigo-labs/amigo-pincel/commit/38ccd6db72bafb90ec16f9b1595bdf3024f944b2))
+* **ui:** macOS shows only the native menu bar ([1f758ab](https://github.com/amigo-labs/amigo-pincel/commit/1f758abd6f446c6804e37c6065884ba1d3a61661))
+* **ui:** mirror the editor menus into the native macOS menu bar (AC-01 – AC-06, AC-08, AC-10 – AC-15, AC-17, AC-18) ([727b342](https://github.com/amigo-labs/amigo-pincel/commit/727b34280d731b48dea609334190c551ae9353f1))
+
 ## [1.19.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.18.0...v1.19.0) (2026-11-18)
 
 
