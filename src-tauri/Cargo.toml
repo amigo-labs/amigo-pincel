@@ -47,7 +47,7 @@ tokio-tungstenite = { version = "0.30", default-features = false, features = ["h
 # ComfyUI archives (zip on Windows, tar.gz elsewhere), all already in the
 # tree through the updater plugin.
 flate2 = { workspace = true }
-sha2 = "0.10"
+sha2 = "0.11"
 tar = "0.4"
 zip = { workspace = true }
 serde = { version = "1", features = ["derive"] }
