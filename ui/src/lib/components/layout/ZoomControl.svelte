@@ -29,6 +29,7 @@
   // places it: last in the status bar, or floating over the canvas corner
   // on a narrow window (`floating`, lifted by `lift` px above a sheet).
   import { tick } from 'svelte';
+  import Icon from '../icons/Icon.svelte';
   import IconButton from './IconButton.svelte';
   import { activeOnFocus } from './menu-focus';
   import { hint } from '../../shell/shortcuts';
@@ -175,6 +176,7 @@
     onclick={() => (open ? close(true) : show())}
   >
     {label}
+    <Icon name="chevron-down" size={12} class="shrink-0 text-pc-faint" />
   </button>
   <IconButton
     icon="zoom-in"
