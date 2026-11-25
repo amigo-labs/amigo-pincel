@@ -677,6 +677,26 @@ pub fn preview_effect(
     })
 }
 
+/// The effect dialog's instant preview (docs/specs/performance-background-jobs.md
+/// AC-05): like [`preview_effect`], on the document point-sampled to
+/// `w` × `h`. `params` are already scaled to that size. Returns `w × h`
+/// RGBA8.
+#[wasm_bindgen]
+pub fn preview_effect_proxy(
+    handle: u32,
+    layer: usize,
+    name: &str,
+    params: &[f64],
+    w: u32,
+    h: u32,
+) -> Result<Clamped<Vec<u8>>, JsError> {
+    let spec = EffectSpec::from_params(name, params).map_err(|e| JsError::new(&e.to_string()))?;
+    with_bus(handle, |bus| {
+        let out = jobs::preview_effect_proxy(&bus.document, layer, &spec, w, h).map_err(job_js)?;
+        Ok(Clamped(out.into_raw()))
+    })
+}
+
 /// Undoes the last command. Returns `true` if something was undone.
 #[wasm_bindgen]
 pub fn undo(handle: u32) -> Result<bool, JsError> {
