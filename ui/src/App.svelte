@@ -8,12 +8,6 @@
   import { onMount, untrack } from 'svelte';
   import { invoke } from '@tauri-apps/api/core';
   import { listen, type UnlistenFn } from '@tauri-apps/api/event';
-  import { getCurrentWindow } from '@tauri-apps/api/window';
-  import AboutDialog from './lib/components/AboutDialog.svelte';
-  import SettingsDialog from './lib/components/SettingsDialog.svelte';
-  import ShortcutsDialog from './lib/components/ShortcutsDialog.svelte';
-  import CommandPalette from './lib/components/CommandPalette.svelte';
-  import ComfyUiDialog from './lib/comfyui/ComfyUiDialog.svelte';
   import { closeImageGeneration, comfy } from './lib/comfyui/state.svelte';
   import {
     closeAbout,
@@ -30,9 +24,6 @@
     openSettings,
     runUpdateCheck,
   } from './lib/help/state.svelte';
-  import FileAssocDialog from './lib/components/FileAssocDialog.svelte';
-  import UpdateNotice from './lib/components/UpdateNotice.svelte';
-  import UpdateQuestion from './lib/components/UpdateQuestion.svelte';
   import RecoveryDialog from './lib/components/RecoveryDialog.svelte';
   import NewDocumentDialog from './lib/shell/NewDocumentDialog.svelte';
   import StartScreen from './lib/shell/StartScreen.svelte';
@@ -121,7 +112,6 @@
   import { hasNativeMenu, isTauri } from './lib/platform';
   import { startLiveHost } from './lib/agent/live-host';
   import { assistantBusy, startAssistant } from './lib/assistant/chat.svelte';
-  import AgentsDialog from './lib/agent/AgentsDialog.svelte';
   import { agentAccess, startAgentAccess } from './lib/agent/access.svelte';
   import { t } from './lib/i18n/index.svelte';
   import {
@@ -905,8 +895,8 @@
       // (a Tauri 1 or partial bridge); starting it inside a promise turns
       // that into a logged rejection instead of aborting the shell's start
       // (desktop-app AC-20).
-      Promise.resolve()
-        .then(() =>
+      import('@tauri-apps/api/window')
+        .then(({ getCurrentWindow }) =>
           getCurrentWindow().onFocusChanged(({ payload: focused }) => {
             if (focused && offerEligible()) void checkClipboard(offerEligible);
           }),
@@ -1112,7 +1102,9 @@
 {/if}
 
 {#if agentAccess.dialogOpen}
-  <AgentsDialog onClose={() => (agentAccess.dialogOpen = false)} />
+  {#await import('./lib/agent/AgentsDialog.svelte') then { default: AgentsDialog }}
+    <AgentsDialog onClose={() => (agentAccess.dialogOpen = false)} />
+  {/await}
 {/if}
 {#if newDialog}
   {#key newDialog}
@@ -1148,37 +1140,53 @@
 {/if}
 
 {#if fileAssocOpen}
-  <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+  {#await import('./lib/components/FileAssocDialog.svelte') then { default: FileAssocDialog }}
+    <FileAssocDialog {platform} onDismiss={dismissFileAssoc} />
+  {/await}
 {/if}
 
 {#if help.question && fileAssocSettled && !fileAssocOpen}
-  <UpdateQuestion onConfirm={confirmQuestion} onDismiss={dismissQuestion} />
+  {#await import('./lib/components/UpdateQuestion.svelte') then { default: UpdateQuestion }}
+    <UpdateQuestion onConfirm={confirmQuestion} onDismiss={dismissQuestion} />
+  {/await}
 {/if}
 
 {#if help.about}
-  <AboutDialog onClose={closeAbout} />
+  {#await import('./lib/components/AboutDialog.svelte') then { default: AboutDialog }}
+    <AboutDialog onClose={closeAbout} />
+  {/await}
 {/if}
 
 {#if help.updater?.announce && !help.question}
   {@const version = help.updater.announce}
-  <UpdateNotice {version} onInstall={runUpdateCheck} onLater={() => laterUpdate(version)} />
+  {#await import('./lib/components/UpdateNotice.svelte') then { default: UpdateNotice }}
+    <UpdateNotice {version} onInstall={runUpdateCheck} onLater={() => laterUpdate(version)} />
+  {/await}
 {/if}
 {#if help.settings}
-  <SettingsDialog onClose={closeSettings} />
+  {#await import('./lib/components/SettingsDialog.svelte') then { default: SettingsDialog }}
+    <SettingsDialog onClose={closeSettings} />
+  {/await}
 {/if}
 
 <Tour />
 
 {#if help.shortcuts}
-  <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
+  {#await import('./lib/components/ShortcutsDialog.svelte') then { default: ShortcutsDialog }}
+    <ShortcutsDialog source={help.shortcuts} onClose={closeShortcuts} />
+  {/await}
 {/if}
 
 {#if help.palette}
-  <CommandPalette source={help.palette} onClose={closePalette} />
+  {#await import('./lib/components/CommandPalette.svelte') then { default: CommandPalette }}
+    <CommandPalette source={help.palette} onClose={closePalette} />
+  {/await}
 {/if}
 
 {#if comfy.open}
-  <ComfyUiDialog onClose={closeImageGeneration} />
+  {#await import('./lib/comfyui/ComfyUiDialog.svelte') then { default: ComfyUiDialog }}
+    <ComfyUiDialog onClose={closeImageGeneration} />
+  {/await}
 {/if}
 
 {#if shellError}

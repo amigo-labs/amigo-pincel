@@ -5,7 +5,6 @@
 // unsaved tab (docs/specs/document-tabs.md). A close during a running
 // File ▸ Save waits for it to end.
 import type { UnlistenFn } from '@tauri-apps/api/event';
-import { getCurrentWindow } from '@tauri-apps/api/window';
 import { help } from '../help/state.svelte';
 import { updaterArmRestart } from '../help/updater';
 import { stopAllAnswers } from '../assistant/chat.svelte';
@@ -58,6 +57,7 @@ async function restartNow(): Promise<void> {
 async function closeNow(): Promise<void> {
   if (hasUnsaved()) await dropSnapshot();
   try {
+    const { getCurrentWindow } = await import('@tauri-apps/api/window');
     await getCurrentWindow().destroy();
   } catch (err) {
     console.error('closing the window failed', err);
@@ -79,7 +79,9 @@ async function dropSnapshot(): Promise<void> {
 }
 
 /** Route the window's close requests through `requestClose` (Tauri only). */
-export function wireCloseGuard(): Promise<UnlistenFn> {
+export async function wireCloseGuard(): Promise<UnlistenFn> {
+  // Loaded here, not up front: the web app's start screen does not need it.
+  const { getCurrentWindow } = await import('@tauri-apps/api/window');
   return getCurrentWindow().onCloseRequested((event) => {
     event.preventDefault();
     void requestClose();
