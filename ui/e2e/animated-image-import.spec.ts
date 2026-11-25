@@ -119,9 +119,10 @@ test.describe('input fallback', () => {
     await expect(shownEditor(page).getByText('Layer 1', { exact: true }).first()).toBeVisible();
     expect(await tabNames(page)).toEqual(['walk.aseprite']);
     // Unsaved, named after the file; the first Save asks for a location.
-    await expect(
-      page.getByRole('banner').getByTitle('walk.aseprite — unsaved changes', { exact: true }),
-    ).toBeVisible();
+    await expect(tab(page, 'walk.aseprite')).toHaveAttribute(
+      'title',
+      'walk.aseprite — unsaved changes',
+    );
     await page.keyboard.press('Control+s');
     await expect.poll(async () => (await picker(page)).written).toEqual(['walk.aseprite']);
     expect((await picker(page)).calls).toBe(1);

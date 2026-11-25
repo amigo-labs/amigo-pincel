@@ -10,6 +10,9 @@ import {
   storedPref,
   swatch,
   switchLanguage,
+  zoomActual,
+  zoomFit,
+  zoomReadout,
 } from './helpers';
 
 // The shared amigo app theme (docs/specs/amigo-theme.md): colours, radii,
@@ -441,11 +444,17 @@ for (const mode of MODES) {
       await canvas.click();
       const sidebar = page.getByRole('complementary', { name: 'Panels' });
 
-      // Accent-coloured text: the mode badge of the top bar.
-      const badge = page
-        .getByRole('banner')
-        .locator('span', { hasText: mode === 'pixel' ? /^Pixel$/ : /^Image$/ });
-      await expectText(page, badge, 'accent-ink');
+      // Accent-coloured text: the check mark of the zoom menu's current
+      // step (the app bar has no mode badge since frame-layout).
+      await zoomActual(page);
+      await zoomReadout(page).click();
+      const mark = page
+        .getByRole('menu', { name: 'Zoom', exact: true })
+        .getByRole('menuitemcheckbox', { checked: true })
+        .locator('.am-menu-check');
+      await expectText(page, mark, 'accent-ink');
+      await page.keyboard.press('Escape');
+      await zoomFit(page);
 
       // Selected rows: the layer, the history step, the frame.
       await layerRow(page, 'Layer 1').getByRole('button', { name: 'Layer 1', exact: true }).click();
