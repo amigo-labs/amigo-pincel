@@ -26,7 +26,7 @@ async function pinchOut(page: Page, target: Locator): Promise<void> {
 }
 
 const MODES = {
-  pixel: { canvas: pixelCanvas, readout: (page: Page) => page.getByText(/^\d+×$/), unit: '×' },
+  pixel: { canvas: pixelCanvas, readout: (page: Page) => zoomReadout(page), unit: '×' },
   image: {
     canvas: imageCanvas,
     readout: (page: Page) => zoomReadout(page),

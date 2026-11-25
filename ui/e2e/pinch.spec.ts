@@ -73,7 +73,7 @@ async function zoomOf(page: Page): Promise<number> {
 
 test('pixel mode: two-finger pinch zooms in and paints nothing', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const readout = page.getByText(/^\d+×$/);
+  const readout = zoomReadout(page);
   const before = Number((await readout.textContent())?.replace('×', ''));
   await pinchOut(page, pixelCanvas(page));
   await expect
