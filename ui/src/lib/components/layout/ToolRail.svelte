@@ -321,10 +321,13 @@
   }}
 />
 
+<!-- The vertical rail is dense (32 px buttons, 1 px gaps): since the tab bar
+     and the status bar span the window it is 60 px shorter, and Image
+     mode's 17 groups have to fit a 720 px window (frame-layout). -->
 <div
   bind:this={railEl}
   class={orientation === 'vertical'
-    ? 'rail flex w-12 shrink-0 flex-col items-center gap-0.5 overflow-y-auto border-r border-pc-border bg-pc-panel py-1.5 select-none [scrollbar-width:none]'
+    ? 'rail flex w-12 shrink-0 flex-col items-center gap-px overflow-y-auto border-r border-pc-border bg-pc-panel py-1.5 select-none [scrollbar-width:none]'
     : 'rail scroll-fade-x flex h-14 shrink-0 items-center gap-1 overflow-x-auto border-t border-pc-border bg-pc-panel px-2 select-none [scrollbar-width:none]'}
   role="toolbar"
   aria-label={t('frame.tools')}
@@ -338,7 +341,7 @@
     {#if startsSection(groups[i - 1]?.id, g.id)}
       <div
         class={orientation === 'vertical'
-          ? 'my-1 h-px w-6 shrink-0 bg-pc-border'
+          ? 'my-0.5 h-px w-6 shrink-0 bg-pc-border'
           : 'mx-0.5 h-7 w-px shrink-0 bg-pc-border'}
         role="separator"
         aria-orientation={orientation === 'vertical' ? 'horizontal' : 'vertical'}
@@ -350,7 +353,7 @@
       <button
         type="button"
         class="btn-press relative flex shrink-0 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text disabled:opacity-45 disabled:hover:bg-transparent"
-        class:h-9={orientation === 'vertical'}
+        class:h-8={orientation === 'vertical'}
         class:w-9={orientation === 'vertical'}
         class:h-11={orientation === 'horizontal'}
         class:w-11={orientation === 'horizontal'}
