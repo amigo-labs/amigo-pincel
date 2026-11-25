@@ -301,7 +301,7 @@ impl Base {
                     }
                     let (x0, y0) = ((u + 1.0) as i64 - 1, (v + 1.0) as i64 - 1);
                     let (tu, tv) = (u - x0 as f64, v - y0 as f64);
-                    let near = |t: f64| t < 1e-9 || t > 1.0 - 1e-9;
+                    let near = |t: f64| !t.is_nan() && !(1e-9..=1.0 - 1e-9).contains(&t);
                     if near(tu) && near(tv) {
                         let snap = |i: i64, t: f64| if t < 0.5 { i } else { i + 1 };
                         read(snap(x0, tu), snap(y0, tv))
