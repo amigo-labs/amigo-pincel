@@ -1,0 +1,421 @@
+<!doctype html>
+<html lang="de">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Pincel UI-Refresh</title>
+<style>
+:root {
+  color-scheme: dark;
+  --bg: #15161a; --surface: #1d1e23; --raised: #26272d; --hover: #2e3037; --active: #383a43;
+  --border: #34363e; --border-strong: #7c808c;
+  --text: #e8e9ed; --text2: #b4b7c0; --muted: #9a9da8;
+  --accent: #29adff; --on-accent: #111318; --accent-subtle: #1e2f3d;
+  --warning: #eab308; --warning-subtle: #363020; --doc: #242428;
+  --sans: 'Inter Variable', 'Inter', system-ui, -apple-system, 'Segoe UI', sans-serif;
+  --mono: ui-monospace, 'SF Mono', 'Cascadia Mono', Menlo, Consolas, monospace;
+}
+* { box-sizing: border-box; }
+body { margin: 0; background: var(--bg); color: var(--text); font: 400 14px/20px var(--sans); }
+.page { max-width: 1280px; margin: 0 auto; padding: 32px 16px 64px; }
+h1 { font: 650 24px/30px var(--sans); margin: 0 0 4px; }
+h2 { font: 600 16px/22px var(--sans); margin: 48px 0 4px; }
+p.lead { color: var(--text2); margin: 0 0 16px; max-width: 70ch; }
+.bar { display: flex; align-items: center; gap: 12px; margin: 12px 0; flex-wrap: wrap; }
+.seg { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.seg button { font: inherit; color: var(--text2); background: var(--surface); border: 0; padding: 6px 14px; cursor: pointer; }
+.seg button + button { border-left: 1px solid var(--border); }
+.seg button[aria-pressed="true"] { background: var(--accent); color: var(--on-accent); font-weight: 600; }
+.scroll { overflow-x: auto; border-radius: 12px; border: 1px solid var(--border); }
+.notes { display: grid; grid-template-columns: repeat(auto-fit, minmax(280px, 1fr)); gap: 8px 24px; margin: 16px 0 0; padding: 0; list-style: none; }
+.notes li { display: flex; gap: 8px; color: var(--text2); font-size: 13px; line-height: 18px; }
+.notes b { color: var(--text); font-weight: 600; }
+.n { flex: none; display: inline-grid; place-items: center; width: 18px; height: 18px; border-radius: 9999px; background: var(--accent); color: var(--on-accent); font: 700 11px/1 var(--sans); }
+
+/* ---------- frame ---------- */
+.frame { width: 1240px; height: 770px; background: var(--bg); display: grid; font-size: 13px; line-height: 18px; position: relative; }
+.frame.after { grid-template-rows: 40px 36px 1fr 28px; }
+.frame.before { grid-template-rows: 44px 1fr; }
+.row { display: flex; align-items: center; gap: 4px; min-width: 0; }
+.appbar { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 8px; }
+.word { font-weight: 650; font-size: 14px; padding: 0 8px 0 4px; }
+.menu { padding: 4px 8px; border-radius: 6px; color: var(--text2); white-space: nowrap; }
+.pill { font: 600 11px/16px var(--sans); background: var(--accent-subtle); color: var(--accent); padding: 2px 8px; border-radius: 9999px; }
+.sep { width: 1px; height: 20px; background: var(--border); margin: 0 6px; flex: none; }
+.grow { flex: 1; min-width: 0; }
+.ib { width: 32px; height: 32px; display: grid; place-items: center; border-radius: 6px; color: var(--text2); flex: none; }
+.ib.sm { width: 24px; height: 24px; }
+.ib.on { background: var(--accent); color: var(--on-accent); }
+svg.i { width: 18px; height: 18px; fill: none; stroke: currentColor; stroke-width: 1.75; stroke-linecap: round; stroke-linejoin: round; }
+.search { display: flex; align-items: center; gap: 8px; height: 28px; width: 220px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--muted); }
+kbd { font: 400 11px/16px var(--mono); border: 1px solid var(--border); border-radius: 4px; padding: 0 4px; color: var(--muted); }
+.title { color: var(--text); white-space: nowrap; }
+.dot { color: var(--accent); }
+
+.tabs { background: var(--bg); border-bottom: 1px solid var(--border); padding: 0 8px; align-items: flex-end; gap: 2px; }
+.tab { display: flex; align-items: center; gap: 6px; height: 30px; padding: 0 8px 0 10px; color: var(--muted); border: 1px solid transparent; border-bottom: 0; border-radius: 6px 6px 0 0; white-space: nowrap; }
+.before .tab { height: 26px; }
+.tab.sel { background: var(--surface); border-color: var(--border); color: var(--text); }
+.tab svg.i { width: 13px; height: 13px; }
+
+.body { display: grid; grid-template-columns: 48px 1fr 288px; min-height: 0; overflow: hidden; }
+.rail { background: var(--surface); border-right: 1px solid var(--border); display: flex; flex-direction: column; align-items: center; gap: 2px; padding: 6px 0; }
+.rail hr { width: 24px; border: 0; border-top: 1px solid var(--border); margin: 3px 0; }
+.rail .ib { width: 36px; height: 30px; }
+.rail { min-height: 0; }
+.well { margin-top: auto; position: relative; width: 36px; height: 36px; }
+.well i { position: absolute; width: 22px; height: 22px; border-radius: 4px; border: 2px solid var(--surface); outline: 1px solid var(--border-strong); }
+.well .bgc { right: 1px; bottom: 1px; background: #fff; }
+.well .fgc { left: 1px; top: 1px; background: #f87171; }
+
+.center { display: grid; min-width: 0; min-height: 0; }
+.options { background: var(--surface); border-bottom: 1px solid var(--border); padding: 0 10px; gap: 10px; color: var(--text2); overflow: hidden; }
+.toolname { display: flex; align-items: center; gap: 6px; color: var(--text); font-weight: 600; white-space: nowrap; }
+.fld { display: flex; align-items: center; gap: 6px; white-space: nowrap; }
+.inp { height: 24px; min-width: 40px; padding: 0 6px; border: 1px solid var(--border); border-radius: 6px; background: var(--bg); color: var(--text); display: inline-flex; align-items: center; gap: 4px; }
+.rng { width: 70px; height: 4px; border-radius: 2px; background: linear-gradient(90deg, var(--accent) 40%, var(--active) 40%); }
+.chk { width: 14px; height: 14px; border: 1px solid var(--border-strong); border-radius: 4px; display: inline-block; }
+.chk.on { background: var(--accent); border-color: var(--accent); }
+.mini { display: inline-flex; border: 1px solid var(--border); border-radius: 6px; overflow: hidden; }
+.mini span { width: 26px; height: 22px; display: grid; place-items: center; color: var(--muted); }
+.mini span.on { background: var(--accent); color: var(--on-accent); }
+.mini svg.i { width: 14px; height: 14px; }
+.btn { height: 24px; padding: 0 8px; border: 1px solid var(--border); border-radius: 6px; background: var(--raised); color: var(--text); display: inline-flex; align-items: center; gap: 4px; white-space: nowrap; }
+
+.stage { background: var(--bg); position: relative; display: grid; place-items: center; min-height: 0; overflow: hidden; }
+.art { box-shadow: 0 6px 16px rgb(0 0 0 / .45); }
+.check { background: repeating-conic-gradient(#3a3b42 0 25%, #2c2d33 0 50%) 0 0 / 16px 16px; }
+.zoomfloat { position: absolute; right: 12px; bottom: 12px; display: flex; align-items: center; gap: 2px; padding: 2px; background: color-mix(in srgb, var(--surface) 90%, transparent); border: 1px solid var(--border); border-radius: 8px; }
+.zoomfloat span.v { padding: 0 6px; font-variant-numeric: tabular-nums; }
+
+.timeline { background: var(--surface); border-top: 1px solid var(--border); padding: 0 10px 8px; }
+.phead { height: 32px; display: flex; align-items: center; gap: 6px; font: 600 11px/16px var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--text2); }
+.cells { display: flex; gap: 4px; }
+.cell { width: 44px; height: 44px; border: 1px solid var(--border); border-radius: 4px; display: grid; place-items: end center; font-size: 11px; color: var(--muted); }
+.cell.sel { border-color: var(--accent); box-shadow: 0 0 0 1px var(--accent); color: var(--text); }
+
+.status { background: var(--surface); border-top: 1px solid var(--border); padding: 0 10px; gap: 12px; color: var(--muted); font-size: 12px; white-space: nowrap; }
+.status .v { font-variant-numeric: tabular-nums; }
+.zoomctl { display: flex; align-items: center; gap: 2px; }
+.zoomctl .inp { height: 20px; }
+.zoomctl .ib { width: 22px; height: 22px; }
+.zoomctl svg.i, .zoomfloat svg.i { width: 15px; height: 15px; }
+
+.side { background: var(--surface); border-left: 1px solid var(--border); display: flex; flex-direction: column; min-height: 0; overflow: hidden; }
+.panel { border-bottom: 1px solid var(--border); padding: 0 10px 10px; }
+.panel.closed { padding-bottom: 0; }
+.panel.fill { flex: 1; min-height: 0; }
+.ptabs { display: flex; gap: 2px; height: 32px; align-items: flex-end; margin: 0 -10px 8px; padding: 0 10px; border-bottom: 1px solid var(--border); }
+.ptabs span { padding: 6px 8px 5px; font: 600 11px/16px var(--sans); letter-spacing: .04em; text-transform: uppercase; color: var(--muted); border-bottom: 2px solid transparent; }
+.ptabs span.on { color: var(--text); border-color: var(--accent); }
+.ptabs .ib { margin-left: auto; align-self: center; }
+.pair { display: flex; align-items: center; gap: 10px; }
+.pair .well { margin: 0; }
+.sw { display: grid; grid-template-columns: repeat(12, 1fr); gap: 2px; }
+.sw i { aspect-ratio: 1; border-radius: 2px; }
+.lrow { display: flex; align-items: center; gap: 8px; height: 34px; padding: 0 6px; border-radius: 6px; color: var(--text2); }
+.lrow.sel { background: var(--accent-subtle); color: var(--text); }
+.lrow .th { width: 24px; height: 24px; border-radius: 3px; border: 1px solid var(--border); }
+.lrow svg.i { width: 15px; height: 15px; }
+.toast { position: absolute; left: 50%; bottom: 12px; transform: translateX(-50%); display: flex; align-items: center; gap: 8px; padding: 6px 12px; background: var(--raised); border: 1px solid var(--border); border-radius: 8px; box-shadow: 0 6px 16px rgb(0 0 0 / .45); color: var(--text); white-space: nowrap; }
+.frame .n { position: absolute; z-index: 5; box-shadow: 0 0 0 3px var(--bg); }
+
+/* ---------- phone ---------- */
+.phones { display: flex; gap: 32px; flex-wrap: wrap; align-items: flex-start; }
+.phone { width: 390px; height: 760px; border: 1px solid var(--border); border-radius: 24px; overflow: hidden; display: grid; grid-template-rows: 44px 34px 44px 1fr 56px; background: var(--bg); font-size: 13px; position: relative; }
+.phone .rail { flex-direction: row; border-right: 0; border-top: 1px solid var(--border); padding: 0 8px; gap: 2px; }
+.phone .rail .ib { width: 44px; height: 44px; }
+.phone .rail hr { width: 1px; height: 24px; border: 0; border-left: 1px solid var(--border); margin: 0 2px; }
+.phone .well { margin: 0 0 0 auto; }
+.phone svg.i { width: 20px; height: 20px; }
+.phone .tab svg.i, .phone .mini svg.i { width: 14px; height: 14px; }
+figcaption { color: var(--muted); font-size: 12px; margin-top: 8px; }
+figure { margin: 0; }
+</style>
+</head>
+<body>
+<div class="page">
+  <h1>Pincel UI-Refresh</h1>
+  <p class="lead">Entwurf zur Abnahme des Zielbilds. Leitlinie: vom Allgemeinen zum Speziellen von oben nach unten (App, Dokument, Werkzeug, Leinwand, Status), und jede Sache hat genau einen Ort, in beiden Modi denselben.</p>
+
+  <h2>Pixel-Modus, Desktop</h2>
+  <div class="bar">
+    <div class="seg" role="group" aria-label="Ansicht">
+      <button type="button" data-v="before" aria-pressed="false">Heute</button>
+      <button type="button" data-v="after" aria-pressed="true">Entwurf</button>
+    </div>
+  </div>
+  <div class="scroll"><div id="pixel"></div></div>
+  <ul class="notes" id="notes"></ul>
+
+  <h2>Image-Modus, Desktop</h2>
+  <p class="lead">Derselbe Rahmen: gleiche Leisten, gleiche Statusleiste, gleiche Werkzeuggruppen. Nur die Timeline fehlt, und die Optionen folgen derselben Reihenfolge.</p>
+  <div class="scroll"><div id="image"></div></div>
+
+  <h2>Handy (390 px)</h2>
+  <p class="lead">Gleiche Reihenfolge. Der Zoom bleibt über der Leinwand, Meldungen kommen als Toast, das Farbfeld sitzt am Rand des Werkzeugstreifens.</p>
+  <div class="phones" id="phones"></div>
+</div>
+
+<script>
+const P = {
+  move: 'M12 3v18M3 12h18M12 3l-3 3M12 3l3 3M12 21l-3-3M12 21l3-3M3 12l3-3M3 12l3 3M21 12l-3-3M21 12l-3 3',
+  hand: 'M8 12V6a1.5 1.5 0 0 1 3 0v5m0-6.5a1.5 1.5 0 0 1 3 0V11m0-5a1.5 1.5 0 0 1 3 0v8c0 4-2.5 7-6 7-3 0-4.5-2-6-5l-1.5-3a1.5 1.5 0 0 1 2.6-1.4L8 14',
+  zoom: 'M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13zM15.5 15.5L21 21',
+  marquee: 'M4 5h3M10 5h4M17 5h3v3M20 11v3M20 17v2h-3M14 19h-4M7 19H4v-2M4 14v-3M4 8V5',
+  lasso: 'M12 4c5 0 8 2.5 8 5.5S16.5 15 12 15s-8-2-8-5.5S7 4 12 4zM7 14c-1 2 0 4 2 4s2 2 0 3',
+  wand: 'M5 19L16 8M14 3v3M21 9h-3M19 4l-1.5 1.5',
+  pencil: 'M4 20l1-4L16 5l3 3L8 19l-4 1zM14 7l3 3',
+  brush: 'M4 20c0-3 2-4 4-4l2 2c0 2-2 4-6 2zM9 15L19 4l1 1-9 11',
+  eraser: 'M9 19L4 14l9-9 7 7-7 7H9zM9 10l6 6M9 19h11',
+  bucket: 'M5 12l7-7 7 7-6 6a2 2 0 0 1-3 0l-5-6zM5 12h14',
+  picker: 'M16 3l5 5-3 3-5-5 3-3zM14 8L5 17v3h3l9-9',
+  smudge: 'M8 21c0-4 0-6 2-9l4-8a1.5 1.5 0 0 1 3 1l-3 8c2 0 4 1 4 4v4',
+  clone: 'M9 4h6v5l3 3v3H6v-3l3-3V4zM5 20h14',
+  line: 'M5 19L19 5',
+  shapes: 'M4 4h10v10H4zM16 20a4 4 0 1 0 0-8a4 4 0 0 0 0 8z',
+  text: 'M6 6V4h12v2M12 4v16M9 20h6',
+  stamp: 'M5 5h6v6H5zM13 5h6v6h-6zM5 13h6v6H5z',
+  slice: 'M4 8h16M8 4v16M16 4v16M4 16h16',
+  undo: 'M8 8L4 12l4 4M4 12h10a5 5 0 0 1 0 10h-2',
+  redo: 'M16 8l4 4-4 4M20 12H10a5 5 0 0 0 0 10h2',
+  sidebar: 'M4 5h16v14H4zM15 5v14',
+  close: 'M7 7l10 10M17 7L7 17',
+  plus: 'M12 5v14M5 12h14',
+  minus: 'M5 12h14',
+  eye: 'M2 12s4-7 10-7 10 7 10 7-4 7-10 7S2 12 2 12zM12 15a3 3 0 1 0 0-6a3 3 0 0 0 0 6z',
+  down: 'M6 9l6 6 6-6',
+  right: 'M9 6l6 6-6 6',
+  menu: 'M4 6h16M4 12h16M4 18h16',
+  layers: 'M12 3l9 5-9 5-9-5 9-5zM3 13l9 5 9-5',
+  play: 'M7 5l12 7-12 7z',
+  mpixel: 'M5 5h6v6H5zM13 13h6v6h-6z',
+  mimage: 'M4 5h16v14H4zM4 16l5-5 4 4 3-3 4 4',
+  square: 'M6 6h12v12H6z',
+  circle: 'M12 5a7 7 0 1 0 0 14a7 7 0 0 0 0-14z',
+};
+const I = (n) => `<svg class="i" viewBox="0 0 24 24" aria-hidden="true"><path d="${P[n]}"/></svg>`;
+const ib = (n, c = '') => `<span class="ib ${c}">${I(n)}</span>`;
+const N = (k, style) => `<span class="n" style="${style}">${k}</span>`;
+
+const PAL = ['#1a1c2c','#5d275d','#b13e53','#ef7d57','#ffcd75','#a7f070','#38b764','#257179','#29366f','#3b5dc9','#41a6f6','#73eff7','#f4f4f4','#94b0c2','#566c86','#333c57','#f87171','#fb923c','#facc15','#4ade80','#22d3ee','#818cf8','#e879f9','#fda4af'];
+const swatches = () => `<div class="sw">${PAL.map((c) => `<i style="background:${c}"></i>`).join('')}</div>`;
+
+const SPRITE = [
+  '..1111..', '.122221.', '12322321', '12222221', '12411421', '12244221', '.122221.', '..1..1..',
+];
+const SC = { 1: '#1a1c2c', 2: '#ffcd75', 3: '#f4f4f4', 4: '#b13e53' };
+function sprite(px) {
+  let r = '';
+  SPRITE.forEach((row, y) => [...row].forEach((ch, x) => {
+    if (ch !== '.') r += `<rect x="${x}" y="${y}" width="1.02" height="1.02" fill="${SC[ch]}"/>`;
+  }));
+  return `<svg class="art check" width="${px}" height="${px}" viewBox="0 0 8 8" shape-rendering="crispEdges">${r}</svg>`;
+}
+const photo = (w, h) => `<div class="art" style="width:${w}px;height:${h}px;background:
+  radial-gradient(circle at 72% 30%, #ffe9a8 0 7%, transparent 8%),
+  linear-gradient(180deg, #5b8fd6 0%, #f3b98a 55%, #3d5a4a 56%, #24382f 100%)"></div>`;
+
+const MENUS_P = ['Datei','Bearbeiten','Auswahl','Bild','Ebene','Frame','Effekte','Anpassungen','Ansicht','Hilfe'];
+const MENUS_I = MENUS_P.filter((m) => m !== 'Frame');
+const menus = (list) => list.map((m) => `<span class="menu">${m}</span>`).join('');
+
+function rail(mode, after) {
+  const pixelBefore = ['move','|','marquee','lasso','wand','|','pencil*','eraser','|','bucket','picker','|','line','shapes','text','|','stamp','slice'];
+  const pixelAfter = ['move','hand','zoom','|','marquee','lasso','wand','|','pencil*','eraser','|','bucket','picker','|','line','shapes','text','|','stamp','slice'];
+  const image = ['move','hand','zoom','|','marquee','lasso','wand','|','brush*','eraser','smudge','clone','|','bucket','picker','|','line','shapes','text'];
+  const list = mode === 'image' ? image : after ? pixelAfter : pixelBefore;
+  const items = list.map((t) => t === '|' ? '<hr>' : ib(t.replace('*', ''), t.endsWith('*') ? 'on' : '')).join('');
+  const well = after ? `<span class="well" title="Vorder-/Hintergrundfarbe"><i class="bgc"></i><i class="fgc"></i></span>` : '';
+  return `<div class="rail">${items}${well}</div>`;
+}
+
+const tabs = (after) => `
+  <div class="row tabs">
+    <span class="tab sel">${I('mpixel')} held.aseprite <span class="dot">●</span> ${I('close')}</span>
+    <span class="tab">${I('mimage')} titelbild.png ${I('close')}</span>
+    ${after ? `<span class="ib sm" title="Neu">${I('plus')}</span>` : ''}
+  </div>`;
+const tabsImg = `
+  <div class="row tabs">
+    <span class="tab">${I('mpixel')} held.aseprite <span class="dot">●</span> ${I('close')}</span>
+    <span class="tab sel">${I('mimage')} titelbild.png ${I('close')}</span>
+    <span class="ib sm">${I('plus')}</span>
+  </div>`;
+
+const optPixelBefore = `
+  <div class="row options" style="height:44px">
+    <span class="fld">Größe <span class="inp">1</span><span class="rng"></span></span>
+    <span class="fld">Form <span class="inp">Quadrat ${I('down')}</span></span>
+    <span class="fld"><span class="chk on"></span> Pixelgenau</span>
+    <span class="fld"><span class="chk"></span> Druck → Größe</span>
+    <span class="fld">Symmetrie <span class="inp">Keine ${I('down')}</span></span>
+    <span class="fld">Tinte <span class="inp">Einfach ${I('down')}</span></span>
+  </div>`;
+const optPixelAfter = `
+  <div class="row options">
+    <span class="toolname">${I('pencil')} Stift</span><span class="sep"></span>
+    <span class="fld">Größe <span class="inp">1</span><span class="rng"></span></span>
+    <span class="fld">Form <span class="mini"><span class="on">${I('square')}</span><span>${I('circle')}</span></span></span>
+    <span class="fld">Tinte <span class="inp">Einfach ${I('down')}</span></span>
+    <span class="fld"><span class="chk on"></span> Pixelgenau</span>
+    <span class="grow"></span>
+    <span class="btn">Mehr ${I('down')}</span>
+  </div>`;
+const optImageAfter = `
+  <div class="row options">
+    <span class="toolname">${I('brush')} Pinsel</span><span class="sep"></span>
+    <span class="fld">Größe <span class="inp">24</span><span class="rng"></span></span>
+    <span class="fld">Deckkraft <span class="inp">100 %</span><span class="rng" style="background:var(--accent)"></span></span>
+    <span class="fld">Spitze <span class="inp">Weich ${I('down')}</span></span>
+    <span class="fld">Härte <span class="inp">60 %</span></span>
+    <span class="grow"></span>
+    <span class="btn">Mehr ${I('down')}</span>
+  </div>`;
+
+const timeline = `
+  <div class="timeline">
+    <div class="phead">${I('down')} Timeline <span class="grow"></span>${ib('play','sm')}${ib('plus','sm')}</div>
+    <div class="cells"><span class="cell sel">1</span><span class="cell">2</span><span class="cell">3</span><span class="cell">4</span></div>
+  </div>`;
+
+const layerRows = (thumb) => `
+  <div class="lrow sel">${I('eye')}<span class="th ${thumb}"></span> Figur</div>
+  <div class="lrow">${I('eye')}<span class="th ${thumb}"></span> Schatten</div>
+  <div class="lrow">${I('eye')}<span class="th ${thumb}"></span> Hintergrund</div>`;
+const colorsPanel = `
+  <div class="pair"><span class="well"><i class="bgc"></i><i class="fgc"></i></span><span class="inp" style="font-family:var(--mono)">#f87171</span></div>`;
+
+function sideBefore() {
+  const closed = (t) => `<div class="panel closed"><div class="phead">${I('right')} ${t}</div></div>`;
+  return `<div class="side">
+    <div class="panel"><div class="phead">${I('down')} Farben</div>${colorsPanel}</div>
+    <div class="panel"><div class="phead">${I('down')} Palette</div>${swatches()}</div>
+    ${closed('Vorschau')}
+    <div class="panel fill"><div class="phead">${I('down')} Ebenen</div>${layerRows('check')}</div>
+    ${closed('Tilesets')}${closed('Slices')}${closed('Verlauf')}${closed('Generieren')}
+    <div class="panel" style="height:90px"><div class="phead">${I('down')} Assistent</div><span style="color:var(--muted)">Frag etwas …</span></div>
+  </div>`;
+}
+function sideAfter(mode) {
+  const group = (names, body, cls = '') => `<div class="panel ${cls}"><div class="ptabs">${names.map((n, i) => `<span class="${i === 0 ? 'on' : ''}">${n}</span>`).join('')}${ib('down','sm')}</div>${body}</div>`;
+  const recent = `<div style="display:flex;gap:2px;margin-top:8px">${PAL.slice(16, 24).map((c) => `<i style="width:16px;height:16px;border-radius:2px;background:${c}"></i>`).join('')}</div>`;
+  const pixel = mode === 'pixel';
+  return `<div class="side">
+    ${group(['Farben'], colorsPanel + recent)}
+    ${group(['Palette'], swatches())}
+    ${group(['Ebenen', 'Verlauf'], layerRows(pixel ? 'check' : ''), 'fill')}
+    ${pixel ? `<div class="panel closed"><div class="ptabs" style="margin-bottom:0;border-bottom:0"><span class="on">Vorschau</span><span>Tilesets</span><span>Slices</span>${ib('right','sm')}</div></div>` : ''}
+    ${group(['Generieren', 'Assistent'], '<span style="color:var(--muted)">Beschreibe, was entstehen soll …</span>', '')}
+  </div>`;
+}
+
+function frameBefore() {
+  return `<div class="frame before">
+    <div class="row appbar">
+      <span class="word">Pincel</span><span class="pill">Pixel</span>${menus(MENUS_P)}
+      <span class="grow"></span>
+      <span class="title">held.aseprite <span class="dot">●</span></span>
+      ${ib('undo')}${ib('redo')}${ib('sidebar')}
+    </div>
+    <div class="body">
+      ${rail('pixel', false)}
+      <div class="center" style="grid-template-rows:44px 32px 1fr auto 28px">
+        ${optPixelBefore}
+        ${tabs(false)}
+        <div class="stage">${sprite(288)}
+          <div class="zoomfloat">${ib('minus','sm')}<span class="v">3600 %</span>${ib('plus','sm')}<span class="v">1:1</span></div>
+        </div>
+        ${timeline}
+        <div class="row status"><span>8×8</span><span>Frame 1/4</span><span>Rückgängig 3/0</span><span class="grow" style="text-align:center">Stift</span><span>webgpu</span><span>v1.4.0</span></div>
+      </div>
+      ${sideBefore()}
+    </div>
+  </div>`;
+}
+
+function frameAfter(mode) {
+  const pixel = mode === 'pixel';
+  const n = pixel ? (k, s) => N(k, s) : () => '';
+  return `<div class="frame after">
+    <div class="row appbar">
+      <span class="word">Pincel</span>${menus(pixel ? MENUS_P : MENUS_I)}
+      <span class="sep"></span>${ib('undo')}${ib('redo')}
+      <span class="grow"></span>
+      <span class="search">${I('zoom')}<span class="grow">Befehle suchen</span><kbd>Ctrl K</kbd></span>
+      ${ib('sidebar', 'on')}
+    </div>
+    ${pixel ? tabs(true) : tabsImg}
+    <div class="body">
+      ${rail(mode, true)}
+      <div class="center" style="grid-template-rows:40px 1fr ${pixel ? 'auto' : ''}">
+        ${pixel ? optPixelAfter : optImageAfter}
+        <div class="stage">${pixel ? sprite(288) : photo(520, 340)}
+          ${pixel ? `<div class="toast">Als held.aseprite gespeichert</div>` : ''}
+        </div>
+        ${pixel ? timeline : ''}
+      </div>
+      ${sideAfter(mode)}
+    </div>
+    <div class="row status">
+      <span>${pixel ? 'Rechtsklick malt mit der Hintergrundfarbe' : 'Shift hält die Linie gerade'}</span>
+      <span class="grow"></span>
+      <span class="v">x ${pixel ? '5, y 3' : '812, y 446'}</span>
+      <span class="v">${pixel ? '8 × 8 px' : '1920 × 1080 px'}</span>
+      ${pixel ? '<span class="v">Frame 1/4</span>' : ''}
+      <span class="zoomctl">${ib('minus')}<span class="inp v">${pixel ? '3600 %' : '50 %'} ${I('down')}</span>${ib('plus')}</span>
+    </div>
+    ${n(1, 'left:812px;top:11px')}${n(2, 'left:330px;top:49px')}${n(3, 'left:650px;top:87px')}
+    ${n(4, 'left:39px;bottom:62px')}${n(5, 'right:279px;top:84px')}${n(6, 'right:345px;bottom:5px')}
+    ${n(7, 'left:372px;bottom:171px')}
+  </div>`;
+}
+
+const NOTES = [
+  ['App-Leiste', 'Menüs, dahinter Rückgängig/Wiederholen, rechts die Befehlssuche. Titel und Modus-Pille entfallen: beides steht im Tab.'],
+  ['Tabs oben, volle Breite', 'Das Dokument steht über allem, was zu ihm gehört. Mit + für ein neues Dokument.'],
+  ['Optionsleiste an der Leinwand', 'Immer gleich aufgebaut: Werkzeugname, Größe, Deckkraft, Form, Modus. Seltenes unter „Mehr“, kein seitliches Scrollen.'],
+  ['Farbfeld in der Werkzeugleiste', 'Vorder- und Hintergrundfarbe bleiben erreichbar, auch wenn die Seitenleiste zu ist. Hand und Zoom gibt es jetzt auch im Pixel-Modus.'],
+  ['Seitenleiste in Tab-Gruppen', 'Fünf Gruppen statt neun gestapelter Panels (Spec sidebar-tab-groups). Zuletzt benutzte Farben sind sichtbar.'],
+  ['Eine Statusleiste für beide Modi', 'Links der Hinweis zum Werkzeug, rechts Zeiger, Größe, Frame und der Zoom mit Auswahlliste (Einpassen, 100 % …).'],
+  ['Meldungen als Toast', 'Bestätigungen und Fehler erscheinen mittig über der Statusleiste, auch auf dem Handy.'],
+];
+document.getElementById('notes').innerHTML = NOTES.map(([b, t], i) => `<li><span class="n">${i + 1}</span><span><b>${b}.</b> ${t}</span></li>`).join('');
+
+const pixelEl = document.getElementById('pixel');
+function show(v) {
+  pixelEl.innerHTML = v === 'before' ? frameBefore() : frameAfter('pixel');
+  document.querySelectorAll('.seg button').forEach((b) => b.setAttribute('aria-pressed', String(b.dataset.v === v)));
+  document.getElementById('notes').style.display = v === 'before' ? 'none' : '';
+}
+document.querySelectorAll('.seg button').forEach((b) => b.addEventListener('click', () => show(b.dataset.v)));
+show('after');
+document.getElementById('image').innerHTML = frameAfter('image');
+
+function phone(mode) {
+  const pixel = mode === 'pixel';
+  const tools = pixel ? ['move','marquee','|','pencil*','eraser','bucket','|','shapes'] : ['move','marquee','|','brush*','eraser','bucket','|','shapes'];
+  return `<figure><div class="phone">
+    <div class="row appbar">${ib('menu')}${ib('undo')}${ib('redo')}<span class="grow"></span>${ib('zoom')}${ib('layers')}</div>
+    <div class="row tabs">
+      <span class="tab ${pixel ? 'sel' : ''}">${I('mpixel')} held.aseprite <span class="dot">●</span> ${I('close')}</span>
+      <span class="tab ${pixel ? '' : 'sel'}">${I('mimage')} titelbild.png ${I('close')}</span>
+      <span class="ib sm">${I('plus')}</span>
+    </div>
+    <div class="row options">
+      <span class="toolname">${I(pixel ? 'pencil' : 'brush')} ${pixel ? 'Stift' : 'Pinsel'}</span><span class="sep"></span>
+      <span class="fld">Größe <span class="inp">${pixel ? 1 : 24}</span><span class="rng"></span></span>
+      <span class="grow"></span><span class="btn">Mehr ${I('down')}</span>
+    </div>
+    <div class="stage">${pixel ? sprite(240) : photo(330, 220)}
+      <div class="zoomfloat">${ib('minus','sm')}<span class="v">${pixel ? '3000 %' : '17 %'}</span>${ib('plus','sm')}</div>
+      ${pixel ? '' : '<div class="toast" style="bottom:60px">Als titelbild.png gespeichert</div>'}
+    </div>
+    <div class="rail">${tools.map((t) => t === '|' ? '<hr>' : ib(t.replace('*', ''), t.endsWith('*') ? 'on' : '')).join('')}
+      <span class="well"><i class="bgc"></i><i class="fgc" style="${pixel ? '' : 'background:#111318'}"></i></span></div>
+  </div><figcaption>${pixel ? 'Pixel-Modus' : 'Image-Modus mit Toast'}</figcaption></figure>`;
+}
+document.getElementById('phones').innerHTML = phone('pixel') + phone('image');
+</script>
+</body>
+</html>
