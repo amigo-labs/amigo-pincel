@@ -197,14 +197,25 @@ export function drawViewport(
  * `RegionSampler` for a live effect preview, which arrives as one
  * document-sized composite.
  */
-export function sampleFullBuffer(src: Uint8ClampedArray<ArrayBuffer>, docW: number): RegionSampler {
+export function sampleFullBuffer(
+  src: Uint8ClampedArray<ArrayBuffer>,
+  docW: number,
+  docH: number,
+  srcW = docW,
+  srcH = docH,
+): RegionSampler {
+  // A smaller source (an instant effect proxy) covers the same canvas.
+  const fx = srcW / docW;
+  const fy = srcH / docH;
   return (x, y, w, h, outW, outH) => {
     const out = new Uint8ClampedArray(outW * outH * 4);
     for (let oy = 0; oy < outH; oy++) {
-      const sy = y + Math.floor(((oy + 0.5) * h) / outH);
+      const dy = y + ((oy + 0.5) * h) / outH;
+      const sy = Math.min(srcH - 1, Math.floor(dy * fy));
       for (let ox = 0; ox < outW; ox++) {
-        const sx = x + Math.floor(((ox + 0.5) * w) / outW);
-        const s = (sy * docW + sx) * 4;
+        const dx = x + ((ox + 0.5) * w) / outW;
+        const sx = Math.min(srcW - 1, Math.floor(dx * fx));
+        const s = (sy * srcW + sx) * 4;
         const d = (oy * outW + ox) * 4;
         out[d] = src[s] ?? 0;
         out[d + 1] = src[s + 1] ?? 0;

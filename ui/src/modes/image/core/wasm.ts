@@ -34,6 +34,7 @@ import initWasm, {
   apply_effect_region,
   effect_region_bytes,
   preview_effect,
+  preview_effect_proxy,
   pick_color,
   set_active_layer,
   get_layer_thumbnail,
@@ -892,6 +893,17 @@ export const core = {
     selection: Uint8Array | null,
   ): number => open_snapshot_parts(header, layers, selection ?? undefined),
   closeDocument: (handle: number): void => close_document(handle),
+  /** The instant effect preview: `previewEffect` on the document
+   *  point-sampled to `w × h`, with `params` already scaled to it. */
+  previewEffectProxy: (
+    handle: number,
+    layer: number,
+    name: string,
+    params: number[],
+    w: number,
+    h: number,
+  ): Uint8ClampedArray<ArrayBuffer> =>
+    preview_effect_proxy(handle, layer, name, new Float64Array(params), w, h) as Uint8ClampedArray<ArrayBuffer>,
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
   // them without a second copy per frame.

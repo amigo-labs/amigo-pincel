@@ -51,6 +51,7 @@
     renameLayer,
     mergeVisible,
     effectJobFor,
+    showEffectProxy,
     showEffectPreview,
     resizeCanvas,
     rotateCanvas,
@@ -1446,6 +1447,13 @@
             fxRun?.stopPreview();
             clearEffectPreview();
           } else {
+            // The instant reduced-size preview first, then the
+            // full-resolution one from the job worker (AC-05).
+            try {
+              showEffectProxy(session.def.id, params, view.zoom);
+            } catch (err) {
+              console.error('effect proxy preview failed', err);
+            }
             effectRunFor()?.preview(effectJobFor(session.def.id, params));
           }
         }}

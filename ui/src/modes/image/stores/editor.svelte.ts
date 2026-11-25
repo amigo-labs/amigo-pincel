@@ -26,6 +26,15 @@ import type {
 import type { DocSaveFormat, DocumentFile } from '../core/document-file';
 import type { BoxState } from '../tools/transform-box';
 
+/** An effect preview composite of `width` × `height` RGBA8 pixels (the
+ *  document's size, or smaller for a proxy). */
+export interface EffectPreview {
+  readonly pixels: Uint8ClampedArray<ArrayBuffer>;
+  readonly width: number;
+  readonly height: number;
+  readonly proxy: boolean;
+}
+
 /** A tab's document state: what the editor mirrors from its core handle. */
 export function docInit() {
   return {
@@ -99,8 +108,10 @@ const sharedEditor = $state({
    *  and thumbnails refresh. */
   revision: 0,
   /** A live effect preview composite that overrides the canvas while an
-   * effect dialog is open; `null` shows the real composite (spec §11). */
-  previewComposite: null as Uint8ClampedArray<ArrayBuffer> | null,
+   * effect dialog is open; `null` shows the real composite (spec §11). A
+   * `proxy` is the instant reduced-size preview shown until the
+   * full-resolution one arrives (performance-background-jobs AC-05). */
+  previewComposite: null as EffectPreview | null,
   /** One-line notice for the status bar (e.g. painting on a locked layer). */
   notice: null as string | null,
 });
