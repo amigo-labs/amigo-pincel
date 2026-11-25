@@ -10,6 +10,7 @@ import {
   pixelCanvas,
   waitForEditor,
 } from './helpers';
+import { expectActive } from './tab-helpers';
 
 // The unsaved-changes prompt (docs/specs/unsaved-changes-prompt.md): it
 // asks Save / Don't Save / Cancel while a document has unsaved changes.
@@ -223,7 +224,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(marker(page, mode)).toBeVisible();
     // One undo step back reaches the saved state: the history is intact.
     await page.keyboard.press('Control+z');
-    await expect(page.getByTitle(NAME[mode], { exact: true })).toBeVisible();
+    await expectActive(page, NAME[mode]);
   });
 
   test(`${mode}: Save saves like File ▸ Save, then runs the action (AC-03)`, async ({ page }) => {
@@ -365,7 +366,7 @@ test('File ▸ Open… opens a tab of either mode without a prompt (AC-01)', asy
     const [chooser] = await Promise.all([page.waitForEvent('filechooser'), menu(page, 'File', 'Open…')]);
     await expect(prompt(page)).toHaveCount(0);
     await chooser.setFiles({ name: 'dot.png', mimeType: 'image/png', buffer: PNG_1X1 });
-    await expect(page.getByTitle(mode === 'image' ? 'dot.png' : 'dot.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, mode === 'image' ? 'dot.png' : 'dot.aseprite');
     await expect(prompt(page)).toHaveCount(0);
     await expect(openTabs(page)).toHaveCount(2);
   }
@@ -373,7 +374,7 @@ test('File ▸ Open… opens a tab of either mode without a prompt (AC-01)', asy
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), menu(page, 'File', 'Open…')]);
   await chooser.setFiles({ name: 'photo.gif', mimeType: 'image/gif', buffer: GIF_1X1 });
   await waitForEditor(page, 'image');
-  await expect(page.getByTitle('photo.gif', { exact: true })).toBeVisible();
+  await expectActive(page, 'photo.gif');
   await expect(prompt(page)).toHaveCount(0);
   await expect(openTabs(page)).toHaveCount(3);
   await expect(openTabs(page).first().getByText('unsaved changes')).toHaveCount(1);
@@ -383,7 +384,7 @@ test('dropping a file onto an open editor opens a tab without a prompt (AC-01)',
   await dirtyDocument(page, 'pixel');
   await dropToOpen(page, 'dot.png', 'image/png', PNG_1X1);
   await waitForEditor(page, 'image');
-  await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expectActive(page, 'dot.png');
   await expect(prompt(page)).toHaveCount(0);
   await expect(openTabs(page)).toHaveCount(2);
 });
@@ -431,7 +432,7 @@ test('a clean document runs every action at once (AC-07)', async ({ page }) => {
 
   await dropToOpen(page, 'dot.png', 'image/png', PNG_1X1);
   await waitForEditor(page, 'image');
-  await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expectActive(page, 'dot.png');
   await expect(prompt(page)).toHaveCount(0);
 });
 
@@ -477,7 +478,7 @@ test('a document dropped while a File ▸ Save runs opens as a tab at once; the 
   await page.waitForFunction(() => (window as unknown as StubWindow).__picker.release !== null);
   const other = await dropOther(page, 'image');
   await waitForEditor(page, 'pixel');
-  await expect(page.getByTitle(other, { exact: true })).toBeVisible();
+  await expectActive(page, other);
   await expect(prompt(page)).toHaveCount(0);
   await releasePicker(page);
   await expect(openTabs(page).first().getByText('unsaved changes')).toHaveCount(0);

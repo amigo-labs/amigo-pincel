@@ -25,7 +25,12 @@ import {
 // (docs/specs/image-live-text.md AC-01 – AC-03, AC-09, AC-11, AC-15,
 // AC-16, AC-21, AC-23).
 
-test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
+// The pixel tolerances of this file were tuned on a canvas area 572 px
+// high; frame-layout made it 4 px higher, which changes the fitted zoom.
+test.use({
+  permissions: ['clipboard-read', 'clipboard-write'],
+  viewport: { width: 1280, height: 716 },
+});
 
 test.beforeEach(async ({ page }) => {
   await createDocument(page, 'image', { width: W, height: H });

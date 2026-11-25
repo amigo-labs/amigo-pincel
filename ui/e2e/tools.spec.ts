@@ -73,11 +73,11 @@ test('image mode: Pan and Zoom are rail tools', async ({ page }) => {
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Zoom');
 
   // A click with the Zoom tool steps the view in; the control shows it.
-  const zoomBefore = await page.getByRole('button', { name: 'Fit' }).textContent();
+  const zoomBefore = await zoomReadout(page).textContent();
   const box = await imageCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByRole('button', { name: 'Fit' })).not.toHaveText(zoomBefore ?? '');
+  await expect(zoomReadout(page)).not.toHaveText(zoomBefore ?? '');
 });
 
 for (const mode of ['pixel', 'image'] as const) {

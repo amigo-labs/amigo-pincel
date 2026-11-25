@@ -439,13 +439,14 @@ for (const mode of ['pixel', 'image'] as const)
       await expect(bar).toBeVisible();
       const active = tab(page, `golf-long-name.${EXT[mode]}`);
       await expect(active).toBeInViewport();
-      // The bar sits between the options bar and the canvas.
+      // The bar sits below the app bar, above the options bar and the
+      // canvas (frame-layout AC-01).
       const options = await page.getByRole('toolbar', { name: 'Tool options' }).boundingBox();
       const barBox = await bar.boundingBox();
       const stage = await canvas(page, mode).boundingBox();
       if (!options || !barBox || !stage) throw new Error('editor frame not laid out');
-      expect(barBox.y).toBeGreaterThanOrEqual(options.y + options.height - 1);
-      expect(stage.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+      expect(options.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+      expect(stage.y).toBeGreaterThanOrEqual(options.y + options.height - 1);
       if (width < 1280) {
         expect(await bar.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
       }

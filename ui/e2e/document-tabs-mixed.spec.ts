@@ -267,6 +267,8 @@ test('only the active tab’s editor takes keys, pointer input and paste; the hi
   await paint(page, 'pixel');
   await page.keyboard.press('-');
   await page.keyboard.press('Control+a');
+  // The pointer rests off the canvas, so the footer holds no position.
+  await page.mouse.move(2, 2);
   const pixelFooter = await shownEditor(page).locator('footer').innerText();
   const pixelZoom = await zoomLabel(page).textContent();
   const layerRows = () =>
@@ -291,6 +293,7 @@ test('only the active tab’s editor takes keys, pointer input and paste; the hi
   await tab(page, 'a.aseprite').click();
   await expectActive(page, 'a.aseprite');
   await expectDirty(page, 'a.aseprite', true);
+  await page.mouse.move(2, 2);
   await expect(shownEditor(page).locator('footer')).toHaveText(pixelFooter);
   await expect(zoomLabel(page)).toHaveText(pixelZoom ?? '');
   await expect(layerRows()).toHaveCount(pixelLayers);

@@ -23,7 +23,9 @@ import {
 // text box or move the caret before it is clear that no second finger
 // follows. Real (CDP) touch points, as in `pinch.spec.ts`.
 
-test.use({ hasTouch: true });
+// The pixel tolerances of this file were tuned on a canvas area 572 px
+// high; frame-layout made it 4 px higher, which changes the fitted zoom.
+test.use({ hasTouch: true, viewport: { width: 1280, height: 716 } });
 
 type Pt = [number, number];
 

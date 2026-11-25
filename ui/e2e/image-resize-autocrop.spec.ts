@@ -242,7 +242,7 @@ test('Auto Crop trims the border in one undo step (AC-13 – AC-16)', async ({ p
   await menu(page, 'Image', 'Auto Crop');
   const size = page.getByText(/^\d+ × \d+ px$/);
   await expect(size).not.toHaveText('40 × 30 px');
-  const [w, h] = ((await size.textContent()) ?? '').split(/ × | px · /).map(Number);
+  const [w, h] = ((await size.textContent()) ?? '').split(/ × | px/).map(Number);
   expect(w).toBeLessThan(40);
   expect(h).toBeLessThan(30);
   await page.keyboard.press('ControlOrMeta+z');

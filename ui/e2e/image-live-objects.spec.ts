@@ -65,6 +65,10 @@ async function filledRectangle(page: Page): Promise<void> {
   await page.getByRole('combobox', { name: 'Mode', exact: true }).selectOption('fill');
 }
 
+// The pixel tolerances of this file were tuned on a canvas area 572 px
+// high; frame-layout made it 4 px higher, which changes the fitted zoom.
+test.use({ viewport: { width: 1280, height: 716 } });
+
 test('a shape, line or gradient drag leaves the object live with handles', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
   await setColors(page, '#000000', '#ff0000');
