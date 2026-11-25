@@ -3,16 +3,31 @@
 use crate::color::Color;
 use crate::error::DocumentError;
 use crate::geometry::Rect;
-use serde::{Deserialize, Serialize};
+use serde::{Deserialize, Deserializer, Serialize, Serializer};
+use std::sync::Arc;
 
 /// A rectangular block of straight-alpha RGBA8 pixels.
 ///
 /// Data is stored row-major, 4 bytes per pixel, length `width * height * 4`.
+///
+/// Clones share their pixels until one of them is written to
+/// (copy-on-write): a whole-document copy for a background job costs no
+/// pixel copy at the moment it is taken
+/// (docs/specs/performance-background-jobs.md AC-04).
 #[derive(Debug, Clone, PartialEq, Eq, Serialize, Deserialize)]
 pub struct ImageBuffer {
     width: u32,
     height: u32,
-    data: Vec<u8>,
+    #[serde(serialize_with = "ser_data", deserialize_with = "de_data")]
+    data: Arc<Vec<u8>>,
+}
+
+fn ser_data<S: Serializer>(data: &Arc<Vec<u8>>, s: S) -> Result<S::Ok, S::Error> {
+    data.as_slice().serialize(s)
+}
+
+fn de_data<'de, D: Deserializer<'de>>(d: D) -> Result<Arc<Vec<u8>>, D::Error> {
+    Vec::<u8>::deserialize(d).map(Arc::new)
 }
 
 impl ImageBuffer {
@@ -22,7 +37,7 @@ impl ImageBuffer {
         Self {
             width,
             height,
-            data: vec![0; len],
+            data: Arc::new(vec![0; len]),
         }
     }
 
@@ -36,7 +51,7 @@ impl ImageBuffer {
         Ok(Self {
             width,
             height,
-            data,
+            data: Arc::new(data),
         })
     }
 
@@ -55,14 +70,16 @@ impl ImageBuffer {
         &self.data
     }
 
-    /// Mutable view of the raw RGBA8 bytes.
+    /// Mutable view of the raw RGBA8 bytes; copies them first while a
+    /// clone still shares them.
     pub fn data_mut(&mut self) -> &mut [u8] {
-        &mut self.data
+        Arc::make_mut(&mut self.data).as_mut_slice()
     }
 
-    /// Consumes the buffer, returning the raw RGBA8 bytes.
+    /// Consumes the buffer, returning the raw RGBA8 bytes (a copy while a
+    /// clone still shares them).
     pub fn into_raw(self) -> Vec<u8> {
-        self.data
+        Arc::unwrap_or_clone(self.data)
     }
 
     /// Byte offset of pixel `(x, y)`, or `None` if out of bounds.
@@ -88,10 +105,11 @@ impl ImageBuffer {
     /// Sets the color at `(x, y)`. Out-of-bounds writes are ignored.
     pub fn set_pixel(&mut self, x: u32, y: u32, c: Color) {
         if let Some(o) = self.offset(x, y) {
-            self.data[o] = c.r;
-            self.data[o + 1] = c.g;
-            self.data[o + 2] = c.b;
-            self.data[o + 3] = c.a;
+            let data = Arc::make_mut(&mut self.data);
+            data[o] = c.r;
+            data[o + 1] = c.g;
+            data[o + 2] = c.b;
+            data[o + 3] = c.a;
         }
     }
 
@@ -133,13 +151,13 @@ impl ImageBuffer {
             return Err(DocumentError::RegionOutOfBounds);
         }
         let mut out = ImageBuffer::new_transparent(region.w, region.h);
+        let dst = out.data_mut();
         for row in 0..region.h {
             let src_y = region.y as u32 + row;
             let src_start = (src_y as usize * self.width as usize + region.x as usize) * 4;
             let len = region.w as usize * 4;
             let dst_start = row as usize * region.w as usize * 4;
-            out.data[dst_start..dst_start + len]
-                .copy_from_slice(&self.data[src_start..src_start + len]);
+            dst[dst_start..dst_start + len].copy_from_slice(&self.data[src_start..src_start + len]);
         }
         Ok(out)
     }
@@ -159,13 +177,14 @@ impl ImageBuffer {
         {
             return Err(DocumentError::RegionOutOfBounds);
         }
+        let width = self.width as usize;
+        let dst = self.data_mut();
         for row in 0..region.h {
             let dst_y = region.y as u32 + row;
-            let dst_start = (dst_y as usize * self.width as usize + region.x as usize) * 4;
+            let dst_start = (dst_y as usize * width + region.x as usize) * 4;
             let len = region.w as usize * 4;
             let src_start = row as usize * region.w as usize * 4;
-            self.data[dst_start..dst_start + len]
-                .copy_from_slice(&src.data[src_start..src_start + len]);
+            dst[dst_start..dst_start + len].copy_from_slice(&src.data[src_start..src_start + len]);
         }
         Ok(())
     }
@@ -174,6 +193,28 @@ impl ImageBuffer {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn clone_shares_pixels_until_written() {
+        let mut a = ImageBuffer::new_transparent(4, 4);
+        a.set_pixel(1, 1, Color::rgba(9, 8, 7, 6));
+        let b = a.clone();
+        assert_eq!(a.data().as_ptr(), b.data().as_ptr());
+        a.set_pixel(2, 2, Color::WHITE);
+        assert_ne!(a.data().as_ptr(), b.data().as_ptr());
+        assert_eq!(b.get_pixel(2, 2), Some(Color::rgba(0, 0, 0, 0)));
+        assert_eq!(b.get_pixel(1, 1), Some(Color::rgba(9, 8, 7, 6)));
+        assert_eq!(a.get_pixel(2, 2), Some(Color::WHITE));
+    }
+
+    #[test]
+    fn data_mut_after_clone_leaves_the_clone_unchanged() {
+        let mut a = ImageBuffer::new_transparent(2, 2);
+        let b = a.clone();
+        a.data_mut().fill(255);
+        assert!(b.data().iter().all(|&v| v == 0));
+        assert_eq!(b.clone().into_raw(), vec![0; 16]);
+    }
 
     #[test]
     fn new_transparent_is_all_zero() {
