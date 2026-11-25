@@ -150,6 +150,70 @@ pub fn open_snapshot(data: &[u8]) -> Result<u32, JsError> {
     Ok(insert(CommandBus::new(doc)))
 }
 
+/// A frozen copy of document `handle` as a new handle, for handing it to the
+/// job worker in parts (docs/specs/performance-background-jobs.md AC-04).
+/// The copy shares the pixels with the document until either is written
+/// to, so taking it copies no pixels; edits made to the document afterwards
+/// are not in the copy. Close it with [`close_document`].
+#[wasm_bindgen]
+pub fn freeze_document(handle: u32) -> Result<u32, JsError> {
+    let doc = with_bus(handle, |bus| Ok(bus.document.clone()))?;
+    Ok(insert(CommandBus::new(doc)))
+}
+
+/// The header part of a snapshot of document `handle`; the pixel parts are
+/// [`snapshot_layer`] of each layer and [`snapshot_selection`].
+#[wasm_bindgen]
+pub fn snapshot_header(handle: u32) -> Result<Vec<u8>, JsError> {
+    with_bus(handle, |bus| {
+        Ok(pincel_image_core::codec::snapshot::snapshot_header(
+            &bus.document,
+        ))
+    })
+}
+
+/// The pixel part of layer `index` of document `handle`, copied once
+/// straight into a new JS array (no copy inside wasm memory).
+#[wasm_bindgen]
+pub fn snapshot_layer(handle: u32, index: usize) -> Result<js_sys::Uint8Array, JsError> {
+    with_bus(handle, |bus| {
+        pincel_image_core::codec::snapshot::layer_bytes(&bus.document, index)
+            .map(js_sys::Uint8Array::from)
+            .ok_or_else(|| JsError::new("layer index out of range"))
+    })
+}
+
+/// The selection part of a snapshot of document `handle`; `None` without a
+/// selection.
+#[wasm_bindgen]
+pub fn snapshot_selection(handle: u32) -> Result<Option<js_sys::Uint8Array>, JsError> {
+    with_bus(handle, |bus| {
+        Ok(bus
+            .document
+            .selection
+            .as_ref()
+            .map(|m| js_sys::Uint8Array::from(m.data())))
+    })
+}
+
+/// Opens a snapshot handed over in parts ([`snapshot_header`],
+/// [`snapshot_layer`] per layer, [`snapshot_selection`]) as a new document
+/// and returns its handle.
+#[wasm_bindgen]
+pub fn open_snapshot_parts(
+    header: &[u8],
+    layers: Vec<js_sys::Uint8Array>,
+    selection: Option<js_sys::Uint8Array>,
+) -> Result<u32, JsError> {
+    let doc = pincel_image_core::codec::snapshot::from_snapshot_parts(
+        header,
+        layers.iter().map(js_sys::Uint8Array::to_vec),
+        selection.map(|s| s.to_vec()),
+    )
+    .map_err(to_js)?;
+    Ok(insert(CommandBus::new(doc)))
+}
+
 /// What [`open_psd`] hands back: the new document's handle and what the
 /// import left out or changed (docs/specs/psd-import.md).
 #[derive(Debug, Serialize)]
@@ -2088,5 +2152,47 @@ mod effect_region_tests {
                 .is_none()
         );
         assert!(decode_region(&bytes[..10]).is_err());
+    }
+}
+
+#[cfg(test)]
+mod freeze_tests {
+    use super::*;
+    use pincel_image_core::color::Color;
+
+    #[test]
+    fn freeze_document_shares_pixels_and_keeps_the_state_it_was_taken_in() {
+        let mut doc = Document::new(8, 6).expect("doc");
+        doc.active_layer_mut()
+            .pixels
+            .set_pixel(1, 1, Color::rgba(5, 6, 7, 8));
+        let handle = insert(CommandBus::new(doc));
+        let frozen = freeze_document(handle).expect("freeze");
+        let ptr = |h: u32| {
+            with_bus(h, |bus| Ok(bus.document.layers()[0].pixels.data().as_ptr())).expect("bus")
+        };
+        assert_eq!(ptr(handle), ptr(frozen));
+        with_bus(handle, |bus| {
+            bus.document
+                .active_layer_mut()
+                .pixels
+                .set_pixel(2, 2, Color::WHITE);
+            Ok(())
+        })
+        .expect("edit");
+        let pixel = |h: u32, x: u32, y: u32| {
+            with_bus(h, |bus| Ok(bus.document.layers()[0].pixels.get_pixel(x, y))).expect("bus")
+        };
+        assert_eq!(pixel(handle, 2, 2), Some(Color::WHITE));
+        assert_eq!(pixel(frozen, 2, 2), Some(Color::rgba(0, 0, 0, 0)));
+        assert_eq!(pixel(frozen, 1, 1), Some(Color::rgba(5, 6, 7, 8)));
+        let header = snapshot_header(frozen).expect("header");
+        let doc = with_bus(frozen, |bus| Ok(bus.document.clone())).expect("bus");
+        assert_eq!(
+            header,
+            pincel_image_core::codec::snapshot::snapshot_header(&doc)
+        );
+        close_document(frozen);
+        close_document(handle);
     }
 }
