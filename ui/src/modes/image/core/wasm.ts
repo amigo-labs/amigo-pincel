@@ -20,6 +20,11 @@ import initWasm, {
   save_project,
   snapshot_document,
   open_snapshot,
+  freeze_document,
+  snapshot_header,
+  snapshot_layer,
+  snapshot_selection,
+  open_snapshot_parts,
   close_document,
   document_count,
   composite,
@@ -29,6 +34,7 @@ import initWasm, {
   apply_effect_region,
   effect_region_bytes,
   preview_effect,
+  preview_effect_proxy,
   pick_color,
   set_active_layer,
   get_layer_thumbnail,
@@ -869,7 +875,35 @@ export const core = {
   snapshotDocument: (handle: number): Uint8Array => snapshot_document(handle),
   /** Opens a `snapshotDocument` copy as a new document. */
   openSnapshot: (data: Uint8Array): number => open_snapshot(data),
+  /** A copy of the document as it is now, as a new handle; shares the
+   *  pixels until either is written to, so it copies none (close it). */
+  freezeDocument: (handle: number): number => freeze_document(handle),
+  /** The header part of a snapshot handed over in parts. */
+  snapshotHeader: (handle: number): Uint8Array => snapshot_header(handle),
+  /** Layer `index`'s pixel part of a snapshot, in a fresh array. */
+  snapshotLayer: (handle: number, index: number): Uint8Array<ArrayBuffer> =>
+    snapshot_layer(handle, index) as Uint8Array<ArrayBuffer>,
+  /** The selection part of a snapshot; `null` without a selection. */
+  snapshotSelection: (handle: number): Uint8Array<ArrayBuffer> | null =>
+    (snapshot_selection(handle) as Uint8Array<ArrayBuffer> | undefined) ?? null,
+  /** Opens a snapshot handed over in parts as a new document. */
+  openSnapshotParts: (
+    header: Uint8Array,
+    layers: Uint8Array[],
+    selection: Uint8Array | null,
+  ): number => open_snapshot_parts(header, layers, selection ?? undefined),
   closeDocument: (handle: number): void => close_document(handle),
+  /** The instant effect preview: `previewEffect` on the document
+   *  point-sampled to `w × h`, with `params` already scaled to it. */
+  previewEffectProxy: (
+    handle: number,
+    layer: number,
+    name: string,
+    params: number[],
+    w: number,
+    h: number,
+  ): Uint8ClampedArray<ArrayBuffer> =>
+    preview_effect_proxy(handle, layer, name, new Float64Array(params), w, h) as Uint8ClampedArray<ArrayBuffer>,
   // `Clamped<Vec<u8>>` returns cross as fresh `.slice()` copies of wasm memory,
   // so they are ArrayBuffer-backed; narrowing the type here lets ImageData take
   // them without a second copy per frame.

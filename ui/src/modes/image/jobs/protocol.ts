@@ -4,6 +4,7 @@
 
 import { core } from '../core/wasm';
 import { encodeSnapshot, type EncodeJob } from './encode';
+import { openParts, partsTransfer, type SnapshotParts } from './snapshot';
 
 /** One effect run on a layer (the shared `lib/effects/catalog.ts` format). */
 export interface EffectJob {
@@ -17,13 +18,18 @@ export type ImageJob =
   /** Encode a document snapshot (autosave, save, export). */
   | ({ readonly kind: 'encode' } & EncodeJob)
   /** Keep a document copy under `key` for the effect jobs of one session. */
-  | { readonly kind: 'load'; readonly key: string; readonly snapshot: Uint8Array }
+  | { readonly kind: 'load'; readonly key: string; readonly snapshot: SnapshotParts }
   /** Free the copy under `key`. */
   | { readonly kind: 'drop'; readonly key: string }
   /** The composite with the effect previewed (canvas-sized RGBA8). */
   | { readonly kind: 'preview'; readonly key: string; readonly effect: EffectJob }
   /** The effect's region for `core.applyEffectRegion`. */
   | { readonly kind: 'region'; readonly key: string; readonly effect: EffectJob };
+
+/** The buffers `job` hands to the worker by transfer. */
+export function jobTransfer(job: ImageJob): Transferable[] {
+  return job.kind === 'encode' || job.kind === 'load' ? partsTransfer(job.snapshot) : [];
+}
 
 /** The composite of document `handle` with `effect` previewed. */
 export function previewBytes(handle: number, effect: EffectJob): Uint8Array {
@@ -54,7 +60,7 @@ export function runImageJob(job: ImageJob, docs: Map<string, number>): Uint8Arra
       return encodeSnapshot(job);
     case 'load':
       drop(job.key);
-      docs.set(job.key, core.openSnapshot(job.snapshot));
+      docs.set(job.key, openParts(job.snapshot));
       return new Uint8Array(0);
     case 'drop':
       drop(job.key);

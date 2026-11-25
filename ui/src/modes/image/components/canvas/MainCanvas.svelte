@@ -11,6 +11,7 @@
     MIN_ZOOM,
     MAX_ZOOM,
   } from '../../stores/editor.svelte';
+  import type { EffectPreview } from '../../stores/editor.svelte';
   import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
   import { assistantBusy } from '../../../../lib/assistant/chat.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
@@ -47,7 +48,7 @@
   // effect that sees the same revision finds the picture current; other
   // changes (view, undo, menus) are drawn once in the next animation frame.
   let drawnKey = '';
-  let drawnPreview: Uint8ClampedArray | null = null;
+  let drawnPreview: EffectPreview | null = null;
   let frame = 0;
 
   /** Everything the picture depends on besides the effect preview. */
@@ -102,11 +103,19 @@
     ) {
       // The Move Layer drag is on screen.
     } else if (drag === null || !drawDragPreview(canvas, editor.width, editor.height, view, drag)) {
-      const sample = preview ? sampleFullBuffer(preview, editor.width) : readCompositeRegion;
+      const sample = preview
+        ? sampleFullBuffer(
+            preview.pixels,
+            editor.width,
+            editor.height,
+            preview.width,
+            preview.height,
+          )
+        : readCompositeRegion;
       drawViewport(canvas, editor.width, editor.height, view, sample);
     }
     ready = true;
-    previewDrawn = preview !== null;
+    previewDrawn = preview === null ? 'false' : preview.proxy ? 'proxy' : 'true';
   }
 
   /** Draws in the next animation frame, once however often it is asked. */
@@ -517,9 +526,11 @@
   // A document is open, fitted and drawn — the canvas takes input.
   // Published as `data-ready` on the surface.
   let ready = $state(false);
-  // Whether the last drawing shows an effect preview; published as
-  // `data-preview`, so a test waits for the preview to be on screen.
-  let previewDrawn = $state(false);
+  // Whether the last drawing shows an effect preview — `'proxy'` for the
+  // instant reduced-size one, `'true'` for the full-resolution one;
+  // published as `data-preview`, so a test waits for the preview to be on
+  // screen.
+  let previewDrawn = $state<'false' | 'proxy' | 'true'>('false');
   $effect(() => {
     const handle = editor.handle;
     if (handle !== lastHandle) {

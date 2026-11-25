@@ -132,7 +132,6 @@
     pastedImageFile,
   } from './lib/clipboard';
   import { actionFor, hint, isTypingTarget, nativeAccelerators } from './lib/shell/shortcuts';
-  import { initLocale } from './lib/i18n/locale';
   import { initMotion } from './lib/motion.svelte';
   import { loadKeymap } from './lib/shell/keymap';
   import { supportsWasmSimd } from './lib/platform/wasm-simd';
@@ -841,7 +840,6 @@
   }
 
   onMount(() => {
-    void initLocale();
     void initMotion();
     void loadKeymap();
     void loadDropChoice();

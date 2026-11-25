@@ -4,13 +4,8 @@
 // missing translation fails `pnpm check`. `t()` reads the reactive locale,
 // so templates and `$derived` menus re-render when it changes.
 
-import { de } from './de';
 import { en, type MessageKey } from './en';
-import { es } from './es';
-import { fr } from './fr';
-import { ja } from './ja';
 import { isLocale, LOCALES, pickLocale, type Locale } from './locales';
-import { ptBr } from './pt-br';
 import { formatDateTime, formatFixed, formatMessage, formatPercent } from './format';
 
 export type { MessageKey } from './en';
@@ -20,14 +15,35 @@ export { isLocale, LOCALES, type Locale };
 /** IndexedDB pref holding the user's explicit choice. */
 export const LANGUAGE_PREF = 'language';
 
-const DICTS: Record<Locale, Record<MessageKey, string>> = {
-  en,
-  de,
-  es,
-  ja,
-  fr,
-  'pt-BR': ptBr,
+type Dict = Record<MessageKey, string>;
+
+// English ships in the entry bundle (it is the source of the keys and of
+// `englishLabel`); every other dictionary is its own chunk, fetched only
+// when that language becomes active — together they were most of the start
+// screen's bytes (docs/specs/performance-build-simd.md AC-06).
+const DICTS: Partial<Record<Locale, Dict>> = { en };
+
+const LOADERS: Record<Exclude<Locale, 'en'>, () => Promise<Dict>> = {
+  de: () => import('./de').then((m) => m.de),
+  es: () => import('./es').then((m) => m.es),
+  fr: () => import('./fr').then((m) => m.fr),
+  ja: () => import('./ja').then((m) => m.ja),
+  'pt-BR': () => import('./pt-br').then((m) => m.ptBr),
 };
+
+/** Fetches the dictionary of `loc` unless it is loaded already. */
+async function loadDict(loc: Locale): Promise<Dict> {
+  const loaded = DICTS[loc];
+  if (loaded) return loaded;
+  const dict = await LOADERS[loc as Exclude<Locale, 'en'>]();
+  DICTS[loc] = dict;
+  return dict;
+}
+
+/** The dictionary of `loc`, English while it is still loading. */
+function dictOf(loc: Locale): Dict {
+  return DICTS[loc] ?? en;
+}
 
 /** The locale the browser asks for (docs/specs/more-languages.md AC-03). */
 export function browserLocale(): Locale {
@@ -41,15 +57,28 @@ export function isMessageKey(key: string): key is MessageKey {
   return key in en;
 }
 
-const state = $state<{ locale: Locale }>({ locale: browserLocale() });
+// Starts in English: `initLocale` (before the first render) switches to the
+// saved or the browser's language once its dictionary is loaded.
+const state = $state<{ locale: Locale }>({ locale: 'en' });
+
+// The language asked for last; a slower load of an earlier choice must not
+// win over it.
+let requested: Locale = 'en';
 
 /** The active locale (reactive). */
 export function locale(): Locale {
   return state.locale;
 }
 
-/** Switch the UI language. Persistence and the native menu are the shell's job. */
-export function applyLocale(next: Locale): void {
+/**
+ * Switch the UI language once its dictionary is loaded; resolves when it is
+ * active. If loading fails the language stays as it was and the promise
+ * rejects. Persistence and the native menu are the shell's job.
+ */
+export async function applyLocale(next: Locale): Promise<void> {
+  requested = next;
+  await loadDict(next);
+  if (requested !== next) return;
   state.locale = next;
   if (typeof document !== 'undefined') document.documentElement.lang = next;
 }
@@ -61,7 +90,7 @@ export function applyLocale(next: Locale): void {
  * (`format.ts`).
  */
 export function t(key: MessageKey, params?: Record<string, string | number>): string {
-  return formatMessage(DICTS[state.locale][key], params, state.locale);
+  return formatMessage(dictOf(state.locale)[key], params, state.locale);
 }
 
 // Reverse lookups per locale: a message (parameterless) → its key.
@@ -78,7 +107,7 @@ export function englishLabel(label: string): string | null {
   let map = REVERSE[loc];
   if (!map) {
     // Reversed, so the first key with a given text wins.
-    const pairs = (Object.entries(DICTS[loc]) as [MessageKey, string][]).reverse();
+    const pairs = (Object.entries(dictOf(loc)) as [MessageKey, string][]).reverse();
     map = Object.fromEntries(pairs.map(([key, text]) => [text, key])) as Record<string, MessageKey>;
     REVERSE[loc] = map;
   }

@@ -21,12 +21,17 @@ export type JobResponse<Res> =
   | { readonly id: number; readonly ok: true; readonly res: Res }
   | { readonly id: number; readonly ok: false; readonly error: string };
 
+/** A request, or how to make it: a function is called for each attempt
+ *  (a retry gets a fresh request, e.g. when the first one's buffers were
+ *  transferred away). */
+export type JobSource<Req> = Req | (() => Promise<Req>);
+
 /** State a job needs in its worker (e.g. a document copy), loaded once per
  *  worker: `req` is run in a worker that has not loaded `key` yet, ahead
  *  of the job. A restarted worker loads it again. */
 export interface JobSetup<Req> {
   readonly key: string;
-  readonly req: () => Req;
+  readonly req: () => Req | Promise<Req>;
 }
 
 /** Runs jobs in a worker, with retry and main-thread fallback. */
@@ -37,7 +42,7 @@ export interface JobRunner<Req, Res> {
    * fails too, `fallback` runs on the main thread and its result (or
    * error) is the job's.
    */
-  run(req: Req, fallback: () => Res | Promise<Res>, setup?: JobSetup<Req>): Promise<Res>;
+  run(req: JobSource<Req>, fallback: () => Res | Promise<Res>, setup?: JobSetup<Req>): Promise<Res>;
   /** Sends `req` (which should free setup `key`) to the worker if it has
    *  loaded `key`; nothing waits for it. */
   release(key: string, req: Req): void;
@@ -51,11 +56,13 @@ interface Pending<Res> {
 /**
  * A runner over workers made by `spawn`; `label` names it in logs. `init`,
  * if given, is sent to every worker it starts, ahead of the first job.
+ * `transfer` names the buffers a request hands over instead of cloning.
  */
 export function jobRunner<Req, Res, Init = never>(
   spawn: () => Worker,
   label: string,
   init?: () => Init,
+  transfer: (req: Req) => Transferable[] = () => [],
 ): JobRunner<Req, Res> {
   let worker: Worker | null = null;
   let nextId = 1;
@@ -109,19 +116,19 @@ export function jobRunner<Req, Res, Init = never>(
       const id = nextId++;
       pending.set(id, { resolve, reject });
       const msg: JobRequest<Req> = { id, req };
-      w.postMessage(msg);
+      w.postMessage(msg, transfer(req));
     });
 
-  const attempt = async (req: Req, setup: JobSetup<Req> | undefined): Promise<Res> => {
+  const attempt = async (req: JobSource<Req>, setup: JobSetup<Req> | undefined): Promise<Res> => {
     if (setup) {
       let load = loaded.get(setup.key);
       if (!load) {
-        load = send(setup.req());
+        load = Promise.resolve(setup.req()).then(send);
         loaded.set(setup.key, load);
       }
       await load;
     }
-    return send(req);
+    return send(typeof req === 'function' ? await (req as () => Promise<Req>)() : req);
   };
 
   return {

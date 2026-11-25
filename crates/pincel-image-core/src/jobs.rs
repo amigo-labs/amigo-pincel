@@ -142,6 +142,60 @@ pub fn preview_effect(
     Ok(compose(&layers))
 }
 
+/// `src` (a `src_w` × `src_h` grid of `bpp`-byte cells) point-sampled to
+/// `w` × `h`: each output cell takes the source cell under its centre.
+fn point_sample(src: &[u8], src_w: u32, src_h: u32, bpp: usize, w: u32, h: u32) -> Vec<u8> {
+    let mut out = vec![0; w as usize * h as usize * bpp];
+    let xs: Vec<usize> = (0..w)
+        .map(|x| ((u64::from(x) * 2 + 1) * u64::from(src_w) / (u64::from(w) * 2)) as usize)
+        .collect();
+    for y in 0..h {
+        let sy = ((u64::from(y) * 2 + 1) * u64::from(src_h) / (u64::from(h) * 2)) as usize;
+        let row = &src[sy * src_w as usize * bpp..(sy + 1) * src_w as usize * bpp];
+        let dst = &mut out[y as usize * w as usize * bpp..(y as usize + 1) * w as usize * bpp];
+        for (cell, &sx) in dst.chunks_exact_mut(bpp).zip(&xs) {
+            cell.copy_from_slice(&row[sx * bpp..(sx + 1) * bpp]);
+        }
+    }
+    out
+}
+
+/// `doc` point-sampled to a `w` × `h` canvas: every canvas-sized layer and
+/// the selection; other layers (groups) keep their pixels.
+pub fn sampled_document(doc: &Document, w: u32, h: u32) -> Result<Document, JobError> {
+    let (cw, ch) = (doc.canvas.width(), doc.canvas.height());
+    let mut small = doc.clone();
+    small.canvas = crate::document::CanvasSize::new(w, h)?;
+    for layer in &mut small.layers {
+        let px = &layer.pixels;
+        if px.width() == cw && px.height() == ch {
+            let raw = point_sample(px.data(), cw, ch, 4, w, h);
+            layer.pixels = ImageBuffer::from_raw(w, h, raw)?;
+        }
+    }
+    if let Some(mask) = &doc.selection {
+        let raw = point_sample(mask.data(), mask.width(), mask.height(), 1, w, h);
+        small.selection = crate::selection::SelectionMask::from_raw(w, h, raw);
+    }
+    Ok(small)
+}
+
+/// The effect dialog's instant preview: [`preview_effect`] on `doc`
+/// point-sampled to `w` × `h` (docs/specs/performance-background-jobs.md
+/// AC-05). The caller scales the spec's lengths to the smaller canvas.
+pub fn preview_effect_proxy(
+    doc: &Document,
+    layer: usize,
+    spec: &EffectSpec,
+    w: u32,
+    h: u32,
+) -> Result<ImageBuffer, JobError> {
+    if layer >= doc.layers().len() {
+        return Err(JobError::LayerOutOfBounds);
+    }
+    preview_effect(&sampled_document(doc, w, h)?, layer, spec)
+}
+
 /// The wire form of an effect region: empty for `None`, otherwise a
 /// 16-byte header (x, y as little-endian `i32`, width, height as
 /// little-endian `u32`) followed by the region's RGBA8 pixels.
@@ -227,5 +281,52 @@ mod tests {
             preview_effect(&doc, 9, &spec),
             Err(JobError::LayerOutOfBounds)
         ));
+    }
+
+    fn varied_doc() -> Document {
+        let mut doc = Document::new(40, 30).expect("doc");
+        doc.add_layer("Top").expect("layer");
+        for (i, layer) in doc.layers.iter_mut().enumerate() {
+            for (j, v) in layer.pixels.data_mut().iter_mut().enumerate() {
+                *v = ((j * 7 + i * 31) % 251) as u8;
+            }
+        }
+        doc.selection = Some(crate::selection::SelectionMask::rectangle(
+            40,
+            30,
+            Rect::new(5, 4, 20, 15),
+        ));
+        doc
+    }
+
+    #[test]
+    fn preview_effect_proxy_of_a_per_pixel_effect_samples_the_full_preview() {
+        let doc = varied_doc();
+        let spec = EffectSpec::from_params("invert", &[]).expect("invert");
+        let full = preview_effect(&doc, 1, &spec).expect("full");
+        let proxy = preview_effect_proxy(&doc, 1, &spec, 16, 12).expect("proxy");
+        assert_eq!((proxy.width(), proxy.height()), (16, 12));
+        assert_eq!(proxy.data(), point_sample(full.data(), 40, 30, 4, 16, 12));
+    }
+
+    #[test]
+    fn preview_effect_proxy_leaves_the_document_alone() {
+        let doc = varied_doc();
+        let before = doc.clone();
+        let spec = EffectSpec::from_params("gaussian_blur", &[2.0]).expect("blur");
+        let proxy = preview_effect_proxy(&doc, 0, &spec, 20, 15).expect("proxy");
+        assert_eq!((proxy.width(), proxy.height()), (20, 15));
+        assert_eq!(doc, before);
+        assert!(matches!(
+            preview_effect_proxy(&doc, 5, &spec, 20, 15),
+            Err(JobError::LayerOutOfBounds)
+        ));
+    }
+
+    #[test]
+    fn point_sample_takes_the_cell_under_each_centre() {
+        let src: Vec<u8> = (0..16).collect();
+        assert_eq!(point_sample(&src, 4, 4, 1, 2, 2), vec![5, 7, 13, 15]);
+        assert_eq!(point_sample(&src, 4, 4, 1, 4, 4), src);
     }
 }

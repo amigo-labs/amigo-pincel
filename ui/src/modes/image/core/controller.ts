@@ -1,5 +1,6 @@
 // Application logic bridging the WASM core and reactive state. Components call
 // these functions on events; no business logic lives in components (CLAUDE.md §5.4).
+import { proxyParams } from '../../../lib/effects/proxy';
 import type { Rgba8 } from '../../../lib/color';
 import { countCall } from '../../../lib/diagnostics';
 import { noteUsed } from '../../../lib/colors/recent.svelte';
@@ -517,7 +518,44 @@ export function showEffectPreview(composite: Uint8ClampedArray<ArrayBuffer>): vo
   if (editor.handle === null) {
     return;
   }
-  editor.previewComposite = composite;
+  editor.previewComposite = {
+    pixels: composite,
+    width: editor.width,
+    height: editor.height,
+    proxy: false,
+  };
+  editor.revision += 1;
+}
+
+/** The longest side of an instant effect preview (AC-05). */
+const PROXY_MAX_SIDE = 1024;
+
+/**
+ * Shows the instant reduced-size preview of effect `name` / `params` on the
+ * active layer, computed here at the canvas's on-screen size (at most
+ * 1024 px on the longest side), until the full-resolution preview from the
+ * job worker replaces it (docs/specs/performance-background-jobs.md AC-05).
+ * Does nothing when the effect has no proxy or the document is small
+ * enough that the full preview is about as quick.
+ */
+export function showEffectProxy(name: string, params: number[], zoom: number): void {
+  if (editor.handle === null) {
+    return;
+  }
+  const { width, height } = editor;
+  const side = Math.min(PROXY_MAX_SIDE, Math.max(width, height) * Math.min(zoom, 1));
+  const scale = side / Math.max(width, height);
+  if (scale > 0.5) {
+    return;
+  }
+  const scaled = proxyParams(name, params, scale);
+  if (scaled === null) {
+    return;
+  }
+  const w = Math.max(1, Math.round(width * scale));
+  const h = Math.max(1, Math.round(height * scale));
+  const pixels = core.previewEffectProxy(editor.handle, editor.activeLayer, name, scaled, w, h);
+  editor.previewComposite = { pixels, width: w, height: h, proxy: true };
   editor.revision += 1;
 }
 
