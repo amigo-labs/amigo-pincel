@@ -372,7 +372,8 @@ test('a shading stroke steps ramp colors one entry, once per pixel, as one undo 
   await inkSelect(page).selectOption('shading');
   await expect(rampHint(page)).toHaveText('ramp: palette entries 1–3');
   await expect(page.locator('[data-ramp]')).toHaveCount(3);
-  const status = page.locator('footer', { hasText: /\d+×\d+/ });
+  // The history depth sits beside Undo / Redo, for screen readers.
+  const status = page.locator('[data-editor]:not([inert])');
   await expect(status).toContainText('undo 3 / redo 0');
 
   // Back and forth over row 2: every ramp pixel steps once toward the end.

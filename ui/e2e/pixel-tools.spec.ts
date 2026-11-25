@@ -28,7 +28,9 @@ async function open(page: Page, size = 16): Promise<Editor> {
 }
 
 const alpha = (page: Page) => page.getByLabel('Foreground alpha');
-const statusBar = (page: Page) => page.locator('footer', { hasText: /\d+×\d+/ });
+// The shown editor: its status bar holds the notices, its app bar the
+// history depth ("undo 2 / redo 0", for screen readers since frame-layout).
+const statusBar = (page: Page) => page.locator('[data-editor]:not([inert])');
 const activeTool = (page: Page) =>
   page.getByRole('toolbar', { name: 'Tools' }).locator('[aria-pressed="true"]');
 

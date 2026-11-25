@@ -1386,6 +1386,9 @@
 >
   {#snippet headerHint()}<TourHint mode="pixel" {active} />{/snippet}
   {#snippet quick()}
+    <!-- The history depth, for screen readers (and tests): the status bar
+         no longer shows it (frame-layout AC-06). -->
+    <span class="sr-only">{t('px.undoRedo', { u: ed.undoDepth, r: ed.redoDepth })}</span>
     <IconButton
       icon="undo"
       label={t('menu.undo')}
