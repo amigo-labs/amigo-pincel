@@ -20,7 +20,7 @@ const root = fileURLToPath(new URL('../../', import.meta.url));
 const fixtures = `${root}crates/pincel-image-core/tests/fixtures/jobs/`;
 
 /** A job as the worker takes it: its `ImageJob` without
- *  its snapshot (`encode` and `load` get `doc.snapshot`). */
+ *  its snapshot (`encode` and `load` get `doc.snapshot` in parts). */
 type Job = Record<string, unknown> & { kind: string };
 
 interface Case {
@@ -77,6 +77,32 @@ function allJobs(): Job[] {
   ];
 }
 
+/** `bytes` (a whole snapshot, `to_snapshot_bytes`) split into the parts
+ *  the page hands the worker (`ui/src/modes/image/jobs/snapshot.ts`): the
+ *  header, each layer's pixels, the selection's coverage. */
+function snapshotParts(bytes: Buffer): {
+  header: number[];
+  layers: number[][];
+  selection: number[] | null;
+} {
+  const len = bytes.readUInt32LE(8);
+  const end = 12 + len;
+  const head = JSON.parse(bytes.subarray(12, end).toString('utf8')) as {
+    sizes: [number, number][];
+    selection: [number, number] | null;
+  };
+  let at = end;
+  const take = (n: number): number[] => {
+    const part = [...bytes.subarray(at, at + n)];
+    at += n;
+    return part;
+  };
+  const layers = head.sizes.map(([w, h]) => take(w * h * 4));
+  const selection = head.selection ? take(head.selection[0] * head.selection[1]) : null;
+  if (at !== bytes.length) throw new Error('doc.snapshot has trailing bytes');
+  return { header: [...bytes.subarray(0, end)], layers, selection };
+}
+
 /** The built bundle's Image job worker script. */
 function workerScript(): string {
   const assets = `${root}ui/dist/assets/`;
@@ -94,7 +120,7 @@ test('the Image job worker gives the recorded result for every job kind', async 
 }) => {
   test.setTimeout(120_000);
   const record = Boolean(process.env.PINCEL_RECORD_JOB_DIGESTS);
-  const snapshot = [...readFileSync(`${fixtures}doc.snapshot`)];
+  const snapshot = snapshotParts(readFileSync(`${fixtures}doc.snapshot`));
   const recorded: Case[] = record
     ? []
     : (JSON.parse(readFileSync(`${fixtures}cases.json`, 'utf8')) as { cases: Case[] }).cases;
@@ -120,12 +146,17 @@ test('the Image job worker gives the recorded result for every job kind', async 
           worker.addEventListener('message', on);
           worker.postMessage({ id, req });
         });
-      const snap = new Uint8Array(snapshot);
+      // Fresh arrays per job: a real page transfers them to the worker.
+      const snap = () => ({
+        header: new Uint8Array(snapshot.header),
+        layers: snapshot.layers.map((l) => new Uint8Array(l)),
+        selection: snapshot.selection ? new Uint8Array(snapshot.selection) : null,
+      });
       const out: ({ bytes: number[] } | { error: string })[] = [];
       for (const job of jobs) {
         const withBody = job.kind === 'encode' || job.kind === 'load';
         try {
-          const bytes = await send(withBody ? { ...job, snapshot: snap } : job);
+          const bytes = await send(withBody ? { ...job, snapshot: snap() } : job);
           out.push({ bytes: Array.from(bytes) });
         } catch (err) {
           out.push({ error: String(err) });
