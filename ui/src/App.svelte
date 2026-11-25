@@ -243,6 +243,10 @@
     })),
     active: session.active?.key ?? null,
     closeHint: hint('closeTab'),
+    onNew: () => {
+      if (session.active) requestNew(session.active.mode);
+    },
+    newHint: hint('newDocument'),
     scroll: tabScroll,
     onSelect: (key) => {
       const tab = tabByKey(key);

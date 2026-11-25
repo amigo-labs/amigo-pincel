@@ -79,7 +79,7 @@ async function openFromStart(page: Page, name: string, buffer: Buffer): Promise<
 
 /** The status bar's document size in `mode`'s editor. */
 function sizeShown(page: Page, mode: 'pixel' | 'image', w: number, h: number): Locator {
-  return shownEditor(page).getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, {
+  return shownEditor(page).getByText(mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, {
     exact: true,
   });
 }

@@ -621,14 +621,44 @@ export async function colorOf(page: Page, which: 'fg' | 'bg'): Promise<string> {
 /**
  * Switches the UI language through Edit ▸ Settings… (docs/specs/settings-dialog.md)
  * and closes the dialog; `language` is the option's label ("Deutsch", "English").
- * Works from either editor whatever the current language is.
+ * Works from either editor whatever the current language is, and into any
+ * shipped language: the dialog's texts change with the choice.
  */
 export async function switchLanguage(page: Page, language: string): Promise<void> {
   await page.keyboard.press('Control+,');
-  const dialog = page.getByRole('dialog', { name: /^(Settings|Einstellungen)$/ });
+  const dialog = page.getByRole('dialog', {
+    name: /^(Settings|Einstellungen|Configuración|Paramètres|設定|Configurações)$/,
+  });
   await dialog
-    .getByRole('combobox', { name: /^(Language|Sprache)$/ })
+    .getByRole('combobox', { name: /^(Language|Sprache|Idioma|Langue|言語)$/ })
     .selectOption({ label: language });
-  await dialog.getByRole('button', { name: /^(Close|Schließen)$/ }).click();
+  await dialog.getByRole('button', { name: /^(Close|Schließen|Cerrar|Fermer|閉じる|Fechar)$/ }).click();
   await expect(dialog).toBeHidden();
+}
+
+/** The zoom control's value button; its text is the current zoom
+ *  (docs/specs/frame-layout.md AC-09). */
+export function zoomReadout(page: Page): Locator {
+  return page
+    .getByRole('group', { name: 'Zoom', exact: true })
+    .getByRole('button', { name: /^Zoom level / });
+}
+
+/** Fit to Window, from the zoom control's menu. */
+export async function zoomFit(page: Page): Promise<void> {
+  await zoomReadout(page).click();
+  await page
+    .getByRole('menu', { name: 'Zoom', exact: true })
+    .getByRole('menuitem', { name: 'Fit to Window' })
+    .click();
+}
+
+/** Actual size (1× / 100%), from the zoom control's menu; `tap` for a
+ *  touch test. */
+export async function zoomActual(page: Page, how: 'click' | 'tap' = 'click'): Promise<void> {
+  await zoomReadout(page)[how]();
+  const entry = page
+    .getByRole('menu', { name: 'Zoom', exact: true })
+    .getByRole('menuitemcheckbox', { name: /^(1×|100%)$/ });
+  await entry[how]();
 }

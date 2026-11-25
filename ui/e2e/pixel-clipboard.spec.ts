@@ -263,7 +263,7 @@ test('pixel: a larger image asks — Cancel, Keep canvas size, Expand canvas in 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await putClipboardImage(page, 20, 10, '#ff0000');
   const dialog = page.getByRole('dialog', { name: 'Paste larger image' });
-  const size = (w: number, h: number) => page.getByText(`${w}×${h}`, { exact: true });
+  const size = (w: number, h: number) => page.getByText(`${w} × ${h} px`, { exact: true });
 
   await menu(page, 'Edit', 'Paste');
   await expect(dialog).toContainText(

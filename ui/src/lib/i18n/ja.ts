@@ -136,6 +136,7 @@ export const ja: Record<MessageKey, string> = {
   'fileAssoc.gotIt': 'OK',
 
   'about.version': 'バージョン {version}',
+  'about.renderer': 'レンダラー: {backend}',
   'about.tagline': 'ピクセルアートエディターと画像エディターがひとつに。',
   'about.close': '閉じる',
   'about.checking': 'アップデートを確認中…',
@@ -295,12 +296,14 @@ export const ja: Record<MessageKey, string> = {
   'frame.variant': '{group}のバリエーション',
   'frame.variantsHint': '長押しまたは右クリック: バリエーション',
   'frame.togglePanels': 'パネルの表示切り替え',
+  'frame.search': 'コマンドを検索',
   'frame.closePanels': 'パネルを閉じる',
   'frame.sidebarWidth': 'サイドバーの幅',
   'tabs.label': '開いているドキュメント',
   'tabs.close': '閉じる',
   'tabs.closeNamed': '{name} を閉じる',
   'tabs.unsaved': '未保存の変更',
+  'tabs.new': '新規ドキュメント',
 
   // Zoom
   'zoom.label': 'ズーム',
@@ -308,6 +311,7 @@ export const ja: Record<MessageKey, string> = {
   'zoom.actual': '実際のサイズ',
   'zoom.in': 'ズームイン',
   'zoom.out': 'ズームアウト',
+  'zoom.value': 'ズーム倍率 {zoom}',
 
   // Colors
   'color.fg': '描画色',
@@ -1310,6 +1314,7 @@ export const ja: Record<MessageKey, string> = {
   'px.fillsBg': '背景色で塗りつぶします',
   'px.rightBg': '右ボタンで背景色を使用',
   'px.frameOf': 'フレーム {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': '取り消し {u} / やり直し {r}',
   'px.version': 'Pincel のバージョン',
 

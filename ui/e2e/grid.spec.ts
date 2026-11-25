@@ -7,6 +7,7 @@ import {
   pixelCanvas,
   storedPref,
   waitForEditor,
+  zoomReadout,
 } from './helpers';
 
 // Pixel grid and custom grid (docs/specs/pixel-grid.md). Both are drawn on
@@ -44,7 +45,7 @@ async function viewToggle(page: Page, label: string): Promise<void> {
 async function setZoom(page: Page, zoom: 1 | 2 | 4 | 8 | 16): Promise<void> {
   await page.keyboard.press('1');
   for (let z = 1; z < zoom; z *= 2) await page.keyboard.press('+');
-  await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveText(`${zoom}×`);
+  await expect(zoomReadout(page)).toHaveText(`${zoom}×`);
 }
 
 /** The canvas element's pixels as a PNG, with the pointer off the stage. */

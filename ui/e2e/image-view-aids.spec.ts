@@ -55,7 +55,7 @@ test('rulers: toggle, labels at their coordinates and Fit (AC-01 – AC-03, AC-0
   expect(await checked(page, 'Rulers')).toBe(false);
   expect(await checked(page, 'Pixel Grid')).toBe(false);
   expect(await checked(page, 'Pixels', 'Units')).toBe(true);
-  await expect(page.getByText('200 × 100 px · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('200 × 100 px', { exact: true })).toBeVisible();
 
   // Turning the rulers on in fit mode re-fits beside them, without Fit.
   await check(page, 'View', 'Rulers');
@@ -404,14 +404,14 @@ test('units switch the rulers and the status bar, in either language (AC-11, AC-
   await check(page, 'View', 'Units', 'Inches');
   await only('Inches', EN);
   // 96 DPI: 200 px = 2.08 in.
-  await expect(page.getByText('2.08 × 1.04 in · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('2.08 × 1.04 in', { exact: true })).toBeVisible();
   await expectTicksAligned(page, 200, decimalUnit('in'));
   await hover();
   await expect(pointerStatus(page)).toHaveText('0.39, 0.21 in');
 
   await check(page, 'View', 'Units', 'Centimeters');
   await only('Centimeters', EN);
-  await expect(page.getByText('5.29 × 2.65 cm · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('5.29 × 2.65 cm', { exact: true })).toBeVisible();
   await expectTicksAligned(page, 200, decimalUnit('cm'));
   await hover();
   await expect(pointerStatus(page)).toHaveText('0.98, 0.53 cm');
@@ -419,7 +419,7 @@ test('units switch the rulers and the status bar, in either language (AC-11, AC-
   // Back to Pixels from another unit.
   await check(page, 'View', 'Units', 'Pixels');
   await only('Pixels', EN);
-  await expect(page.getByText('200 × 100 px · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('200 × 100 px', { exact: true })).toBeVisible();
   await expectTicksAligned(page, 200, PIXELS);
   await hover();
   await expect(pointerStatus(page)).toHaveText('37, 20 px');
@@ -428,12 +428,12 @@ test('units switch the rulers and the status bar, in either language (AC-11, AC-
   await switchLanguage(page, 'Deutsch');
   await check(page, 'Ansicht', 'Einheiten', 'Zoll');
   await only('Zoll', ['Pixel', 'Zoll', 'Zentimeter'], 'Einheiten', 'Ansicht');
-  await expect(page.getByText('2,08 × 1,04 Zoll · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('2,08 × 1,04 Zoll', { exact: true })).toBeVisible();
   await expectTicksAligned(page, 200, decimalUnit('in', 96, true));
   await hover();
   await expect(pointerStatus(page)).toHaveText('0,39, 0,21 Zoll');
   await check(page, 'Ansicht', 'Einheiten', 'Zentimeter');
-  await expect(page.getByText('5,29 × 2,65 cm · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('5,29 × 2,65 cm', { exact: true })).toBeVisible();
   await expectTicksAligned(page, 200, decimalUnit('cm', 96, true));
 });
 
@@ -458,7 +458,7 @@ test('web: Ctrl+Alt+R has no default and the shortcut list is clean (AC-17, AC-1
   await page.keyboard.press('Control+Alt+KeyR');
   await layoutKey(page, AltGrR);
   await expect(page.getByTestId('ruler-h')).toHaveCount(0);
-  await expect(page.getByText('20 × 10 px · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('20 × 10 px', { exact: true })).toBeVisible();
   const { rows } = await overview(page);
   expect(
     rows.some((r) => r.label === 'Rulers' && r.chords.length === 0),
@@ -489,7 +489,7 @@ test.describe('desktop', () => {
     await waitForEditor(page, 'image');
     await page.keyboard.press('Control+Alt+KeyR');
     await expect(page.getByTestId('ruler-h')).toBeVisible();
-    await expect(page.getByText('20 × 10 px · sRGB', { exact: true })).toBeVisible();
+    await expect(page.getByText('20 × 10 px', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
     await page.keyboard.press('Control+Alt+KeyR');
     await expect(page.getByTestId('ruler-h')).toHaveCount(0);
@@ -498,7 +498,7 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('ruler-h')).toBeVisible();
     await layoutKey(page, AltGrR);
     await expect(page.getByTestId('ruler-h')).toHaveCount(0);
-    await expect(page.getByText('20 × 10 px · sRGB', { exact: true })).toBeVisible();
+    await expect(page.getByText('20 × 10 px', { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
     const { rows } = await overview(page);
     expect(rows.some((r) => r.label === 'Rulers' && r.chords.includes('Ctrl+Alt+R'))).toBe(true);

@@ -1,5 +1,13 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, penStroke, switchLanguage } from './helpers';
+import {
+  createDocument,
+  drag,
+  imageCanvas,
+  menu,
+  penStroke,
+  switchLanguage,
+  zoomReadout,
+} from './helpers';
 
 // effect-catalog-v2 AC-09 – AC-15: the angle, point, random-seed and
 // linked-pair parameter kinds of the effect dialog (Image mode, which has
@@ -246,7 +254,7 @@ test.describe('touch device', () => {
 
     // Two fingers pinch-zoom while picking is armed.
     await pick.click();
-    const zoom = page.getByRole('button', { name: 'Fit to window' });
+    const zoom = zoomReadout(page);
     const before = await zoom.textContent();
     await cdp.send('Input.dispatchTouchEvent', {
       type: 'touchStart',

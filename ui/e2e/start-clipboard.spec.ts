@@ -18,7 +18,7 @@ import { installTauriMock, solidImage, type ClipContent } from './tauri-mock';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px · sRGB`);
+const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px`);
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });
@@ -188,7 +188,7 @@ test.describe('browser app', () => {
     await asPixel(page).click();
     await waitForEditor(page, 'pixel');
     await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
-    await expect(page.locator('footer')).toContainText('6×4');
+    await expect(page.locator('footer')).toContainText('6 × 4 px');
     await expect(layerRows(page)).toHaveCount(1);
     await expect(page.getByRole('region', { name: 'Timeline' }).getByText('frame 1/1')).toBeVisible();
     await clearClipboard(page);

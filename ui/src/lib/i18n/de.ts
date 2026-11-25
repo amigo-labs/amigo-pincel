@@ -137,6 +137,7 @@ export const de: Record<MessageKey, string> = {
   'fileAssoc.gotIt': 'Verstanden',
 
   'about.version': 'Version {version}',
+  'about.renderer': 'Renderer: {backend}',
   'about.tagline': 'Ein Pixelart- und Bildeditor in einer App.',
   'about.close': 'Schließen',
   'about.checking': 'Suche nach Updates…',
@@ -297,12 +298,14 @@ export const de: Record<MessageKey, string> = {
   'frame.variant': '{group}-Variante',
   'frame.variantsHint': 'Halten oder Rechtsklick: Varianten',
   'frame.togglePanels': 'Bedienfelder ein/aus',
+  'frame.search': 'Befehle suchen',
   'frame.closePanels': 'Bedienfelder schließen',
   'frame.sidebarWidth': 'Breite der Seitenleiste',
   'tabs.label': 'Geöffnete Dokumente',
   'tabs.close': 'Schließen',
   'tabs.closeNamed': '„{name}“ schließen',
   'tabs.unsaved': 'ungespeicherte Änderungen',
+  'tabs.new': 'Neues Dokument',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -310,6 +313,7 @@ export const de: Record<MessageKey, string> = {
   'zoom.actual': 'Originalgröße',
   'zoom.in': 'Vergrößern',
   'zoom.out': 'Verkleinern',
+  'zoom.value': 'Zoomstufe {zoom}',
 
   // Colors
   'color.fg': 'Vordergrundfarbe',
@@ -1310,6 +1314,7 @@ export const de: Record<MessageKey, string> = {
   'px.fillsBg': 'füllt mit der Hintergrundfarbe',
   'px.rightBg': 'rechte Maustaste nutzt die Hintergrundfarbe',
   'px.frameOf': 'Frame {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': 'rückg. {u} / wiederh. {r}',
   'px.version': 'Pincel-Version',
 

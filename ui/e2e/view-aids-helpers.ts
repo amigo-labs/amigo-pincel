@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { imageCanvas, menu } from './helpers';
+import { imageCanvas, menu, zoomReadout } from './helpers';
 
 // Shared steps of the image-view-aids specs (docs/specs/image-view-aids.md):
 // menu checkboxes, the zoom readout, the image → screen mapping and the
@@ -56,7 +56,7 @@ export async function mapping(
 
 /** The zoom readout in percent. */
 export async function zoomPercent(page: Page): Promise<number> {
-  const text = (await page.getByRole('button', { name: 'Fit to window' }).textContent()) ?? '';
+  const text = (await zoomReadout(page).textContent()) ?? '';
   return Number(text.replace('%', ''));
 }
 

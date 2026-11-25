@@ -41,15 +41,18 @@ const RASTER_SIZE: Record<RasterKind, [number, number]> = {
 
 /** The shown editor's status-bar document size of `mode`. */
 function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]): Locator {
-  return shownEditor(page).getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, {
+  return shownEditor(page).getByText(mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, {
     exact: true,
   });
 }
 
-/** The editor's mode badge in the top bar. */
+/** The active tab, if it is of `mode` (the tab names its mode; the app bar
+ *  has no mode badge, frame-layout AC-02). */
 function badge(page: Page, mode: Mode) {
   const label = mode === 'pixel' ? 'Pixel' : 'Image';
-  return page.getByRole('banner').locator('span').filter({ hasText: new RegExp(`^${label}$`) });
+  return page
+    .getByRole('tablist', { name: 'Open documents' })
+    .getByRole('tab', { selected: true, name: new RegExp(` ${label}( |$)`) });
 }
 
 /** Waits for the editor of `mode` and checks that it is the shown one,

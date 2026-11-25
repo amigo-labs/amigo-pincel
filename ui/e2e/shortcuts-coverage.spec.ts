@@ -11,6 +11,7 @@ import {
   pixelCanvas,
   pixelOf,
   type ClipImage,
+  zoomReadout,
 } from './helpers';
 
 // Default shortcuts for layers, frames, transforms, opacity, the palette and
@@ -292,9 +293,7 @@ test('image mode: Shift+digits set the brush opacity, bare digits still zoom (AC
   const opacity = page.getByRole('toolbar', { name: 'Tool options' }).getByRole('slider', {
     name: /^Opacity/,
   });
-  const zoom = page.getByRole('group', { name: 'Zoom' }).getByRole('button', {
-    name: 'Fit to window',
-  });
+  const zoom = zoomReadout(page);
 
   await page.keyboard.press('Shift+Digit1');
   await expect(opacity).toHaveValue('10');

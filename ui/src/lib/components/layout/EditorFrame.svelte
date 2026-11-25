@@ -1,6 +1,10 @@
 <script lang="ts">
-  // The editor frame both modes share (spec §9.2): top bar with menus and
-  // quick actions, tool rail, options bar, canvas, panels, status bar.
+  // The editor frame both modes share (spec §9.2, docs/specs/frame-layout.md),
+  // top to bottom: app bar (menus, undo / redo, command search, panels
+  // toggle), tab bar, then tool rail · options bar over the canvas · panels,
+  // then the status bar. App bar, tab bar and status bar span the window.
+  // In the macOS desktop app, which draws no menus, the tabs sit in the
+  // app bar's row on medium and wide windows (frame-layout AC-14).
   // It restructures by window size (`viewport.svelte.ts`):
   //   wide   ≥1024  rail left · sidebar docked right (toggleable)
   //   medium 640+   rail left · sidebar as a drawer over the canvas
@@ -47,6 +51,8 @@
   import { modifiers, notePointer } from '../../shell/modifiers.svelte';
   import ModifierBar from './ModifierBar.svelte';
   import TabBar, { type TabBarProps } from './TabBar.svelte';
+  import ZoomControl, { type ZoomProps } from './ZoomControl.svelte';
+  import { statusDrop, type StatusInfo } from './status';
   import { chrome } from './chrome.svelte';
 
   interface Props {
@@ -54,19 +60,28 @@
     mode: 'pixel' | 'image';
     menus: MenuDef[];
     panels: PanelDef[];
-    /** Document name and unsaved marker for the top bar. */
-    title: string;
-    dirty?: boolean;
     /** The tool rail, rendered for the given orientation. */
     tools: Snippet<['vertical' | 'horizontal']>;
     /** Tool options for the active tool. */
     options?: Snippet;
     /** The canvas viewport. */
     viewport: Snippet;
-    /** Top-bar quick actions (undo / redo). */
+    /** App-bar quick actions (undo / redo). */
     quick?: Snippet;
-    /** Status bar content. */
-    statusbar?: Snippet;
+    /** Opens the command palette (the app bar's search control,
+     *  frame-layout AC-04). */
+    onSearch?: () => void;
+    /** Tooltip hint of the command palette's shortcut. */
+    searchHint?: string;
+    /** Status bar content; the frame lays it out the same in both modes
+     *  (frame-layout AC-06). */
+    status?: StatusInfo;
+    /** A mode's own status readout between the text and the pointer
+     *  position (Pixel mode's frame-time probe). */
+    statusExtra?: Snippet;
+    /** The zoom control: last in the status bar, floating over the canvas
+     *  on a narrow window (frame-layout AC-11). */
+    zoom?: ZoomProps | null;
     /** A short offer shown in the header's free space (the tour hint,
      *  first-run-tutorial AC-10). */
     headerHint?: Snippet;
@@ -82,13 +97,15 @@
     mode,
     menus,
     panels,
-    title,
-    dirty = false,
     tools,
     options,
     viewport: stage,
     quick,
-    statusbar,
+    onSearch,
+    searchHint = '',
+    status,
+    statusExtra,
+    zoom = null,
     headerHint,
     effectPanel = null,
     tabs,
@@ -113,6 +130,9 @@
 
   /** The OS draws the menu bar: the frame draws none (macos-native-menu AC-01). */
   const nativeMenu = hasNativeMenu();
+  /** macOS desktop app on a medium or wide window: the tabs share the
+   *  app bar's row (frame-layout AC-14). */
+  const tabsInAppBar = $derived(nativeMenu && size !== 'narrow');
 
   // Mirror the menus into the native bar while this tab shows, with the
   // inert menus dimmed (AC-03 – AC-06) and the text-editing entries
@@ -265,6 +285,41 @@
     if (!control) stageEl?.focus({ preventScroll: true });
   }
 
+  // Status bar (frame-layout AC-07): the text region takes what the other
+  // items leave; when even an empty text region is not enough, the pointer
+  // position goes first and the probe readout next. Left-out items stay
+  // measurable (invisible, out of the flow) so they return when there is room.
+  let statusRow = $state(0);
+  let statusTail = $state(0);
+  let statusPos = $state(0);
+  let statusProbe = $state(0);
+  let dropped = $state<0 | 1 | 2>(0);
+  $effect(() => {
+    const posShown = status?.ready === true && status.position !== null;
+    const position = posShown ? statusPos : 0;
+    const probe = status?.ready === true && statusExtra ? statusProbe : 0;
+    // `statusTail` holds the position while that is in the flow.
+    const inFlow = untrack(() => dropped) === 0 && posShown;
+    const tail = statusTail - (inFlow ? statusPos + 12 : 0);
+    dropped = statusDrop(statusRow, tail, position, probe);
+  });
+
+  /** The zoom menu closes when its context changes (frame-layout AC-10). */
+  const zoomCloseKey = $derived(`${tabs?.active ?? ''}|${effectOpen}|${size}`);
+
+  // Narrow windows: the floating zoom control stays above the panel sheet
+  // and the docked effect panel (frame-layout AC-11, AC-12).
+  let sheetHeight = $state(0);
+  let effectDockHeight = $state(0);
+  const zoomLift = $derived.by(() => {
+    const sheet = size === 'narrow' && sheetPanel && !chrome.hidden ? sheetHeight : 0;
+    // The dock is fixed to the window's bottom edge; the tool strip (56 px)
+    // lies between that edge and the canvas area unless the UI is hidden.
+    const strip = chrome.hidden ? 0 : 56;
+    const dock = effectPanel && size === 'narrow' ? Math.max(0, effectDockHeight - strip) : 0;
+    return 12 + Math.max(sheet, dock);
+  });
+
   // `data-dimmed` shades a region outside the canvas area (app.css).
   const dim = $derived(effectOpen ? '' : undefined);
 
@@ -314,46 +369,74 @@
        Effects and Adjustments menus, which MenuBar lifts above the shade
        (AC-03, AC-05). -->
   <header
-    class="relative flex h-11 shrink-0 items-center gap-1 border-b border-pc-border bg-pc-panel pr-2 pl-1 sm:pl-3"
+    class="relative flex shrink-0 items-center gap-1 border-b border-pc-border bg-pc-panel pr-2 pl-1 sm:pl-3"
+    class:h-11={size === 'narrow'}
+    class:h-10={size !== 'narrow'}
+    data-frame="appbar"
     data-dimmed={dim}
   >
-    <!-- In the macOS desktop app the native menu bar has the menus (AC-01). -->
+    <!-- In the macOS desktop app the native menu bar has the menus
+         (macos-native-menu AC-01). -->
     {#if size === 'narrow' && !nativeMenu}
       <MenuBar {menus} compact restricted={effectOpen} only={liveMenus} />
     {:else if size === 'wide'}
-      <span class="mr-1 text-sm font-semibold tracking-wide" inert={effectOpen}>Pincel</span>
+      <span class="mr-1 shrink-0 text-sm font-semibold tracking-wide" inert={effectOpen}>Pincel</span>
     {/if}
-    <span
-      class="mr-1 rounded bg-pc-accent/15 px-1.5 text-[11px] leading-5 font-semibold text-pc-accent-text capitalize"
-      inert={effectOpen}
-    >
-      {t(`mode.${mode}`)}
-    </span>
     {#if size !== 'narrow' && !nativeMenu}
       <MenuBar {menus} restricted={effectOpen} only={liveMenus} />
     {/if}
-    <span class="flex min-w-0 flex-1 justify-center overflow-hidden" inert={effectOpen}>
-      {@render headerHint?.()}
+    {#if tabs && tabsInAppBar}
+      <div class="flex h-full min-w-0 flex-1 items-end" inert={effectOpen || answering}>
+        <TabBar {...tabs} inline />
+      </div>
+      <span class="flex shrink-0 justify-center overflow-hidden" inert={effectOpen}>
+        {@render headerHint?.()}
+      </span>
+    {/if}
+    <span class="flex shrink-0 items-center" inert={effectOpen || answering} data-tour="quick">
+      {@render quick?.()}
     </span>
-    <span
-      class="min-w-0 shrink truncate text-xs text-pc-muted"
-      class:max-w-40={size !== 'wide'}
-      title={dirty ? t('frame.unsaved', { title }) : title}
-      inert={effectOpen}
-    >
-      {title}{#if dirty}<span class="text-pc-warning-text"> ●</span>{/if}
-    </span>
-    <span class="ml-1 flex items-center" inert={effectOpen} data-tour="quick">
-      <span class="flex items-center" inert={answering}>{@render quick?.()}</span>
-      <IconButton
-        icon={size === 'narrow' ? 'layers' : 'sidebar'}
-        label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
-        pressed={panelsShown}
-        disabled={effectOpen}
-        onclick={toggleSidebar}
-      />
+    {#if !tabsInAppBar}
+      <span class="flex min-w-0 flex-1 justify-center overflow-hidden" inert={effectOpen}>
+        {@render headerHint?.()}
+      </span>
+    {/if}
+    <span class="ml-1 flex shrink-0 items-center gap-1" inert={effectOpen}>
+      {#if onSearch}
+        <span class="flex items-center" inert={answering} data-search="">
+          {#if size === 'wide'}
+            <button
+              type="button"
+              class="btn-press flex h-7 w-56 items-center gap-2 rounded-pc-control border border-pc-border bg-pc-bg px-2 text-xs text-pc-muted hover:border-pc-faint hover:text-pc-text"
+              aria-label={t('frame.search')}
+              onclick={onSearch}
+            >
+              <Icon name="search" size={15} class="shrink-0" />
+              <span class="min-w-0 flex-1 truncate text-left">{t('frame.search')}</span>
+              {#if searchHint}<kbd class="am-kbd">{searchHint}</kbd>{/if}
+            </button>
+          {:else}
+            <IconButton icon="search" label={t('frame.search')} hint={searchHint} onclick={onSearch} />
+          {/if}
+        </span>
+      {/if}
+      <span class="flex items-center" data-panels-toggle="">
+        <IconButton
+          icon={size === 'narrow' ? 'layers' : 'sidebar'}
+          label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
+          pressed={panelsShown}
+          disabled={effectOpen}
+          onclick={toggleSidebar}
+        />
+      </span>
     </span>
   </header>
+
+  {#if tabs && !tabsInAppBar}
+    <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
+      <TabBar {...tabs} />
+    </div>
+  {/if}
 
   <div class="relative flex min-h-0 flex-1">
     {#if size !== 'narrow' && !chrome.hidden}
@@ -367,17 +450,15 @@
         <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
           <div
             class:scroll-fade-x={size === 'narrow'}
-            class="flex h-11 items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
+            class:h-11={size === 'narrow'}
+            class:h-10={size !== 'narrow'}
+            class="flex items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
+            data-frame="options"
             role="toolbar"
             aria-label={t('frame.toolOptions')}
           >
             {@render options()}
           </div>
-        </div>
-      {/if}
-      {#if tabs}
-        <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
-          <TabBar {...tabs} />
         </div>
       {/if}
       <main
@@ -393,6 +474,15 @@
         {#if modifiers.shown}
           <ModifierBar />
         {/if}
+        {#if zoom && size === 'narrow'}
+          <ZoomControl
+            {...zoom}
+            floating
+            lift={zoomLift}
+            disabled={status?.ready === false}
+            closeKey={zoomCloseKey}
+          />
+        {/if}
         {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div
             class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
@@ -400,6 +490,7 @@
             aria-label={t('frame.panels')}
             inert={effectOpen}
             data-dimmed={dim}
+            bind:offsetHeight={sheetHeight}
           >
             <!-- The shared tab row; the close button sits beside it, not in it. -->
             <div class="flex shrink-0 items-end pr-2 pl-3">
@@ -452,16 +543,6 @@
           </div>
         {/each}
       {/if}
-      {#if statusbar && size !== 'narrow'}
-        <footer
-          inert={effectOpen}
-          data-dimmed={dim}
-          class="relative flex h-7 shrink-0 items-center gap-3 overflow-hidden border-t border-pc-border bg-pc-panel px-3 text-xs whitespace-nowrap text-pc-faint"
-        >
-          {@render statusbar()}
-          <AgentIndicator />
-        </footer>
-      {/if}
     </div>
 
     {#if chrome.hidden}
@@ -501,6 +582,60 @@
     {/if}
   </div>
 
+  {#if status && size !== 'narrow'}
+    <footer
+      data-frame="status"
+      class="flex h-7 shrink-0 items-stretch border-t border-pc-border bg-pc-panel text-xs whitespace-nowrap text-pc-faint"
+    >
+      <!-- While an effect is open everything but the zoom control is
+           dimmed and inert (frame-layout AC-12). -->
+      <div
+        class="relative flex min-w-0 flex-1 items-center gap-3 overflow-hidden pr-1.5 pl-3"
+        inert={effectOpen}
+        data-dimmed={dim}
+        bind:clientWidth={statusRow}
+      >
+        <span class="min-w-0 flex-1 truncate text-pc-muted" title={status.text} data-status-text="">
+          {#if status.warning && status.text}
+            <span class="am-chip am-chip--warning inline-flex max-w-full overflow-hidden">{status.text}</span>
+          {:else}
+            {status.text}
+          {/if}
+        </span>
+        {#if status.ready}
+          {#if statusExtra}
+            <span
+              class={dropped === 2 ? 'invisible absolute' : 'flex shrink-0 items-center'}
+              bind:offsetWidth={statusProbe}
+            >
+              {@render statusExtra()}
+            </span>
+          {/if}
+          <span class="flex shrink-0 items-center gap-3" bind:offsetWidth={statusTail}>
+            <AgentIndicator />
+            {#if status.position !== null}
+              <span
+                class={dropped >= 1 ? 'invisible absolute' : 'shrink-0 tabular-nums'}
+                data-testid="status-pointer"
+                bind:offsetWidth={statusPos}
+              >
+                {status.position}
+              </span>
+            {/if}
+            <span class="shrink-0 tabular-nums" data-status-size="">{status.size}</span>
+            {#if status.frame}
+              <span class="shrink-0 tabular-nums" data-status-frame="">{status.frame}</span>
+            {/if}
+          </span>
+        {:else}
+          <AgentIndicator />
+        {/if}
+      </div>
+      {#if zoom}
+        <ZoomControl {...zoom} disabled={!status.ready} closeKey={zoomCloseKey} />
+      {/if}
+    </footer>
+  {/if}
   {#if size === 'narrow' && !chrome.hidden}
     <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
       {@render tools('horizontal')}
@@ -510,7 +645,10 @@
   {#if effectPanel && size === 'narrow'}
     <!-- Phones: docked to the bottom edge across the window, over the
          sheet, at most half the window tall (AC-13). -->
-    <div class="fixed inset-x-0 bottom-0 z-[35] flex max-h-[50vh] flex-col">
+    <div
+      class="fixed inset-x-0 bottom-0 z-[35] flex max-h-[50vh] flex-col"
+      bind:offsetHeight={effectDockHeight}
+    >
       {@render effectPanel.body()}
     </div>
   {/if}

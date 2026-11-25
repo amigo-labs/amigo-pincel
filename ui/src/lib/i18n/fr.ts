@@ -140,6 +140,7 @@ export const fr: Record<MessageKey, string> = {
   'fileAssoc.gotIt': 'Compris',
 
   'about.version': 'Version {version}',
+  'about.renderer': 'Moteur de rendu : {backend}',
   'about.tagline': 'Un éditeur de pixel art et d’images dans une seule app.',
   'about.close': 'Fermer',
   'about.checking': 'Recherche de mises à jour…',
@@ -300,12 +301,14 @@ export const fr: Record<MessageKey, string> = {
   'frame.variant': 'Variante de {group}',
   'frame.variantsHint': 'Maintenir ou clic droit : variantes',
   'frame.togglePanels': 'Afficher/masquer les panneaux',
+  'frame.search': 'Rechercher des commandes',
   'frame.closePanels': 'Fermer les panneaux',
   'frame.sidebarWidth': 'Largeur de la barre latérale',
   'tabs.label': 'Documents ouverts',
   'tabs.close': 'Fermer',
   'tabs.closeNamed': 'Fermer {name}',
   'tabs.unsaved': 'modifications non enregistrées',
+  'tabs.new': 'Nouveau document',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -313,6 +316,7 @@ export const fr: Record<MessageKey, string> = {
   'zoom.actual': 'Taille réelle',
   'zoom.in': 'Zoom avant',
   'zoom.out': 'Zoom arrière',
+  'zoom.value': 'Niveau de zoom {zoom}',
 
   // Colors
   'color.fg': 'Couleur de premier plan',
@@ -1317,6 +1321,7 @@ export const fr: Record<MessageKey, string> = {
   'px.fillsBg': 'remplit avec la couleur d’arrière-plan',
   'px.rightBg': 'le bouton droit utilise la couleur d’arrière-plan',
   'px.frameOf': 'image {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': 'annuler {u} / rétablir {r}',
   'px.version': 'Version de Pincel',
 

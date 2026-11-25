@@ -4,6 +4,7 @@ import { packColor, unpackColor } from '../../lib/color';
 import { t } from '../../lib/i18n/index.svelte';
 import { altHeld, shiftHeld } from '../../lib/shell/modifiers.svelte';
 import { assistantBusy } from '../../lib/assistant/chat.svelte';
+import { noteHover } from './hover';
 import { constrainedEndpoint, syncMeta, syncSelection } from './render';
 import {
   type SelectionMode,
@@ -381,6 +382,7 @@ function pressHeld(): void {
 }
 
 export function onPointerDown(e: PointerEvent) {
+  noteHover(e);
   if (!fromStage(e)) return;
   // Capture on the stage that took the press: the canvas would split a
   // double-click on the stage into two single clicks.
@@ -755,6 +757,7 @@ export function commitWand(e: PointerEvent) {
 }
 
 export function onPointerMove(e: PointerEvent) {
+  noteHover(e);
   if (!fromStage(e)) return;
   live.taps.move(e);
   if (heldTouch !== null && heldTouch.e.pointerId === e.pointerId) {
@@ -826,6 +829,7 @@ export function onPointerMove(e: PointerEvent) {
 }
 
 export function onPointerLeave() {
+  noteHover(null);
   if (activeTool() === 'tilemap-stamp' && toolState.stampHover) {
     toolState.stampHover = null;
     live.needsRecompose = true;
@@ -844,6 +848,8 @@ export function onPointerCancel(e: PointerEvent) {
 }
 
 export function onPointerUp(e: PointerEvent) {
+  // A lifted finger or pen leaves no pointer over the canvas.
+  if (e.pointerType !== 'mouse') noteHover(null);
   // A held touch that lifts is a one-finger tap: press, then release.
   if (heldTouch !== null && heldTouch.e.pointerId === e.pointerId) pressHeld();
   try {

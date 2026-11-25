@@ -22,6 +22,8 @@
     resetColors,
     savePrompt,
     swapColors,
+    MAX_ZOOM,
+    MIN_ZOOM,
     view,
     viewCommands,
     type ToolKind,
@@ -125,6 +127,8 @@
   import OcrDialog from './components/dialogs/OcrDialog.svelte';
   import EffectPanel from '../../lib/components/EffectPanel.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
+  import type { StatusInfo } from '../../lib/components/layout/status';
+  import type { ZoomProps } from '../../lib/components/layout/ZoomControl.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
   import AssistantPanel from '../../lib/assistant/AssistantPanel.svelte';
   import { assistantBusy, keyBlockedByAssistant } from '../../lib/assistant/chat.svelte';
@@ -175,7 +179,7 @@
   } from '../../lib/help/state.svelte';
   import { syncRecentMenu } from '../../lib/menu';
   import { hasNativeMenu, isTauri } from '../../lib/platform';
-  import { locale, t, type MessageKey } from '../../lib/i18n/index.svelte';
+  import { locale, percent, t, type MessageKey } from '../../lib/i18n/index.svelte';
   import { effectLabel } from '../../lib/effects/labels';
   import RadiusDialog from '../../lib/components/RadiusDialog.svelte';
   import RenameDialog from '../../lib/components/RenameDialog.svelte';
@@ -686,9 +690,53 @@
     openShortcuts({ actions: IMAGE_ACTIONS, groups: toolGroups });
   }
 
+  /** Ctrl+K and the app bar's search control: the command palette over
+   *  these menus and tools. */
+  function openCommandPalette(): void {
+    openPalette({
+      menus: () => menus,
+      groups: () => toolGroups,
+      selectTool: (id) => {
+        if (groupOf(toolGroups, id as ToolKind)) tool.kind = id as ToolKind;
+      },
+    });
+  }
+
   const toolLabel = $derived(
     groupOf(toolGroups, tool.kind)?.tools.find((x) => x.id === tool.kind)?.label ?? '',
   );
+
+  // Status bar and zoom control (docs/specs/frame-layout.md AC-06 – AC-10).
+  // A notice is a warning chip (amigo-theme-controls AC-08).
+  const statusNotice = $derived(loadError ?? editor.notice);
+  const statusInfo: StatusInfo = $derived({
+    ready: editor.handle !== null,
+    text: statusNotice ?? toolLabel,
+    warning: statusNotice !== null,
+    position: statusPointer
+      ? t('status.position', {
+          x: unitValue(statusPointer.x),
+          y: unitValue(statusPointer.y),
+          unit: t(UNIT_SUFFIX[viewAids.units]),
+        })
+      : null,
+    size: t('status.size', {
+      width: unitValue(editor.width),
+      height: unitValue(editor.height),
+      unit: t(UNIT_SUFFIX[viewAids.units]),
+    }),
+  });
+  const zoomProps: ZoomProps = $derived({
+    label: percent(Math.round(view.zoom * 100)),
+    factor: view.zoom,
+    min: MIN_ZOOM,
+    max: MAX_ZOOM,
+    format: (factor: number) => percent(factor * 100),
+    onZoomIn: () => viewCommands.zoomIn(),
+    onZoomOut: () => viewCommands.zoomOut(),
+    onFit: () => viewCommands.fit(),
+    onSet: (factor: number) => viewCommands.set(factor),
+  });
 
   // Select ▸ Expand / Contract / Feather ask for a radius; the core takes
   // one, the options bar used to pin it to 1 / 1 / 2 px.
@@ -1157,14 +1205,7 @@
         setViewAids({ showRulers: !viewAids.showRulers });
         return true;
       case 'commandPalette':
-        // Ctrl+K: the command palette over these menus and tools.
-        openPalette({
-          menus: () => menus,
-          groups: () => toolGroups,
-          selectTool: (id) => {
-            if (groupOf(toolGroups, id as ToolKind)) tool.kind = id as ToolKind;
-          },
-        });
+        openCommandPalette();
         return true;
       default:
         return runLayerShortcut(action);
@@ -1482,8 +1523,10 @@
   mode="image"
   {menus}
   {active}
-  title={editor.handle === null ? t('px.noDocument') : editor.fileName}
-  {dirty}
+  onSearch={openCommandPalette}
+  searchHint={hint('commandPalette')}
+  status={statusInfo}
+  zoom={zoomProps}
   effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
   tabs={tabBar}
   panels={[
@@ -1551,34 +1594,6 @@
   {/snippet}
   {#snippet viewport()}
     <ImageViewport />
-  {/snippet}
-  {#snippet statusbar()}
-    <span>{toolLabel}</span>
-    <span>·</span>
-    {#if statusPointer}
-      <span data-testid="status-pointer"
-        >{t('status.position', {
-          x: unitValue(statusPointer.x),
-          y: unitValue(statusPointer.y),
-          unit: t(UNIT_SUFFIX[viewAids.units]),
-        })}</span
-      >
-      <span>·</span>
-    {/if}
-    <span
-      >{t('status.size', {
-        width: unitValue(editor.width),
-        height: unitValue(editor.height),
-        unit: t(UNIT_SUFFIX[viewAids.units]),
-      })} · sRGB</span
-    >
-    <!-- A notice is a warning chip (amigo-theme-controls AC-08). -->
-    <span class="min-w-0 flex-1 truncate text-center"
-      >{#if loadError !== null || editor.notice !== null}<span
-          class="am-chip am-chip--warning inline-flex max-w-full overflow-hidden"
-          >{loadError ?? editor.notice ?? ''}</span
-        >{/if}</span
-    >
   {/snippet}
 </EditorFrame>
 

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu } from './helpers';
+import { createDocument, gotoStart, menu, zoomReadout } from './helpers';
 import {
   PALETTES,
   keyFocus,
@@ -146,7 +146,7 @@ for (const palette of PALETTES) {
       expect(off.fill, `${mode}: disabled fill`).toBe(await tokenColor(page, 'surface-raised'));
       expect(off.text, `${mode}: disabled text`).toBe(await tokenColor(page, 'text-muted'));
       expect(off.edge, `${mode}: disabled outline`).toBe(await tokenColor(page, 'border'));
-      const fit = page.getByRole('button', { name: 'Fit to window' });
+      const fit = zoomReadout(page);
       await expectButton(page, fit, 'ghost', 24, `${mode}: zoom readout`);
       await expectLiveStates(page, fit, `${mode}: ghost`);
     }
@@ -828,7 +828,7 @@ for (const palette of PALETTES) {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     await same(page.getByRole('region', { name: 'Timeline' }).getByRole('button', { name: 'Add tag' }), 'btn-sm');
     await same(sidebar(page).getByRole('button', { name: 'Flatten' }), 'btn-off');
-    await same(page.getByRole('button', { name: 'Fit to window' }), 'ghost-sm');
+    await same(zoomReadout(page), 'ghost-sm');
     await same(sidebar(page).getByRole('textbox', { name: 'Foreground color hex value' }), 'field-sm');
     await same(toolOptions(page).getByRole('combobox').first(), 'select-sm');
     const size = toolOptions(page).getByRole('checkbox', { name: 'Size' });

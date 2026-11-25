@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, type Locator, type Page } from '@playwright/test';
-import { drag, imageCanvas, pixelCanvas } from './helpers';
+import { drag, imageCanvas, pixelCanvas, zoomReadout } from './helpers';
 
 // Shared helpers of the document-tabs specs (docs/specs/document-tabs.md):
 // a stubbed save picker, files to drop, and locators for the tab bar.
@@ -166,6 +166,13 @@ export function tab(page: Page, name: string): Locator {
   return tabBar(page).getByRole('tab', { name: new RegExp(`^${name.replace('.', '\\.')}( |$)`) });
 }
 
+/** The active document's tab; its accessible name holds the document name
+ *  and the mode ("a.aseprite Pixel"), its tooltip the unsaved state
+ *  (docs/specs/frame-layout.md AC-03). */
+export function activeTab(page: Page): Locator {
+  return tabBar(page).getByRole('tab', { selected: true });
+}
+
 export function prompt(page: Page): Locator {
   return page.getByRole('alertdialog', { name: 'Unsaved changes' });
 }
@@ -179,9 +186,10 @@ export async function tabNames(page: Page): Promise<string[]> {
 
 export async function expectActive(page: Page, name: string): Promise<void> {
   await expect(tab(page, name)).toHaveAttribute('aria-selected', 'true');
-  // The top bar names the active document (its tooltip adds the unsaved state).
+  // The tab names the document (its tooltip adds the unsaved state); the
+  // app bar shows no name (frame-layout AC-02, AC-03).
   const title = new RegExp(`^${name.replace('.', '\\.')}( — unsaved changes)?$`);
-  await expect(page.getByRole('banner').getByTitle(title)).toBeVisible();
+  await expect(tab(page, name)).toHaveAttribute('title', title);
 }
 
 export async function expectDirty(page: Page, name: string, dirty: boolean): Promise<void> {
@@ -244,5 +252,5 @@ export async function openDocuments(page: Page, mode: Mode): Promise<number | nu
 }
 
 export function zoomLabel(page: Page): Locator {
-  return page.getByRole('group', { name: 'Zoom' }).getByRole('button', { name: 'Fit to window' });
+  return zoomReadout(page);
 }

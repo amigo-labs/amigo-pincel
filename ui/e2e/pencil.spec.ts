@@ -1,6 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { colorOf, createDocument, menu, pixelCanvas, setColor, storedPref } from './helpers';
+import {
+  colorOf,
+  createDocument,
+  menu,
+  pixelCanvas,
+  setColor,
+  storedPref,
+  zoomActual,
+} from './helpers';
 
 // Pixel-mode Pencil / Eraser (docs/specs/pixel-pencil.md): brush size and
 // shape, Shift constraint, pixel-perfect, shared and persisted options.
@@ -468,7 +476,7 @@ test.describe('touch device', () => {
   test('the latched Shift toggle constrains a pencil drag', async ({ page }) => {
     await setup(page);
     // Any touch on the stage reveals the toggles; fit the view again after.
-    await page.getByRole('button', { name: 'Actual size' }).tap();
+    await zoomActual(page, 'tap');
     const shift = page.getByRole('button', { name: 'Shift' });
     await shift.click();
     await expect(shift).toHaveAttribute('aria-pressed', 'true');

@@ -192,6 +192,7 @@ export const ICONS = {
   menu: [{ d: 'M4 6h16M4 12h16M4 18h16' }],
   undo: [{ d: 'M8 5L4 9l4 4' }, { d: 'M4 9h10.5a5.5 5.5 0 0 1 0 11H10' }],
   redo: [{ d: 'M16 5l4 4-4 4' }, { d: 'M20 9H9.5a5.5 5.5 0 0 0 0 11H14' }],
+  search: [{ d: 'M10.5 4a6.5 6.5 0 1 1 0 13a6.5 6.5 0 0 1 0-13z' }, { d: 'M15.5 15.5L21 21' }],
   'zoom-in': [
     { d: LENS, tone: true },
     { d: LENS },

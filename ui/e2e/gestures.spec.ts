@@ -7,6 +7,8 @@ import {
   setColor,
   storedPref,
   switchLanguage,
+  zoomFit,
+  zoomReadout,
 } from './helpers';
 
 // Tablet gestures (docs/specs/tablet-gestures.md): two- / three-finger taps
@@ -300,7 +302,7 @@ test('with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12
   await createDocument(page, 'image', { width: 32, height: 32 });
   await touchGestures(page, false);
   const target = imageCanvas(page);
-  const zoom = page.getByRole('button', { name: 'Fit to window' });
+  const zoom = zoomReadout(page);
   const before = await zoom.textContent();
   const cdp = await page.context().newCDPSession(page);
   const [a, b] = await points(target, [
@@ -320,7 +322,7 @@ test('with Touch Gestures off, pinch zoom and the eraser end keep working (AC-12
   await expect(zoom).not.toHaveText(before ?? '');
 
   await setColor(page, 'fg', '#ff0000');
-  await page.getByRole('button', { name: 'Fit to window' }).click();
+  await zoomFit(page);
   await page.keyboard.press('g');
   await target.click();
   await expect.poll(() => shown(page, target, 0.5, 0.52)).toBe('#ff0000');

@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDocument, drag, menu, putClipboardImage, waitForEditor } from './helpers';
 import {
+  activeTab,
   canvas,
   dropFiles,
   editorOf,
@@ -95,9 +96,9 @@ test('switching to a tab of the other mode shows that editor, its menus, panels 
   page,
 }) => {
   await imageThenPixel(page);
-  // The top bar starts with the app name and the mode badge.
-  const banner = page.getByRole('banner');
-  const badge = (mode: string) => expect(banner).toHaveText(new RegExp(`^\\s*Pincel\\s*${mode}`));
+  // The active tab names its mode (frame-layout AC-03).
+  const badge = (mode: string) =>
+    expect(activeTab(page)).toHaveAccessibleName(new RegExp(` ${mode}( |$)`));
   await badge('Pixel');
   await expect(page).toHaveTitle('a.aseprite – Pincel');
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
@@ -109,7 +110,7 @@ test('switching to a tab of the other mode shows that editor, its menus, panels 
   await badge('Image');
   await expect(page).toHaveTitle('● image.ora – Pincel');
   await expect(page.getByRole('region', { name: 'Timeline' })).toHaveCount(0);
-  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 px · sRGB');
+  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 px');
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   await expect(editorOf(page, 'pixel')).toHaveAttribute('inert', '');
 

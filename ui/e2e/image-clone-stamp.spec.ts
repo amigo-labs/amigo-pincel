@@ -9,6 +9,7 @@ import {
   pixelOf,
   setColor,
   switchLanguage,
+  zoomFit,
 } from './helpers';
 
 // The Clone Stamp in Image mode (docs/specs/clone-stamp.md). The composite
@@ -338,7 +339,7 @@ test('the crosshair marks the source at a constant size, then follows the pointe
   await expectCrosshairAt(page, 8.5, 16.5);
   const zoomed = await crosshairAt(page);
   expect([Math.round(zoomed.w), Math.round(zoomed.h)]).toEqual([16, 16]);
-  await page.getByRole('button', { name: 'Fit to window' }).click();
+  await zoomFit(page);
 
   // Once a stroke fixed the offset (-16, 0): pointer plus offset.
   await stroke(page, [24, 16], [25, 16]);

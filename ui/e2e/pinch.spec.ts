@@ -5,6 +5,7 @@ import {
   createDocument,
   imageCanvas,
   pixelCanvas,
+  zoomReadout,
 } from './helpers';
 
 // Two-finger pinch and pan (docs/specs/pen-input.md AC-01 – AC-06): real
@@ -66,7 +67,7 @@ async function pinchOut(page: Page, target: Locator): Promise<void> {
 
 /** The zoom readout as a number (`8×` or `125%`). */
 async function zoomOf(page: Page): Promise<number> {
-  const text = await page.getByRole('button', { name: 'Fit to window' }).textContent();
+  const text = await zoomReadout(page).textContent();
   return Number(text?.replace(/[×%]/, ''));
 }
 
@@ -83,7 +84,7 @@ test('pixel mode: two-finger pinch zooms in and paints nothing', async ({ page }
 
 test('image mode: two-finger pinch zooms in and paints nothing', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 48 });
-  const readout = page.getByRole('button', { name: 'Fit to window' });
+  const readout = zoomReadout(page);
   const before = Number((await readout.textContent())?.replace('%', ''));
   await pinchOut(page, imageCanvas(page));
   await expect

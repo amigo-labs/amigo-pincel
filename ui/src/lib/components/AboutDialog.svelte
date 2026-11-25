@@ -9,6 +9,7 @@
   import type { UpdateMode } from '../help/updater';
   import { t } from '../i18n/index.svelte';
   import { requestRestart } from '../shell/close-guard';
+  import { renderInfo } from '../shell/render-info.svelte';
 
   let { onClose }: { onClose: () => void } = $props();
 
@@ -81,6 +82,11 @@
     </header>
     <div class="am-body flex flex-col gap-3">
       <p class="text-sm text-pc-muted">{t('about.version', { version })}</p>
+      {#if renderInfo.backend !== null}
+        <p class="text-sm text-pc-muted" data-about-renderer="">
+          {t('about.renderer', { backend: renderInfo.backend })}
+        </p>
+      {/if}
       <p class="text-sm text-pc-text">{t('about.tagline')}</p>
       {#if supported && updater !== null}
         <fieldset class="mb-4" role="radiogroup" aria-labelledby="about-updates">

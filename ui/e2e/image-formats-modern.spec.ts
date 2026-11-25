@@ -78,7 +78,7 @@ async function merged(page: Page): Promise<{ width: number; height: number; data
 
 const layerRows = (page: Page) => page.getByRole('button', { name: /^Hide / });
 const sizeShown = (page: Page, w: number, h: number) =>
-  page.getByText(`${w} × ${h} px · sRGB`, { exact: true });
+  page.getByText(`${w} × ${h} px`, { exact: true });
 const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
 
 test('a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)', async ({

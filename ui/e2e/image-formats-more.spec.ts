@@ -204,7 +204,7 @@ test('Save of an ICO grown past 256 px goes to Save As with the 256 px notice on
   await resize.getByLabel('Width').fill('300');
   await resize.getByLabel('Height').fill('300');
   await resize.getByRole('button', { name: 'Resize' }).click();
-  await expect(page.getByText('300 × 300 px · sRGB')).toBeVisible();
+  await expect(page.getByText('300 × 300 px')).toBeVisible();
 
   let downloads = 0;
   page.on('download', () => (downloads += 1));

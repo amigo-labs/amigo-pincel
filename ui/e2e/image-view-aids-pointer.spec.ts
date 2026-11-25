@@ -169,12 +169,12 @@ test('a tab switch under a resting mouse: position and markers follow the new ta
   await waitForEditor(page, 'image');
   const tabs = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
   await tabs.first().click();
-  await expect(page.getByText('200 × 100 px · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('200 × 100 px', { exact: true })).toBeVisible();
   const [sx, sy] = await at(page, 121.3, 61.3);
   await page.mouse.move(sx, sy);
   await expectShown(page, '121, 61 px', sx, sy);
   await page.keyboard.press('Alt+PageDown');
-  await expect(page.getByText('800 × 300 px · sRGB', { exact: true })).toBeVisible();
+  await expect(page.getByText('800 × 300 px', { exact: true })).toBeVisible();
   await expectUnderMouse(page, 800, sx, sy);
 });
 

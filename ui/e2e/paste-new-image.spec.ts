@@ -17,7 +17,7 @@ import {
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px · sRGB`);
+const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px`);
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });
@@ -119,7 +119,7 @@ for (const mode of ['pixel', 'image'] as const) {
       await expect(page.getByTitle('Pasted image.png', { exact: true })).toBeVisible();
     } else {
       await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
-      await expect(page.locator('footer')).toContainText('24×12');
+      await expect(page.locator('footer')).toContainText('24 × 12 px');
     }
     await expect(page.getByRole('tab')).toHaveCount(2);
   });
@@ -174,7 +174,7 @@ test('pixel: Paste as New Image makes an RGBA sprite with one image layer and on
   });
   await menu(page, 'Edit', 'Paste as New Image');
   await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
-  await expect(page.locator('footer')).toContainText('6×4');
+  await expect(page.locator('footer')).toContainText('6 × 4 px');
   await expect(layerRows(page)).toHaveCount(1);
   await expect(page.getByRole('region', { name: 'Timeline' }).getByText('frame 1/1')).toBeVisible();
   // The layer holds the image's RGBA colours, read back through Copy.
@@ -198,7 +198,7 @@ test('pixel: Paste as New Image opens the in-app copy when the system write fail
   await page.keyboard.press('ControlOrMeta+c');
   await menu(page, 'Edit', 'Paste as New Image');
   await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
-  await expect(page.locator('footer')).toContainText('20×12');
+  await expect(page.locator('footer')).toContainText('20 × 12 px');
   await expect(tabs(page)).toHaveCount(2);
 });
 

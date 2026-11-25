@@ -418,4 +418,6 @@ export const viewCommands = {
   zoomOut: (): void => {},
   fit: (): void => {},
   actual: (): void => {},
+  /** Sets the zoom factor about the centre of the canvas area. */
+  set: (() => {}) as (factor: number) => void,
 };

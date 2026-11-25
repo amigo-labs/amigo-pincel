@@ -1,5 +1,5 @@
 <script lang="ts">
-  import { percent, t } from '../../../../lib/i18n/index.svelte';
+  import { t } from '../../../../lib/i18n/index.svelte';
   import { onMount } from 'svelte';
   import {
     editor,
@@ -12,7 +12,6 @@
     MAX_ZOOM,
   } from '../../stores/editor.svelte';
   import type { EffectPreview } from '../../stores/editor.svelte';
-  import ZoomControl from '../../../../lib/components/layout/ZoomControl.svelte';
   import { assistantBusy } from '../../../../lib/assistant/chat.svelte';
   import { altHeld } from '../../../../lib/shell/modifiers.svelte';
   import { isSpaceActivated, isTypingTarget } from '../../../../lib/shell/shortcuts';
@@ -501,6 +500,7 @@
     viewCommands.zoomOut = () => setZoom(view.zoom / 1.25);
     viewCommands.fit = fitView;
     viewCommands.actual = () => setZoom(1);
+    viewCommands.set = (factor) => setZoom(factor);
     const detach = attachTools(surface, viewport, redraw);
     // Re-fit when the viewport resizes while in fit mode.
     const ro = new ResizeObserver(() => {
@@ -613,16 +613,4 @@
     ></div>
   {/if}
 
-  <!-- Zoom controls (spec §6.4), shared with Pixel mode. -->
-  {#if editor.handle !== null}
-    <ZoomControl
-      label={percent(Math.round(view.zoom * 100))}
-      onZoomIn={() => setZoom(view.zoom * 1.25)}
-      onZoomOut={() => setZoom(view.zoom / 1.25)}
-      onFit={fitView}
-      onActual={() => setZoom(1)}
-      canZoomIn={view.zoom < MAX_ZOOM}
-      canZoomOut={view.zoom > MIN_ZOOM}
-    />
-  {/if}
 </div>

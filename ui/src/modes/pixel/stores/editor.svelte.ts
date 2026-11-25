@@ -375,6 +375,9 @@ export const ed = tabStore(sharedEd, keysOf(docInit), () => tabs.active?.doc ?? 
 export const view = tabStore(sharedView, keysOf(tabViewInit), () => tabs.active?.view ?? idle.view);
 /** Active tool and its options. */
 export const toolState = $state(toolInit());
+/** The document pixel under the pointer, for the status bar; `null` while
+ *  the pointer is not on the document (docs/specs/frame-layout.md AC-08). */
+export const hover = $state<{ pixel: { x: number; y: number } | null }>({ pixel: null });
 /** Foreground / background colours. */
 export const colors = $state(colorsInit());
 /** Timeline playback, and the active tab's loop tag and onion skin. */
