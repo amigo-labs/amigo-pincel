@@ -606,22 +606,25 @@ Compression: Zlib for cel pixel data (matches Aseprite default). Use the `flate2
 
 ```text
 ┌────────────────────────────────────────────────────────────────────────┐
-│ Top bar: File Edit Select Image Layer [Frame] Effects Adjustments View │
-│          [Tools] [Help] · document name ● · undo / redo · panels toggle│
+│ App bar: Pincel · File Edit Select Image Layer [Frame] Effects         │
+│   Adjustments View [Tools] [Help] · undo / redo ·  search · panels     │
+├────────────────────────────────────────────────────────────────────────┤
+│ Tab bar: one tab per open document (mode icon, name ●, close) · New    │
 ├──────┬────────────────────────────────────────────────┬────────────────┤
 │ Tool │ Options bar: variants of the active tool group │  Colors        │
 │ rail │ + that tool's options                          ├────────────────┤
 │      ├────────────────────────────────────────────────┤  Palette       │
 │      │                                                │  Preview ▸     │
-│      │                                                ├────────────────┤
-│      │            Canvas viewport                     │  Layers        │
-│      │           (WebGPU / Canvas2D)       [− % + 1:1]├────────────────┤
+│      │            Canvas viewport                     ├────────────────┤
+│      │           (WebGPU / Canvas2D)                  │  Layers        │
 │      ├────────────────────────────────────────────────┤  Tilesets ▸    │
 │      │ Timeline: transport · frames · tags · onion    │  Slices ▸      │
-│      ├────────────────────────────────────────────────┤                │
-│      │ Status: doc size · frame · undo depth · status │                │
-└──────┴────────────────────────────────────────────────┴────────────────┘
+├──────┴────────────────────────────────────────────────┴────────────────┤
+│ Status: notice or tool · pointer · doc size · frame · [− zoom ▾ +]     │
+└────────────────────────────────────────────────────────────────────────┘
 ```
+
+The frame runs from general to specific, top to bottom: app, document, tool, canvas, status (`frame-layout`, Decision Log 2026-11-25). The app bar holds the menus, Undo / Redo, a command search control (the Ctrl+K palette) and the panels toggle — no document name, unsaved marker or mode badge: the tab shows them. App bar, tab bar and status bar span the window. The status bar is the same in both modes: a notice or the active tool's name, the pointer position, the document size, the frame (Pixel) and the zoom control, whose value opens a list (Fit to Window, the powers of two in the mode's range). On a phone there is no status bar and the zoom control floats over the canvas corner. The macOS desktop app, which draws no menus, puts the tabs into the app bar's row. Version and render backend are in the About dialog.
 
 Both modes share this frame (`ui/src/lib/components/layout/`); Image mode lists the panels and menus it has (Colors and Layers; no Frame menu, no timeline). Panels are collapsible and their collapse state and sidebar visibility persist per mode (IndexedDB prefs). The tool rail groups variants of one tool — the six shapes, the two marquee shapes, the two lasso kinds — behind one button; the options bar shows the group's variants as a segmented control, so no variant needs a long-press; a right-click, a 500 ms hold or Shift+F10 on a group button also opens a flyout listing the variants (`tool-variant-flyout`). Thin separators split the rail into sections — navigate, select, paint, fill & color, draw, and in Pixel mode sprite (Stamp, Slice) — from one group-id → section map shared by both modes (`ui/src/lib/components/layout/tools.ts`); each mode lists its groups so that a section's groups sit together. Icons are inline SVG strokes (`ui/src/lib/components/icons/`), colors come from one set of `pc-*` theme tokens. Buttons share one look (`.panel-btn` and `Button.svelte`: default, primary, ghost, danger; hover, pressed, focus, disabled, busy), a toggle that is on and the active tool share the accent state, and one tooltip layer shows every `title` in the theme with its shortcut as a keycap (Decision Log 2026-11-10). A Help menu (About Pincel, and in the desktop app the updater's manual check and its auto-install toggle) closes the bar wherever the OS draws no native menu bar — the web build and the Windows / Linux desktop app. On macOS the frame draws no menus at all: the native menu bar mirrors them, with About and the updater in its App menu (§11.3, `macos-native-menu`).
 
