@@ -225,7 +225,7 @@ function rail(mode, after) {
   const pixelAfter = ['move','hand','zoom','|','marquee','lasso','wand','|','pencil*','eraser','|','bucket','picker','|','line','shapes','text','|','stamp','slice'];
   const image = ['move','hand','zoom','|','marquee','lasso','wand','|','brush*','eraser','smudge','clone','|','bucket','picker','|','line','shapes','text'];
   const list = mode === 'image' ? image : after ? pixelAfter : pixelBefore;
-  const items = list.map((t) => t === '|' ? '<hr>' : ib(t.replace('*', ''), t.endsWith('*') ? 'on' : '')).join('');
+  const items = list.map((t) => t === '|' ? '<hr>' : ib(t.replace(/\*/g, ''), t.endsWith('*') ? 'on' : '')).join('');
   const well = after ? `<span class="well" title="Vorder-/Hintergrundfarbe"><i class="bgc"></i><i class="fgc"></i></span>` : '';
   return `<div class="rail">${items}${well}</div>`;
 }
@@ -411,7 +411,7 @@ function phone(mode) {
       <div class="zoomfloat">${ib('minus','sm')}<span class="v">${pixel ? '3000 %' : '17 %'}</span>${ib('plus','sm')}</div>
       ${pixel ? '' : '<div class="toast" style="bottom:60px">Als titelbild.png gespeichert</div>'}
     </div>
-    <div class="rail">${tools.map((t) => t === '|' ? '<hr>' : ib(t.replace('*', ''), t.endsWith('*') ? 'on' : '')).join('')}
+    <div class="rail">${tools.map((t) => t === '|' ? '<hr>' : ib(t.replace(/\*/g, ''), t.endsWith('*') ? 'on' : '')).join('')}
       <span class="well"><i class="bgc"></i><i class="fgc" style="${pixel ? '' : 'background:#111318'}"></i></span></div>
   </div><figcaption>${pixel ? 'Pixel-Modus' : 'Image-Modus mit Toast'}</figcaption></figure>`;
 }
