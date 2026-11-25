@@ -3,14 +3,15 @@
 // (docs/specs/performance-background-jobs.md AC-01).
 
 import { core } from '../core/wasm';
+import { openParts, type SnapshotParts } from './snapshot';
 
 /** What a document can be written as. */
 export type EncodeFormat = 'ora' | 'png' | 'jpeg' | 'webp' | 'bmp' | 'tiff' | 'tga' | 'ico' | 'jxl';
 
 /** One encoding job: a document snapshot and how to write it. */
 export interface EncodeJob {
-  /** `core.snapshotDocument` bytes — the document as the job started. */
-  readonly snapshot: Uint8Array;
+  /** The document as the job started, in parts (`snapshot.ts`). */
+  readonly snapshot: SnapshotParts;
   readonly format: EncodeFormat;
   /** PNG / OpenRaster compression level 0–9. */
   readonly level: number;
@@ -54,7 +55,7 @@ export function encodeHandle(
 
 /** Runs `job` in this thread's wasm instance. */
 export function encodeSnapshot(job: EncodeJob): Uint8Array {
-  const handle = core.openSnapshot(job.snapshot);
+  const handle = openParts(job.snapshot);
   try {
     return encodeHandle(handle, job.format, job.level, job.quality);
   } finally {

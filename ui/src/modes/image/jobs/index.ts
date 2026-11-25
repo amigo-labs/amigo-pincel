@@ -7,8 +7,9 @@
 import { latestOnly } from '../../../lib/jobs/latest';
 import { jobRunner, type JobSetup } from '../../../lib/jobs/runner';
 import { compiledCore, core } from '../core/wasm';
-import { encodeSnapshot, type EncodeFormat, type EncodeJob } from './encode';
-import { previewBytes, regionBytes, type EffectJob, type ImageJob } from './protocol';
+import { encodeHandle, type EncodeFormat, type EncodeJob } from './encode';
+import { jobTransfer, previewBytes, regionBytes, type EffectJob, type ImageJob } from './protocol';
+import { readParts } from './snapshot';
 
 export type { EncodeFormat, EffectJob };
 
@@ -17,21 +18,31 @@ const jobs = jobRunner<ImageJob, Uint8Array, WebAssembly.Module | null>(
   () => new Worker(new URL('./worker.ts', import.meta.url), { type: 'module' }),
   'image jobs',
   compiledCore,
+  jobTransfer,
 );
 
 /** Encodes document `handle` as it is now, in the job worker. */
-export function encodeInBackground(
+export async function encodeInBackground(
   handle: number,
   format: EncodeFormat,
   options: { level?: number; quality?: number } = {},
 ): Promise<Uint8Array> {
-  const job: EncodeJob = {
-    snapshot: core.snapshotDocument(handle),
-    format,
-    level: options.level ?? 6,
-    quality: options.quality ?? 90,
-  };
-  return jobs.run({ kind: 'encode', ...job }, () => encodeSnapshot(job));
+  const level = options.level ?? 6;
+  const quality = options.quality ?? 90;
+  // Frozen now, copied out over the next tasks (AC-03, AC-04); each attempt
+  // copies it out again, since the worker takes the buffers.
+  const frozen = core.freezeDocument(handle);
+  try {
+    return await jobs.run(
+      async (): Promise<ImageJob> => {
+        const job: EncodeJob = { snapshot: await readParts(frozen), format, level, quality };
+        return { kind: 'encode', ...job };
+      },
+      () => encodeHandle(frozen, format, level, quality),
+    );
+  } finally {
+    core.closeDocument(frozen);
+  }
 }
 
 /** Effect jobs of one effect session on one document. */
@@ -56,7 +67,14 @@ export function effectJobs(handle: number): EffectJobs {
   const key = `fx-${sessions}`;
   const setup: JobSetup<ImageJob> = {
     key,
-    req: () => ({ kind: 'load', key, snapshot: core.snapshotDocument(handle) }),
+    req: async () => {
+      const frozen = core.freezeDocument(handle);
+      try {
+        return { kind: 'load', key, snapshot: await readParts(frozen) };
+      } finally {
+        core.closeDocument(frozen);
+      }
+    },
   };
   return {
     async preview(effect) {
