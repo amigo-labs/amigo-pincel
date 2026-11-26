@@ -1,6 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { colorOf, createDocument, menu, setColor, storedPref, switchLanguage } from './helpers';
-import { phoneMenu, storeLayout } from './effect-panel-helpers';
+import { storeLayout } from './effect-panel-helpers';
 
 // docs/specs/panel-visibility.md — View ▸ Panels in the browser build (no
 // Generate, no Assistant): the entries and their check marks, removing and
@@ -383,28 +383,28 @@ test.describe('wide', () => {
   });
 
   test('a panel removed and enabled again shows what it showed before (AC-14)', async ({ page }) => {
-    await createDocument(page, 'pixel', { width: 16, height: 16 });
-    // An open form in Slices: local state of the panel.
-    await tabOf(page, 'Preview, Tilesets, Slices', 'Tilesets').click();
-    const scroller = panel(page, 'Tilesets');
-    await expect(scroller).toBeVisible();
+    await createDocument(page, 'image', { width: 16, height: 16 });
     await menu(page, 'Layer', 'New Layer');
     await menu(page, 'Layer', 'New Layer');
+    await page.keyboard.press('Control+z');
     const layers = panel(page, 'Layers').getByRole('list', { name: 'Layer list' }).getByRole('listitem');
-    await expect(layers).toHaveCount(3);
-    // A typed, not yet committed value in a Colors field.
-    const hex = panel(page, 'Colors').getByRole('textbox').first();
-    await hex.fill('12ab');
-    await choose(page, 'Colors');
+    await expect(layers).toHaveCount(2);
+    await tabOf(page, 'Layers, History', 'History').click();
+    const steps = panel(page, 'History').getByRole('option');
+    const count = await steps.count();
+    expect(count).toBeGreaterThanOrEqual(3);
+    const selected = panel(page, 'History').getByRole('option', { selected: true });
+    const current = await selected.textContent();
+
+    await choose(page, 'History');
     await choose(page, 'Layers');
-    await choose(page, 'Tilesets');
-    await expect(panel(page, 'Colors')).toHaveCount(0);
-    await choose(page, 'Tilesets');
+    await expect(sidebar(page).locator('[data-panel-group="document"]')).toBeHidden();
     await choose(page, 'Layers');
-    await choose(page, 'Colors');
-    await expect(panel(page, 'Colors').getByRole('textbox').first()).toHaveValue('12ab');
-    await expect(layers).toHaveCount(3);
-    await expect(scroller).toBeVisible();
+    await expect(layers).toHaveCount(2);
+    await choose(page, 'History');
+    await expect(steps).toHaveCount(count);
+    await expect(selected).toHaveCount(1);
+    expect(await selected.textContent()).toBe(current);
   });
 
   test('without Layers | History the remaining blocks keep the height of their content (AC-16)', async ({ page }) => {
@@ -483,12 +483,27 @@ test.describe('narrow', () => {
       .getByRole('tab')
       .evaluateAll((els) => els.map((el) => (el.textContent ?? '').trim()));
 
+  /** The ☰ sheet with View ▸ Panels expanded (the sheet remembers that). */
+  async function phonePanels(page: Page): Promise<Locator> {
+    await page.getByRole('button', { name: 'Menu', exact: true }).click();
+    const list = page.getByRole('menu', { name: 'Menu', exact: true });
+    const panels = list.getByRole('menuitem', { name: 'Panels', exact: true });
+    if ((await panels.getAttribute('aria-expanded')) !== 'true') await panels.click();
+    await expect(panels).toHaveAttribute('aria-expanded', 'true');
+    return list;
+  }
+
+  /** Chooses the entry `name` of View ▸ Panels in the ☰ sheet. */
+  async function phoneMenu(page: Page, _panels: 'Panels', name: string): Promise<void> {
+    const list = await phonePanels(page);
+    await list.getByRole('menuitemcheckbox', { name, exact: true }).click();
+    await expect(list).toHaveCount(0);
+  }
+
   test('the ☰ sheet shows View ▸ Panels with the entries and check marks (AC-18)', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     await phoneMenu(page, 'Panels', 'Tilesets');
-    await page.getByRole('button', { name: 'Menu', exact: true }).click();
-    const list = page.getByRole('menu', { name: 'Menu', exact: true });
-    await list.getByRole('menuitem', { name: 'Panels', exact: true }).click();
+    const list = await phonePanels(page);
     const marks = await list
       .getByRole('menuitemcheckbox')
       .evaluateAll((els) =>

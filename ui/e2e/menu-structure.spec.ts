@@ -136,6 +136,8 @@ test.describe('browser', () => {
         SEP,
         ...aids,
         SEP,
+        // docs/specs/panel-visibility.md AC-01.
+        'Panels',
         'Toggle UI',
       ]);
     });
