@@ -109,23 +109,23 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
+| AC-01 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways" | built |        |
+| AC-02 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail" | built |        |
+| AC-03 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail", "narrow › {pixel, image}: the well stays at the end of the strip …" (picker inside the window) | built |        |
+| AC-04 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail" | built |        |
+| AC-05 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well stays with the sidebar hidden, Colors collapsed or removed; Toggle UI takes it along" | built |        |
+| AC-06 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: while an effect is open the well takes no input" | built |        |
+| AC-07 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well is named, shows the keys and follows the tools in the tab order" | built |        |
+| AC-08 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "low window › the tool list scrolls and the well stays at the rail’s foot", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways" | built |        |
+| AC-09 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom follow Move, with H and Z" | built |        |
+| AC-10 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Pan drag moves the view and changes nothing; a selection stays put" | built |        |
+| AC-11 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Zoom click zooms in around the pointer; Alt or the right button zooms out; the ends do nothing" | built |        |
+| AC-12 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom still work while an effect is open" | built |        |
+| AC-13 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › image: one Fill group with Fill and Gradient; G cycles"; `ui/e2e/tools.spec.ts`: "image mode: W, B, E, G and T select their tools" | built |        |
+| AC-14 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: N selects the Gradient" | built |        |
+| AC-15 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Shapes lists four shapes and no filled tool; Mode Fill draws a filled shape in the other colour"; `ui/e2e/tool-flyout.spec.ts`: "pixel mode: a right-click on a group button lists its variants" | built |        |
+| AC-16 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: the shortcut overview and the command palette list Pan, Zoom and Gradient (N), no filled shape"; `ui/e2e/shortcuts-overview.spec.ts`: "{mode} mode: rows carry labels and the menu's chords" | built |        |
+| AC-17 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › German: the well and the view tools carry German names" | built |        |
 
 ## Decisions
 
@@ -133,3 +133,9 @@ Hints, not contracts.
 - 2026-11-26 (spec): the well has swatches, swap and reset only — the rail is 48 px wide; hex and alpha stay in the Colors panel and the picker.
 - 2026-11-26 (spec): the filled tools painted the interior in the stroke colour, the Mode option paints it in the other colour. The Mode option's behaviour stays (it is what Image mode does, and the options bar says so); a solid shape in the foreground colour is Fill + Outline with both colours equal, or Swap Colors first.
 - 2026-11-26 (spec): Pixel mode's Zoom tool zooms by clicks, without Image mode's zoom box: Pixel mode zooms in fixed steps.
+- 2026-11-26 (build): `N` needs no handling of its own: a tool key whose id names no group but a tool inside one selects that tool (`cycleGroup` in `layout/tools.ts`), and the shortcut overview lists such a key as a row of its own. The key stays rebindable as `tool:gradient`.
+- 2026-11-26 (build): the well is `ColorPair` with `compact`, so swatch, picker and handlers are the Colors panel's; the rail's scroller is the tool list (`[data-tool-list]`) and the well sits in a foot below it. At 1280 × 720 both modes fit without scrolling (the well is 36 px, Image mode has one group less).
+- 2026-11-26 (build): Image mode's Fill variant keeps its name "Fill", so its rail button reads "Fill: Fill" to assistive technology (Pixel mode: "Fill: Bucket"). One wording for both modes is part of `options-bar-layout`.
+- 2026-11-26 (build): the Pan and Zoom tools take their press before the "canvas only zooms and pans" guard and before the locked-layer check, so they work on a locked layer and while an effect is open (AC-12).
+- 2026-11-26 (build): red run — the 23 tests of `ui/e2e/tool-rail-colors.spec.ts` all failed against the bundle built before the change. Existing specs changed with the feature: the shape tests without the filled tools (`pixel-tools`, `color-recent`, `tool-flyout`), specs about the Colors panel now look at the panel's pair (`colorPair` in `ui/e2e/helpers.ts`) because the well's swatches carry the same names, `command-palette` counts the group buttons only.
+- 2026-11-26 (build): New public API, for review: `ColorPair`'s `compact` prop, `ToolRail`'s `foot` snippet, `zoomAt` (`modes/pixel/view-ops.ts`), the tool ids `hand` and `zoom` in Pixel mode (and no `rectangle-fill` / `ellipse-fill`), `modes/image/components/ColorWell.svelte`.
