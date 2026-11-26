@@ -24,6 +24,14 @@ export async function openHistory(page: Page, title = 'History'): Promise<void> 
   await showPanel(page, title);
 }
 
+/** Adds a layer with the Layers panel's button, then shows History again
+ *  (the two panels are tabs of one group, sidebar-tab-groups). */
+export async function addLayer(page: Page): Promise<void> {
+  await showPanel(page, 'Layers');
+  await page.getByRole('button', { name: 'Add layer' }).click();
+  await showPanel(page, 'History');
+}
+
 /** The row names, start entry first. */
 export async function rowNames(page: Page): Promise<string[]> {
   return (await historyRows(page).allTextContents()).map((s) => s.trim());

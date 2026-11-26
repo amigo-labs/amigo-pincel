@@ -694,7 +694,7 @@ export async function hidePanel(page: Page, title: string): Promise<void> {
   if ((await tab.count()) > 0) {
     const toggle = side
       .locator('[data-panel-group]')
-      .filter({ has: tab })
+      .filter({ has: page.getByRole('tab', { name: title, exact: true }) })
       .locator('button[aria-expanded]');
     if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
     await expect(toggle).toHaveAttribute('aria-expanded', 'false');

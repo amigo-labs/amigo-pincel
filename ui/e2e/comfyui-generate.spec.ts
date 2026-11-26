@@ -349,7 +349,10 @@ test.describe('desktop', () => {
     await expect(strip(page).getByRole('option', { name: 'Variant 1' })).toHaveAttribute('aria-selected', 'true');
     await expect(preview(page)).toBeVisible();
     await expect.poll(() => shownPixel(page, 32, 32)).toEqual([0, 0, 255]);
+    // Layers and History are tabs of one group: look at each in turn.
+    await showPanel(page, 'Layers');
     await expect(layerRows(page)).toHaveCount(1);
+    await openHistory(page);
     expect(await rowNames(page)).toEqual(steps);
     await strip(page).getByRole('option', { name: 'Variant 2' }).click();
     await expect(preview(page)).toHaveAttribute('data-variant', '1');
@@ -370,9 +373,10 @@ test.describe('desktop', () => {
     await openHistory(page);
     const steps = await historyRows(page).count();
     await panel(page).getByRole('button', { name: 'Apply' }).click();
-    await expect(layerRows(page)).toHaveCount(before + 1);
     await expect(historyRows(page)).toHaveCount(steps + 1);
     await expect(historyRows(page).last()).toContainText('Generate Image');
+    await showPanel(page, 'Layers');
+    await expect(layerRows(page)).toHaveCount(before + 1);
     await expect(layerRows(page).filter({ hasText: /Generated: a red apple on a table, photor(?!e)/ })).toHaveCount(1);
     await expect(strip(page)).toHaveCount(0);
     await expect(preview(page)).toHaveCount(0);

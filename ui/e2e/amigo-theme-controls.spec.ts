@@ -939,8 +939,9 @@ for (const palette of PALETTES) {
     // Panels in the sidebar of both editors and in Pixel mode's bottom dock.
     for (const mode of MODES) {
       await createDocument(page, mode, { width: 16, height: 16 });
-      const layers = sidebar(page).getByRole('region', { name: 'Layers', exact: true });
-      expect(await dockedLook(layers), `${mode}: Layers panel`).toEqual(docked);
+      // A single panel with its own header (Layers is a tab of a group).
+      const colors = sidebar(page).getByRole('region', { name: 'Colors', exact: true });
+      expect(await dockedLook(colors), `${mode}: Colors panel`).toEqual(docked);
       if (mode === 'pixel') {
         const timeline = page.getByRole('region', { name: 'Timeline' });
         expect(await dockedLook(timeline), 'Timeline panel').toEqual(docked);

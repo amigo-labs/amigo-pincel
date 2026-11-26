@@ -10,6 +10,7 @@ import {
   switchLanguage,
 } from './helpers';
 import {
+  addLayer,
   expectCurrent,
   expectRows,
   expectShot,
@@ -82,6 +83,7 @@ test.describe('tablet', () => {
     await createDocument(page, 'image', { width: 16, height: 16 });
     await page.getByRole('button', { name: 'Toggle panels' }).click();
     const drawer = page.getByRole('complementary', { name: 'Panels' });
+    await drawer.getByRole('tab', { name: 'History', exact: true }).click();
     await expect(drawer.getByRole('region', { name: 'History' })).toBeVisible();
   });
 });
@@ -95,7 +97,7 @@ test('rows list the start entry, the undo steps and the dimmed redo steps; a new
 
   await pixelStroke(page, 0.2);
   await pixelStroke(page, 0.5);
-  await page.getByRole('button', { name: 'Add layer' }).click();
+  await addLayer(page);
   await menu(page, 'Image', 'Flip Horizontal');
   await expectRows(page, ['New', 'Pencil', 'Pencil', 'Add Layer', 'Flip Horizontal']);
   await expectCurrent(page, 4);
@@ -266,7 +268,7 @@ test('each document tab keeps its own history (AC-09)', async ({ page }) => {
     .getByRole('button', { name: 'Create' })
     .click();
   await expectRows(page, ['New']);
-  await page.getByRole('button', { name: 'Add layer' }).click();
+  await addLayer(page);
   await expectRows(page, ['New', 'Add Layer']);
   await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
   await expectRows(page, ['New', 'Pencil']);

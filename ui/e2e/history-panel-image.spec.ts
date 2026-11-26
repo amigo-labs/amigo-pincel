@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDocument, drag, imageCanvas, menu, pixelCanvas, putClipboardImage } from './helpers';
 import {
+  addLayer,
   expectCurrent,
   expectRows,
   expectShot,
@@ -42,7 +43,7 @@ test('Image steps are named after their tools and menu commands; a row click jum
   shots.push(await settledShot(canvas));
   await page.keyboard.press('Control+a');
   await page.keyboard.press('Control+d');
-  await page.getByRole('button', { name: 'Add layer' }).click();
+  await addLayer(page);
   await drag(page, canvas, [0.1, 0.7], [0.9, 0.7]);
   await menu(page, 'Layer', 'Merge Down');
   await expectRows(page, [

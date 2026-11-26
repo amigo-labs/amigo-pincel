@@ -7,6 +7,7 @@ import {
   menu,
   pixelCanvas,
   setColor,
+  showPanel,
   storedPref,
   swatch,
   switchLanguage,
@@ -462,11 +463,14 @@ for (const mode of MODES) {
       await layerRow(page, 'Layer 1').getByRole('button', { name: 'Layer 1', exact: true }).click();
       await page.mouse.move(0, 0);
       await expectFill(page, layerRow(page, 'Layer 1'), 'accent-subtle');
+      await showPanel(page, 'History');
+      await page.mouse.move(0, 0);
       await expectFill(
         page,
         page.getByRole('region', { name: 'History' }).getByRole('option', { selected: true }),
         'accent-subtle',
       );
+      await showPanel(page, 'Layers');
       if (mode === 'pixel')
         await expectFill(
           page,
@@ -1000,10 +1004,12 @@ for (const mode of MODES) {
 
       // A row of a list: the History panel's current step.
       await openAllPanels(page);
+      await showPanel(page, 'History');
       const history = page.getByRole('region', { name: 'History' }).getByRole('listbox');
       await keyFocus(page, history);
       await expectRing(page, history, at('history list'));
       await expectRing(page, history.getByRole('option').first(), at('history row'));
+      await showPanel(page, 'Layers');
 
       // A tab.
       const tab = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
