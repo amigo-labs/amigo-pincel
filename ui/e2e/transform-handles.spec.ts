@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { fakeFileHandles, fakeFs, fakeFsLog, imageCanvas, menu } from './helpers';
+import { fakeFileHandles, fakeFs, fakeFsLog, imageCanvas, menu, byText } from './helpers';
 import { openHistory, rowNames } from './history-helpers';
 import { tabs } from './tab-helpers';
 import {
@@ -154,7 +154,7 @@ test('a locked layer refuses Move Selected Pixels, not Move Selection (AC-16)', 
     .click();
   const at = await centre(pivot(page));
   await dragBy(page, [at[0] + 15, at[1] + 15], 20, 0);
-  await expect(page.getByText(/is locked/)).toBeVisible();
+  await expect(byText(page, /is locked/)).toBeVisible();
   await expect(box(page)).toHaveAttribute('data-transform-box', 'idle');
   await page.keyboard.press('v');
   await dragBy(page, [at[0] + 15, at[1] + 15], 20, 0);

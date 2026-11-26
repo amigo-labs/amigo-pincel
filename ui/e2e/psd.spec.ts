@@ -10,6 +10,7 @@ import {
   menu,
   rasterFile,
   waitForEditor,
+  byText,
 } from './helpers';
 
 // Opening Photoshop files in Image mode (docs/specs/psd-import.md). The
@@ -31,7 +32,7 @@ const row = (page: Page, name: string) =>
   });
 
 /** The status-bar notice of an opened PSD. */
-const openNotice = (page: Page) => page.getByText(/^Opened with changes:/);
+const openNotice = (page: Page) => byText(page, /^Opened with changes:/);
 
 /** Picks `name` in the open picker (`<input type=file>` fallback) that
  *  `open` brings up. */
@@ -73,7 +74,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'sample.psd', await fixture('sample.psd'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('40 × 30 px')).toBeVisible();
+    await expect(byText(page, '40 × 30 px')).toBeVisible();
     await expect(page.getByTitle('sample.psd', { exact: true })).toBeVisible();
     // Base, Folder, Ink, Title — the Curves adjustment layer is left out.
     await expect(hideButtons(page)).toHaveCount(4);
@@ -94,7 +95,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'flat.psd', await fixture('flat.psd'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('40 × 30 px')).toBeVisible();
+    await expect(byText(page, '40 × 30 px')).toBeVisible();
     await expect(hideButtons(page)).toHaveCount(1);
     await expect(openNotice(page)).toContainText(
       'the file has no layers; opened its flattened image',
@@ -105,7 +106,7 @@ test.describe('without File System Access', () => {
     await gotoStart(page);
     await choose(page, startOpen(page), 'photo.psd', await rasterFile(page, 'png'));
     await waitForEditor(page, 'image');
-    await expect(page.getByText('8 × 6 px')).toBeVisible();
+    await expect(byText(page, '8 × 6 px')).toBeVisible();
     await expect(openNotice(page)).toHaveCount(0);
   });
 
@@ -142,7 +143,7 @@ test.describe('without File System Access', () => {
       await choose(page, () => menu(page, 'File', 'Open…'), name, bytes);
       await expect(page.getByRole('alert')).toContainText(`Open failed: ${message}`);
       await expect(page.getByTitle('sample.psd', { exact: true })).toBeVisible();
-      await expect(page.getByText('40 × 30 px')).toBeVisible();
+      await expect(byText(page, '40 × 30 px')).toBeVisible();
       await expect(hideButtons(page)).toHaveCount(4);
     }
   });
@@ -169,7 +170,7 @@ test.describe('without File System Access', () => {
 test('AC-11: the open picker offers .psd and the start screen names PSD', async ({ page }) => {
   await fakeFileHandles(page, {});
   await gotoStart(page);
-  await expect(page.getByText(/PSD open in Image mode\.$/)).toBeVisible();
+  await expect(byText(page, /PSD open in Image mode\.$/)).toBeVisible();
   await fakeFs(page, { pick: null });
   await page.getByRole('button', { name: 'Open…' }).click();
   await expect.poll(async () => (await fakeFsLog(page)).pickers.length).toBe(1);
@@ -183,6 +184,6 @@ test.describe('German', () => {
 
   test('AC-11: the start screen names PSD in German', async ({ page }) => {
     await page.goto('./');
-    await expect(page.getByText(/PSD öffnen im Bild-Modus\.$/)).toBeVisible();
+    await expect(byText(page, /PSD öffnen im Bild-Modus\.$/)).toBeVisible();
   });
 });

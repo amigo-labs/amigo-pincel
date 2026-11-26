@@ -9,6 +9,7 @@ import {
   menu,
   pixelCanvas,
   waitForEditor,
+  byText,
 } from './helpers';
 
 // The layers panel both modes share (spec §9.2): rename from the menu,
@@ -170,7 +171,7 @@ for (const mode of ['pixel', 'image'] as const) {
     const canvas = mode === 'pixel' ? pixelCanvas(page) : imageCanvas(page);
     if (mode === 'pixel') await page.getByTitle('Pencil (B)').click();
     await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
-    await expect(page.getByText(`“${name}” is locked`)).toBeVisible();
+    await expect(byText(page, `“${name}” is locked`)).toBeVisible();
 
     // The refused stroke left no undo step: Undo reverts the lock itself.
     await undo.click();
@@ -183,7 +184,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await unlock.click();
     await expect(lock).toBeVisible();
     await drag(page, canvas, [0.2, 0.2], [0.8, 0.6]);
-    await expect(page.getByText(`“${name}” is locked`)).toHaveCount(0);
+    await expect(byText(page, `“${name}” is locked`)).toHaveCount(0);
     await undo.click();
     await expect(lock).toBeVisible();
     await undo.click();
@@ -195,7 +196,7 @@ for (const mode of ['pixel', 'image'] as const) {
 
 /** The `undo n / redo m` readout of the Pixel status bar. */
 const depths = (page: Page, undo: number, redo = 0) =>
-  page.getByText(`undo ${undo} / redo ${redo}`, { exact: true });
+  byText(page, `undo ${undo} / redo ${redo}`, { exact: true });
 
 /** The drag grip of layer `name`, which also takes the reorder keys. */
 const grip = (page: Page, name: string) =>
@@ -415,7 +416,7 @@ test('pixel: a locked group locks its layers without setting their own flag (AC-
   await page.getByTitle('Pencil (B)').click();
   await expect(depths(page, 3)).toBeVisible();
   await drag(page, pixelCanvas(page), [0.2, 0.5], [0.8, 0.5]);
-  await expect(page.getByText('Layer “Layer 1” is locked')).toBeVisible();
+  await expect(byText(page, 'Layer “Layer 1” is locked')).toBeVisible();
   await expect(depths(page, 3)).toBeVisible();
 
   // Unlocking the group lets the layer take paint again.
@@ -423,5 +424,5 @@ test('pixel: a locked group locks its layers without setting their own flag (AC-
   await expect(childLock).not.toHaveAttribute('title', 'Locked by its group');
   await drag(page, pixelCanvas(page), [0.2, 0.5], [0.8, 0.5]);
   await expect(depths(page, 5)).toBeVisible();
-  await expect(page.getByText('Layer “Layer 1” is locked')).toHaveCount(0);
+  await expect(byText(page, 'Layer “Layer 1” is locked')).toHaveCount(0);
 });

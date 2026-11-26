@@ -9,6 +9,7 @@ import {
   switchLanguage,
   zoomActual,
   zoomReadout,
+  byText,
 } from './helpers';
 
 // docs/specs/tool-rail-colors.md — the colour well at the rail's end, Pan
@@ -340,7 +341,7 @@ test.describe('wide', () => {
     await menu(page, 'Help', 'Keyboard Shortcuts');
     const keys = page.getByRole('dialog', { name: 'Keyboard Shortcuts' });
     await expect(keys).toBeVisible();
-    const row = (name: string) => keys.getByRole('row').filter({ has: page.getByText(name, { exact: true }) });
+    const row = (name: string) => keys.getByRole('row').filter({ has: byText(page, name, { exact: true }) });
     await expect(row('Pan')).toContainText('H');
     await expect(row('Zoom').first()).toContainText('Z');
     await expect(row('Gradient')).toContainText('N');

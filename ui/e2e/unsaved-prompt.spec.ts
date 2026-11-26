@@ -9,6 +9,7 @@ import {
   menu,
   pixelCanvas,
   waitForEditor,
+  byText,
 } from './helpers';
 import { expectActive } from './tab-helpers';
 
@@ -248,7 +249,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await page.waitForTimeout(200);
     await waitForEditor(page, mode);
     await expect(marker(page, mode)).toBeVisible();
-    await expect(page.getByText(/failed/i)).toHaveCount(0);
+    await expect(byText(page, /failed/i)).toHaveCount(0);
   });
 
   test(`${mode}: a failed save from the prompt shows File ▸ Save's error and skips the action (AC-04)`, async ({
@@ -258,7 +259,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await setPicker(page, 'fail');
     await closeTab(page);
     await prompt(page).getByRole('button', { name: 'Save', exact: true }).click();
-    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    await expect(byText(page, /Save failed: .*disk full/)).toBeVisible();
     await waitForEditor(page, mode);
     await expect(marker(page, mode)).toBeVisible();
   });
@@ -274,7 +275,7 @@ for (const mode of ['pixel', 'image'] as const) {
       }
       await expect.poll(async () => (await picker(page)).calls).toBe(i + 1);
       await page.waitForTimeout(200);
-      await expect(page.getByText(/failed|saved \d+ bytes/i)).toHaveCount(0);
+      await expect(byText(page, /failed|saved \d+ bytes/i)).toHaveCount(0);
       await expect(marker(page, mode)).toBeVisible();
     }
     expect((await picker(page)).calls).toBe(2);
@@ -392,7 +393,7 @@ test('dropping a file onto an open editor opens a tab without a prompt (AC-01)',
 test('a dropped file that cannot be opened shows its error and no prompt (AC-11)', async ({ page }) => {
   await dirtyDocument(page, 'image');
   await dropFile(page, 'notes.txt', 'text/plain', Buffer.from('hello'));
-  await expect(page.getByText('notes.txt: not a supported file')).toBeVisible();
+  await expect(byText(page, 'notes.txt: not a supported file')).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await expect(marker(page, 'image')).toBeVisible();
 });
@@ -404,7 +405,7 @@ test.describe('clipboard', () => {
     await dirtyDocument(page, 'pixel');
     await clearClipboard(page);
     await menu(page, 'Edit', 'Paste as New Image');
-    await expect(page.getByText('The clipboard holds no image')).toBeVisible();
+    await expect(byText(page, 'The clipboard holds no image')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
     await expect(marker(page, 'pixel')).toBeVisible();
   });
@@ -414,7 +415,7 @@ test('a picked file that cannot be opened shows its error and no prompt (AC-11)'
   await dirtyDocument(page, 'image');
   const [chooser] = await Promise.all([page.waitForEvent('filechooser'), menu(page, 'File', 'Open…')]);
   await chooser.setFiles({ name: 'notes.txt', mimeType: 'text/plain', buffer: Buffer.from('hello') });
-  await expect(page.getByText('notes.txt: not a supported file')).toBeVisible();
+  await expect(byText(page, 'notes.txt: not a supported file')).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await expect(marker(page, 'image')).toBeVisible();
 });
@@ -442,7 +443,7 @@ test('a document dropped while the prompt is open is not opened (AC-08)', async 
   await expect(prompt(page)).toBeVisible();
   await dropOther(page, 'pixel', 'second');
   await expect(
-    page.getByText('second.png was not opened: an unsaved-changes prompt is open'),
+    byText(page, 'second.png was not opened: an unsaved-changes prompt is open'),
   ).toBeVisible();
   await expect(prompt(page)).toHaveCount(1);
   await prompt(page).getByRole('button', { name: "Don't Save" }).click();
@@ -460,7 +461,7 @@ test("a document dropped while the prompt's save runs is not opened (AC-08)", as
   await page.waitForFunction(() => (window as unknown as StubWindow).__picker.release !== null);
   await dropOther(page, 'pixel', 'second');
   await expect(
-    page.getByText('second.png was not opened: an unsaved-changes prompt is open'),
+    byText(page, 'second.png was not opened: an unsaved-changes prompt is open'),
   ).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await releasePicker(page);

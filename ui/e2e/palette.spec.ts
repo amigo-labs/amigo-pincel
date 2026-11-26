@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { colorOf, createDocument } from './helpers';
+import { colorOf, createDocument, byText } from './helpers';
 
 test('palette: DB32 by default, add / recolor / move / delete with undo', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
@@ -203,7 +203,7 @@ test.describe('palette presets and palette files', () => {
       'GIMP Palette\nName: Test\n# four greys\n0 0 0 Black\n85 85 85\n170 170 170\n255 255 255 White\n';
     await chooser.setFiles({ name: 'grey.gpl', mimeType: 'text/plain', buffer: Buffer.from(gpl) });
     await expect(swatches).toHaveCount(4);
-    await expect(page.getByText('imported 4 palette colours')).toBeVisible();
+    await expect(byText(page, 'imported 4 palette colours')).toBeVisible();
 
     const download = await exportPalette(page, 'GIMP .gpl');
     expect(download.suggestedFilename()).toMatch(/\.gpl$/);
@@ -274,7 +274,7 @@ test.describe('palette presets and palette files', () => {
     await expect(swatches).toHaveCount(4);
     await expect(swatches.nth(0)).toHaveAttribute('title', /#ff0044/);
     await expect(swatches.nth(3)).toHaveAttribute('title', /#123456/);
-    await expect(page.getByText('imported 4 palette colours')).toBeVisible();
+    await expect(byText(page, 'imported 4 palette colours')).toBeVisible();
     await page.getByRole('button', { name: 'Undo', exact: true }).click();
     await expect(swatches).toHaveCount(32);
   });
@@ -290,14 +290,14 @@ test.describe('palette presets and palette files', () => {
     await expect(swatches).toHaveCount(2);
     await expect(swatches.nth(0)).toHaveAttribute('title', /#ff0000/);
     await expect(swatches.nth(1)).toHaveAttribute('title', /#0000ff/);
-    await expect(page.getByText('imported 2 palette colours')).toBeVisible();
+    await expect(byText(page, 'imported 2 palette colours')).toBeVisible();
   });
 
   test('a bad .hex line names its line and keeps the palette', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 8, height: 8 });
     const { swatches } = paletteUi(page);
     await importPalette(page, 'bad.hex', 'text/plain', Buffer.from('ff0000\nnope\n'));
-    await expect(page.getByText(/line 2/)).toBeVisible();
+    await expect(byText(page, /line 2/)).toBeVisible();
     await expect(swatches).toHaveCount(32);
     await expect(swatches.nth(0)).toHaveAttribute('title', /#000000/);
   });
@@ -305,7 +305,7 @@ test.describe('palette presets and palette files', () => {
   test('.hex, .pal and PNG strip export', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 8, height: 8 });
     await importPalette(page, 'two.hex', 'text/plain', Buffer.from('FF0044\n00ff00\n'));
-    await expect(page.getByText('imported 2 palette colours')).toBeVisible();
+    await expect(byText(page, 'imported 2 palette colours')).toBeVisible();
 
     const hex = await exportPalette(page, 'Lospec .hex');
     expect(hex.suggestedFilename()).toMatch(/\.hex$/);

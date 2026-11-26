@@ -8,6 +8,7 @@ import {
   pixelOf,
   putClipboardImage,
   waitForEditor,
+  byText,
 } from './helpers';
 import { installTauriMock, solidImage, type ClipContent } from './tauri-mock';
 
@@ -18,7 +19,7 @@ import { installTauriMock, solidImage, type ClipContent } from './tauri-mock';
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px`);
+const imageSize = (page: Page, w: number, h: number) => byText(page, `${w} × ${h} px`);
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });

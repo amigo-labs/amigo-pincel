@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
+import { drag, imageCanvas, menu, pixelCanvas, waitForEditor, byText } from './helpers';
 import {
   closeWindow,
   commandCalls,
@@ -284,7 +284,7 @@ test.describe('desktop app', () => {
       await closeWindow(page);
       await prompt(page).getByRole('button', { name: 'Save All' }).click();
       await expect(prompt(page)).toHaveCount(0);
-      await expect(page.getByText(/disk full/).first()).toBeVisible();
+      await expect(byText(page, /disk full/).first()).toBeVisible();
       await expect(unsavedMark(page, 0)).toHaveCount(1);
       await expect(unsavedMark(page, 1)).toHaveCount(1);
       expect(await destroyed(page)).toBe(0);

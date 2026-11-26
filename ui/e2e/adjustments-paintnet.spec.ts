@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, pixelCanvas, switchLanguage } from './helpers';
+import { createDocument, drag, imageCanvas, menu, pixelCanvas, switchLanguage, byText } from './helpers';
 
 // docs/specs/adjustments-paintnet.md: paint.net's remaining adjustments in
 // both modes' Adjustments menu (AC-01), their dialogs (AC-02), one undo step
@@ -130,7 +130,7 @@ test('pixel mode: every new adjustment applies (AC-10)', async ({ page }) => {
     await dialog.getByRole('button', { name: 'OK' }).click();
     await expect(dialog).toHaveCount(0);
     const name = entry.replace('…', '');
-    await expect(page.getByText(`${name} applied`)).toBeVisible();
+    await expect(byText(page, `${name} applied`)).toBeVisible();
   }
 });
 

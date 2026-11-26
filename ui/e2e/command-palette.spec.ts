@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menuHint, pixelCanvas, storedPref } from './helpers';
+import { createDocument, menuHint, pixelCanvas, storedPref, byText } from './helpers';
 
 // The command palette, Ctrl+K (docs/specs/power-user-shortcuts-palette.md):
 // a search over every menu command and tool of the current mode.
@@ -18,7 +18,7 @@ function options(page: Page): Locator {
 
 /** The option whose label reads exactly `label` (its shortcut is a separate `<kbd>`). */
 function option(page: Page, label: string): Locator {
-  return options(page).filter({ has: page.getByText(label, { exact: true }) });
+  return options(page).filter({ has: byText(page, label, { exact: true }) });
 }
 
 /** Labels of the listed options, in order. */
@@ -273,7 +273,7 @@ test.describe('German', () => {
     await expect(dialog).toBeVisible();
     await expect(dialog.getByRole('combobox')).toHaveAttribute('placeholder', 'Befehl eingeben…');
     await expect(
-      dialog.getByRole('option').filter({ has: page.getByText('Gehe zu Frame…', { exact: true }) }),
+      dialog.getByRole('option').filter({ has: byText(page, 'Gehe zu Frame…', { exact: true }) }),
     ).toHaveCount(1);
 
     await dialog.getByRole('combobox').fill('merge');

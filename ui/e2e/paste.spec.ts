@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, byText } from './helpers';
 
 // Image mode: Edit ▸ Paste puts a clipboard image on a new layer; a larger
 // image asks whether to grow the canvas, like paint.net (spec §5.4).
@@ -32,11 +32,11 @@ test('a larger image expands the canvas in one undo step', async ({ page }) => {
   await expect(dialog).toBeVisible();
   await dialog.getByRole('button', { name: 'Expand canvas' }).click();
   await expect(dialog).toBeHidden();
-  await expect(page.getByText('100 × 70 px')).toBeVisible();
+  await expect(byText(page, '100 × 70 px')).toBeVisible();
   await expect(layerRows(page)).toHaveCount(2);
 
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
-  await expect(page.getByText('80 × 60 px')).toBeVisible();
+  await expect(byText(page, '80 × 60 px')).toBeVisible();
   await expect(layerRows(page)).toHaveCount(1);
 });
 
@@ -48,7 +48,7 @@ test('Keep canvas size crops the pasted image', async ({ page }) => {
     .getByRole('dialog', { name: 'Paste larger image' })
     .getByRole('button', { name: 'Keep canvas size' })
     .click();
-  await expect(page.getByText('80 × 60 px')).toBeVisible();
+  await expect(byText(page, '80 × 60 px')).toBeVisible();
   await expect(layerRows(page)).toHaveCount(2);
 });
 
@@ -58,7 +58,7 @@ test('a smaller image pastes without asking', async ({ page }) => {
   await menu(page, 'Edit', 'Paste');
   await expect(layerRows(page)).toHaveCount(2);
   await expect(page.getByRole('dialog', { name: 'Paste larger image' })).toHaveCount(0);
-  await expect(page.getByText('80 × 60 px')).toBeVisible();
+  await expect(byText(page, '80 × 60 px')).toBeVisible();
 });
 
 test('Ctrl+V pastes the image a paste event carries', async ({ page }) => {

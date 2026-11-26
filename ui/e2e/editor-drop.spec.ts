@@ -16,6 +16,7 @@ import {
   storedPref,
   waitForEditor,
   type DraggedFile,
+  byText,
 } from './helpers';
 import { expectActive, expectDirty, prompt, tab, tabNames } from './tab-helpers';
 
@@ -58,9 +59,9 @@ const layerRows = (page: Page, mode: Mode) =>
 
 /** The status bar's document size. */
 const sizeShown = (page: Page, mode: Mode, [w, h]: [number, number]) =>
-  page.getByText(mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, { exact: true });
+  byText(page, mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, { exact: true });
 
-const overlay = (page: Page) => page.getByText('Drop to add or open', { exact: true });
+const overlay = (page: Page) => byText(page, 'Drop to add or open', { exact: true });
 const dropDialog = (page: Page) => page.getByRole('dialog', { name: 'Dropped images' });
 const button = (scope: Locator, name: string) => scope.getByRole('button', { name, exact: true });
 const dontAsk = (page: Page) => dropDialog(page).getByRole('checkbox', { name: "Don't ask again" });

@@ -1,5 +1,5 @@
 import { expect, test, type CDPSession, type Page } from '@playwright/test';
-import { createDocument, menu, waitForEditor } from './helpers';
+import { createDocument, menu, waitForEditor, byText } from './helpers';
 import { installTauriMock } from './tauri-mock';
 import { box, check, mapping, marker, pointerStatus } from './view-aids-helpers';
 
@@ -169,12 +169,12 @@ test('a tab switch under a resting mouse: position and markers follow the new ta
   await waitForEditor(page, 'image');
   const tabs = page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
   await tabs.first().click();
-  await expect(page.getByText('200 × 100 px', { exact: true })).toBeVisible();
+  await expect(byText(page, '200 × 100 px', { exact: true })).toBeVisible();
   const [sx, sy] = await at(page, 121.3, 61.3);
   await page.mouse.move(sx, sy);
   await expectShown(page, '121, 61 px', sx, sy);
   await page.keyboard.press('Alt+PageDown');
-  await expect(page.getByText('800 × 300 px', { exact: true })).toBeVisible();
+  await expect(byText(page, '800 × 300 px', { exact: true })).toBeVisible();
   await expectUnderMouse(page, 800, sx, sy);
 });
 

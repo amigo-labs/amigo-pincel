@@ -1,6 +1,6 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, fakeFileHandles, fakeFs, fakeFsLog, menu, waitForEditor } from './helpers';
+import { createDocument, fakeFileHandles, fakeFs, fakeFsLog, menu, waitForEditor, byText } from './helpers';
 
 // File ▸ Import Sprite Sheet… (docs/specs/sprite-sheet-import.md). Files
 // come from the fake File System Access pickers (`fakeFileHandles`).
@@ -324,14 +324,14 @@ test('an unreadable or oversized file gives a notice and changes nothing (AC-13)
   await start(page, 'pixel');
   await fakeFs(page, { pick: 'junk.png' });
   await menu(page, 'File', 'Import Sprite Sheet…');
-  await expect(page.getByText('junk.png cannot be read as a sprite sheet.')).toBeVisible();
+  await expect(byText(page, 'junk.png cannot be read as a sprite sheet.')).toBeVisible();
   await expect(dialogOf(page)).toBeHidden();
   await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 
   await fakeFs(page, { pick: 'wide.png' });
   await menu(page, 'File', 'Import Sprite Sheet…');
   await expect(
-    page.getByText(
+    byText(page, 
       'wide.png cannot be read as a sprite sheet: it is wider or taller than 16384 px or has more than 67,108,864 pixels.',
     ),
   ).toBeVisible();

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, showPanel, zoomReadout } from './helpers';
+import { createDocument, gotoStart, menu, showPanel, zoomReadout, byText } from './helpers';
 import {
   PALETTES,
   keyFocus,
@@ -752,7 +752,7 @@ for (const palette of PALETTES) {
     await createDocument(page, 'image', { width: 16, height: 16 });
     await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
     await menu(page, 'Edit', 'Fill Selection');
-    const notice = page.getByText('Layer “Layer 1” is locked', { exact: true });
+    const notice = byText(page, 'Layer “Layer 1” is locked', { exact: true });
     await expect(notice).toBeVisible();
     expect(await lookOf(notice), 'status notice').toEqual(await lookOf(alone.locator('#chip-warning')));
     expect((await lookOf(notice)).text).toBe(await tokenColor(page, 'warning-ink'));

@@ -9,6 +9,7 @@ import {
   storedPref,
   waitForEditor,
   zoomReadout,
+  byText,
 } from './helpers';
 
 // Pixel grid and custom grid (docs/specs/pixel-grid.md). Both are drawn on
@@ -252,10 +253,10 @@ test('undo restores the previous cell size and offset in one step, redo re-appli
   await fillSettings(page, { w: 8, h: 5, x: 1, y: 3 });
   await settings(page).getByRole('button', { name: 'OK' }).click();
   await expect(settings(page)).toBeHidden();
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(page.getByText('undo 0 / redo 1')).toBeVisible();
+  await expect(byText(page, 'undo 0 / redo 1')).toBeVisible();
   expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
   await settings(page).getByRole('button', { name: 'Cancel' }).click();
   await page.keyboard.press('ControlOrMeta+Shift+z');
@@ -275,7 +276,7 @@ test('out-of-range cell size or offset is not applied (AC-13)', async ({ page })
   await d.getByRole('button', { name: 'Cancel' }).click();
   expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
   // Nothing reached the undo history.
-  await expect(page.getByText('undo 0 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 0 / redo 0')).toBeVisible();
 });
 
 test('a changed grid survives saving as .aseprite and reopening (AC-09)', async ({ page }) => {

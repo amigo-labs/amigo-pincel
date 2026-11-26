@@ -16,6 +16,7 @@ import {
   rasterFile,
   waitForEditor,
   type DraggedFile,
+  byText,
 } from './helpers';
 import { expectActive } from './tab-helpers';
 
@@ -64,7 +65,7 @@ const isOra = (bytes: Buffer) =>
 
 /** The status bar's document size of `mode`. */
 function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]) {
-  return page.getByText(mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, { exact: true });
+  return byText(page, mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, { exact: true });
 }
 
 /** The unsaved marker of the top bar for document `name`. */
@@ -221,7 +222,7 @@ test.describe('File System Access', () => {
       await expect(sizeShown(page, mode, [...size])).toBeVisible();
       await expectActive(page, name);
       await expect(alert).toHaveCount(0);
-      await expect(page.getByText(/failed/i)).toHaveCount(0);
+      await expect(byText(page, /failed/i)).toHaveCount(0);
     }
   });
 
@@ -1086,7 +1087,7 @@ test.describe('desktop app (Tauri bridge stubbed)', () => {
       .poll(async () => (await recentRows(page)).map((r) => r.name))
       .toEqual(['hero.aseprite']);
     // Nothing was clicked, so no notice.
-    await expect(page.getByText(/was not found/)).toHaveCount(0);
+    await expect(byText(page, /was not found/)).toHaveCount(0);
   });
 
   test('AC-10: files opened and saved by path are recorded with path and mode', async ({

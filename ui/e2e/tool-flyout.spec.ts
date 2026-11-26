@@ -1,6 +1,6 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor } from './helpers';
+import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor, byText } from './helpers';
 
 // Tool-variant flyout on the tool rail (docs/specs/tool-variant-flyout.md):
 // a right-click, a long press or Shift+F10 on a group button lists the
@@ -537,7 +537,7 @@ test.describe('closing from outside', () => {
     await expect(flyout(page)).toBeVisible();
     await picker.setFiles({ name: 'dot.png', mimeType: 'image/png', buffer: tinyPng() });
     // Pixel mode opens a PNG as a new sprite in place.
-    await expect(page.getByText('opened dot.png · 1×1')).toBeVisible();
+    await expect(byText(page, 'opened dot.png · 1×1')).toBeVisible();
     await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(activeTool(page)).toHaveAttribute('aria-label', 'Pencil');
   });

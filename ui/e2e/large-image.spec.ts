@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, imageCanvas, zoomActual, zoomReadout } from './helpers';
+import { createDocument, drag, imageCanvas, zoomActual, zoomReadout, byText } from './helpers';
 
 // CI runs the unoptimized dev wasm; allocating and compositing tens of
 // megapixels takes seconds there.
@@ -7,7 +7,7 @@ test.setTimeout(120_000);
 
 test('image mode: a canvas wider than 8192 px opens, renders and paints', async ({ page }) => {
   await createDocument(page, 'image', { width: 9000, height: 1000 });
-  await expect(page.getByText('9000 × 1000 px')).toBeVisible({ timeout: 60_000 });
+  await expect(byText(page, '9000 × 1000 px')).toBeVisible({ timeout: 60_000 });
 
   // The render target stays viewport-sized however large the document is.
   const backing = await page
@@ -33,5 +33,5 @@ test('image mode: the New dialog clamps an oversized canvas to the area limit', 
   page,
 }) => {
   await createDocument(page, 'image', { width: 16384, height: 16384 });
-  await expect(page.getByText('8192 × 8192 px')).toBeVisible({ timeout: 60_000 });
+  await expect(byText(page, '8192 × 8192 px')).toBeVisible({ timeout: 60_000 });
 });

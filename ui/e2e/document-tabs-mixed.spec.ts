@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, putClipboardImage, waitForEditor } from './helpers';
+import { createDocument, drag, menu, putClipboardImage, waitForEditor, byText } from './helpers';
 import {
   activeTab,
   canvas,
@@ -336,7 +336,7 @@ test('a mode whose wasm fails to load names the document and opens no tab (AC-23
   await paint(page, 'image');
   await page.route(/pincel_wasm_bg[^/]*\.wasm/, (route) => route.abort());
   await dropFiles(page, [await fileOf('pixel', 'a')]);
-  await expect(page.getByText(/^a\.aseprite could not be opened: /)).toBeVisible();
+  await expect(byText(page, /^a\.aseprite could not be opened: /)).toBeVisible();
   expect(await tabNames(page)).toEqual(['image.ora']);
   await expectActive(page, 'image.ora');
   await expectDirty(page, 'image.ora', true);
@@ -384,7 +384,7 @@ test('a failed save of a tab in the background is named at once (AC-25)', async 
   await tab(page, 'image.ora').click();
   await expectActive(page, 'image.ora');
   await releasePicker(page);
-  await expect(page.getByText(/^Saving a\.aseprite failed: .*disk full/)).toBeVisible();
+  await expect(byText(page, /^Saving a\.aseprite failed: .*disk full/)).toBeVisible();
   await expectDirty(page, 'a.aseprite', true);
   await expectActive(page, 'image.ora');
 });

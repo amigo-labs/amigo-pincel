@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type ConsoleMessage, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, setColor } from './helpers';
+import { createDocument, drag, imageCanvas, menu, setColor, byText } from './helpers';
 
 // Heavy jobs off the main thread (docs/specs/performance-background-jobs.md):
 // Image-mode exports and saves encode in the job worker.
@@ -69,7 +69,7 @@ for (const [label, item] of EXPORTS) {
     const onMain = await download(page, exportIt(page));
     expect(onMain.equals(fromWorker), 'same bytes').toBe(true);
     expect(logged.some((l) => l.includes('worker job failed twice'))).toBe(true);
-    await expect(page.getByText(/failed/i)).toHaveCount(0);
+    await expect(byText(page, /failed/i)).toHaveCount(0);
   });
 }
 
@@ -196,7 +196,7 @@ async function blurredExport(page: Page): Promise<{ png: Buffer; logged: string[
   const panel = await gaussianPanel(page, '3');
   await panel.getByRole('button', { name: 'OK' }).click();
   await expect(panel).toHaveCount(0);
-  await expect(page.getByText(/failed/i)).toHaveCount(0);
+  await expect(byText(page, /failed/i)).toHaveCount(0);
   page.off('console', onConsole);
   return { png: await download(page, () => menu(page, 'File', 'Export', 'PNG')), logged };
 }

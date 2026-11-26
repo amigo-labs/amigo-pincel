@@ -8,6 +8,7 @@ import {
   showPanel,
   storedPref,
   switchLanguage,
+  byText,
 } from './helpers';
 import {
   addLayer,
@@ -369,7 +370,7 @@ test('a jump that fails stops at the last state reached and reports in the statu
   await page.keyboard.press('Control+d');
   await historyRows(page).last().click();
   await expectCurrent(page, 1);
-  await expect(page.getByText(/^History jump stopped: /)).toBeVisible();
+  await expect(byText(page, /^History jump stopped: /)).toBeVisible();
   await expectRows(page, ['New', 'Pencil', 'Move Selected Pixels']);
   await expect(historyRows(page).last()).toHaveCSS('opacity', '0.5');
   await expect(redoButton(page)).toBeEnabled();

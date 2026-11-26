@@ -1,7 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { EFFECT_SUBMENUS, EFFECTS, SUBMENU_LABELS, type EffectDef } from '../src/lib/effects/catalog';
 import { en } from '../src/lib/i18n/en';
-import { createDocument, gotoStart, switchLanguage, waitForEditor } from './helpers';
+import { createDocument, gotoStart, switchLanguage, waitForEditor, byText } from './helpers';
 
 // effect-catalog-v2 AC-01 – AC-06: the Effects menu follows paint.net's
 // submenus, each mode shows only its entries, entries sort by their name in
@@ -170,7 +170,7 @@ test('every effect entry is disabled until the document is loaded', async ({ pag
     // loading screen until its document is open: no menu, so no effect
     // entry, can be reached before.
     const label = mode === 'pixel' ? 'Pixel' : 'Image';
-    await expect(page.getByText(`Loading the ${label} editor…`)).toBeVisible();
+    await expect(byText(page, `Loading the ${label} editor…`)).toBeVisible();
     await expect(page.getByRole('menubar')).toHaveCount(0);
     release();
     await waitForEditor(page, mode);

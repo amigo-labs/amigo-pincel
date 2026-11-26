@@ -11,6 +11,7 @@ import {
   setColor,
   switchLanguage,
   type ClipImage,
+  byText,
 } from './helpers';
 
 // Image mode: Edit ▸ Fill Selection and its keys
@@ -217,7 +218,7 @@ test('Fill Selection on a locked layer or a group shows the locked notice and ch
   await redImage(page);
   await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
   await setColor(page, 'fg', '#0000ff');
-  const notice = page.getByText('Layer “Layer 1” is locked', { exact: true });
+  const notice = byText(page, 'Layer “Layer 1” is locked', { exact: true });
   await expect(notice).toHaveCount(0);
   await menu(page, 'Edit', 'Fill Selection');
   await expect(notice).toBeVisible();
@@ -225,7 +226,7 @@ test('Fill Selection on a locked layer or a group shows the locked notice and ch
 
   // A group has no pixels: Backspace is refused with the same notice.
   await page.getByRole('button', { name: 'Add group' }).click();
-  const groupNotice = page.getByText('Layer “Group 1” is locked', { exact: true });
+  const groupNotice = byText(page, 'Layer “Group 1” is locked', { exact: true });
   await expect(groupNotice).toHaveCount(0);
   await page.keyboard.press('Backspace');
   await expect(groupNotice).toBeVisible();

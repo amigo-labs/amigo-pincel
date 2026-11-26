@@ -8,6 +8,7 @@ import {
   pixelCanvas,
   showPanel,
   waitForEditor,
+  byText,
 } from './helpers';
 
 // UI language (spec §9.5): browser language by default, switchable on the
@@ -179,13 +180,13 @@ for (const mode of MODES) {
     await expect.poll(async () => (await shot()).equals(blank)).toBe(false);
     const painted = await shot();
     await expect(page.getByTitle(/ — unsaved changes$/)).toBeVisible();
-    if (mode === 'pixel') await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+    if (mode === 'pixel') await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 
     await switchLanguage(page, 'en', 'Deutsch');
     await expect(page.getByRole('menubar').getByRole('menuitem', { name: 'Datei' })).toBeVisible();
     expect((await shot()).equals(painted)).toBe(true);
     await expect(page.getByTitle(/ – ungespeicherte Änderungen$/)).toBeVisible();
-    if (mode === 'pixel') await expect(page.getByText('rückg. 1 / wiederh. 0')).toBeVisible();
+    if (mode === 'pixel') await expect(byText(page, 'rückg. 1 / wiederh. 0')).toBeVisible();
 
     // The history is the one from before the switch: one step, the stroke.
     const undo = page.getByRole('button', { name: 'Rückgängig', exact: true });

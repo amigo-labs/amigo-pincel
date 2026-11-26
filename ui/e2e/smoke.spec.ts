@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, gotoStart, imageCanvas, pixelCanvas } from './helpers';
+import { createDocument, drag, gotoStart, imageCanvas, pixelCanvas, byText } from './helpers';
 
 test('start screen offers both modes', async ({ page }) => {
   await gotoStart(page);
@@ -62,7 +62,7 @@ test('pixel mode: Ctrl+Z undoes the last edit, Ctrl+Shift+Z and Ctrl+Y redo it',
   await createDocument(page, 'pixel', { width: 32, height: 32 });
   const canvas = pixelCanvas(page);
   // The status bar shows the exact undo / redo depths.
-  const depths = (u: number, r: number) => page.getByText(`undo ${u} / redo ${r}`);
+  const depths = (u: number, r: number) => byText(page, `undo ${u} / redo ${r}`);
 
   await page.getByTitle('Pencil (B)').click();
   await drag(page, canvas, [0.1, 0.2], [0.9, 0.2]);

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, setColor, zoomActual, zoomFit } from './helpers';
+import { createDocument, drag, imageCanvas, setColor, zoomActual, zoomFit, byText } from './helpers';
 
 // Image-mode live objects in the editor (docs/specs/image-live-objects-ui.md):
 // a Line, Shapes or Gradient drag leaves the object live with handles until
@@ -109,7 +109,7 @@ test('a refused or degenerate drag leaves nothing live', async ({ page }) => {
   await page.getByRole('button', { name: /^Lock/ }).first().click();
   await drag(page, imageCanvas(page), [0.2, 0.2], [0.6, 0.6]);
   await expect(handles(page)).toHaveCount(0);
-  await expect(page.getByText(/is locked/)).toBeVisible();
+  await expect(byText(page, /is locked/)).toBeVisible();
 });
 
 test('every shape variant is refused on a locked layer with the notice', async ({ page }) => {
@@ -121,12 +121,12 @@ test('every shape variant is refused on a locked layer with the notice', async (
     await expect(button, shape).toHaveCount(1);
     await drag(page, imageCanvas(page), [0.2, 0.2], [0.6, 0.6]);
     await expect(handles(page), shape).toHaveCount(0);
-    await expect(page.getByText(/is locked/), shape).toBeVisible();
+    await expect(byText(page, /is locked/), shape).toBeVisible();
     await expect(imageCanvas(page), shape).toHaveCSS('cursor', 'crosshair');
     // Clear the notice before the next variant: the Eyedropper writes no pixels.
     await page.keyboard.press('i');
     await page.mouse.click(...(await at(page, [0.5, 0.5])));
-    await expect(page.getByText(/is locked/)).toHaveCount(0);
+    await expect(byText(page, /is locked/)).toHaveCount(0);
   }
 });
 

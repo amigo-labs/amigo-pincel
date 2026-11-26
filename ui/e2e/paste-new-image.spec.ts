@@ -9,6 +9,7 @@ import {
   pixelOf,
   putClipboardImage,
   waitForEditor,
+  byText,
 } from './helpers';
 
 // Paste as New Image: Ctrl/⌘+V on the start screen, Edit ▸ Paste as New
@@ -17,7 +18,7 @@ import {
 
 test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px`);
+const imageSize = (page: Page, w: number, h: number) => byText(page, `${w} × ${h} px`);
 const tabs = (page: Page) => page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab');
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });
@@ -130,7 +131,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await createDocument(page, mode, { width: 16, height: 16 });
     await clearClipboard(page);
     await menu(page, 'Edit', 'Paste as New Image');
-    await expect(page.getByText('The clipboard holds no image')).toBeVisible();
+    await expect(byText(page, 'The clipboard holds no image')).toBeVisible();
     await expect(page.getByRole('alertdialog')).toHaveCount(0);
     await page.waitForTimeout(300);
     await expect(tabs(page)).toHaveCount(1);

@@ -11,6 +11,7 @@ import {
   setColor,
   storedPref,
   waitForEditor,
+  byText,
 } from './helpers';
 import { tabs } from './tab-helpers';
 
@@ -459,7 +460,7 @@ for (const mode of ['pixel', 'image'] as const) {
     const undo = page.getByRole('button', { name: 'Undo', exact: true });
     await drag(page, canvasOf(page, mode), [0.2, 0.2], [0.8, 0.6]);
     await page.clock.fastForward(31_000);
-    await expect(page.getByText(/^Autosave failed: .*quota/)).toBeVisible();
+    await expect(byText(page, /^Autosave failed: .*quota/)).toBeVisible();
 
     // The editor still takes edits: a second stroke, then undo leaves one.
     await drag(page, canvasOf(page, mode), [0.2, 0.8], [0.8, 0.8]);
@@ -507,7 +508,7 @@ test.describe('without IndexedDB', () => {
       ]);
       expect(download.suggestedFilename()).toMatch(mode === 'pixel' ? /\.aseprite$/ : /\.ora$/);
       await expect(page.getByTitle(/unsaved changes/)).toHaveCount(0);
-      await expect(page.getByText(/failed/i)).toHaveCount(0);
+      await expect(byText(page, /failed/i)).toHaveCount(0);
     }
     expect(errors).toEqual([]);
   });

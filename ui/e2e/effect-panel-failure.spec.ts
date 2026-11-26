@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, menu, pixelCanvas } from './helpers';
+import { createDocument, imageCanvas, menu, pixelCanvas, byText } from './helpers';
 
 // A preview that fails keeps the effect panel open with its values, shows
 // the error where the mode shows errors and leaves the document unchanged
@@ -39,7 +39,7 @@ test('pixel: a failing preview keeps the panel open with its values (AC-16)', as
 
   await menu(page, 'Adjustments', 'Levels…');
   const panel = page.getByRole('dialog', { name: 'Levels' });
-  const status = page.getByText(/Preview failed: .*locked/);
+  const status = byText(page, /Preview failed: .*locked/);
   await expect(status).toBeVisible();
   const field = panel.getByLabel('Input black value', { exact: true });
   await field.fill('40');
@@ -113,7 +113,7 @@ test.describe('image mode', () => {
     await failPreview(page, true);
     await menu(page, 'Effects', 'Blurs', 'Gaussian Blur…');
     const panel = page.getByRole('dialog', { name: 'Gaussian Blur' });
-    const notice = page.getByText('Preview failed: forced preview failure');
+    const notice = byText(page, 'Preview failed: forced preview failure');
     await expect(notice).toBeVisible();
     const field = panel.getByLabel('Radius value', { exact: true });
     await field.fill('7');

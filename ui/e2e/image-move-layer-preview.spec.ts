@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, setColor } from './helpers';
+import { createDocument, imageCanvas, setColor, byText } from './helpers';
 
 // Image mode: the live preview of a Move Layer drag
 // (docs/specs/image-move-layer-preview.md). The scene has three layers of
@@ -222,7 +222,7 @@ test('a locked layer shows no preview and the notice (AC-09)', async ({ page }) 
   await page.getByRole('button', { name: 'Lock Layer 2', exact: true }).click();
   const before = await shot(page);
   await holdDrag(page, 8, 8, 6, 6);
-  await expect(page.getByText('Layer “Layer 2” is locked', { exact: true })).toBeVisible();
+  await expect(byText(page, 'Layer “Layer 2” is locked', { exact: true })).toBeVisible();
   expect((await shot(page)).equals(before)).toBe(true);
   expect(await calls(page, 'image.movePreview')).toBe(0);
   await page.mouse.up();

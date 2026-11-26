@@ -730,3 +730,18 @@ export async function showAllOptions(page: Page): Promise<void> {
   if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
 }
+
+/**
+ * `page.getByText(text)` without the toast: a notice shows as a toast over
+ * the canvas area and, on windows with a status bar, in that bar too
+ * (docs/specs/notifications.md), so its text is on the page twice. Specs
+ * that look for a text anywhere on the page mean the page as it was before
+ * the toast: the status bar, a dialog, a panel.
+ */
+export function byText(
+  page: Page,
+  text: string | RegExp,
+  options?: { exact?: boolean },
+): Locator {
+  return page.getByText(text, options).and(page.locator(':not([data-toast] *)'));
+}

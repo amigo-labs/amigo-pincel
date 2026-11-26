@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu } from './helpers';
+import { createDocument, drag, imageCanvas, menu, byText } from './helpers';
 import {
   H,
   W,
@@ -41,21 +41,21 @@ test('a locked layer or a group refuses the Text tool with the notice', async ({
   await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
   await clickAt(page, [40, 40]);
   await expect(textBox(page)).toHaveCount(0);
-  await expect(page.getByText('Layer “Layer 1” is locked')).toBeVisible();
+  await expect(byText(page, 'Layer “Layer 1” is locked')).toBeVisible();
   await page.getByRole('button', { name: 'Unlock Layer 1', exact: true }).click();
 
   // A group as the active layer.
   await menu(page, 'Layer', 'New Group');
   await clickAt(page, [40, 40]);
   await expect(textBox(page)).toHaveCount(0);
-  await expect(page.getByText(/^Layer “Group.*” is locked$/)).toBeVisible();
+  await expect(byText(page, /^Layer “Group.*” is locked$/)).toBeVisible();
 });
 
 test('a font that does not load opens no box; the next press retries', async ({ page }) => {
   await page.route(FONT, (route) => route.fulfill({ status: 404, body: '' }));
   await chooseText(page);
   await clickAt(page, [40, 40]);
-  await expect(page.getByText('The text font could not be loaded')).toBeVisible();
+  await expect(byText(page, 'The text font could not be loaded')).toBeVisible();
   await expect(textBox(page)).toHaveCount(0);
 
   await page.unroute(FONT);
