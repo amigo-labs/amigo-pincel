@@ -38,13 +38,15 @@
   /** A tab of a sidebar group: the group's header stands in for this
    *  panel's, and a tab that is not shown draws nothing. */
   const grouped = $derived(host !== 'sheet' && slot?.grouped === true);
+  /** Removed in View ▸ Panels: nothing of the panel is on the page. */
+  const removed = $derived(slot?.removed === true);
 </script>
 
 <!-- The shared docked panel (amigo-theme-controls AC-07): its header sets the
      height, padding, label style and the hairline below the panel, so no
      utility here may restate them (a utility would win over the shared
      class). -->
-{#if !(grouped && collapsed)}
+{#if !removed && !(grouped && collapsed)}
   <section
     class="am-panel am-panel--docked flex min-h-0 flex-col text-sm"
     class:flex-1={!collapsed}

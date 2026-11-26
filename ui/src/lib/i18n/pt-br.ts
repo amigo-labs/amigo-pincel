@@ -618,6 +618,7 @@ export const ptBr: Record<MessageKey, string> = {
     'O tamanho da célula deve ser um número inteiro de 1 a 65535 e o deslocamento de −32768 a 32767.',
   'menu.probe': 'Medidor de tempo de quadro',
   'menu.toggleUi': 'Mostrar/ocultar interface',
+  'menu.resetPanels': 'Redefinir painéis',
 
   // Effects
   'effect.gaussian_blur': 'Desfoque gaussiano',

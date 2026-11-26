@@ -33,6 +33,10 @@ export interface FrameLayout {
   /** Active tab and collapse state of the tab groups, by group id; a group
    *  without an entry is in its first-use state. */
   groups?: Record<string, GroupState>;
+  /** Ids of the panels the user removed (View ▸ Panels); a missing list
+   *  means every panel is enabled (panel-visibility AC-10). An id the
+   *  platform has no panel for is kept and ignored. */
+  removed?: string[];
 }
 
 /** One fixed tab group of the sidebar. */
@@ -58,23 +62,50 @@ export const PANEL_GROUPS: Readonly<Record<string, GroupDef>> = {
 };
 
 /**
+ * The enabled panel that stands in for `from` in `ids` (tab order): `from`
+ * itself while it is enabled, else the next enabled one to the right, else
+ * the nearest to the left; `''` when none is enabled (panel-visibility AC-04).
+ */
+export function nextEnabled(ids: readonly string[], from: string, removed: readonly string[]): string {
+  const enabled = (id: string | undefined): id is string => id !== undefined && !removed.includes(id);
+  const at = ids.indexOf(from);
+  if (at < 0) return ids.find(enabled) ?? '';
+  for (let i = at; i < ids.length; i += 1) if (enabled(ids[i])) return ids[i] ?? '';
+  for (let i = at - 1; i >= 0; i -= 1) if (enabled(ids[i])) return ids[i] ?? '';
+  return '';
+}
+
+/**
  * The state of `group` in `layout`, for the panels the group has on this
  * platform (`panelIds`, in tab order): the stored state, or the first-use
  * one. A stored active tab the group does not have falls back to the
  * first-use tab, or to the first panel where that is missing too (AC-10).
+ * An active tab whose panel is removed gives way to `nextEnabled`; with
+ * every panel removed `active` is `''`.
  */
 export function groupState(
-  layout: Pick<FrameLayout, 'groups'>,
+  layout: Pick<FrameLayout, 'groups' | 'removed'>,
   group: string,
   panelIds: readonly string[],
 ): GroupState {
   const def = PANEL_GROUPS[group];
   const stored = layout.groups?.[group];
   const fallback = def && panelIds.includes(def.first) ? def.first : (panelIds[0] ?? '');
+  const active = stored && panelIds.includes(stored.active) ? stored.active : fallback;
   return {
-    active: stored && panelIds.includes(stored.active) ? stored.active : fallback,
+    active: nextEnabled(panelIds, active, layout.removed ?? []),
     collapsed: stored ? stored.collapsed : (def?.collapsed ?? false),
   };
+}
+
+/** `layout` after Reset Panels: every panel enabled, every group and single
+ *  panel in its first-use state; the sidebar's visibility and width and the
+ *  effect panel's position stay (panel-visibility AC-11). */
+export function resetPanels(layout: FrameLayout): FrameLayout {
+  const next: FrameLayout = { collapsed: {}, sidebar: layout.sidebar };
+  if (layout.sidebarWidth !== undefined) next.sidebarWidth = layout.sidebarWidth;
+  if (layout.effectPos !== undefined) next.effectPos = { ...layout.effectPos };
+  return next;
 }
 
 function isEffectPos(v: unknown): v is EffectPos {
@@ -114,6 +145,10 @@ export function normalizeLayout(raw: unknown): FrameLayout {
       }
     }
     if (Object.keys(groups).length > 0) layout.groups = groups;
+  }
+  if (Array.isArray(raw.removed)) {
+    const removed = [...new Set(raw.removed.filter((id): id is string => typeof id === 'string'))];
+    if (removed.length > 0) layout.removed = removed;
   }
   return layout;
 }

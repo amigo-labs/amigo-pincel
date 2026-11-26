@@ -619,6 +619,7 @@ export const ja: Record<MessageKey, string> = {
     'セルのサイズは 1～65535 の整数、オフセットは −32768～32767 の範囲で指定してください。',
   'menu.probe': 'フレーム時間プローブ',
   'menu.toggleUi': 'UI の表示切り替え',
+  'menu.resetPanels': 'パネルをリセット',
 
   // Effects
   'effect.gaussian_blur': 'ぼかし（ガウス）',

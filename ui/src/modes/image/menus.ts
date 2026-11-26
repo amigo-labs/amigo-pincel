@@ -9,6 +9,7 @@ import {
   selectMenu,
   toolsMenus,
 } from '../../lib/components/layout/shared-menus';
+import { panelsSubmenu } from '../../lib/components/layout/panels.svelte';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import type { EffectDef } from '../../lib/effects/catalog';
 import { effectMenus } from '../../lib/effects/menu';
@@ -272,6 +273,7 @@ export function imageMenus(c: ImageMenuContext): MenuDef[] {
           })),
         },
         { kind: 'separator' },
+        panelsSubmenu('image'),
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
       ],
     },

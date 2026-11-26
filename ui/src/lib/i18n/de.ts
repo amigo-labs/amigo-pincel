@@ -620,6 +620,7 @@ export const de: Record<MessageKey, string> = {
     'Die Zellgröße muss eine ganze Zahl von 1–65535 sein, der Versatz von −32768–32767.',
   'menu.probe': 'Frame-Zeit-Messung',
   'menu.toggleUi': 'Oberfläche ein-/ausblenden',
+  'menu.resetPanels': 'Bedienfelder zurücksetzen',
 
   // Effects
   'effect.gaussian_blur': 'Gaußscher Weichzeichner',

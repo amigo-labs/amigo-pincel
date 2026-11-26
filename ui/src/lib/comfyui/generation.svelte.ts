@@ -116,6 +116,11 @@ function replay(job: number): void {
 let listening: Promise<unknown> | null = null;
 let loaded: Promise<void> | null = null;
 
+/** A generation is on its way in some tab (panel-visibility AC-15). */
+export function generationBusy(): boolean {
+  return Object.values(genTabs).some((gen) => gen.phase !== 'idle' && gen.phase !== 'done');
+}
+
 /** Reads the stored settings, once. */
 export function loadGenSettings(): Promise<void> {
   loaded ??= (async () => {

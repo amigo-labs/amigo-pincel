@@ -103,27 +103,36 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-01 | `ui/e2e/panel-visibility.spec.ts`: "wide › pixel: View ▸ Panels sits before Toggle UI and lists every panel, checked, then Reset Panels", "wide › image: the entries are Colors, Layers, History; …"; `ui/e2e/panel-visibility-desktop.spec.ts`: "the entries follow the sidebar order, Generate and Assistant included, the Timeline last"; `ui/e2e/menu-structure.spec.ts`: "browser › {mode}: no Tools menu, menus in order, a View of view entries only" | built |        |
+| AC-02 | `ui/e2e/panel-visibility.spec.ts`: "wide › image: the entries are Colors, Layers, History; a check mark does not depend on the panel being in view", "wide › choosing an enabled panel removes it, also while it is out of view; its entry loses the check mark" | built |        |
+| AC-03 | `ui/e2e/panel-visibility.spec.ts`: "wide › choosing an enabled panel removes it, also while it is out of view; …", "narrow › a removed panel has no tab in the bottom sheet; …" | built |        |
+| AC-04 | `ui/e2e/panel-visibility-layout.spec.ts`: "the tab that stands in for a removed one (AC-04)" (6 tests); `ui/e2e/panel-visibility.spec.ts`: "wide › a removed active tab hands over to the right, else to the left; the group keeps its collapse state", "wide › a stored layout that names a removed panel as active shows its neighbour", "narrow › a removed panel has no tab in the bottom sheet; removing the open tab moves on, the last one closes it" | built |        |
+| AC-05 | `ui/e2e/panel-visibility.spec.ts`: "wide › a group with one enabled panel is drawn like a single panel, with none it is not drawn" | built |        |
+| AC-06 | `ui/e2e/panel-visibility.spec.ts`: "wide › choosing a removed panel enables it and brings it into view: active tab, expanded, sidebar shown", "medium › enabling a removed panel opens the drawer; …", "narrow › enabling a panel opens the bottom sheet on its tab; the Timeline too"; `ui/e2e/panel-visibility-desktop.spec.ts`: "a removed Generate panel starts no ComfyUI server; enabling it shows it and connects" | built |        |
+| AC-07 | `ui/e2e/panel-visibility.spec.ts`: "wide › the Timeline: removed, nothing is docked and the canvas area takes its height; frames still step and play", "narrow › enabling a panel opens the bottom sheet on its tab; the Timeline too" | built |        |
+| AC-08 | `ui/e2e/panel-visibility.spec.ts`: "wide › the Timeline: removed, nothing is docked and the canvas area takes its height; frames still step and play" | built |        |
+| AC-09 | `ui/e2e/panel-visibility.spec.ts`: "wide › which panels are enabled is stored per mode and survives a reload and a new document"; `ui/e2e/panel-visibility-layout.spec.ts`: "the stored list (AC-09, AC-10)" (4 tests) | built |        |
+| AC-10 | `ui/e2e/panel-visibility-layout.spec.ts`: "the stored list (AC-09, AC-10)" (4 tests); `ui/e2e/panel-visibility.spec.ts`: "wide › a stored layout without the list, or one that removes a panel the platform lacks, enables every panel", "wide › pixel: View ▸ Panels … lists every panel, checked, …" | built |        |
+| AC-11 | `ui/e2e/panel-visibility-layout.spec.ts`: "Reset Panels: all enabled, first-use groups; sidebar, width and effect position stay"; `ui/e2e/panel-visibility.spec.ts`: "wide › Reset Panels enables everything in its first-use state and keeps the width and the hidden sidebar" | built |        |
+| AC-12 | `ui/e2e/panel-visibility.spec.ts`: "wide › with every sidebar panel removed there is no sidebar and the panels toggle is disabled", "medium › … with no sidebar panel the toggle is disabled", "narrow › a removed panel has no tab in the bottom sheet; …", "narrow › enabling a panel opens the bottom sheet on its tab; the Timeline too" | built |        |
+| AC-13 | `ui/e2e/panel-visibility.spec.ts`: "wide › commands outside a removed panel keep working: undo, Layer menu, color swap"; `ui/e2e/panel-visibility-desktop.spec.ts`: "a removed Generate panel starts no ComfyUI server; …" | built |        |
+| AC-14 | `ui/e2e/panel-visibility.spec.ts`: "wide › a panel removed and enabled again shows what it showed before"; `ui/e2e/panel-visibility-desktop.spec.ts`: "the Assistant removed and enabled again keeps its conversation and draft; Generate keeps its prompt" | built |        |
+| AC-15 | `ui/e2e/panel-visibility-desktop.spec.ts`: "while an answer runs the Assistant entry and Reset Panels are disabled", "while a generation runs the Generate entry and Reset Panels are disabled" | built |        |
+| AC-16 | `ui/e2e/panel-visibility-desktop.spec.ts`: "without Layers \| History the Generate \| Assistant group takes the shared height alone"; `ui/e2e/panel-visibility.spec.ts`: "wide › without Layers \| History the remaining blocks keep the height of their content" | built |        |
+| AC-17 | `ui/e2e/panel-visibility.spec.ts`: "wide › the command palette lists every panel entry and Reset Panels, and runs them" | built |        |
+| AC-18 | `ui/e2e/panel-visibility.spec.ts`: "narrow › the ☰ sheet shows View ▸ Panels with the entries and check marks" | built |        |
+| AC-19 | `ui/e2e/panel-visibility.spec.ts`: "wide › German: Bedienfelder, Bedienfelder zurücksetzen and the panels’ German titles" | built |        |
 
 ## Decisions
 
 - 2026-11-15 (owner): the panel switches live in View ▸ Panels, not in a new Window menu — the menu bar is already long.
 - 2026-11-15 (clarification pass): the spec says "enabled / removed" instead of "shown / hidden", because an enabled panel can be out of view; the Timeline counts as a panel; work in progress blocks removing its panel (AC-15).
+- 2026-11-26 (build): A removed panel stays mounted and its `Panel` chrome draws nothing — the mechanism a tab that is not shown already uses — so it shows what it showed when it comes back (AC-14) and a removed Generate panel connects to no server (AC-13). "What it showed" is what a tab switch keeps: state in the panel's own component and in stores, not a value typed into a field and never committed. With every sidebar panel removed the sidebar element stays mounted and hidden for the same reason.
+- 2026-11-26 (build): A group's lone enabled panel draws its own header (title, count, collapse control), exactly like a single panel; the collapse control changes the group's state (AC-05). The group wrapper stays in the tree, so no panel remounts when the tab row goes or returns.
+- 2026-11-26 (build): The frame publishes the submenu's entries per mode (`setPanelMenu`) and the editors place `panelsSubmenu(mode)` in View — the second option of the technical notes, without moving the layout out of the frame.
+- 2026-11-26 (build): The assumption "the in-window menu bar shows View on macOS too" no longer holds: since `macos-native-menu` the macOS desktop app has only the native bar, which mirrors the editor menus as data, so View ▸ Panels appears there without a twin.
+- 2026-11-26 (build): `expandPanel` (generation info's "show the Generate panel") enables a removed panel the way AC-06 does (technical notes, last point).
+- 2026-11-26 (build): "A generation runs in the Generate panel" (AC-15) is true while any tab's generation runs: the panel is shared by the mode's tabs, and removing it would hide the running tab's progress as soon as that tab is shown.
+- 2026-11-26 (build): Removing the active tab stores its stand-in as the group's active tab, so the stored layout never names a removed panel after a change made in the app; a layout that does (written by hand or an older build) is read with the same rule.
+- 2026-11-26 (build): Red runs: the layout tests failed on the missing exports; the e2e specs were written beside the code and run against main's source afterwards (27 of 27 failed). `menu-structure`'s View test now expects "Panels" before Toggle UI, as its AC-03 foresees.
+- 2026-11-26 (build): New public API, for review: `FrameLayout.removed`, `nextEnabled`, `resetPanels` (`layout/groups.ts`); `PanelSlot.removed`, `setPanelMenu`, `panelsSubmenu` (`layout/panels.svelte.ts`); `generationBusy` (`comfyui/generation.svelte.ts`); the string `menu.resetPanels`.

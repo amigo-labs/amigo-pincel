@@ -620,6 +620,7 @@ export const es: Record<MessageKey, string> = {
     'El tamaño de celda debe ser un número entero de 1 a 65535 y el desplazamiento, de −32768 a 32767.',
   'menu.probe': 'Medidor de tiempo por fotograma',
   'menu.toggleUi': 'Mostrar/ocultar interfaz',
+  'menu.resetPanels': 'Restablecer paneles',
 
   // Effects
   'effect.gaussian_blur': 'Desenfoque gaussiano',

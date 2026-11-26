@@ -283,6 +283,29 @@ test.describe('wide', () => {
     expect(await sidebar(page).evaluate((el) => el.scrollWidth <= el.clientWidth)).toBe(true);
   });
 
+  for (const mode of ['pixel', 'image'] as const) {
+    test(`${mode}: Enter on a tab chooses it and expands a collapsed group (AC-04, AC-05)`, async ({ page }) => {
+      await createDocument(page, mode, { width: 16, height: 16 });
+      await tabOf(page, DOCUMENT, 'Layers').focus();
+      await page.keyboard.press('ArrowRight');
+      await expectActive(page, DOCUMENT, 'History');
+      await page.keyboard.press('ArrowLeft');
+      await expectActive(page, DOCUMENT, 'Layers');
+      // Enter on the active tab of a collapsed group expands it.
+      await collapse(page, DOCUMENT).click();
+      await expect(panel(page, 'Layers')).toHaveCount(0);
+      await tabOf(page, DOCUMENT, 'Layers').focus();
+      await page.keyboard.press('Enter');
+      await expect(collapse(page, DOCUMENT)).toHaveAttribute('aria-expanded', 'true');
+      await expect(panel(page, 'Layers')).toBeVisible();
+      // Enter on a focused tab that is not the active one chooses it.
+      await tabOf(page, DOCUMENT, 'History').focus();
+      await page.keyboard.press('Enter');
+      await expectActive(page, DOCUMENT, 'History');
+      await expect(panel(page, 'History')).toBeVisible();
+    });
+  }
+
   test('while an effect is open the tab rows and collapse controls take no input (AC-19)', async ({ page }) => {
     await createDocument(page, 'image', { width: 32, height: 32 });
     await menu(page, 'Adjustments', 'Invert Colors');
@@ -333,6 +356,42 @@ for (const language of ['English', 'Deutsch'] as const) {
     });
   });
 }
+
+test.describe('short window', () => {
+  test.use({ viewport: { width: 1280, height: 420 } });
+
+  test('blocks that need more height than the window make the sidebar scroll vertically (AC-13)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await tabOf(page, ASSETS, 'Slices').click();
+    await expect(panel(page, 'Slices')).toBeVisible();
+    const scroller = sidebar(page).locator('> div').first();
+    const sizes = await scroller.evaluate((el) => ({
+      scroll: el.scrollHeight,
+      client: el.clientHeight,
+      overflow: getComputedStyle(el).overflowY,
+      sideways: el.scrollWidth > el.clientWidth,
+    }));
+    expect(sizes.scroll).toBeGreaterThan(sizes.client);
+    expect(sizes.overflow).toBe('auto');
+    expect(sizes.sideways).toBe(false);
+    // No block lies over another: top to bottom, each starts where the last ended.
+    const blocks = [
+      panel(page, 'Colors'),
+      panel(page, 'Palette'),
+      sidebar(page).locator('[data-panel-group="document"]'),
+      sidebar(page).locator('[data-panel-group="assets"]'),
+    ];
+    let bottom = -Infinity;
+    for (const block of blocks) {
+      const b = await box(block);
+      expect(b.y).toBeGreaterThanOrEqual(bottom - 0.5);
+      bottom = b.y + b.height;
+    }
+    // The last block can be scrolled into view.
+    await panel(page, 'Slices').scrollIntoViewIfNeeded();
+    await expect(panel(page, 'Slices')).toBeInViewport();
+  });
+});
 
 test.describe('narrow', () => {
   test.use({ viewport: { width: 390, height: 844 } });

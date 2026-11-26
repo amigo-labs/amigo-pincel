@@ -11,6 +11,8 @@
     collapsed: boolean;
     /** A tab of a group (see `PanelSlot.grouped`). */
     grouped?: boolean;
+    /** The user removed the panel (see `PanelSlot.removed`). */
+    removed?: boolean;
     onToggle: () => void;
     body: Snippet;
   }
@@ -28,6 +30,9 @@
     },
     get grouped() {
       return props.grouped === true;
+    },
+    get removed() {
+      return props.removed === true;
     },
     toggle: () => props.onToggle(),
   });

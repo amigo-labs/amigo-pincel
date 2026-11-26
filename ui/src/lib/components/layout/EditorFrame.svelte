@@ -10,7 +10,10 @@
   //   medium 640+   rail left · sidebar as a drawer over the canvas
   //   narrow <640   ☰ menu · tools as a bottom strip · panels in a
   //                 bottom sheet with one tab per panel
-  // Panel collapse state, sidebar visibility and width persist per mode.
+  // Panel collapse state, sidebar visibility and width persist per mode,
+  // and so does which panels the user removed in View ▸ Panels
+  // (docs/specs/panel-visibility.md): a removed panel stays mounted and
+  // draws nothing, so it shows what it showed when it comes back.
   // While an effect is open (`effectPanel`), its panel is a small dialog
   // over the canvas area (docked to the bottom edge on phones) and the
   // regions around the canvas area are dimmed and inert (effect-panel spec).
@@ -22,6 +25,7 @@
   import { onMount, tick, untrack, type Snippet } from 'svelte';
   import AgentIndicator from '../../agent/AgentIndicator.svelte';
   import { assistantBusy } from '../../assistant/chat.svelte';
+  import { generationBusy } from '../../comfyui/generation.svelte';
   import { buildMirror } from '../../menu/native-mirror';
   import { showEditorMenus } from '../../menu/native-sync';
   import { textFocus, trackTextFocus } from '../../menu/text-focus.svelte';
@@ -32,8 +36,8 @@
   import MenuBar from './MenuBar.svelte';
   import PanelGroup from './PanelGroup.svelte';
   import PanelHost from './PanelHost.svelte';
-  import { PANEL_GROUPS, groupState, type GroupState } from './groups';
-  import type { MenuDef } from './menu';
+  import { PANEL_GROUPS, groupState, nextEnabled, resetPanels, type GroupState } from './groups';
+  import type { MenuDef, MenuItem } from './menu';
   import {
     SIDEBAR_DEFAULT_WIDTH,
     SIDEBAR_MIN_WIDTH,
@@ -41,6 +45,7 @@
     loadLayout,
     panelRequest,
     saveLayout,
+    setPanelMenu,
     sidebarMaxWidth,
     sidebarWidth,
     type EffectPos,
@@ -122,11 +127,19 @@
   const sidePanels = $derived(panels.filter((p) => (p.placement ?? 'side') === 'side'));
   const bottomPanels = $derived(panels.filter((p) => p.placement === 'bottom'));
   const size = $derived(viewport.size);
-  const sheetPanel = $derived(panels.find((p) => p.id === sheetTab) ?? null);
+  const removedIds = $derived(layout.removed ?? []);
+  const isRemoved = (p: PanelDef): boolean => removedIds.includes(p.id);
+  /** The enabled panels: the sidebar's, and the bottom sheet's tabs. */
+  const enabledSide = $derived(sidePanels.filter((p) => !isRemoved(p)));
+  const sheetPanels = $derived(panels.filter((p) => !isRemoved(p)));
+  const sheetPanel = $derived(sheetPanels.find((p) => p.id === sheetTab) ?? null);
+  /** The panels toggle has something to show (panel-visibility AC-12). */
+  const hasPanels = $derived(size === 'narrow' ? sheetPanels.length > 0 : enabledSide.length > 0);
   const effectOpen = $derived(effectPanel !== null);
   const answering = $derived(assistantBusy());
   /** The panel that stays usable while an answer runs (AC-10). */
   const ASSISTANT_PANEL = 'assistant';
+  const GENERATE_PANEL = 'generate';
   /** Menus that stay usable while an answer runs (AC-10). */
   const liveMenus = $derived(answering ? ['view'] : null);
 
@@ -204,7 +217,10 @@
   onMount(() => {
     const stop = watchViewport();
     void loadLayout(mode).then((l) => (layout = l));
-    return stop;
+    return () => {
+      stop();
+      setPanelMenu(mode, null);
+    };
   });
 
   // The sidebar's blocks (sidebar-tab-groups AC-01, AC-02): consecutive
@@ -236,8 +252,10 @@
   }
 
   /** Whether the panel's content is hidden: a single panel is collapsed, a
-   *  tab of a group is not the active one or its group is collapsed. */
+   *  tab of a group is not the active one or its group is collapsed, or
+   *  the panel is removed. */
   function isCollapsed(p: PanelDef): boolean {
+    if (isRemoved(p)) return true;
     if (p.group !== undefined) {
       const state = stateOf(p.group);
       return state.collapsed || state.active !== p.id;
@@ -245,8 +263,14 @@
     return layout.collapsed[p.id] ?? p.defaultCollapsed ?? false;
   }
 
+  // A group's lone enabled panel draws its own header (panel-visibility
+  // AC-05); its toggle collapses the group.
   function toggleCollapsed(p: PanelDef): void {
-    if (p.group !== undefined) return;
+    if (p.group !== undefined) {
+      const state = stateOf(p.group);
+      setGroup(p.group, { ...state, collapsed: !state.collapsed });
+      return;
+    }
     layout.collapsed[p.id] = !isCollapsed(p);
     saveLayout(mode, layout);
   }
@@ -264,6 +288,8 @@
   function revealPanel(id: string): void {
     const p = panels.find((def) => def.id === id);
     if (p === undefined) return;
+    // A removed panel is enabled first (panel-visibility AC-06).
+    if (isRemoved(p)) setRemoved(removedIds.filter((other) => other !== id));
     if (p.group !== undefined) layout.groups = { ...layout.groups, [p.group]: { active: id, collapsed: false } };
     else if (isCollapsed(p)) layout.collapsed[id] = false;
     if (size === 'wide') layout.sidebar = true;
@@ -272,6 +298,74 @@
     saveLayout(mode, layout);
   }
 
+  function setRemoved(ids: string[]): void {
+    if (ids.length > 0) layout.removed = ids;
+    else delete layout.removed;
+  }
+
+  // View ▸ Panels (panel-visibility). Removing the active tab of a group
+  // or of the bottom sheet hands the place to its neighbour (AC-04).
+  function removePanel(p: PanelDef): void {
+    const removed = [...removedIds, p.id];
+    if (p.group !== undefined) {
+      const state = stateOf(p.group);
+      const ids = sidePanels.filter((other) => other.group === p.group).map((other) => other.id);
+      const next = nextEnabled(ids, p.id, removed);
+      if (state.active === p.id && next !== '') {
+        layout.groups = { ...layout.groups, [p.group]: { active: next, collapsed: state.collapsed } };
+      }
+    }
+    if (sheetTab === p.id) {
+      const next = nextEnabled(
+        panels.map((other) => other.id),
+        p.id,
+        removed,
+      );
+      sheetTab = next === '' ? null : next;
+    }
+    setRemoved(removed);
+    saveLayout(mode, layout);
+  }
+
+  // Enabling brings the panel into view (AC-06); the Timeline is docked
+  // again, or shown in the bottom sheet (AC-07).
+  function enablePanel(p: PanelDef): void {
+    if ((p.placement ?? 'side') === 'side') {
+      revealPanel(p.id);
+      return;
+    }
+    setRemoved(removedIds.filter((id) => id !== p.id));
+    if (size === 'narrow') sheetTab = p.id;
+    saveLayout(mode, layout);
+  }
+
+  function resetAllPanels(): void {
+    layout = resetPanels($state.snapshot(layout));
+    saveLayout(mode, layout);
+  }
+
+  // One entry per panel in sidebar order, the Timeline after them, then
+  // Reset Panels (AC-01, AC-02). Work in progress keeps its panel: the
+  // panel is the only place to follow or stop it (AC-15).
+  const panelItems = $derived.by((): MenuItem[] => {
+    const generating = generationBusy();
+    const locked = (p: PanelDef): boolean =>
+      (p.id === ASSISTANT_PANEL && answering) || (p.id === GENERATE_PANEL && generating);
+    return [
+      ...[...sidePanels, ...bottomPanels].map(
+        (p): MenuItem => ({
+          label: p.title,
+          checked: !isRemoved(p),
+          disabled: locked(p),
+          run: () => (isRemoved(p) ? enablePanel(p) : removePanel(p)),
+        }),
+      ),
+      { kind: 'separator' },
+      { label: t('menu.resetPanels'), disabled: answering || generating, run: resetAllPanels },
+    ];
+  });
+  $effect(() => setPanelMenu(mode, panelItems));
+
   function toggleSidebar(): void {
     if (size === 'wide') {
       layout.sidebar = !layout.sidebar;
@@ -279,7 +373,7 @@
     } else if (size === 'medium') {
       drawerOpen = !drawerOpen;
     } else {
-      sheetTab = sheetTab === null ? (panels[0]?.id ?? null) : null;
+      sheetTab = sheetTab === null ? (sheetPanels[0]?.id ?? null) : null;
     }
   }
 
@@ -362,7 +456,7 @@
   const dim = $derived(effectOpen ? '' : undefined);
 
   const panelsShown = $derived(
-    size === 'wide' ? layout.sidebar : size === 'medium' ? drawerOpen : sheetTab !== null,
+    hasPanels && (size === 'wide' ? layout.sidebar : size === 'medium' ? drawerOpen : sheetTab !== null),
   );
 </script>
 
@@ -376,6 +470,7 @@
       title={p.title}
       {host}
       {grouped}
+      removed={isRemoved(p)}
       collapsed={isCollapsed(p)}
       onToggle={() => toggleCollapsed(p)}
       body={p.body}
@@ -388,14 +483,21 @@
     {#each blocks as block (block.kind === 'group' ? `group:${block.id}` : block.panel.id)}
       {#if block.kind === 'group'}
         {@const state = stateOf(block.id)}
+        {@const enabled = block.panels.filter((p) => !isRemoved(p))}
         {@const grows = PANEL_GROUPS[block.id]?.grow === true && !state.collapsed}
+        {@const tabbed = enabled.length > 1}
         <!-- Growing groups share the height the other blocks leave in equal
              parts, down to a floor that keeps a header, list and buttons
              inside; a group that does not grow is as high as its panel's
              content (sidebar-tab-groups AC-13). The tab row stays usable
-             while an answer runs: only the panels below it are inert. -->
+             while an answer runs: only the panels below it are inert.
+             With one enabled panel the group is drawn like a single panel,
+             with none it is not drawn (panel-visibility AC-05). -->
         <div
-          class="flex flex-col border-b border-pc-border"
+          class="flex-col border-pc-border"
+          class:flex={enabled.length > 0}
+          class:hidden={enabled.length === 0}
+          class:border-b={tabbed}
           class:flex-1={grows}
           class:basis-0={grows}
           class:min-h-40={grows}
@@ -404,14 +506,14 @@
           data-panel-group={block.id}
         >
           <PanelGroup
-            tabs={block.panels}
+            tabs={enabled}
             active={state.active}
             collapsed={state.collapsed}
             onChoose={(id) => setGroup(block.id, { active: id, collapsed: false })}
             onToggle={() => setGroup(block.id, { ...state, collapsed: !state.collapsed })}
           >
             {#each block.panels as p (p.id)}
-              {@render hosted(p, 'side', true)}
+              {@render hosted(p, 'side', tabbed)}
             {/each}
           </PanelGroup>
         </div>
@@ -422,7 +524,9 @@
              less room the sidebar scrolls instead of the panel's buttons
              spilling over the panel below. -->
         <div
-          class="flex flex-col"
+          class="flex-col"
+          class:flex={!isRemoved(p)}
+          class:hidden={isRemoved(p)}
           class:flex-1={p.grow && !isCollapsed(p)}
           class:min-h-40={p.grow && !isCollapsed(p)}
           class:min-h-0={!p.grow || isCollapsed(p)}
@@ -496,7 +600,7 @@
           icon={size === 'narrow' ? 'layers' : 'sidebar'}
           label={size === 'narrow' ? t('frame.panels') : t('frame.togglePanels')}
           pressed={panelsShown}
-          disabled={effectOpen}
+          disabled={effectOpen || !hasPanels}
           onclick={toggleSidebar}
         />
       </span>
@@ -566,7 +670,7 @@
             <!-- The shared tab row; the close button sits beside it, not in it. -->
             <div class="flex shrink-0 items-end pr-2 pl-3">
               <div class="am-tabs min-w-0 flex-1 [scrollbar-width:none]" role="tablist">
-                {#each panels as p (p.id)}
+                {#each sheetPanels as p (p.id)}
                   <button
                     type="button"
                     class="inline-flex shrink-0 items-center gap-1.5"
@@ -605,8 +709,11 @@
       </main>
       {#if size !== 'narrow' && !chrome.hidden}
         {#each bottomPanels as p (p.id)}
+          <!-- A removed Timeline leaves its height to the canvas
+               (panel-visibility AC-08). -->
           <div
             class="relative shrink-0 border-t border-pc-border bg-pc-panel"
+            class:hidden={isRemoved(p)}
             inert={effectOpen}
             data-dimmed={dim}
           >
@@ -620,9 +727,12 @@
       <!-- Toggle UI: no panels. -->
     {:else if size === 'wide' && layout.sidebar}
       <!-- Splitter: the sidebar's draggable left edge (effect-panel AC-07). -->
+      <!-- With every sidebar panel removed the sidebar is not drawn; it
+           stays mounted so the panels keep their state (AC-12, AC-14). -->
       <div
         inert={effectOpen}
         data-dimmed={dim}
+        class:hidden={!hasPanels}
         class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-10 focus-visible:bg-pc-focus focus-visible:outline-offset-0"
         role="separator"
         aria-orientation="vertical"
@@ -633,7 +743,9 @@
         {@attach splitter(splitterEvents)}
       ></div>
       <aside
-        class="relative flex shrink-0 flex-col bg-pc-panel"
+        class="relative shrink-0 flex-col bg-pc-panel"
+        class:flex={hasPanels}
+        class:hidden={!hasPanels}
         style:width="{asideWidth}px"
         aria-label={t('frame.panels')}
         inert={effectOpen}
@@ -643,7 +755,9 @@
       </aside>
     {:else if size === 'medium' && drawerOpen}
       <aside
-        class="absolute inset-y-0 right-0 z-30 flex w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
+        class:flex={hasPanels}
+        class:hidden={!hasPanels}
+        class="absolute inset-y-0 right-0 z-30 w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
         aria-label={t('frame.panels')}
         inert={effectOpen}
         data-dimmed={dim}
