@@ -142,11 +142,11 @@ test('pixel mode: the right button paints the background color', async ({ page }
   await stroke(ed, ed.at(4, 2), [ed.at(10, 2)], right);
   expect(await sample(ed, 7, 2)).toBe(BLUE);
 
-  // Shapes: the outline Rectangle's edge, the filled variants' interior.
+  // Shapes: the outline's edge (a filled shape's interior takes the other
+  // color: "shapes stroke with one color and fill with the other").
   for (const [variant, x0, probe] of [
     ['Rectangle', 2, [2, 6]],
-    ['Filled Rectangle', 10, [13, 9]],
-    ['Filled Ellipse', 18, [21, 9]],
+    ['Ellipse', 10, [13, 6]],
   ] satisfies [string, number, Xy][]) {
     await colors(page, '#ff0000', '#0000ff');
     await pick(page, 'u', variant);
@@ -234,9 +234,7 @@ test('pixel mode: Shift at release squares every shape to the larger side', asyn
   };
   for (const variant of [
     'Rectangle',
-    'Filled Rectangle',
     'Ellipse',
-    'Filled Ellipse',
     'Rounded Rectangle',
     'Polygon',
   ]) {
@@ -407,9 +405,7 @@ test('pixel mode: single keys select the drawing tools and cycle the shapes', as
   }
   for (const label of [
     'Rectangle',
-    'Filled Rectangle',
     'Ellipse',
-    'Filled Ellipse',
     'Rounded Rectangle',
     'Polygon',
     'Rectangle',

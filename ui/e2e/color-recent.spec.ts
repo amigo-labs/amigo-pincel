@@ -234,10 +234,11 @@ test('pixel: a shape adds the colors its mode and button paint with, a filled to
   await step('#00ffff', '#ff00ff', 'left', '#ff00ff', 0.25);
   // The right button fills with the foreground.
   await step('#880000', '#008800', 'right', '#880000', 0.35);
-  // The filled tools paint with the button's color alone.
-  await shapeVariant(page, 'Filled Rectangle');
-  await step('#000088', '#888800', 'left', '#000088', 0.45);
-  await shapeVariant(page, 'Filled Ellipse');
+  // The same holds for the Ellipse (the filled tools are gone:
+  // docs/specs/tool-rail-colors.md AC-15).
+  await shapeVariant(page, 'Ellipse');
+  await step('#000088', '#888800', 'left', '#888800', 0.45);
+  await shapeMode.selectOption('outline');
   await step('#448844', '#884488', 'left', '#448844', 0.55);
 });
 

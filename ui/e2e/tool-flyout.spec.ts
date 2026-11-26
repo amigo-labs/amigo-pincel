@@ -9,9 +9,7 @@ import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor } from
 
 const PIXEL_SHAPES = [
   'Rectangle',
-  'Filled Rectangle',
   'Ellipse',
-  'Filled Ellipse',
   'Rounded Rectangle',
   'Polygon',
 ];
@@ -213,12 +211,12 @@ test.describe('touch', () => {
     // Hold, slide onto an entry, lift.
     await touch('touchStart', [shapes]);
     await expect(menu).toBeVisible();
-    const fill = await center(menu.getByRole('menuitemradio', { name: 'Filled Rectangle', exact: true }));
+    const fill = await center(menu.getByRole('menuitemradio', { name: 'Rounded Rectangle', exact: true }));
     await touch('touchMove', [fill]);
     await touch('touchEnd', []);
     await cdp.detach();
     await expect(menu).toBeHidden();
-    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Filled Rectangle');
+    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Rounded Rectangle');
   });
 
   test('pixel mode: a quick tap selects the shown variant (AC-04)', async ({ page }) => {
@@ -233,7 +231,6 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   await createDocument(page, 'pixel', { width: 32, height: 32 });
   await page.keyboard.press('u');
   await page.keyboard.press('u');
-  await page.keyboard.press('u');
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Ellipse');
 
   await groupButton(page, 'shapes').click({ button: 'right' });
@@ -245,7 +242,7 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   // Focus starts on the checked entry.
   await expect(entry('Ellipse')).toBeFocused();
   await page.keyboard.press('ArrowDown');
-  await expect(entry('Filled Ellipse')).toBeFocused();
+  await expect(entry('Rounded Rectangle')).toBeFocused();
   await page.keyboard.press('End');
   await expect(entry('Polygon')).toBeFocused();
   await page.keyboard.press('ArrowDown');
@@ -257,7 +254,7 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(menu).toBeHidden();
-  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Filled Rectangle');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Ellipse');
   await expect(groupButton(page, 'shapes')).toBeFocused();
 
   // Space chooses too; with the active tool outside the group, focus
