@@ -7,6 +7,7 @@ import {
   menu,
   pixelOf,
   waitForEditor,
+  colorPair,
 } from './helpers';
 import { brightness, canvasOf, centre, fill } from './effect-panel-helpers';
 
@@ -150,7 +151,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(lower).not.toBeFocused();
     await lower.click({ force: true });
     await expect(lower).toHaveAttribute('aria-pressed', 'false');
-    const swap = page.getByRole('button', { name: 'Swap foreground and background colors' });
+    const swap = colorPair(page).getByRole('button', { name: 'Swap foreground and background colors' });
     await swap.focus();
     await expect(swap).not.toBeFocused();
     if (mode === 'pixel') {

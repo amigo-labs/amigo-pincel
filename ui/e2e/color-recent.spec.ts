@@ -9,6 +9,7 @@ import {
   setColor,
   storedPref,
   waitForEditor,
+  colorPair,
 } from './helpers';
 import { effectPanel } from './effect-panel-helpers';
 import { liveInput, textBox, undoButton } from './text-helpers';
@@ -26,7 +27,7 @@ const canvasOf = (page: Page, mode: Mode) =>
 
 /** The recent row's colors as their accessible names (hex), in order. */
 async function recent(page: Page): Promise<string[]> {
-  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Foreground color', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Foreground color picker' });
   const names = await picker
     .getByRole('group', { name: 'Recent colors' })
@@ -50,7 +51,7 @@ function panelRecent(page: Page): Promise<string[]> {
 /** R / G / B / A of a swatch, read from its picker. */
 async function rgbaOf(page: Page, which: 'fg' | 'bg'): Promise<number[]> {
   const name = which === 'fg' ? 'Foreground color' : 'Background color';
-  await page.getByRole('button', { name, exact: true }).click();
+  await colorPair(page).getByRole('button', { name, exact: true }).click();
   const picker = page.getByRole('dialog', { name: `${name} picker` });
   const out: number[] = [];
   for (const label of ['Red', 'Green', 'Blue', 'Alpha value']) {
@@ -531,7 +532,7 @@ test('a recent color sets the edited color, alpha included (AC-13)', async ({ pa
   await page.keyboard.press('b');
   await stroke(page, pixelCanvas(page), 0.5);
   await setColor(page, 'bg', '#ffffffff');
-  await page.getByRole('button', { name: 'Background color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Background color', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Background color picker' });
   await picker
     .getByRole('group', { name: 'Recent colors' })
@@ -543,7 +544,7 @@ test('a recent color sets the edited color, alpha included (AC-13)', async ({ pa
   // The foreground picker sets the foreground, not the background.
   await setColor(page, 'fg', '#000000ff');
   await setColor(page, 'bg', '#ffffffff');
-  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Foreground color', exact: true }).click();
   await page
     .getByRole('dialog', { name: 'Foreground color picker' })
     .getByRole('group', { name: 'Recent colors' })

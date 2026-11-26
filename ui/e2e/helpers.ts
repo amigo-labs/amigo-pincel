@@ -579,12 +579,23 @@ export async function fakeFsFile(page: Page, name: string): Promise<Buffer> {
   return Buffer.from(bytes ?? []);
 }
 
-/** The swatch button of the foreground or background color. */
+/** The Colors panel's swatches, hex field and alpha slider in the shown
+ *  editor. The tool rail's colour well has swatches of the same names
+ *  (docs/specs/tool-rail-colors.md), so a spec about the panel looks here. */
+export function colorPair(page: Page): Locator {
+  return page.locator('[data-editor]:not([inert]) [data-color-pair]');
+}
+
+/** A swatch button of the foreground or background color: the tool rail's
+ *  colour well where the rail shows, else the Colors panel's. */
 export function swatch(page: Page, which: 'fg' | 'bg'): Locator {
-  return page.getByRole('button', {
-    name: which === 'fg' ? 'Foreground color' : 'Background color',
-    exact: true,
-  });
+  return page
+    .getByRole('button', {
+      name: which === 'fg' ? 'Foreground color' : 'Background color',
+      exact: true,
+    })
+    .filter({ visible: true })
+    .first();
 }
 
 /** Opens the color picker of the visible editor's `which` swatch. */
@@ -593,7 +604,7 @@ async function withPicker<T>(
   which: 'fg' | 'bg',
   run: (hex: Locator) => Promise<T>,
 ): Promise<T> {
-  await swatch(page, which).filter({ visible: true }).first().click();
+  await swatch(page, which).click();
   const picker = page.getByRole('dialog', {
     name: which === 'fg' ? 'Foreground color picker' : 'Background color picker',
   });

@@ -403,7 +403,7 @@ test.describe('phone strip', () => {
     // The last group button sits at the right edge: the flyout shifts in.
     const shapes = groupButton(page, 'shapes');
     await shapes.scrollIntoViewIfNeeded();
-    await rail(page).evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await rail(page).locator('[data-tool-list]').evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
     await shapes.click({ button: 'right' });
     const right = await flyout(page).boundingBox();
     if (!right) throw new Error('not visible');
@@ -412,8 +412,19 @@ test.describe('phone strip', () => {
   });
 });
 
+/** Scrolls `button` into the tool list's view and lets the scroll event
+ *  pass: a scroll of the list closes an open flyout (AC-14), so a flyout
+ *  opened in the same breath as the scroll would close again. */
+async function inView(button: Locator): Promise<void> {
+  await button.scrollIntoViewIfNeeded();
+  await button.evaluate(
+    () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
+}
+
 test.describe('short window', () => {
-  test.use({ viewport: { width: 1000, height: 200 } });
+  // Four shapes since docs/specs/tool-rail-colors.md AC-15: a lower window.
+  test.use({ viewport: { width: 1000, height: 150 } });
 
   test('pixel mode: a flyout taller than the window is limited to it and scrolls (AC-11)', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 32, height: 32 });
@@ -425,7 +436,7 @@ test.describe('short window', () => {
     const fly = await menu.boundingBox();
     if (!fly) throw new Error('not visible');
     expect(fly.y).toBeGreaterThanOrEqual(0);
-    expect(fly.y + fly.height).toBeLessThanOrEqual(200);
+    expect(fly.y + fly.height).toBeLessThanOrEqual(150);
     expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
   });
 });
@@ -438,7 +449,7 @@ test.describe('German UI', () => {
     const menu = page.getByRole('menu', { name: 'Formen', exact: true });
     await expect(menu).toBeVisible();
     await expect(menu.locator('[data-flyout-header]')).toHaveText('Formen (U)');
-    await expect(menu.getByRole('menuitemradio', { name: 'Gefülltes Rechteck' })).toBeVisible();
+    await expect(menu.getByRole('menuitemradio', { name: 'Abgerundetes Rechteck' })).toBeVisible();
   });
 });
 
@@ -493,11 +504,14 @@ test.describe('closing from outside', () => {
     await expect(menu).toBeHidden();
 
     await shapes.click({ button: 'right' });
-    await rail(page).evaluate((el) => (el.scrollTop = el.scrollTop > 0 ? 0 : 40));
+    await rail(page)
+      .locator('[data-tool-list]')
+      .evaluate((el) => (el.scrollTop = el.scrollTop > 0 ? 0 : 40));
     await expect(menu).toBeHidden();
 
     // The options bar changes the tool without a press outside the flyout.
     await page.keyboard.press('u');
+    await inView(shapes);
     await shapes.click({ button: 'right' });
     await expect(menu).toBeVisible();
     await page
@@ -537,6 +551,7 @@ test.describe('closing from outside', () => {
     await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
     await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Open…' }).click();
     const picker = await chooser;
+    await inView(groupButton(page, 'shapes'));
     await groupButton(page, 'shapes').focus();
     await page.keyboard.press('Shift+F10');
     await expect(flyout(page)).toBeVisible();

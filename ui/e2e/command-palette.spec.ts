@@ -98,7 +98,8 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(fromMenus.length).toBeGreaterThan(30);
     const tools = await page
       .getByRole('toolbar', { name: 'Tools' })
-      .getByRole('button')
+      // The group buttons, not the colour well's (tool-rail-colors).
+      .locator('button[data-group]')
       .evaluateAll((els) =>
         // "Group: Tool" for a group of several tools, else the tool's name.
         els.map((el) => (el.getAttribute('aria-label') ?? '').split(': ').at(-1) ?? ''),

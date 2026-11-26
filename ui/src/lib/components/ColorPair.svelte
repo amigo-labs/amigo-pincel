@@ -106,7 +106,11 @@
 
 <svelte:window bind:innerWidth={winWidth} bind:innerHeight={winHeight} />
 
-<div class="flex items-center gap-3" data-color-well={compact ? '' : undefined}>
+<div
+  class="flex items-center gap-3"
+  data-color-well={compact ? '' : undefined}
+  data-color-pair={compact ? undefined : ''}
+>
   <div class={['relative shrink-0', compact ? 'h-9 w-9' : 'h-14 w-14']} bind:this={swatches}>
     <button
       type="button"

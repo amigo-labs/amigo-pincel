@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, setColor, switchLanguage } from './helpers';
+import { createDocument, imageCanvas, setColor, switchLanguage, colorPair } from './helpers';
 
 // Image mode's Colors panel (color-picker AC-25 – AC-29): below the
 // swatches, the recent colors and the 48-color default palette, always
@@ -14,7 +14,7 @@ const palette = (page: Page) => colorsPanel(page).getByRole('group', { name: 'Co
 /** R / G / B / A of a swatch, read from its picker. */
 async function rgbaOf(page: Page, which: 'fg' | 'bg'): Promise<number[]> {
   const name = which === 'fg' ? 'Foreground color' : 'Background color';
-  await page.getByRole('button', { name, exact: true }).click();
+  await colorPair(page).getByRole('button', { name, exact: true }).click();
   const picker = page.getByRole('dialog', { name: `${name} picker` });
   const out: number[] = [];
   for (const label of ['Red', 'Green', 'Blue', 'Alpha value']) {
@@ -84,7 +84,7 @@ test('the panel shows the recent colors and the default palette, also with the p
   expect((await palette(page).boundingBox())?.y ?? 0).toBe(paletteTop);
 
   // With the picker open both stay visible.
-  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Foreground color', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Foreground color picker' });
   await expect(picker).toBeVisible();
   await expect(palette(page)).toBeVisible();
