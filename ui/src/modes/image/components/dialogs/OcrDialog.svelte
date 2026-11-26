@@ -150,7 +150,7 @@
 
 <svelte:window onkeydown={onKeydown} />
 
-<div class="fixed inset-0 z-50 flex items-center justify-center bg-black/50" role="presentation">
+<div class="fixed inset-0 z-(--pc-z-dialog) flex items-center justify-center bg-black/50" role="presentation">
   <div
     class="am-dialog w-[32rem] max-w-[calc(100vw-2rem)]"
     role="dialog"

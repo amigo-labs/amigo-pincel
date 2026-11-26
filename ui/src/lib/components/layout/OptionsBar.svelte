@@ -109,7 +109,7 @@
       narrow ? 'options-bar--narrow' : '',
       overflowing ? 'pr-11' : 'pr-3',
       expanded
-        ? 'absolute inset-x-0 top-0 z-20 max-h-[40vh] overflow-y-auto pb-1.5 shadow-(--am-elev-2)'
+        ? 'absolute inset-x-0 top-0 z-(--pc-z-overlay) max-h-[40vh] overflow-y-auto pb-1.5 shadow-(--am-elev-2)'
         : // `clip`, not `hidden`: nothing may scroll a wrapped line into the row.
           'h-full overflow-clip',
     ]}
@@ -126,7 +126,7 @@
   {#if overflowing}
     <button
       type="button"
-      class="btn-press absolute right-1.5 z-[21] flex h-7 w-7 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+      class="btn-press absolute right-1.5 z-(--pc-z-overlay-control) flex h-7 w-7 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
       class:top-2={narrow}
       class:top-1.5={!narrow}
       class:btn-on={expanded}

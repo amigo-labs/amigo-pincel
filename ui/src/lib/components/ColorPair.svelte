@@ -125,7 +125,7 @@
     ></button>
     <button
       type="button"
-      class={['swatch absolute top-0 left-0 z-10', compact ? 'h-[22px] w-[22px]' : 'h-9 w-9']}
+      class={['swatch absolute top-0 left-0 z-(--pc-z-raised)', compact ? 'h-[22px] w-[22px]' : 'h-9 w-9']}
       style:--swatch={css(fg)}
       data-swatch="fg"
       aria-label={t('color.fg')}
@@ -199,13 +199,13 @@
   <!-- Backdrop: a click outside commits field text (its blur) and closes. -->
   <button
     type="button"
-    class="fixed inset-0 z-[60] cursor-default"
+    class="fixed inset-0 z-(--pc-z-popover) cursor-default"
     tabindex="-1"
     aria-label={t('color.closePicker')}
     onclick={close}
   ></button>
   <div
-    class="fixed z-[61] rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
+    class="fixed z-(--pc-z-popover-control) rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     bind:this={popover}

@@ -102,7 +102,7 @@
      and the browser's own (Ctrl+P while a dialog is open, image-formats-
      more-print AC-09) must stay the browser's. -->
 <div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
+  class="fixed inset-0 z-(--pc-z-dialog) flex items-center justify-center bg-black/50 p-4"
   role="presentation"
   {@attach (node: HTMLElement) => {
     const stop = (e: KeyboardEvent): void => {

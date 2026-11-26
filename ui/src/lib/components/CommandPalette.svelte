@@ -103,7 +103,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-20 flex items-start justify-center bg-black/50 p-4 pt-[12vh]"
+  class="fixed inset-0 z-(--pc-z-overlay) flex items-start justify-center bg-black/50 p-4 pt-[12vh]"
   role="dialog"
   aria-modal="true"
   aria-label={t('cmd.title')}

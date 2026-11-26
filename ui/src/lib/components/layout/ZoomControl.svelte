@@ -148,7 +148,7 @@
   class={[
     'flex shrink-0 items-center gap-0.5 text-xs',
     floating
-      ? 'absolute right-3 z-[36] rounded-pc-control border border-pc-border bg-pc-panel/90 p-0.5 shadow-lg backdrop-blur'
+      ? 'absolute right-3 z-(--pc-z-float-control) rounded-pc-control border border-pc-border bg-pc-panel/90 p-0.5 shadow-lg backdrop-blur'
       : 'h-full px-1.5',
   ]}
   style:bottom={floating ? `${lift}px` : undefined}
@@ -193,14 +193,14 @@
        menu bar's menus. -->
   <button
     type="button"
-    class="fixed inset-0 z-[60] cursor-default"
+    class="fixed inset-0 z-(--pc-z-popover) cursor-default"
     aria-hidden="true"
     tabindex="-1"
     onclick={() => close(false)}
   ></button>
   <div
     bind:this={menu}
-    class="am-menu fixed z-[61] max-h-[70vh] min-w-44 overflow-y-auto *:shrink-0"
+    class="am-menu fixed z-(--pc-z-popover-control) max-h-[70vh] min-w-44 overflow-y-auto *:shrink-0"
     style:right="{anchor.right}px"
     style:bottom="{anchor.bottom}px"
     role="menu"

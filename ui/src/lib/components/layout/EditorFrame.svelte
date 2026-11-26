@@ -535,7 +535,7 @@
 <!-- The current notice; only the box itself takes input. -->
 {#snippet toastBox(bottom: number)}
   <div
-    class="pointer-events-none absolute inset-x-0 z-[34] flex justify-center px-3"
+    class="pointer-events-none absolute inset-x-0 z-(--pc-z-toast) flex justify-center px-3"
     style:bottom="{bottom}px"
   >
     <div
@@ -737,7 +737,7 @@
         {/if}
         {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div
-            class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
+            class="absolute inset-x-0 bottom-0 z-(--pc-z-drawer) flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
             aria-label={t('frame.panels')}
             inert={effectOpen}
@@ -774,7 +774,7 @@
         {#if effectPanel && size !== 'narrow'}
           <!-- The effect panel floats over the canvas area (AC-01, AC-12). -->
           <div
-            class="absolute z-[35] flex max-h-full w-80 flex-col"
+            class="absolute z-(--pc-z-float) flex max-h-full w-80 flex-col"
             style:top="{effectPos.y}px"
             style:right="{effectPos.x}px"
             bind:offsetWidth={panelWidth}
@@ -810,7 +810,7 @@
         inert={effectOpen}
         data-dimmed={dim}
         class:hidden={!hasPanels}
-        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-10 focus-visible:bg-pc-focus focus-visible:outline-offset-0"
+        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-(--pc-z-raised) focus-visible:bg-pc-focus focus-visible:outline-offset-0"
         role="separator"
         aria-orientation="vertical"
         aria-label={t('frame.sidebarWidth')}
@@ -834,7 +834,7 @@
       <aside
         class:flex={hasPanels}
         class:hidden={!hasPanels}
-        class="absolute inset-y-0 right-0 z-30 w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
+        class="absolute inset-y-0 right-0 z-(--pc-z-drawer) w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
         aria-label={t('frame.panels')}
         inert={effectOpen}
         data-dimmed={dim}
@@ -913,7 +913,7 @@
     <!-- Phones: docked to the bottom edge across the window, over the
          sheet, at most half the window tall (AC-13). -->
     <div
-      class="fixed inset-x-0 bottom-0 z-[35] flex max-h-[50vh] flex-col"
+      class="fixed inset-x-0 bottom-0 z-(--pc-z-float) flex max-h-[50vh] flex-col"
       bind:offsetHeight={effectDockHeight}
     >
       {@render effectPanel.body()}

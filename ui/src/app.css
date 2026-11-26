@@ -62,6 +62,34 @@
   --radius-pc-control: var(--am-radius-sm);
   --radius-pc-panel: var(--am-radius-md);
   --radius-pc-dialog: var(--am-radius-lg);
+  /* Canvas handles: smaller than any control (start-screen-tokens AC-05). */
+  --radius-pc-handle: 2px;
+}
+
+/* Text sizes and stacking levels the shared theme has no token for
+   (docs/specs/start-screen-tokens.md AC-05). Text sizes set the font size
+   only, as the arbitrary values they replace did; use them as
+   `text-(length:--pc-text-label)`. Stacking levels, lowest first, use as
+   `z-(--pc-z-dialog)`. */
+:root {
+  --pc-text-tiny: 10px;
+  --pc-text-label: 11px;
+  --pc-text-ui: 13px;
+  --pc-text-title: 1.75rem;
+
+  --pc-z-raised: 10;
+  --pc-z-overlay: 20;
+  --pc-z-overlay-control: 21;
+  --pc-z-drawer: 30;
+  --pc-z-toast: 34;
+  --pc-z-float: 35;
+  --pc-z-float-control: 36;
+  --pc-z-menu: 40;
+  --pc-z-menu-lifted: 46;
+  --pc-z-dialog: 50;
+  --pc-z-popover: 60;
+  --pc-z-popover-control: 61;
+  --pc-z-tooltip: 100;
 }
 
 @layer base {

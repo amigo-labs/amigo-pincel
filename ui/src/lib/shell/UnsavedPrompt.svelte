@@ -63,7 +63,7 @@
 </script>
 
 <div
-  class="fixed inset-0 z-60 flex items-center justify-center bg-black/50 p-4"
+  class="fixed inset-0 z-(--pc-z-popover) flex items-center justify-center bg-black/50 p-4"
   role="alertdialog"
   aria-modal="true"
   aria-labelledby="unsaved-prompt-title"

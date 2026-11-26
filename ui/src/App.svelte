@@ -1093,7 +1093,7 @@
 
 {#if dropHover && !showStart}
   <div
-    class="pointer-events-none fixed inset-0 z-40 flex items-center justify-center border-4 border-dashed border-pc-accent bg-black/40"
+    class="pointer-events-none fixed inset-0 z-(--pc-z-menu) flex items-center justify-center border-4 border-dashed border-pc-accent bg-black/40"
   >
     <p class="am-banner">
       {t('drop.overlay')}
@@ -1187,7 +1187,7 @@
 
 {#if shellError}
   <div
-    class="am-banner am-banner--danger am-banner--float fixed bottom-3 left-3 z-30 max-w-[calc(100vw-1.5rem)] items-center"
+    class="am-banner am-banner--danger am-banner--float fixed bottom-3 left-3 z-(--pc-z-drawer) max-w-[calc(100vw-1.5rem)] items-center"
     role="alert"
   >
     <div><strong class="whitespace-pre-line">{shellError}</strong></div>

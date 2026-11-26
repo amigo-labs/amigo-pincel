@@ -329,7 +329,7 @@
               >
                 <span class="truncate text-xs" class:text-pc-faint={!row.visible}>{row.name}</span>
                 {#if row.badge}
-                  <span class="shrink-0 text-[10px] text-pc-faint uppercase">{row.badge}</span>
+                  <span class="shrink-0 text-(length:--pc-text-tiny) text-pc-faint uppercase">{row.badge}</span>
                 {/if}
               </button>
             {/if}

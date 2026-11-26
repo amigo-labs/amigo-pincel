@@ -168,7 +168,7 @@
 
 <div
   bind:this={dialogEl}
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50 p-4"
+  class="fixed inset-0 z-(--pc-z-overlay) flex items-center justify-center bg-black/50 p-4"
   role="dialog"
   aria-modal="true"
   aria-label={t('sheetImport.title')}

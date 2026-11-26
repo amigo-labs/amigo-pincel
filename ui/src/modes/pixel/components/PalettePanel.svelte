@@ -243,13 +243,13 @@
     <!-- Backdrop closes the menu on an outside click. -->
     <button
       type="button"
-      class="fixed inset-0 z-40 cursor-default"
+      class="fixed inset-0 z-(--pc-z-menu) cursor-default"
       tabindex="-1"
       aria-label={t('frame.closeMenu')}
       onclick={() => (menu = null)}
     ></button>
     <div
-      class="am-menu fixed z-50 w-52"
+      class="am-menu fixed z-(--pc-z-dialog) w-52"
       style:left="{menu.left}px"
       style:top="{menu.top}px"
       role="menu"
@@ -263,7 +263,7 @@
       }}
     >
       <div
-        class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase"
+        class="px-3 pt-1.5 pb-0.5 text-(length:--pc-text-label) font-semibold tracking-wide text-pc-faint uppercase"
       >
         {t('palette.presets')}
       </div>

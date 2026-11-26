@@ -122,7 +122,7 @@
 <svelte:window onresize={measure} onkeydowncapture={onKeydown} />
 
 {#if tour.context && step}
-  <div class="fixed inset-0 z-50" data-tour-overlay>
+  <div class="fixed inset-0 z-(--pc-z-dialog)" data-tour-overlay>
     {#if rect}
       <div
         class="pointer-events-none absolute rounded-pc-control ring-2 ring-pc-accent motion-safe:transition-all motion-safe:duration-200"

@@ -53,7 +53,7 @@
 
 <div
   bind:this={el}
-  class="flyout am-menu fixed z-50 min-w-44 overflow-y-auto select-none *:shrink-0"
+  class="flyout am-menu fixed z-(--pc-z-dialog) min-w-44 overflow-y-auto select-none *:shrink-0"
   style:left="{place?.left ?? 0}px"
   style:top="{place?.top ?? 0}px"
   style:max-height={place ? `${place.maxHeight}px` : undefined}
@@ -64,7 +64,7 @@
   oncontextmenu={(e) => e.preventDefault()}
 >
   <div
-    class="shrink-0 px-3 pt-1 pb-1 text-[11px] font-semibold tracking-wide text-pc-faint"
+    class="shrink-0 px-3 pt-1 pb-1 text-(length:--pc-text-label) font-semibold tracking-wide text-pc-faint"
     data-flyout-header
     aria-hidden="true"
   >
