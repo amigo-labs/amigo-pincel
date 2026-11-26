@@ -291,6 +291,7 @@ export const ptBr: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — alterações não salvas',
   'frame.toolOptions': 'Opções da ferramenta',
+  'frame.moreOptions': 'Mais opções',
   'frame.panels': 'Painéis',
   'frame.tools': 'Ferramentas',
   'frame.menu': 'Menu',

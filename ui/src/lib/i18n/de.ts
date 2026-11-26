@@ -291,6 +291,7 @@ export const de: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} – ungespeicherte Änderungen',
   'frame.toolOptions': 'Werkzeugoptionen',
+  'frame.moreOptions': 'Weitere Optionen',
   'frame.panels': 'Bedienfelder',
   'frame.tools': 'Werkzeuge',
   'frame.menu': 'Menü',

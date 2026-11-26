@@ -34,6 +34,7 @@
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
   import MenuBar from './MenuBar.svelte';
+  import OptionsBar from './OptionsBar.svelte';
   import PanelGroup from './PanelGroup.svelte';
   import PanelHost from './PanelHost.svelte';
   import { PANEL_GROUPS, groupState, nextEnabled, resetPanels, type GroupState } from './groups';
@@ -71,6 +72,9 @@
     tools: Snippet<['vertical' | 'horizontal']>;
     /** Tool options for the active tool. */
     options?: Snippet;
+    /** The active tool's name, first in the options bar
+     *  (options-bar-layout AC-01). */
+    toolName?: string;
     /** The canvas viewport. */
     viewport: Snippet;
     /** App-bar quick actions (undo / redo). */
@@ -106,6 +110,7 @@
     panels,
     tools,
     options,
+    toolName = '',
     viewport: stage,
     quick,
     onSearch,
@@ -623,17 +628,9 @@
     <div class="flex min-w-0 flex-1 flex-col">
       {#if options && !chrome.hidden}
         <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
-          <div
-            class:scroll-fade-x={size === 'narrow'}
-            class:h-11={size === 'narrow'}
-            class:h-10={size !== 'narrow'}
-            class="flex items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
-            data-frame="options"
-            role="toolbar"
-            aria-label={t('frame.toolOptions')}
-          >
+          <OptionsBar name={toolName} narrow={size === 'narrow'} disabled={effectOpen || answering}>
             {@render options()}
-          </div>
+          </OptionsBar>
         </div>
       {/if}
       <main

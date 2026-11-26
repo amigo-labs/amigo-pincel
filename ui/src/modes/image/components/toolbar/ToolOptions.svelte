@@ -79,7 +79,8 @@
   });
 </script>
 
-<div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
+<!-- The options are direct children of the frame's options bar, which wraps
+     them one by one (docs/specs/options-bar-layout.md). -->
   {#if BRUSH_TOOLS.has(tool.kind)}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
@@ -465,4 +466,3 @@
       >
     </div>
   {/if}
-</div>

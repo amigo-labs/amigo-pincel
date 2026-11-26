@@ -1528,6 +1528,7 @@
   onSearch={openCommandPalette}
   searchHint={hint('commandPalette')}
   status={statusInfo}
+  toolName={toolLabel}
   zoom={zoomProps}
   effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
   tabs={tabBar}

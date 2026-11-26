@@ -287,6 +287,7 @@ export const en = {
   // Editor frame
   'frame.unsaved': '{title} — unsaved changes',
   'frame.toolOptions': 'Tool options',
+  'frame.moreOptions': 'More options',
   'frame.panels': 'Panels',
   'frame.tools': 'Tools',
   'frame.menu': 'Menu',

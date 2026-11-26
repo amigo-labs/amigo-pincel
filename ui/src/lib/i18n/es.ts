@@ -290,6 +290,7 @@ export const es: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title}: cambios sin guardar',
   'frame.toolOptions': 'Opciones de herramienta',
+  'frame.moreOptions': 'Más opciones',
   'frame.panels': 'Paneles',
   'frame.tools': 'Herramientas',
   'frame.menu': 'Menú',

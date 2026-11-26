@@ -289,6 +289,7 @@ export const ja: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — 未保存の変更',
   'frame.toolOptions': 'ツールオプション',
+  'frame.moreOptions': 'その他のオプション',
   'frame.panels': 'パネル',
   'frame.tools': 'ツール',
   'frame.menu': 'メニュー',

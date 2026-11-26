@@ -1325,6 +1325,7 @@
   onSearch={openCommandPalette}
   searchHint={hint('commandPalette')}
   status={statusInfo}
+  toolName={toolLabel}
   zoom={zoomProps}
   effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}
   tabs={tabBar}
@@ -1547,7 +1548,6 @@
         <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}
     {:else}
-      <span class="opt opt-hint">{toolLabel}</span>
       {#if BG_TOOLS.has(toolState.tool)}
         <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}

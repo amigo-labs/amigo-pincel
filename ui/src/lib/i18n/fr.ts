@@ -294,6 +294,7 @@ export const fr: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — modifications non enregistrées',
   'frame.toolOptions': 'Options de l’outil',
+  'frame.moreOptions': 'Plus d’options',
   'frame.panels': 'Panneaux',
   'frame.tools': 'Outils',
   'frame.menu': 'Menu',
