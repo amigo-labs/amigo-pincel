@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { menu, newDocument, pixelCanvas, setColor, solidPng } from './helpers';
+import { menu, newDocument, pixelCanvas, setColor, showPanel, solidPng } from './helpers';
 import { commandCalls, emit, installTauriMock, launchDesktop, reply } from './tauri-mock';
 
 // The Generate panel in Pixel mode (docs/specs/comfyui-generate-pixel.md).
@@ -55,8 +55,7 @@ async function setup(page: Page, size = SIZE): Promise<void> {
 }
 
 async function openPanel(page: Page): Promise<void> {
-  const header = panel(page).locator('header').getByRole('button');
-  if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+  await showPanel(page, 'Generate');
   await expect(panel(page).getByRole('combobox').first()).toBeVisible();
   await panel(page).getByRole('textbox', { name: 'Prompt', exact: true }).fill(PROMPT);
 }
@@ -125,12 +124,13 @@ async function thumbSizes(page: Page): Promise<number[][]> {
     .evaluateAll((imgs) => imgs.map((i) => [(i as HTMLImageElement).naturalWidth, (i as HTMLImageElement).naturalHeight]));
 }
 
-test('the desktop Pixel editor has a collapsed Generate panel beside the Assistant (AC-01)', async ({ page }) => {
+test('the desktop Pixel editor has a Generate panel, a tab beside the active Assistant (AC-01)', async ({ page }) => {
   await setup(page);
-  await expect(panel(page)).toBeVisible();
-  await expect(panel(page).locator('header').getByRole('button')).toHaveAttribute('aria-expanded', 'false');
+  // Since sidebar-tab-groups: Generate | Assistant, the Assistant active.
+  await expect(page.getByRole('tab', { name: 'Generate', exact: true })).toHaveAttribute('aria-selected', 'false');
+  await expect(panel(page)).toHaveCount(0);
   await expect(page.getByRole('region', { name: 'Assistant', exact: true })).toBeVisible();
-  // Collapsed, it needs no server (comfyui-connect AC-03).
+  // Not shown, it needs no server (comfyui-connect AC-03).
   expect(await commandCalls(page, 'comfyui_connect')).toHaveLength(0);
 });
 
@@ -219,7 +219,7 @@ test('closing a Pixel tab cancels its generation (AC-01)', async ({ page }) => {
   await generateButton(page).click();
   await expect.poll(async () => (await requests(page)).length).toBe(1);
   await menu(page, 'File', 'Close');
-  await expect(page.getByRole('tab')).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(0);
   await expect
     .poll(async () => (await commandCalls(page, 'comfyui_generation_cancel')).map((c) => c.args.job))
     .toEqual([1]);

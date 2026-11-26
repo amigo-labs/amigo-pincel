@@ -12,7 +12,7 @@ import {
   tabs,
   type CliId,
 } from './assistant-helpers';
-import { storedPref } from './helpers';
+import { hidePanel, showPanel, storedPref } from './helpers';
 
 // The effort field beside the Assistant's model field
 // (docs/specs/ai-chat-clis.md AC-10 – AC-15), against the mocked Tauri
@@ -34,11 +34,8 @@ function effortText(page: Page) {
 
 /** The panel looks the CLIs up again (it does whenever it opens). */
 async function reopenPanel(page: Page): Promise<void> {
-  const header = panel(page).getByRole('button', { name: 'Assistant' });
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await hidePanel(page, 'Assistant');
+  await showPanel(page, 'Assistant');
 }
 
 /** Opens the desktop app with every CLI installed (`statuses` overrides). */

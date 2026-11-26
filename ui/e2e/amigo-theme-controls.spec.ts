@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, zoomReadout } from './helpers';
+import { createDocument, gotoStart, menu, showPanel, zoomReadout } from './helpers';
 import {
   PALETTES,
   keyFocus,
@@ -401,7 +401,7 @@ for (const palette of PALETTES) {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     if (palette === 'Light') await pickTheme(page, 'Light');
     const panel = sidebar(page).locator('section[aria-label="Preview"]');
-    await panel.locator('header button[aria-expanded="false"]').click();
+    await showPanel(page, 'Preview');
     const group = panel.getByRole('group', { name: 'Preview zoom' });
     const box = await lookOf(group);
     expect(box.fill).toBe(await tokenColor(page, 'surface-raised'));
@@ -853,7 +853,7 @@ for (const palette of PALETTES) {
 
     // The segmented control (the preview's zoom).
     const preview = sidebar(page).locator('section[aria-label="Preview"]');
-    await preview.locator('header button[aria-expanded="false"]').click();
+    await showPanel(page, 'Preview');
     const zoom = preview.getByRole('group', { name: 'Preview zoom' });
     await same(zoom, 'seg');
     await same(zoom.locator('button[aria-pressed="true"]'), 'seg-on');

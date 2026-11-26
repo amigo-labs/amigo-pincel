@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu, pixelCanvas, switchLanguage } from './helpers';
+import { createDocument, menu, pixelCanvas, showPanel, switchLanguage } from './helpers';
 
 // Pixel-mode slices (docs/specs/slices.md): the Slice tool, the Slices panel
 // and the active slice's overlay. Slice state is read from the panel's rows;
@@ -12,7 +12,7 @@ type At = (px: number, py: number) => readonly [number, number];
 /** A fresh N×N sprite with the Slices panel open; the sprite-pixel → page mapper. */
 async function setup(page: Page): Promise<At> {
   await createDocument(page, 'pixel', { width: N, height: N });
-  await slicesPanel(page).getByRole('button', { name: 'Slices', exact: true }).click();
+  await showPanel(page, 'Slices');
   await expect(slicesPanel(page).getByText('no slices yet')).toBeVisible();
   const box = await pixelCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');

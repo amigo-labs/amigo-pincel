@@ -183,8 +183,8 @@ test('a file handed over by the OS opens as a tab without a prompt (AC-01)', asy
   await waitForEditor(page, 'image');
   await expectActive(page, 'dot.png');
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByRole('tab')).toHaveCount(2);
-  await expect(page.getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
 });
 
 test('a handed-over file that cannot be read shows its error and no prompt (AC-11)', async ({ page }) => {
@@ -235,7 +235,7 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await expect(prompt(page)).toHaveCount(0);
   await expectActive(page, 'sprite.aseprite');
   await expectDirty(page, 'sprite.aseprite', true);
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 
   // Image mode routes Open Recent through the shell: the open Pixel tab of
   // that file becomes active, with its changes, no prompt.
@@ -247,7 +247,7 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await expectActive(page, 'sprite.aseprite');
   await expectDirty(page, 'sprite.aseprite', true);
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
 
   // A recent whose file is gone: error, no prompt.
   await page.getByRole('tab', { name: /^image\.ora/ }).click();
@@ -273,7 +273,7 @@ test('a clean document opens a handed-over file and a recent at once (AC-07)', a
   // Pixel mode's own Open Recent of the open file activates its tab.
   await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 
   // The OS hands over a file.
   await putFile(page, '/docs/dot.png', PNG_1X1);

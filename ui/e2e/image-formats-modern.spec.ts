@@ -146,7 +146,7 @@ test('a truncated JPEG XL fails as undecodable, a huge one with the size message
   const before = await merged(page);
   await chooseFile(page, () => menu(page, 'File', 'Open…'), 'cut.jxl', fixture('truncated.jxl'));
   await expect(page.getByText(/Could not open image: .*JPEG XL/)).toBeVisible();
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
   await expect(page.getByTitle('lossless8.jxl', { exact: true })).toBeVisible();
   expect(await merged(page)).toEqual(before);
 });

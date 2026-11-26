@@ -662,3 +662,46 @@ export async function zoomActual(page: Page, how: 'click' | 'tap' = 'click'): Pr
     .getByRole('menuitemcheckbox', { name: /^(1×|100%)$/ });
   await entry[how]();
 }
+
+/**
+ * Brings the sidebar panel titled `title` into view in the shown editor
+ * (docs/specs/sidebar-tab-groups.md): a panel of a tab group by choosing
+ * its tab, which also expands a collapsed group, and a single panel by
+ * expanding it. Does nothing when the panel already shows.
+ */
+export async function showPanel(page: Page, title: string): Promise<void> {
+  const side = page.locator('[data-editor]:not([inert])').locator('aside');
+  const section = side.locator(`section[aria-label="${title}"]`);
+  const tab = side.getByRole('tab', { name: title, exact: true });
+  if ((await tab.count()) > 0) {
+    // The active tab of an expanded group ignores a click.
+    await tab.click();
+  } else {
+    const header = section.locator('> header button[aria-expanded]');
+    if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+  }
+  await expect(section).toBeVisible();
+}
+
+/**
+ * Takes the sidebar panel titled `title` off the page in the shown editor:
+ * a panel of a tab group by collapsing its group (its tab stays marked),
+ * a single panel by collapsing it. `showPanel` brings it back.
+ */
+export async function hidePanel(page: Page, title: string): Promise<void> {
+  const side = page.locator('[data-editor]:not([inert])').locator('aside');
+  const tab = side.getByRole('tab', { name: title, exact: true });
+  if ((await tab.count()) > 0) {
+    const toggle = side
+      .locator('[data-panel-group]')
+      .filter({ has: tab })
+      .locator('button[aria-expanded]');
+    if ((await toggle.getAttribute('aria-expanded')) === 'true') await toggle.click();
+    await expect(toggle).toHaveAttribute('aria-expanded', 'false');
+    await expect(side.locator(`section[aria-label="${title}"]`)).toHaveCount(0);
+  } else {
+    const header = side.locator(`section[aria-label="${title}"] > header button[aria-expanded]`);
+    if ((await header.getAttribute('aria-expanded')) === 'true') await header.click();
+    await expect(header).toHaveAttribute('aria-expanded', 'false');
+  }
+}

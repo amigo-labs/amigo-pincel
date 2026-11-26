@@ -122,9 +122,9 @@ test('Image: each document tab keeps its own history (AC-09)', async ({ page }) 
   await expectRows(page, ['Open']);
   await page.keyboard.press('Control+a');
   await expectRows(page, ['Open', 'Select All']);
-  await page.getByRole('tab').first().click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
   await expectRows(page, ['New', 'Brush']);
-  await page.getByRole('tab').nth(1).click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').nth(1).click();
   await expectRows(page, ['Open', 'Select All']);
 });
 

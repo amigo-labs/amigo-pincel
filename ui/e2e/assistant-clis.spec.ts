@@ -16,7 +16,7 @@ import {
   undoButton,
   type CliId,
 } from './assistant-helpers';
-import { storedPref } from './helpers';
+import { hidePanel, showPanel, storedPref } from './helpers';
 
 // More agent CLIs in the Assistant panel (docs/specs/ai-chat-clis.md),
 // against the mocked Tauri bridge: the test plays the CLIs' side as
@@ -30,11 +30,8 @@ function picker(page: Page) {
 
 /** The panel looks the CLIs up again (it does whenever it opens). */
 async function reopenPanel(page: Page): Promise<void> {
-  const header = panel(page).getByRole('button', { name: 'Assistant' });
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await hidePanel(page, 'Assistant');
+  await showPanel(page, 'Assistant');
 }
 
 test('AC-01 AC-04 the picker lists the CLIs in order; one too old or of unknown version is disabled', async ({

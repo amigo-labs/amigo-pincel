@@ -121,7 +121,7 @@ for (const mode of ['pixel', 'image'] as const) {
       await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
       await expect(page.locator('footer')).toContainText('24 × 12 px');
     }
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
   });
 
   test(`${mode}: Paste as New Image with no image shows a notice and keeps the document (AC-25)`, async ({
@@ -152,8 +152,8 @@ test('pixel: Paste as New Image with unsaved changes opens a tab without a promp
   await menu(page, 'Edit', 'Paste as New Image');
   await expect(page.getByTitle('Pasted image.aseprite', { exact: true })).toBeVisible();
   await expect(page.getByRole('alertdialog')).toHaveCount(0);
-  await expect(page.getByRole('tab')).toHaveCount(2);
-  await expect(page.getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
 });
 
 test('pixel: Paste as New Image makes an RGBA sprite with one image layer and one frame holding the image (AC-23)', async ({

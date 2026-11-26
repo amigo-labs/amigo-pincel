@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas, setColor } from './helpers';
+import { createDocument, drag, menu, pixelCanvas, setColor, showPanel } from './helpers';
 
 // Pixel-mode canvas updates and the overlay layer
 // (docs/specs/pixel-compose.md AC-27, AC-28). Pixels are compared through
@@ -114,7 +114,7 @@ test('pixel mode: the tile-stamp hover and the active slice stay off the sprite'
   // A tileset, a tilemap layer on it and a picked tile arm the Tile Stamp
   // (an empty tilemap layer adds no pixels).
   const tilesets = page.getByRole('region', { name: 'Tilesets' });
-  await tilesets.getByRole('button', { name: 'Tilesets', exact: true }).click();
+  await showPanel(page, 'Tilesets');
   await tilesets.getByRole('button', { name: 'Add tileset' }).click();
   await tilesets.getByLabel('Tile W').fill('4');
   await tilesets.getByLabel('Tile H').fill('4');
@@ -137,7 +137,7 @@ test('pixel mode: the tile-stamp hover and the active slice stay off the sprite'
   await page.getByRole('button', { name: 'Slice', exact: true }).click();
   await drag(page, canvas, [0.2, 0.2], [0.6, 0.6]);
   const slices = page.getByRole('region', { name: 'Slices' });
-  await slices.getByRole('button', { name: 'Slices', exact: true }).click();
+  await showPanel(page, 'Slices');
   const activate = slices.getByRole('button', { name: /^Activate slice / }).first();
   if ((await activate.getAttribute('aria-pressed')) !== 'true') await activate.click();
   await expectCanvas(page, blank, false);

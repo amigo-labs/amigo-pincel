@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { menu, newDocument, solidPng, storedPref } from './helpers';
+import { menu, newDocument, showPanel, solidPng, storedPref } from './helpers';
 import { commandCalls, emit, installTauriMock, launchDesktop, reply, type MockWindow } from './tauri-mock';
 
 // The desktop host tools `gen.image` and `gen.models`
@@ -113,7 +113,7 @@ test('bad names and values fail before anything is sent (AC-17)', async ({ page 
 test('gen.image generates one variant and applies it; the panel keeps its variants (AC-16)', async ({ page }) => {
   await setup(page);
   // The user's own variants in the strip, with the second model chosen.
-  await panel(page).locator('header').getByRole('button').click();
+  await showPanel(page, 'Generate');
   await panel(page).getByRole('combobox', { name: 'Model', exact: true }).selectOption('my-model.safetensors');
   await expect.poll(async () => ((await storedPref(page, 'comfyGenerate')) as { model?: string } | undefined)?.model).toBe(
     'my-model.safetensors',
@@ -164,7 +164,7 @@ test('an expired call or a closed tab cancels the job and adds nothing (AC-20)',
   const id2 = await send(page, 'gen.image', { prompt: 'a pear' });
   await expect.poll(async () => (await requests(page)).length).toBe(2);
   await menu(page, 'File', 'Close');
-  await expect(page.getByRole('tab')).toHaveCount(0);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(0);
   await expect.poll(async () => (await commandCalls(page, 'comfyui_generation_cancel')).map((c) => c.args.job)).toEqual([5, 6]);
   await emit(page, 'comfyui:generation', { kind: 'cancelled', job: 6 });
   expect((await answer(page, id2)).ok).toBe(false);

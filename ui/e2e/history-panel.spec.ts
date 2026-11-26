@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas, storedPref, switchLanguage } from './helpers';
+import {
+  createDocument,
+  drag,
+  hidePanel,
+  menu,
+  pixelCanvas,
+  showPanel,
+  storedPref,
+  switchLanguage,
+} from './helpers';
 import {
   expectCurrent,
   expectRows,
@@ -27,27 +36,29 @@ async function pixelDoc(page: Page): Promise<void> {
   await openHistory(page);
 }
 
-test('both modes have a History panel, collapsed at first, its state kept per mode (AC-01)', async ({
+test('both modes have a History panel, not shown at first, its state kept per mode (AC-01)', async ({
   page,
 }) => {
+  // Since sidebar-tab-groups the panel is a tab beside Layers, which is
+  // the active one on first use.
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const header = historyPanel(page).getByRole('button', { name: 'History', exact: true });
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
+  const tab = page.getByRole('tab', { name: 'History', exact: true });
+  await expect(tab).toHaveAttribute('aria-selected', 'false');
   await expect(historyList(page)).toHaveCount(0);
-  await header.click();
+  await tab.click();
   await expect(historyList(page)).toBeVisible();
   await expect
     .poll(() => storedPref(page, 'layout:pixel'))
-    .toMatchObject({ collapsed: { history: false } });
+    .toMatchObject({ groups: { document: { active: 'history', collapsed: false } } });
 
-  // A new session of the same mode keeps it expanded …
+  // A new session of the same mode keeps it shown …
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await expect(historyList(page)).toBeVisible();
-  // … the other mode keeps its own state: collapsed.
+  // … the other mode keeps its own state: Layers shown.
   await createDocument(page, 'image', { width: 16, height: 16 });
-  const imageHeader = historyPanel(page).getByRole('button', { name: 'History', exact: true });
-  await expect(imageHeader).toHaveAttribute('aria-expanded', 'false');
-  await imageHeader.click();
+  await expect(tab).toHaveAttribute('aria-selected', 'false');
+  await expect(historyList(page)).toHaveCount(0);
+  await tab.click();
   await expect(historyList(page)).toBeVisible();
 });
 
@@ -228,11 +239,10 @@ test('the panel follows steps from tools, menus, shortcuts and the header button
   await expect(historyRows(page).first()).toBeInViewport();
   await expect(historyRows(page).last()).not.toBeInViewport();
 
-  // A collapsed panel is up to date when it is expanded again.
-  const header = historyPanel(page).getByRole('button', { name: 'History', exact: true });
-  await header.click();
+  // A panel that is not shown is up to date when it is shown again.
+  await hidePanel(page, 'History');
   await redoAll(page);
-  await header.click();
+  await showPanel(page, 'History');
   await expectCurrent(page, 20);
   await expect(historyRows(page).last()).toBeInViewport();
 });
@@ -258,9 +268,9 @@ test('each document tab keeps its own history (AC-09)', async ({ page }) => {
   await expectRows(page, ['New']);
   await page.getByRole('button', { name: 'Add layer' }).click();
   await expectRows(page, ['New', 'Add Layer']);
-  await page.getByRole('tab').first().click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
   await expectRows(page, ['New', 'Pencil']);
-  await page.getByRole('tab').nth(1).click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').nth(1).click();
   await expectRows(page, ['New', 'Add Layer']);
 });
 

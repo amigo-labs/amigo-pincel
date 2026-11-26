@@ -138,7 +138,7 @@ test('imports a sheet from Pixel mode as a new tagged document (AC-01, AC-03, AC
   await waitForEditor(page, 'pixel');
 
   // AC-04, AC-15: a new tab "hero.aseprite" next to the first, 16 × 16.
-  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
   await expect(page.getByRole('tab', { name: /hero\.aseprite/ })).toHaveAttribute(
     'aria-selected',
     'true',
@@ -189,7 +189,7 @@ test('imports from Image mode, keeps a name already open and drops the tags when
   dialog = await openSheet(page, 'hero.png');
   await dialog.getByRole('button', { name: 'Import' }).click();
   await expect(page.getByRole('tab', { name: /hero\.aseprite/ })).toHaveCount(2);
-  await expect(page.getByRole('tab')).toHaveCount(3);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(3);
 });
 
 test('the background option starts from the top-left pixel and changes the cut (AC-07)', async ({
@@ -315,7 +315,7 @@ test('Import is disabled with the reason for an unusable grid (AC-12)', async ({
   await expect(blank.getByRole('alert')).toHaveText('Every cell is empty.');
   await expect(blank.getByRole('button', { name: 'Import' })).toBeDisabled();
   await blank.getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 });
 
 test('an unreadable or oversized file gives a notice and changes nothing (AC-13)', async ({
@@ -326,7 +326,7 @@ test('an unreadable or oversized file gives a notice and changes nothing (AC-13)
   await menu(page, 'File', 'Import Sprite Sheet…');
   await expect(page.getByText('junk.png cannot be read as a sprite sheet.')).toBeVisible();
   await expect(dialogOf(page)).toBeHidden();
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 
   await fakeFs(page, { pick: 'wide.png' });
   await menu(page, 'File', 'Import Sprite Sheet…');
@@ -336,7 +336,7 @@ test('an unreadable or oversized file gives a notice and changes nothing (AC-13)
     ),
   ).toBeVisible();
   await expect(dialogOf(page)).toBeHidden();
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 });
 
 test('cancelling the picker or the dialog creates nothing (AC-14)', async ({ page }) => {
@@ -351,7 +351,7 @@ test('cancelling the picker or the dialog creates nothing (AC-14)', async ({ pag
   const again = await openSheet(page, 'hero.png');
   await again.getByRole('button', { name: 'Cancel' }).click();
   await expect(again).toBeHidden();
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 });
 
 test('keys pressed while the dialog is open do not reach the editor behind it (AC-14)', async ({
@@ -369,5 +369,5 @@ test('keys pressed while the dialog is open do not reach the editor behind it (A
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   await expect(dialog).toBeHidden();
   await expect(timeline.getByRole('button', { name: /^Frame \d+$/ })).toHaveCount(1);
-  await expect(page.getByRole('tab')).toHaveCount(1);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
 });

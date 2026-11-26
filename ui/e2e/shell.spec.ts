@@ -311,18 +311,18 @@ test('AC-18: a hidden sidebar and a collapsed panel come back on remount and rel
   await createDocument(page, 'image', { width: 16, height: 16 });
   const sidebar = page.getByRole('complementary', { name: 'Panels' });
   const toggle = page.getByRole('button', { name: 'Toggle panels' });
-  const layersHeader = sidebar
-    .getByRole('region', { name: 'Layers' })
-    .getByRole('button', { name: /^Layers/ });
+  // Colors is a single panel with a header of its own (Layers is a tab of
+  // a group since sidebar-tab-groups).
+  const colorsHeader = sidebar.locator('section[aria-label="Colors"] > header button[aria-expanded]');
 
-  // Collapse Layers, then hide the docked sidebar.
-  await layersHeader.click();
-  await expect(layersHeader).toHaveAttribute('aria-expanded', 'false');
+  // Collapse Colors, then hide the docked sidebar.
+  await colorsHeader.click();
+  await expect(colorsHeader).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
   await expect(sidebar).toHaveCount(0);
   await expect
     .poll(() => storedPref(page, 'layout:image'))
-    .toMatchObject({ sidebar: false, collapsed: { layers: true } });
+    .toMatchObject({ sidebar: false, collapsed: { colors: true } });
 
   // The next Image editor of this session starts the same way.
   await menu(page, 'File', 'New…');
@@ -333,7 +333,7 @@ test('AC-18: a hidden sidebar and a collapsed panel come back on remount and rel
   await waitForEditor(page, 'image');
   await expect(sidebar).toHaveCount(0);
   await toggle.click();
-  await expect(layersHeader).toHaveAttribute('aria-expanded', 'false');
+  await expect(colorsHeader).toHaveAttribute('aria-expanded', 'false');
   await toggle.click();
   await expect.poll(() => storedPref(page, 'layout:image')).toMatchObject({ sidebar: false });
 
@@ -341,12 +341,10 @@ test('AC-18: a hidden sidebar and a collapsed panel come back on remount and rel
   await createDocument(page, 'image', { width: 16, height: 16 });
   await expect(sidebar).toHaveCount(0);
   await toggle.click();
-  await expect(layersHeader).toHaveAttribute('aria-expanded', 'false');
+  await expect(colorsHeader).toHaveAttribute('aria-expanded', 'false');
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await expect(sidebar).toBeVisible();
-  await expect(
-    sidebar.getByRole('region', { name: 'Layers' }).getByRole('button', { name: /^Layers/ }),
-  ).toHaveAttribute('aria-expanded', 'true');
+  await expect(colorsHeader).toHaveAttribute('aria-expanded', 'true');
 });
 
 for (const mode of ['pixel', 'image'] as const) {

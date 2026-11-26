@@ -3,7 +3,9 @@ import {
   fakeFileHandles,
   fakeFs,
   gotoStart,
+  hidePanel,
   newDocument,
+  showPanel,
   solidPng,
   switchLanguage,
   waitForEditor,
@@ -60,15 +62,12 @@ async function setup(page: Page, mode: 'pixel' | 'image'): Promise<void> {
 }
 
 async function openPanel(page: Page): Promise<void> {
-  const header = generatePanel(page).locator('header').getByRole('button');
-  if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+  await showPanel(page, 'Generate');
   await expect(generatePanel(page).getByRole('combobox').first()).toBeVisible();
 }
 
 async function collapsePanel(page: Page): Promise<void> {
-  const header = generatePanel(page).locator('header').getByRole('button');
-  if ((await header.getAttribute('aria-expanded')) === 'true') await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
+  await hidePanel(page, 'Generate');
 }
 
 const field = (page: Page, name: string): Locator =>
@@ -165,10 +164,11 @@ test('AC-01 – AC-05 AC-07 Apply records the variant; the panel shows, copies a
   const count = await generatePanel(page).getByRole('spinbutton', { name: 'Variants' }).inputValue();
   await collapsePanel(page);
   await section(page).getByRole('button', { name: 'Use in Generate panel' }).click();
-  await expect(generatePanel(page).locator('header').getByRole('button')).toHaveAttribute(
-    'aria-expanded',
+  await expect(page.getByRole('tab', { name: 'Generate', exact: true })).toHaveAttribute(
+    'aria-selected',
     'true',
   );
+  await expect(generatePanel(page)).toBeVisible();
   await expect(field(page, 'Prompt')).toHaveValue(PROMPT);
   await expect(field(page, 'Negative prompt')).toHaveValue('blurry, text');
   await expect(select(page, 'Model')).toHaveValue('v1-5-pruned-emaonly-fp16.safetensors');

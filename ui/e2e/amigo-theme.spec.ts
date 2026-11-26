@@ -126,9 +126,12 @@ type Mode = (typeof MODES)[number];
 
 const cssRgb = ([r, g, b]: Rgb): string => `rgb(${r}, ${g}, ${b})`;
 
-/** Opens every collapsed panel of the sidebar (and Pixel mode's timeline). */
+/** Opens every collapsed single panel and tab group of the sidebar (and
+ *  Pixel mode's timeline). A group shows its active tab's panel. */
 async function openAllPanels(page: Page): Promise<void> {
-  const closed = page.locator('section[aria-label] > header button[aria-expanded="false"]');
+  const closed = page.locator(
+    'section[aria-label] > header button[aria-expanded="false"], [data-panel-group] > div > button[aria-expanded="false"]',
+  );
   while ((await closed.count()) > 0) await closed.first().click();
 }
 
@@ -402,10 +405,9 @@ for (const mode of MODES) {
       // Every panel, open: ground `surface`, body text `text`.
       for (const name of await panelNames(page)) {
         const panel = sidebar.locator(`section[aria-label="${name}"]`);
-        await expect(panel.locator('header button[aria-expanded]')).toHaveAttribute(
-          'aria-expanded',
-          'true',
-        );
+        // A single panel has its own header; a tab of a group has none.
+        const header = panel.locator('> header button[aria-expanded]');
+        if ((await header.count()) > 0) await expect(header).toHaveAttribute('aria-expanded', 'true');
         await expectFill(page, panel, 'surface');
         await expectText(page, panel, 'text');
       }
@@ -751,7 +753,7 @@ for (const mode of MODES) {
       await check(activeTool(page), 'active tool icon', 3);
       await check(sidebar.getByRole('button', { name: 'Add layer' }), 'icon button', 3);
       await check(
-        page.getByRole('region', { name: 'Layers' }).locator('header button').first(),
+        page.getByRole('region', { name: 'Colors' }).locator('header button').first(),
         'panel title',
       );
       await check(

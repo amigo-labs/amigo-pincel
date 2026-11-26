@@ -117,7 +117,7 @@ test('one Antialiasing checkbox, shared by the edge tools and all tabs, on at st
   // A second Image tab shares it.
   await menu(page, 'File', 'New…');
   await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
   await waitForEditor(page, 'image');
   await useTool(page, 'b', 'Brush');
   await expect(antiAlias(page)).not.toBeChecked();
