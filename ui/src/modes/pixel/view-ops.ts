@@ -118,6 +118,20 @@ export function onWheel(e: WheelEvent) {
   void tick().then(() => noteHover(e));
 }
 
+// One Zoom In / Zoom Out step with the Zoom tool: the point under the
+// pointer stays where it is (tool-rail-colors AC-11).
+export function zoomAt(e: { clientX: number; clientY: number }, direction: 1 | -1) {
+  if (!view.canvas) return;
+  const rect = view.canvas.getBoundingClientRect();
+  const old = view.zoom;
+  const next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, direction > 0 ? old * 2 : old >>> 1));
+  if (next === old || rect.width === 0 || rect.height === 0) return;
+  const ratio = next / old;
+  view.panX += (rect.left + rect.width / 2 - e.clientX) * (ratio - 1);
+  view.panY += (rect.top + rect.height / 2 - e.clientY) * (ratio - 1);
+  view.zoom = next;
+}
+
 export function applyPinch(f: PinchFrame) {
   if (!view.canvas) return;
   const rect = view.canvas.getBoundingClientRect();

@@ -19,7 +19,7 @@ import { openTextAt } from './text-tool';
 import { clampBrushSize, isBrushTool, strokePressure } from './brush';
 import { TAP_LIMITS, isEraserEnd } from '../../lib/view/taps';
 import { type Tool, alongDirection, directionTo, isDragShapeTool, isShapeTool } from './tools';
-import { applyPinch } from './view-ops';
+import { applyPinch, zoomAt } from './view-ops';
 import { armStroke, onTiledArea } from './symmetry';
 import { discardStrokePoints, flushStrokePoints, queueStrokePoint } from './stroke-batch';
 import { wandClick } from './wand-link';
@@ -43,9 +43,7 @@ export const BG_TOOLS: ReadonlySet<Tool> = new Set<Tool>([
   'eyedropper',
   'line',
   'rectangle',
-  'rectangle-fill',
   'ellipse',
-  'ellipse-fill',
   'rounded-rect',
   'polygon-shape',
 ]);
@@ -113,9 +111,7 @@ export function cancelGesture() {
 /** The colors a committed drag gesture of `dragTool` painted with,
  *  foreground first (color-picker AC-24); `[]` for non-painting drags. */
 function dragColors(dragTool: Tool, packed: number): number[] {
-  if (dragTool === 'line' || dragTool === 'rectangle-fill' || dragTool === 'ellipse-fill') {
-    return [packed];
-  }
+  if (dragTool === 'line') return [packed];
   if (dragTool === 'gradient') {
     return [packColor(colors.color, colors.alpha), packColor(colors.bgColor, colors.bgAlpha)];
   }
@@ -410,6 +406,20 @@ function pressDown(e: PointerEvent, stage: Element, replay: boolean) {
     view.panning = true;
     live.panStartClient = { x: e.clientX, y: e.clientY };
     live.panStartOffset = { x: view.panX, y: view.panY };
+    return;
+  }
+  // The view tools never touch the document, so they also work while an
+  // effect is open or an answer runs (tool-rail-colors AC-10 – AC-12).
+  if (toolState.tool === 'hand' && e.button === 0 && !view.spaceDown) {
+    stage.setPointerCapture(e.pointerId);
+    view.panning = true;
+    live.panStartClient = { x: e.clientX, y: e.clientY };
+    live.panStartOffset = { x: view.panX, y: view.panY };
+    return;
+  }
+  if (toolState.tool === 'zoom' && (e.button === 0 || e.button === 2) && !view.spaceDown) {
+    // Alt or the right button zooms out, as in Image mode.
+    zoomAt(e, e.button === 2 || e.altKey ? -1 : 1);
     return;
   }
   // While an effect is open or an Assistant answer runs the canvas only
@@ -944,10 +954,6 @@ function pointerUp(e: PointerEvent) {
           shapeFillColor(),
           param,
         );
-      } else if (live.dragTool === 'rectangle-fill') {
-        ed.doc.applyRectangle(live.dragStart.x, live.dragStart.y, end.x, end.y, packed, true);
-      } else if (live.dragTool === 'ellipse-fill') {
-        ed.doc.applyEllipse(live.dragStart.x, live.dragStart.y, end.x, end.y, packed, true);
       } else if (live.dragTool === 'selection-rect') {
         commitSelection(live.dragStart.x, live.dragStart.y, end.x, end.y);
       } else if (live.dragTool === 'selection-ellipse') {

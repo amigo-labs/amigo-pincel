@@ -1066,9 +1066,9 @@
   });
 </script>
 
-{#snippet colorsBody()}
-  <Panel>
+{#snippet colorPair(compact: boolean)}
     <ColorPair
+      {compact}
       fg={{ ...hexToRgb(colors.color), a: colors.alpha }}
       bg={{ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }}
       onFg={(c) => {
@@ -1084,7 +1084,14 @@
       recent={recentColors.pixel}
       onDraft={(d) => (colorDraft.pixel = d)}
     />
+{/snippet}
+{#snippet colorsBody()}
+  <Panel>
+    {@render colorPair(false)}
   </Panel>
+{/snippet}
+{#snippet colorWell()}
+  {@render colorPair(true)}
 {/snippet}
 {#snippet paletteBody()}
   <PalettePanel
@@ -1395,6 +1402,7 @@
       onSelect={(next) => (toolState.tool = next)}
       {orientation}
       resetKey={active ? ed.doc : null}
+      foot={colorWell}
     />
   {/snippet}
   {#snippet options()}
@@ -1589,9 +1597,11 @@
               ? 'move'
               : toolState.tool === 'move' && ed.selection && !view.spaceDown
                 ? 'move'
-                : toolState.tool === 'move' || view.spaceDown
+                : toolState.tool === 'move' || toolState.tool === 'hand' || view.spaceDown
                   ? 'grab'
-                  : 'crosshair'}
+                  : toolState.tool === 'zoom'
+                    ? 'zoom-in'
+                    : 'crosshair'}
           aria-label="Pincel canvas"
           data-ready={ed.ready}
         ></canvas>

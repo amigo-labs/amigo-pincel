@@ -15,9 +15,7 @@ export type Tool =
   | 'gradient'
   | 'line'
   | 'rectangle'
-  | 'rectangle-fill'
   | 'ellipse'
-  | 'ellipse-fill'
   | 'rounded-rect'
   | 'polygon-shape'
   | 'selection-rect'
@@ -27,6 +25,8 @@ export type Tool =
   | 'selection-wand'
   | 'text'
   | 'move'
+  | 'hand'
+  | 'zoom'
   | 'tilemap-stamp'
   | 'slice';
 
@@ -42,9 +42,7 @@ export function isDragShapeTool(t: Tool): boolean {
     t === 'line' ||
     t === 'gradient' ||
     t === 'rectangle' ||
-    t === 'rectangle-fill' ||
     t === 'ellipse' ||
-    t === 'ellipse-fill' ||
     t === 'rounded-rect' ||
     t === 'polygon-shape' ||
     t === 'selection-rect' ||
@@ -60,14 +58,7 @@ export function isShapeTool(t: Tool): boolean {
 
 /** Tools whose drag a held Shift constrains to a square bounding box. */
 export function isSquareConstrainable(t: Tool): boolean {
-  return (
-    t === 'rectangle' ||
-    t === 'rectangle-fill' ||
-    t === 'ellipse' ||
-    t === 'ellipse-fill' ||
-    t === 'rounded-rect' ||
-    t === 'polygon-shape'
-  );
+  return isShapeTool(t);
 }
 
 /**
@@ -79,6 +70,9 @@ export function isSquareConstrainable(t: Tool): boolean {
 export function toolGroups(stampTile: { tilesetId: number; tileId: number } | null): ToolGroup<Tool>[] {
   const groups: ToolGroup<Tool>[] = [
     { id: 'move', label: t('tool.move'), tools: [{ id: 'move', label: t('tool.move'), icon: 'move' }] },
+    // View tools, as in Image mode (tool-rail-colors AC-09).
+    { id: 'hand', label: t('tool.hand'), tools: [{ id: 'hand', label: t('tool.hand'), icon: 'hand' }] },
+    { id: 'zoom', label: t('tool.zoom'), tools: [{ id: 'zoom', label: t('tool.zoom'), icon: 'zoom-in' }] },
     {
       id: 'select',
       label: t('tool.marquee'),
@@ -125,10 +119,9 @@ export function toolGroups(stampTile: { tilesetId: number; tileId: number } | nu
       id: 'shapes',
       label: t('tool.shapes'),
       tools: [
+        // Filled shapes are the Mode option's job (tool-rail-colors AC-15).
         { id: 'rectangle', label: t('tool.rectangle'), icon: 'rect' },
-        { id: 'rectangle-fill', label: t('tool.rectangleFill'), icon: 'rect-fill' },
         { id: 'ellipse', label: t('tool.ellipse'), icon: 'ellipse' },
-        { id: 'ellipse-fill', label: t('tool.ellipseFill'), icon: 'ellipse-fill' },
         { id: 'rounded-rect', label: t('tool.roundedRect'), icon: 'rounded-rect' },
         { id: 'polygon-shape', label: t('tool.polygon'), icon: 'polygon' },
       ],

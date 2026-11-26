@@ -69,6 +69,8 @@ export function groupOf<T extends string>(groups: ToolGroup<T>[], tool: T): Tool
  * The tool a press of group `groupId`'s key selects from `current`: the
  * group's first enabled tool, or — when `current` is already in it — the
  * next enabled variant (repeated presses cycle, the Aseprite pattern).
+ * A key whose id names no group but a tool inside one selects that tool:
+ * `N` is the Gradient, a variant of the Fill group (tool-rail-colors AC-14).
  */
 export function cycleGroup<T extends string>(
   groups: ToolGroup<T>[],
@@ -76,7 +78,13 @@ export function cycleGroup<T extends string>(
   current: T,
 ): T | null {
   const g = groups.find((x) => x.id === groupId);
-  if (!g) return null;
+  if (!g) {
+    for (const group of groups) {
+      const tool = group.tools.find((t) => (t.id as string) === groupId);
+      if (tool) return tool.disabled ? null : tool.id;
+    }
+    return null;
+  }
   const enabled = g.tools.filter((t) => !t.disabled);
   if (enabled.length === 0) return null;
   const at = enabled.findIndex((t) => t.id === current);
