@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dialog from '../../../lib/components/Dialog.svelte';
   import { t } from '../../../lib/i18n/index.svelte';
   // View ▸ Grid Settings… (docs/specs/pixel-grid.md). Presentational: the
   // parent applies the result — cell size and offset to the sprite (one
@@ -46,8 +47,7 @@
   const inRange = (v: unknown, min: number, max: number) =>
     typeof v === 'number' && Number.isInteger(v) && v >= min && v <= max;
 
-  function submit(e: SubmitEvent) {
-    e.preventDefault();
+  function submit() {
     if (
       !inRange(w, 1, 65535) ||
       !inRange(h, 1, 65535) ||
@@ -69,90 +69,68 @@
     y = 0;
     error = null;
   }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('grid.title')}
+<Dialog
+  title={t('grid.title')}
+  applyLabel={t('common.apply')}
+  onApply={submit}
+  onClose={onCancel}
 >
-  <form
-    class="am-dialog"
-    novalidate
-    onsubmit={submit}
-  >
-    <header>
-      <h2>{t('grid.title')}</h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
-      <div class="grid grid-cols-2 gap-2">
-        {#each [
-          { label: t('grid.cellWidth'), get: () => w, set: (v: number) => (w = v) },
-          { label: t('grid.cellHeight'), get: () => h, set: (v: number) => (h = v) },
-          { label: t('grid.offsetX'), get: () => x, set: (v: number) => (x = v) },
-          { label: t('grid.offsetY'), get: () => y, set: (v: number) => (y = v) },
-        ] as field (field.label)}
-          <label class="flex flex-col gap-1 text-xs text-pc-text">
-            <span>{field.label}</span>
-            <input
-              type="number"
-              step="1"
-              value={field.get()}
-              oninput={(e) => {
-                field.set(e.currentTarget.valueAsNumber);
-                error = null;
-              }}
-              class="am-input tabular-nums w-auto"
-              aria-label={field.label}
-            />
-          </label>
-        {/each}
-      </div>
-      {#if tileSize}
-        <button type="button" class="am-btn self-start" onclick={useTileSize}>
-          {t('grid.useTileSize', { w: tileSize.w, h: tileSize.h })}
-        </button>
-      {/if}
-      <div class="grid grid-cols-2 gap-2">
+  <div class="flex flex-col gap-3">
+    <div class="grid grid-cols-2 gap-2">
+      {#each [
+        { label: t('grid.cellWidth'), get: () => w, set: (v: number) => (w = v) },
+        { label: t('grid.cellHeight'), get: () => h, set: (v: number) => (h = v) },
+        { label: t('grid.offsetX'), get: () => x, set: (v: number) => (x = v) },
+        { label: t('grid.offsetY'), get: () => y, set: (v: number) => (y = v) },
+      ] as field (field.label)}
         <label class="flex flex-col gap-1 text-xs text-pc-text">
-          <span>{t('grid.color')}</span>
-          <input
-            type="color"
-            bind:value={color}
-            class="h-7 w-full rounded border border-pc-border bg-pc-bg"
-            aria-label={t('grid.color')}
-          />
-        </label>
-        <label class="flex flex-col gap-1 text-xs text-pc-text">
-          <span>{t('grid.opacity')}</span>
+          <span>{field.label}</span>
           <input
             type="number"
-            min="0"
-            max="100"
             step="1"
-            bind:value={opacity}
+            value={field.get()}
+            oninput={(e) => {
+              field.set(e.currentTarget.valueAsNumber);
+              error = null;
+            }}
             class="am-input tabular-nums w-auto"
-            aria-label={t('grid.opacity')}
+            aria-label={field.label}
           />
         </label>
-      </div>
-      {#if error}
-        <p class="am-hint am-hint--error" role="alert">{error}</p>
-      {/if}
+      {/each}
     </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary">{t('common.ok')}</button>
-    </footer>
-  </form>
-</div>
+    {#if tileSize}
+      <button type="button" class="am-btn self-start" onclick={useTileSize}>
+        {t('grid.useTileSize', { w: tileSize.w, h: tileSize.h })}
+      </button>
+    {/if}
+    <div class="grid grid-cols-2 gap-2">
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('grid.color')}</span>
+        <input
+          type="color"
+          bind:value={color}
+          class="h-7 w-full rounded border border-pc-border bg-pc-bg"
+          aria-label={t('grid.color')}
+        />
+      </label>
+      <label class="flex flex-col gap-1 text-xs text-pc-text">
+        <span>{t('grid.opacity')}</span>
+        <input
+          type="number"
+          min="0"
+          max="100"
+          step="1"
+          bind:value={opacity}
+          class="am-input tabular-nums w-auto"
+          aria-label={t('grid.opacity')}
+        />
+      </label>
+    </div>
+    {#if error}
+      <p class="am-hint am-hint--error" role="alert">{error}</p>
+    {/if}
+  </div>
+</Dialog>

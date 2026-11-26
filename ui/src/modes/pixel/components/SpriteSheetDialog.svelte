@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dialog from '../../../lib/components/Dialog.svelte';
   import { t } from '../../../lib/i18n/index.svelte';
   import { EXPORT_SCALES } from '../export-scale';
   // Export Sprite Sheet dialog (spec §7.3). Presentational: the parent
@@ -48,82 +49,58 @@
   });
   const cols = $derived(Math.max(1, Math.min(count, Math.floor(columns) || 1)));
   const rows = $derived(Math.ceil(count / cols));
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('sheet.title')}
+<Dialog
+  title={t('sheet.title')}
+  applyLabel={t('menu.export')}
+  onApply={() => onSubmit({ columns: cols, tag, data, scale })}
+  onClose={onCancel}
 >
-  <form
-    class="am-dialog"
-    onsubmit={(e) => {
-      e.preventDefault();
-      onSubmit({ columns: cols, tag, data, scale });
-    }}
-  >
-    <header>
-      <h2>{t('sheet.title')}</h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('sheet.frames')}</span>
-        <select
-          class="am-input w-auto"
-          value={tag ?? ''}
-          onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
-          aria-label={t('sheet.frames')}
-        >
-          <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
-          {#each tags as tag (tag.name)}
-            <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
-          {/each}
-        </select>
-      </label>
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('sheet.columns')}</span>
-        <input
-          type="number"
-          min="1"
-          max={count}
-          bind:value={columns}
-          class="am-input tabular-nums w-auto"
-          aria-label={t('sheet.columns')}
-        />
-      </label>
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('export.scale')}</span>
-        <select
-          class="am-input w-auto"
-          bind:value={scale}
-          aria-label={t('export.scale')}
-        >
-          {#each EXPORT_SCALES as s (s)}
-            <option value={s}>×{s}</option>
-          {/each}
-        </select>
-      </label>
-      <p class="text-xs text-pc-muted" aria-live="polite">
-        {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
-      </p>
-      <label class="am-check flex items-center gap-2 text-xs text-pc-text">
-        <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
-        {t('sheet.jsonHint')}
-      </label>
-    </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
-    </footer>
-  </form>
-</div>
+  <div class="flex flex-col gap-3">
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('sheet.frames')}</span>
+      <select
+        class="am-input w-auto"
+        value={tag ?? ''}
+        onchange={(e) => (tag = e.currentTarget.value === '' ? null : e.currentTarget.value)}
+        aria-label={t('sheet.frames')}
+      >
+        <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
+        {#each tags as tag (tag.name)}
+          <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
+        {/each}
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('sheet.columns')}</span>
+      <input
+        type="number"
+        min="1"
+        max={count}
+        bind:value={columns}
+        class="am-input tabular-nums w-auto"
+        aria-label={t('sheet.columns')}
+      />
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('export.scale')}</span>
+      <select
+        class="am-input w-auto"
+        bind:value={scale}
+        aria-label={t('export.scale')}
+      >
+        {#each EXPORT_SCALES as s (s)}
+          <option value={s}>×{s}</option>
+        {/each}
+      </select>
+    </label>
+    <p class="text-xs text-pc-muted" aria-live="polite">
+      {t('sheet.grid', { cols, rows, w: cols * frameWidth * scale, h: rows * frameHeight * scale })}
+    </p>
+    <label class="am-check flex items-center gap-2 text-xs text-pc-text">
+      <input type="checkbox" bind:checked={data} aria-label={t('sheet.json')} />
+      {t('sheet.jsonHint')}
+    </label>
+  </div>
+</Dialog>

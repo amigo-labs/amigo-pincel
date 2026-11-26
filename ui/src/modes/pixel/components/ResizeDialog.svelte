@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dialog from '../../../lib/components/Dialog.svelte';
   import { t } from '../../../lib/i18n/index.svelte';
   // Resize Canvas / Scale Image dialog. Presentational: the parent runs
   // the wasm command from `onSubmit`. `mode` picks which form is shown;
@@ -69,110 +70,81 @@
     if (mode === 'resize') onSubmit({ mode, width: w, height: h, anchor });
     else onSubmit({ mode, width: w, height: h, interpolation });
   }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-  role="dialog"
-  aria-modal="true"
-  aria-label={mode === 'resize' ? t('resize.resizeTitle') : t('resize.scaleTitle')}
+<Dialog
+  title={mode === 'resize' ? t('resize.resizeTitle') : t('resize.scaleTitle')}
+  applyLabel={mode === 'resize' ? t('resize.resize') : t('resize.scale')}
+  onApply={submit}
+  onClose={onCancel}
 >
-  <form
-    class="am-dialog"
-    onsubmit={(e) => {
-      e.preventDefault();
-      submit();
-    }}
-  >
-    <header>
-      <h2>
-        {mode === 'resize' ? t('resize.resizeTitle') : t('resize.scaleTitle')}
-      </h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
-      <p class="text-xs text-pc-muted">
-        Current size: {initialWidth}×{initialHeight} px
-      </p>
-      <div class="flex gap-3">
-        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
-          <span>{t('common.width')}</span>
-          <input
-            type="number"
-            min="1"
-            max={maxSize}
-            value={width}
-            oninput={(e) => onWidthInput(Number(e.currentTarget.value))}
-            class="am-input tabular-nums w-auto"
-            aria-label={t('common.width')}
-          />
-        </label>
-        <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
-          <span>{t('common.height')}</span>
-          <input
-            type="number"
-            min="1"
-            max={maxSize}
-            value={height}
-            oninput={(e) => onHeightInput(Number(e.currentTarget.value))}
-            class="am-input tabular-nums w-auto"
-            aria-label={t('common.height')}
-          />
-        </label>
-      </div>
-
-      {#if mode === 'resize'}
-        <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-          <legend class="mb-1">{t('resize.anchor')}</legend>
-          <div class="grid w-24 grid-cols-3 gap-1" role="radiogroup" aria-label={t('resize.anchor')}>
-            {#each anchors as a (a.id)}
-              <button
-                type="button"
-                class="am-btn h-7 w-7 px-0"
-                class:am-btn--primary={anchor === a.id}
-                role="radio"
-                aria-checked={anchor === a.id}
-                aria-label={a.id.replace('_', ' ')}
-                onclick={() => (anchor = a.id)}
-              >
-                {a.glyph}
-              </button>
-            {/each}
-          </div>
-        </fieldset>
-      {:else}
-        <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
-          <span>{t('resize.interpolation')}</span>
-          <select
-            bind:value={interpolation}
-            class="am-input w-auto"
-            aria-label={t('resize.interpolation')}
-          >
-            <option value="nearest">{t('resize.nearest')}</option>
-            <option value="bilinear">{t('resize.bilinear')}</option>
-            <option value="bicubic">{t('resize.bicubic')}</option>
-          </select>
-        </label>
-        <label class="am-check flex items-center gap-2 text-xs text-pc-text">
-          <input type="checkbox" bind:checked={keepAspect} />
-          <span>{t('resize.keepAspect')}</span>
-        </label>
-      {/if}
-
+  <div class="flex flex-col gap-3">
+    <p class="text-xs text-pc-muted">
+      Current size: {initialWidth}×{initialHeight} px
+    </p>
+    <div class="flex gap-3">
+      <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
+        <span>{t('common.width')}</span>
+        <input
+          type="number"
+          min="1"
+          max={maxSize}
+          value={width}
+          oninput={(e) => onWidthInput(Number(e.currentTarget.value))}
+          class="am-input tabular-nums w-auto"
+          aria-label={t('common.width')}
+        />
+      </label>
+      <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">
+        <span>{t('common.height')}</span>
+        <input
+          type="number"
+          min="1"
+          max={maxSize}
+          value={height}
+          oninput={(e) => onHeightInput(Number(e.currentTarget.value))}
+          class="am-input tabular-nums w-auto"
+          aria-label={t('common.height')}
+        />
+      </label>
     </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary">
-        {mode === 'resize' ? t('resize.resize') : t('resize.scale')}
-      </button>
-    </footer>
-  </form>
-</div>
+
+    {#if mode === 'resize'}
+      <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+        <legend class="mb-1">{t('resize.anchor')}</legend>
+        <div class="grid w-24 grid-cols-3 gap-1" role="radiogroup" aria-label={t('resize.anchor')}>
+          {#each anchors as a (a.id)}
+            <button
+              type="button"
+              class="am-btn h-7 w-7 px-0"
+              class:am-btn--primary={anchor === a.id}
+              role="radio"
+              aria-checked={anchor === a.id}
+              aria-label={a.id.replace('_', ' ')}
+              onclick={() => (anchor = a.id)}
+            >
+              {a.glyph}
+            </button>
+          {/each}
+        </div>
+      </fieldset>
+    {:else}
+      <label class="flex items-center justify-between gap-2 text-xs text-pc-text">
+        <span>{t('resize.interpolation')}</span>
+        <select
+          bind:value={interpolation}
+          class="am-input w-auto"
+          aria-label={t('resize.interpolation')}
+        >
+          <option value="nearest">{t('resize.nearest')}</option>
+          <option value="bilinear">{t('resize.bilinear')}</option>
+          <option value="bicubic">{t('resize.bicubic')}</option>
+        </select>
+      </label>
+      <label class="am-check flex items-center gap-2 text-xs text-pc-text">
+        <input type="checkbox" bind:checked={keepAspect} />
+        <span>{t('resize.keepAspect')}</span>
+      </label>
+    {/if}
+  </div>
+</Dialog>
