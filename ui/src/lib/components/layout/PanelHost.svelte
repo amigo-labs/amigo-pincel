@@ -9,6 +9,8 @@
     title: string;
     host: 'side' | 'bottom' | 'sheet';
     collapsed: boolean;
+    /** A tab of a group (see `PanelSlot.grouped`). */
+    grouped?: boolean;
     onToggle: () => void;
     body: Snippet;
   }
@@ -23,6 +25,9 @@
     },
     get collapsed() {
       return props.collapsed;
+    },
+    get grouped() {
+      return props.grouped === true;
     },
     toggle: () => props.onToggle(),
   });

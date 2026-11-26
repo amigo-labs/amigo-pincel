@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { drag, pixelCanvas } from './helpers';
+import { drag, pixelCanvas, showPanel } from './helpers';
 
 // Helpers for the History panel specs (docs/specs/history-panel.md).
 
@@ -18,11 +18,18 @@ export function historyRows(page: Page): Locator {
   return historyList(page).getByRole('option');
 }
 
-/** Expands the History panel when it is collapsed. */
+/** Brings the History panel into view: it is a tab beside Layers
+ *  (sidebar-tab-groups). */
 export async function openHistory(page: Page, title = 'History'): Promise<void> {
-  const header = historyPanel(page, title).getByRole('button', { name: title, exact: true });
-  if ((await header.getAttribute('aria-expanded')) === 'false') await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'true');
+  await showPanel(page, title);
+}
+
+/** Adds a layer with the Layers panel's button, then shows History again
+ *  (the two panels are tabs of one group, sidebar-tab-groups). */
+export async function addLayer(page: Page): Promise<void> {
+  await showPanel(page, 'Layers');
+  await page.getByRole('button', { name: 'Add layer' }).click();
+  await showPanel(page, 'History');
 }
 
 /** The row names, start entry first. */

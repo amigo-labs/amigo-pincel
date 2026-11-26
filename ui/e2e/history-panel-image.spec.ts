@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDocument, drag, imageCanvas, menu, pixelCanvas, putClipboardImage } from './helpers';
 import {
+  addLayer,
   expectCurrent,
   expectRows,
   expectShot,
@@ -42,7 +43,7 @@ test('Image steps are named after their tools and menu commands; a row click jum
   shots.push(await settledShot(canvas));
   await page.keyboard.press('Control+a');
   await page.keyboard.press('Control+d');
-  await page.getByRole('button', { name: 'Add layer' }).click();
+  await addLayer(page);
   await drag(page, canvas, [0.1, 0.7], [0.9, 0.7]);
   await menu(page, 'Layer', 'Merge Down');
   await expectRows(page, [
@@ -122,9 +123,9 @@ test('Image: each document tab keeps its own history (AC-09)', async ({ page }) 
   await expectRows(page, ['Open']);
   await page.keyboard.press('Control+a');
   await expectRows(page, ['Open', 'Select All']);
-  await page.getByRole('tab').first().click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
   await expectRows(page, ['New', 'Brush']);
-  await page.getByRole('tab').nth(1).click();
+  await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').nth(1).click();
   await expectRows(page, ['Open', 'Select All']);
 });
 

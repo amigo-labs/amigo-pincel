@@ -5,6 +5,7 @@ import {
   gotoStart,
   menu,
   pixelCanvas,
+  showPanel,
   storedPref,
   waitForEditor,
   zoomReadout,
@@ -331,7 +332,7 @@ test('on a tilemap layer, Use tile size sets the cell size to the tile size at o
   await settings(page).getByRole('button', { name: 'Cancel' }).click();
 
   const tilesets = page.getByRole('region', { name: 'Tilesets' });
-  await tilesets.getByRole('button', { name: 'Tilesets', exact: true }).click();
+  await showPanel(page, 'Tilesets');
   await tilesets.getByRole('button', { name: 'Add tileset' }).click();
   await tilesets.getByLabel('Tile W').fill('8');
   await tilesets.getByLabel('Tile H').fill('4');

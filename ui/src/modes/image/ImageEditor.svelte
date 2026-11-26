@@ -1531,17 +1531,20 @@
   tabs={tabBar}
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
-    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
+    // Tab groups (sidebar-tab-groups AC-02): Layers | History and, in the
+    // desktop app, Generate | Assistant.
+    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, group: 'document' },
     {
       id: 'history',
       title: t('historyPanel.title'),
       icon: 'history',
       body: historyBody,
-      defaultCollapsed: true,
+      group: 'document',
     },
-    // Desktop only: Generate (comfyui-generate AC-01) starts collapsed, so
-    // no ComfyUI starts before it is needed (comfyui-connect AC-03); the
-    // Assistant needs a CLI a browser cannot start (ai-chat-panel AC-01, AC-02).
+    // Desktop only: Generate (comfyui-generate AC-01) is not the group's
+    // first-use tab, so no ComfyUI starts before it is needed
+    // (comfyui-connect AC-03); the Assistant needs a CLI a browser cannot
+    // start (ai-chat-panel AC-01, AC-02).
     ...(isTauri()
       ? [
           {
@@ -1549,14 +1552,14 @@
             title: t('panel.generate'),
             icon: 'sparkles' as const,
             body: generateBody,
-            defaultCollapsed: true,
+            group: 'ai',
           },
           {
             id: 'assistant',
             title: t('panel.assistant'),
             icon: 'chat' as const,
             body: assistantBody,
-            grow: true,
+            group: 'ai',
           },
         ]
       : []),

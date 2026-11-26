@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { createDocument, storedPref } from './helpers';
+import { createDocument, hidePanel, showPanel, storedPref } from './helpers';
 import { commandCalls, reply } from './tauri-mock';
 import {
   canvas,
@@ -43,10 +43,8 @@ test('AC-02 AC-03 AC-04 both editors list the panel; no CLI found; picker, model
   await expect(input(page)).toBeDisabled();
   // Installed meanwhile: found the next time the panel opens.
   await reply(page, 'assistant_clis', [claude(true)]);
-  const header = panel(page).getByRole('button', { name: 'Assistant' });
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  await header.click();
+  await hidePanel(page, 'Assistant');
+  await showPanel(page, 'Assistant');
   await expect(input(page)).toBeEnabled();
   // AC-04: the picker lists Claude Code, the model field says Default.
   const picker = panel(page).getByRole('combobox', { name: 'Command-line tool' });
@@ -57,25 +55,27 @@ test('AC-02 AC-03 AC-04 both editors list the panel; no CLI found; picker, model
   await model.press('Enter');
   await expect.poll(() => storedPref(page, 'assistantModels')).toEqual({ claude: 'opus' });
   await expect.poll(() => storedPref(page, 'assistantCli')).toBe('claude');
-  // AC-02: collapsed, and still collapsed after a restart.
-  await header.click();
+  // AC-02: collapsed (with its group, since sidebar-tab-groups), and still
+  // collapsed after a restart.
+  await hidePanel(page, 'Assistant');
   await expect
     .poll(async () => {
       const layout = (await storedPref(page, 'layout:image')) as {
-        collapsed?: Record<string, boolean>;
+        groups?: Record<string, { active: string; collapsed: boolean }>;
       };
-      return layout?.collapsed?.assistant;
+      return layout?.groups?.ai;
     })
-    .toBe(true);
+    .toEqual({ active: 'assistant', collapsed: true });
   await page.reload();
   await reply(page, 'assistant_clis', [claude(true)]);
   await page.getByRole('button', { name: 'Got it' }).click();
   await newDoc(page, 'image');
-  await expect(panel(page).getByRole('button', { name: 'Assistant' })).toHaveAttribute(
-    'aria-expanded',
-    'false',
+  await expect(page.getByRole('tab', { name: 'Assistant', exact: true })).toHaveAttribute(
+    'aria-selected',
+    'true',
   );
-  await panel(page).getByRole('button', { name: 'Assistant' }).click();
+  await expect(panel(page)).toHaveCount(0);
+  await showPanel(page, 'Assistant');
   await expect(panel(page).getByRole('textbox', { name: 'Model' })).toHaveValue('opus');
   // The Pixel editor lists the panel too.
   await newTab(page, 'pixel');
@@ -157,7 +157,7 @@ for (const mode of ['pixel', 'image'] as const) {
       .poll(async () => (await commandCalls(page, 'mcp_chat_answering')).map((c) => c.args))
       .toEqual([{ chat, running: false }]);
     const history = page.getByRole('region', { name: 'History' });
-    await history.getByRole('button', { name: 'History' }).click();
+    await showPanel(page, 'History');
     await expect(history.getByText('Assistant', { exact: true })).toBeVisible();
     await undoButton(page).click();
     await expect

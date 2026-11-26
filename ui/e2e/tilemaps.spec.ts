@@ -1,5 +1,12 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { colorOf, createDocument, pixelCanvas, setColor, switchLanguage } from './helpers';
+import {
+  colorOf,
+  createDocument,
+  pixelCanvas,
+  setColor,
+  showPanel,
+  switchLanguage,
+} from './helpers';
 
 // Pixel-mode tilesets and tilemap layers (docs/specs/tilemaps.md): the
 // Tilesets panel, the Tile Stamp tool and the Tile editor. Composed pixels
@@ -18,7 +25,7 @@ interface Editor {
 /** A fresh `w` × `h` Pixel sprite with the Tilesets panel open. */
 async function open(page: Page, w: number, h: number): Promise<Editor> {
   await createDocument(page, 'pixel', { width: w, height: h });
-  await panel(page).getByRole('button', { name: 'Tilesets', exact: true }).click();
+  await showPanel(page, 'Tilesets');
   await expect(panel(page).getByText('no tilesets yet')).toBeVisible();
   const box = await pixelCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
@@ -535,7 +542,7 @@ test('the Tilesets panel speaks the UI language', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 8, height: 8 });
   await switchLanguage(page, 'Deutsch');
   const tilesets = page.getByRole('region', { name: 'Tilesets' });
-  await tilesets.getByRole('button', { name: 'Tilesets', exact: true }).click();
+  await showPanel(page, 'Tilesets');
   await tilesets.getByRole('button', { name: 'Tileset hinzufügen' }).click();
   await tilesets.getByLabel('Kachel B', { exact: true }).fill('4');
   await tilesets.getByLabel('Kachel H', { exact: true }).fill('4');

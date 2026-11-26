@@ -446,10 +446,10 @@ test.describe('pixel link details', () => {
       .getByRole('dialog', { name: 'New document' })
       .getByRole('button', { name: 'Create' })
       .click();
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
     await waitForEditor(page, 'pixel');
-    await page.getByRole('tab').first().click();
-    await expect(page.getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
     await offStays();
   });
 });
@@ -520,10 +520,10 @@ test.describe('image link details', () => {
       .getByRole('dialog', { name: 'New document' })
       .getByRole('button', { name: 'Create' })
       .click();
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
     await waitForEditor(page, 'image');
-    await page.getByRole('tab').first().click();
-    await expect(page.getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
+    await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first()).toHaveAttribute('aria-selected', 'true');
     await offStays();
   });
 

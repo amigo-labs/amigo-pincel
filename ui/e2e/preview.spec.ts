@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas, switchLanguage } from './helpers';
+import { createDocument, drag, hidePanel, pixelCanvas, showPanel, switchLanguage } from './helpers';
 
 // docs/specs/animation-preview.md: the Pixel-mode Preview panel.
 
@@ -8,11 +8,9 @@ const previewCanvas = (page: Page) => previewOf(page).getByLabel('Animation prev
 const timelineOf = (page: Page) => page.getByRole('region', { name: 'Timeline' });
 const currentFrame = (page: Page) => timelineOf(page).locator('[aria-current="true"]');
 
-/** Expands the collapsed Preview panel. */
+/** Brings the Preview panel into view (a tab of a collapsed group on first use). */
 async function openPreview(page: Page) {
-  const header = previewOf(page).getByRole('button', { name: 'Preview', exact: true });
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  await header.click();
+  await showPanel(page, 'Preview');
   await expect(previewCanvas(page)).toBeVisible();
 }
 
@@ -61,20 +59,24 @@ function transitions(log: { frame: number }[]): Set<string> {
   return out;
 }
 
-test('the Preview panel sits above Layers, collapsed, in Pixel mode only (AC-01)', async ({
+test('the Preview panel is a tab of a collapsed group below Layers, in Pixel mode only (AC-01)', async ({
   page,
 }) => {
+  // Since sidebar-tab-groups: first tab of Preview | Tilesets | Slices,
+  // which starts collapsed below Layers | History.
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  const header = previewOf(page).getByRole('button', { name: 'Preview', exact: true });
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  const preview = await previewOf(page).boundingBox();
+  const tab = page.getByRole('tab', { name: 'Preview', exact: true });
+  await expect(tab).toHaveAttribute('aria-selected', 'true');
+  await expect(previewOf(page)).toHaveCount(0);
+  const row = await tab.boundingBox();
   const layers = await page.getByRole('region', { name: 'Layers' }).boundingBox();
-  if (!preview || !layers) throw new Error('panels not visible');
-  expect(preview.y).toBeLessThan(layers.y);
+  if (!row || !layers) throw new Error('panels not visible');
+  expect(row.y).toBeGreaterThan(layers.y + layers.height - 1);
 
   await createDocument(page, 'image', { width: 16, height: 16 });
   await expect(page.getByRole('region', { name: 'Layers' })).toBeVisible();
   await expect(previewOf(page)).toHaveCount(0);
+  await expect(page.getByRole('tab', { name: 'Preview', exact: true })).toHaveCount(0);
 });
 
 test('paused, the preview follows the current frame (AC-02, AC-12)', async ({ page }) => {
@@ -285,10 +287,8 @@ test('collapsing the panel stops preview playback (AC-13)', async ({ page }) => 
   await addFrames(page, 2);
   await openPreview(page);
   await previewOf(page).getByRole('button', { name: 'Play preview' }).click();
-  const header = previewOf(page).getByRole('button', { name: 'Preview', exact: true });
-  await header.click();
-  await expect(header).toHaveAttribute('aria-expanded', 'false');
-  await header.click();
+  await hidePanel(page, 'Preview');
+  await showPanel(page, 'Preview');
   await expect(previewOf(page).getByRole('button', { name: 'Play preview' })).toBeVisible();
   await expect(previewCanvas(page)).toHaveAttribute('data-frame', '2');
   await recordFrames(page);
@@ -340,7 +340,7 @@ test('German labels (AC-16)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await switchLanguage(page, 'Deutsch');
   const panel = page.getByRole('region', { name: 'Vorschau' });
-  await panel.getByRole('button', { name: 'Vorschau', exact: true }).click();
+  await showPanel(page, 'Vorschau');
   await expect(panel.getByRole('button', { name: 'Vorschau abspielen' })).toBeVisible();
   const zoom = panel.getByRole('group', { name: 'Vorschau-Zoom' });
   await expect(zoom.getByRole('button', { name: 'Einpassen' })).toBeVisible();

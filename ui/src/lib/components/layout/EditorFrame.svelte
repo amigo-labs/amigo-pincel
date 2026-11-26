@@ -30,7 +30,9 @@
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
   import MenuBar from './MenuBar.svelte';
+  import PanelGroup from './PanelGroup.svelte';
   import PanelHost from './PanelHost.svelte';
+  import { PANEL_GROUPS, groupState, type GroupState } from './groups';
   import type { MenuDef } from './menu';
   import {
     SIDEBAR_DEFAULT_WIDTH,
@@ -205,11 +207,46 @@
     return stop;
   });
 
+  // The sidebar's blocks (sidebar-tab-groups AC-01, AC-02): consecutive
+  // panels of one group share a block with a tab per panel, any other
+  // panel is a block of its own.
+  type Block =
+    | { kind: 'single'; panel: PanelDef }
+    | { kind: 'group'; id: string; panels: PanelDef[] };
+  const blocks = $derived.by(() => {
+    const out: Block[] = [];
+    for (const p of sidePanels) {
+      const last = out.at(-1);
+      if (p.group !== undefined && last?.kind === 'group' && last.id === p.group) last.panels.push(p);
+      else if (p.group !== undefined) out.push({ kind: 'group', id: p.group, panels: [p] });
+      else out.push({ kind: 'single', panel: p });
+    }
+    return out;
+  });
+
+  /** Active tab and collapse state of `group`, for the panels it has here. */
+  function stateOf(group: string): GroupState {
+    const ids = sidePanels.filter((p) => p.group === group).map((p) => p.id);
+    return groupState(layout, group, ids);
+  }
+
+  function setGroup(group: string, next: GroupState): void {
+    layout.groups = { ...layout.groups, [group]: next };
+    saveLayout(mode, layout);
+  }
+
+  /** Whether the panel's content is hidden: a single panel is collapsed, a
+   *  tab of a group is not the active one or its group is collapsed. */
   function isCollapsed(p: PanelDef): boolean {
+    if (p.group !== undefined) {
+      const state = stateOf(p.group);
+      return state.collapsed || state.active !== p.id;
+    }
     return layout.collapsed[p.id] ?? p.defaultCollapsed ?? false;
   }
 
   function toggleCollapsed(p: PanelDef): void {
+    if (p.group !== undefined) return;
     layout.collapsed[p.id] = !isCollapsed(p);
     saveLayout(mode, layout);
   }
@@ -227,7 +264,8 @@
   function revealPanel(id: string): void {
     const p = panels.find((def) => def.id === id);
     if (p === undefined) return;
-    if (isCollapsed(p)) layout.collapsed[id] = false;
+    if (p.group !== undefined) layout.groups = { ...layout.groups, [p.group]: { active: id, collapsed: false } };
+    else if (isCollapsed(p)) layout.collapsed[id] = false;
     if (size === 'wide') layout.sidebar = true;
     else if (size === 'medium') drawerOpen = true;
     else sheetTab = id;
@@ -330,13 +368,14 @@
 
 <!-- A panel inside the sidebar, bottom dock or sheet; PanelHost hands
      it its slot (title, host, collapse state) through context. -->
-{#snippet hosted(p: PanelDef, host: 'side' | 'bottom' | 'sheet')}
+{#snippet hosted(p: PanelDef, host: 'side' | 'bottom' | 'sheet', grouped = false)}
   <!-- While an answer runs only the Assistant panel takes input; the
        others would change the document (AC-10). -->
   <div class="contents" inert={answering && p.id !== ASSISTANT_PANEL}>
     <PanelHost
       title={p.title}
       {host}
+      {grouped}
       collapsed={isCollapsed(p)}
       onToggle={() => toggleCollapsed(p)}
       body={p.body}
@@ -346,20 +385,52 @@
 
 {#snippet sidebarBody()}
   <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
-    {#each sidePanels as p (p.id)}
-      <!-- A growing panel (Layers) shrinks with the space left, but not
-           below a floor that keeps its header, list and buttons inside it:
-           with less room the sidebar scrolls instead of the panel's
-           buttons spilling over the panel below. -->
-      <div
-        class="flex flex-col"
-        class:flex-1={p.grow && !(isCollapsed(p))}
-        class:min-h-40={p.grow && !(isCollapsed(p))}
-        class:min-h-0={!p.grow || (isCollapsed(p))}
-        class:shrink-0={!p.grow || (isCollapsed(p))}
-      >
-        {@render hosted(p, 'side')}
-      </div>
+    {#each blocks as block (block.kind === 'group' ? `group:${block.id}` : block.panel.id)}
+      {#if block.kind === 'group'}
+        {@const state = stateOf(block.id)}
+        {@const grows = PANEL_GROUPS[block.id]?.grow === true && !state.collapsed}
+        <!-- Growing groups share the height the other blocks leave in equal
+             parts, down to a floor that keeps a header, list and buttons
+             inside; a group that does not grow is as high as its panel's
+             content (sidebar-tab-groups AC-13). The tab row stays usable
+             while an answer runs: only the panels below it are inert. -->
+        <div
+          class="flex flex-col border-b border-pc-border"
+          class:flex-1={grows}
+          class:basis-0={grows}
+          class:min-h-40={grows}
+          class:min-h-0={!grows}
+          class:shrink-0={!grows}
+          data-panel-group={block.id}
+        >
+          <PanelGroup
+            tabs={block.panels}
+            active={state.active}
+            collapsed={state.collapsed}
+            onChoose={(id) => setGroup(block.id, { active: id, collapsed: false })}
+            onToggle={() => setGroup(block.id, { ...state, collapsed: !state.collapsed })}
+          >
+            {#each block.panels as p (p.id)}
+              {@render hosted(p, 'side', true)}
+            {/each}
+          </PanelGroup>
+        </div>
+      {:else}
+        {@const p = block.panel}
+        <!-- A growing panel shrinks with the space left, but not below a
+             floor that keeps its header, list and buttons inside it: with
+             less room the sidebar scrolls instead of the panel's buttons
+             spilling over the panel below. -->
+        <div
+          class="flex flex-col"
+          class:flex-1={p.grow && !isCollapsed(p)}
+          class:min-h-40={p.grow && !isCollapsed(p)}
+          class:min-h-0={!p.grow || isCollapsed(p)}
+          class:shrink-0={!p.grow || isCollapsed(p)}
+        >
+          {@render hosted(p, 'side')}
+        </div>
+      {/if}
     {/each}
   </div>
 {/snippet}

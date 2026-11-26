@@ -5,6 +5,7 @@ import {
   menu,
   newDocument,
   setColor,
+  showPanel,
   solidPng,
   storedPref,
   switchLanguage,
@@ -75,8 +76,7 @@ async function whiteLayer(page: Page): Promise<void> {
 
 /** Expands the Generate panel (it starts collapsed). */
 async function openPanel(page: Page): Promise<void> {
-  const header = panel(page).locator('header').getByRole('button');
-  if ((await header.getAttribute('aria-expanded')) !== 'true') await header.click();
+  await showPanel(page, 'Generate');
   await expect(panel(page).getByRole('combobox').first()).toBeVisible();
 }
 
@@ -143,11 +143,12 @@ test.describe('browser', () => {
 });
 
 test.describe('desktop', () => {
-  test('the desktop app has a collapsed Generate panel (AC-01)', async ({ page }) => {
+  test('the desktop app has a Generate panel, a tab that is not active at first (AC-01)', async ({ page }) => {
     await setup(page);
-    await expect(panel(page)).toBeVisible();
-    await expect(panel(page).locator('header').getByRole('button')).toHaveAttribute('aria-expanded', 'false');
-    // Collapsed, it needs no server (comfyui-connect AC-03).
+    // Since sidebar-tab-groups: a tab beside the Assistant, which is active.
+    await expect(page.getByRole('tab', { name: 'Generate', exact: true })).toHaveAttribute('aria-selected', 'false');
+    await expect(panel(page)).toHaveCount(0);
+    // Not shown, it needs no server (comfyui-connect AC-03).
     expect(await commandCalls(page, 'comfyui_connect')).toHaveLength(0);
   });
 
@@ -348,7 +349,10 @@ test.describe('desktop', () => {
     await expect(strip(page).getByRole('option', { name: 'Variant 1' })).toHaveAttribute('aria-selected', 'true');
     await expect(preview(page)).toBeVisible();
     await expect.poll(() => shownPixel(page, 32, 32)).toEqual([0, 0, 255]);
+    // Layers and History are tabs of one group: look at each in turn.
+    await showPanel(page, 'Layers');
     await expect(layerRows(page)).toHaveCount(1);
+    await openHistory(page);
     expect(await rowNames(page)).toEqual(steps);
     await strip(page).getByRole('option', { name: 'Variant 2' }).click();
     await expect(preview(page)).toHaveAttribute('data-variant', '1');
@@ -369,9 +373,10 @@ test.describe('desktop', () => {
     await openHistory(page);
     const steps = await historyRows(page).count();
     await panel(page).getByRole('button', { name: 'Apply' }).click();
-    await expect(layerRows(page)).toHaveCount(before + 1);
     await expect(historyRows(page)).toHaveCount(steps + 1);
     await expect(historyRows(page).last()).toContainText('Generate Image');
+    await showPanel(page, 'Layers');
+    await expect(layerRows(page)).toHaveCount(before + 1);
     await expect(layerRows(page).filter({ hasText: /Generated: a red apple on a table, photor(?!e)/ })).toHaveCount(1);
     await expect(strip(page)).toHaveCount(0);
     await expect(preview(page)).toHaveCount(0);
@@ -413,13 +418,13 @@ test.describe('desktop', () => {
     await expect(page.getByTestId('generate-progress')).toHaveText('Step 3 / 30');
     await menu(page, 'File', 'New…');
     await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
     await expect(page.getByTestId('generate-progress')).toHaveCount(0);
     await expect(generateButton(page)).toBeEnabled();
     await emit(page, 'comfyui:generation', { kind: 'finished', job: 1, count: 1, error: null });
     await expect(strip(page)).toHaveCount(0);
     await expect(preview(page)).toHaveCount(0);
-    await page.getByRole('tab').first().click();
+    await page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab').first().click();
     await expect(strip(page).getByRole('option')).toHaveCount(1);
     await expect(preview(page)).toBeVisible();
   });
@@ -467,7 +472,7 @@ test.describe('desktop', () => {
     await expect.poll(async () => (await requests(page)).length).toBe(1);
     await menu(page, 'File', 'Close');
     await page.getByRole('button', { name: "Don't Save" }).click();
-    await expect(page.getByRole('tab')).toHaveCount(0);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(0);
     await expect.poll(async () => (await commandCalls(page, 'comfyui_generation_cancel')).map((c) => c.args.job)).toEqual([1]);
   });
 
@@ -475,7 +480,7 @@ test.describe('desktop', () => {
     await setup(page, { kind: 'notFound' });
     await switchLanguage(page, 'Deutsch');
     const p = page.getByRole('region', { name: 'Generieren', exact: true });
-    await p.locator('header').getByRole('button').click();
+    await showPanel(page, 'Generieren');
     await expect(p.getByRole('status')).toHaveText('Kein ComfyUI-Server gefunden');
     await expect(p.getByRole('button', { name: 'Einrichten…' })).toBeVisible();
     await expect(p.getByRole('textbox', { name: 'Negativer Prompt' })).toBeVisible();

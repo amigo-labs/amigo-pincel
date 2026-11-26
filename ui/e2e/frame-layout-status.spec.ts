@@ -285,7 +285,7 @@ test.describe('wide', () => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     await page.getByRole('button', { name: 'New document', exact: true }).click();
     await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
     await zoomValue(page).click();
     await expect(zoomMenu(page)).toBeVisible();
     await page.keyboard.press('Alt+PageDown');
@@ -335,7 +335,7 @@ test.describe('wide', () => {
     const dialog = page.getByRole('dialog', { name: 'New document' });
     await dialog.getByRole('radio', { name: /Image/ }).click();
     await dialog.getByRole('button', { name: 'Create' }).click();
-    await expect(page.getByRole('tab')).toHaveCount(2);
+    await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
     await expect(imageCanvas(page)).toHaveAttribute('data-ready', 'true', { timeout: 30_000 });
     await menu(page, 'Help', 'About Pincel');
     await expect(about).toContainText(/Version \S+/);

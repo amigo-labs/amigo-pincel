@@ -1,5 +1,13 @@
 import { expect, test, type CDPSession, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, menu, setColor, switchLanguage } from './helpers';
+import {
+  createDocument,
+  drag,
+  imageCanvas,
+  menu,
+  setColor,
+  showPanel,
+  switchLanguage,
+} from './helpers';
 
 // The Line / Curve tool in the editor (docs/specs/image-shapes-curves.md):
 // control points on a live line, caps, the new dash patterns, the move grip.
@@ -297,10 +305,7 @@ test('History names a committed curve after the Line tool', async ({ page }) => 
   await mouseDrag(page, await at(page, [0.5, 0.7]), await at(page, [0.5, 0.3]));
   await page.keyboard.press('Enter');
   await menu(page, 'Edit', 'Fill Selection');
-  const header = page
-    .getByRole('region', { name: 'History', exact: true })
-    .getByRole('button', { name: 'History', exact: true });
-  if ((await header.getAttribute('aria-expanded')) === 'false') await header.click();
+  await showPanel(page, 'History');
   await expect(
     page.getByRole('listbox', { name: 'History steps' }).getByRole('option').nth(1),
   ).toHaveText('Line');

@@ -6,6 +6,7 @@ import {
   imageCanvas,
   menu,
   pixelCanvas,
+  showPanel,
   waitForEditor,
 } from './helpers';
 
@@ -224,7 +225,7 @@ test('pixel: layer, tag and slice names stay untranslated in German (AC-08)', as
   await page.getByRole('button', { name: 'Slice', exact: true }).click();
   await drag(page, pixelCanvas(page), [0.2, 0.2], [0.6, 0.6]);
   const slices = page.getByRole('region', { name: 'Slices' });
-  await slices.getByRole('button', { name: 'Slices', exact: true }).click();
+  await showPanel(page, 'Slices');
   await expect(
     slices.getByRole('button', { name: 'Slice Slice 1 aktivieren', exact: true }),
   ).toBeVisible();

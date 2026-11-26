@@ -99,7 +99,7 @@ test('one Blending control, shared by the painting tools and all tabs, Normal at
   }
   await menu(page, 'File', 'New…');
   await page.getByRole('dialog', { name: 'New document' }).getByRole('button', { name: 'Create' }).click();
-  await expect(page.getByRole('tab')).toHaveCount(2);
+  await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(2);
   await waitForEditor(page, 'image');
   await useTool(page, 'b', 'Brush');
   await expect(blending(page)).toHaveValue('overwrite');

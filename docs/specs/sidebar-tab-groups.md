@@ -108,27 +108,36 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
-| AC-11 |      | open   |        |
-| AC-12 |      | open   |        |
-| AC-13 |      | open   |        |
-| AC-14 |      | open   |        |
-| AC-15 |      | open   |        |
-| AC-16 |      | open   |        |
-| AC-17 |      | open   |        |
-| AC-18 |      | open   |        |
-| AC-19 |      | open   |        |
+| AC-01 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, Preview | Tilesets | Slices, in their first-use state (AC-01, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, Generate | Assistant last with the Assistant active (AC-01, AC-07)" | built |        |
+| AC-02 | `ui/e2e/sidebar-groups.spec.ts`: "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | built |        |
+| AC-03 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, … (AC-01, AC-03, AC-07)", "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)" | built |        |
+| AC-04 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; the collapse control keeps the tab row (AC-04, AC-05, AC-06)" | built |        |
+| AC-05 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)" | built |        |
+| AC-06 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)" | built |        |
+| AC-07 | `ui/e2e/sidebar-groups-layout.spec.ts`: "first use (AC-07)" (5 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: … in their first-use state (AC-01, AC-03, AC-07)", "wide › image: … (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, … (AC-01, AC-07)" | built |        |
+| AC-08 | `ui/e2e/sidebar-groups.spec.ts`: "wide › active tabs and collapse states are kept per mode across a reload, documents and the drawer (AC-08)"; `ui/e2e/sidebar-groups-layout.spec.ts`: "stored group state (AC-08)" | built |        |
+| AC-09 | `ui/e2e/sidebar-groups-layout.spec.ts`: "a layout stored before the groups (AC-09)" (2 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a layout stored before the groups keeps the single panels and starts the groups fresh (AC-09)" | built |        |
+| AC-10 | `ui/e2e/sidebar-groups-layout.spec.ts`: "unreadable or stale values (AC-10)" (10 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a stored value that is no layout, or names a tab the group lacks, starts as on first use without an error (AC-10)" | built |        |
+| AC-11 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "no ComfyUI server is asked for while the Generate tab is not active or its group is collapsed (AC-11)"; `ui/e2e/comfyui-generate.spec.ts`: "desktop › the desktop app has a Generate panel, a tab that is not active at first (AC-01)" | built |        |
+| AC-12 | `ui/e2e/sidebar-groups.spec.ts`: "wide › the tab row is a tab list: roles, the tab panel named by the active tab, arrow keys without wrapping, Home and End (AC-12)" | built |        |
+| AC-13 | `ui/e2e/sidebar-groups.spec.ts`: "wide › Layers | History takes the height the other blocks leave; Preview | Tilesets | Slices that of its content (AC-13)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | built |        |
+| AC-14 | `ui/e2e/sidebar-groups.spec.ts`: "240 px sidebar, {English, Deutsch} › no sideways scroll; every tab can be brought into view and chosen (AC-14)" | built |        |
+| AC-15 | `ui/e2e/sidebar-groups.spec.ts`: "narrow › the bottom sheet shows one tab per panel, as before (AC-15)" | built |        |
+| AC-16 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a panel shows what it showed before a tab switch: conversation, draft, prompt, history, layers (AC-16)" | built |        |
+| AC-17 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "while an answer runs the tabs can be chosen; the answer goes on behind Generate, which takes no input (AC-17)", "an answer that is still running shows as far as it has come on return (AC-17)" | built |        |
+| AC-18 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a running generation is not stopped by the Assistant tab; on return Generate shows its progress, then its result (AC-18)" | built |        |
+| AC-19 | `ui/e2e/sidebar-groups.spec.ts`: "wide › while an effect is open the tab rows and collapse controls take no input (AC-19)" | built |        |
 
 ## Decisions
 
 - 2026-11-15 (owner): fixed groups; Colors and Palette stay single and in view together; no free arrangement in this spec.
 - 2026-11-15 (clarification pass): a panel keeps its content, drafts and running work across a tab switch (AC-16 – AC-18) — a tab that forgets is worse than the header it replaces.
+- 2026-11-26 (build): Every panel of a group stays mounted; `Panel.svelte` draws nothing for one that is not the shown tab (no section, header or body). That is what a collapsed panel did before for its body, so a panel keeps what lived in its component — the Assistant's draft, folded layer groups, an open Add form — without moving state into stores, and the existing triggers keep working: Generate connects only when its body mounts (AC-11), the preview stops when its slot reports collapsed, the Assistant looks its CLIs up when it shows. Unmounting inactive tabs was rejected: the draft and the fold state would be lost (AC-16).
+- 2026-11-26 (build): A grouped panel has no header of its own, so the count beside the title ("Layers 3", the palette keeps its own) is gone for panels inside a group; the tab is labelled with the panel title as AC-03 says. The panel's actions (Add layer, …) sit in a row above its content: a 240 px tab row has no room for them (AC-14).
+- 2026-11-26 (build): The tab row is written with utilities in the look of the docked panel header (11 px, upper case, accent underline on the active tab). The shared `am-tabs` has no dense variant and the shared classes are not overridden here (`amigo-theme-controls`).
+- 2026-11-26 (build): The collapse control and the tab list are named after the group's panel titles ("Layers, History"); no new string was needed.
+- 2026-11-26 (build): Stored layout: `groups: { <group id>: { active, collapsed } }` beside the old `collapsed` record, which single panels keep using. Group ids are `document`, `assets`, `ai` (`ui/src/lib/components/layout/groups.ts`). A panel inside a group ignores its old `collapsed` entry (AC-09).
+- 2026-11-26 (build): AC-15's test was green before the change — the criterion says the bottom sheet stays as it is. The desktop tests for AC-11 and AC-16 – AC-18 were first run after the frame was built and passed at once; before the groups they could not run (no Generate or Assistant tab existed). The other tests of `sidebar-groups.spec.ts` (11 of 12) and all of `sidebar-groups-layout.spec.ts` were red first.
+- 2026-11-26 (build): Layers and History share a group (Assumptions), so about a dozen existing e2e tests that added a layer and read the history in one go now switch tabs (`addLayer` in `ui/e2e/history-helpers.ts`, `showPanel` / `hidePanel` in `ui/e2e/helpers.ts`). Specs that clicked a panel's own header use those helpers; tests that counted every `tab` on the page count inside the document tab bar.
+- 2026-11-26 (build): As before, switching between the docked sidebar and the drawer mounts the panels anew, and state kept in a panel's component is lost there (Edge cases: "focus inside the sidebar may be lost"). Not changed by this spec.
+- 2026-11-26 (build): New public API, for review: `PanelDef.group`, `PanelSlot.grouped`, `FrameLayout.groups`, `PANEL_GROUPS`, `groupState`, `normalizeLayout` (`layout/groups.ts`), the component `PanelGroup.svelte`.

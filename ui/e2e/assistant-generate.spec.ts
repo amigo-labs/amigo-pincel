@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { solidPng } from './helpers';
+import { showPanel, solidPng } from './helpers';
 import { commandCalls, emit, reply, type MockWindow } from './tauri-mock';
 import {
   canvas,
@@ -128,8 +128,12 @@ test('AC-10 AC-11 the Generate panel is inert during an answer; Stop cancels its
   const rows = await layerRows(page).count();
   await sendMessage(page, 'Generate');
   const chat = String((await sent(page)).chat);
-  // AC-10: the panel's Generate and Apply cannot be reached.
+  // AC-10: the panel's Generate and Apply cannot be reached. Generate is a
+  // tab beside the Assistant (sidebar-tab-groups); its tab can be chosen
+  // while the answer runs, its panel is inert.
+  await showPanel(page, 'Generate');
   expect(await isInert(page.getByRole('region', { name: 'Generate', exact: true }))).toBe(true);
+  await showPanel(page, 'Assistant');
   const id = await genImage(page, chat, { prompt: 'a pear' });
   await expect.poll(() => generations(page)).toBe(1);
   await panel(page).getByRole('button', { name: 'Stop' }).click();

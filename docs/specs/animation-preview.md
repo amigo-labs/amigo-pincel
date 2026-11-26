@@ -130,3 +130,4 @@ Hints, not contracts — paths and line numbers drift; grep for the names (verif
 - 2026-11-04: Preview playback starts from the timeline's current frame (`startCursor`, as main playback does), and each tick clamps the cursor into the loop range and the frames that still exist (AC-15).
 - 2026-11-04: The preview zoom is not persisted — the spec does not ask for it, and the panel's collapse state already persists through the layout pref.
 - 2026-11-04: The Play preview button stays enabled on a single-frame sprite — the edge-case table expects frame 1 shown continuously rather than a disabled control.
+- 2026-11-26: `sidebar-tab-groups` supersedes AC-01's place and start state: Preview is the first tab of the group Preview | Tilesets | Slices, below Layers | History, and that group starts collapsed. Leaving the tab or collapsing the group stops playback as collapsing the panel did (AC-13).
