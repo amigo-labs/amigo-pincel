@@ -1116,6 +1116,7 @@ export const fr: Record<MessageKey, string> = {
   'text.placeholder': 'Tapez ici… (Ctrl+Enter pour placer)',
   'text.content': 'Contenu du texte',
   'text.fontSize': 'Taille de police',
+  'text.style': 'Style du texte',
   'text.align': 'Alignement du texte',
   'text.place': 'Placer',
   // Font list (docs/specs/system-fonts.md)

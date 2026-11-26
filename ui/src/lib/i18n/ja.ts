@@ -1110,6 +1110,7 @@ export const ja: Record<MessageKey, string> = {
   'text.placeholder': 'ここに入力…（Ctrl+Enter で配置）',
   'text.content': 'テキストの内容',
   'text.fontSize': 'フォントサイズ',
+  'text.style': 'テキストスタイル',
   'text.align': 'テキストの配置',
   'text.place': '配置',
   // Font list (docs/specs/system-fonts.md)

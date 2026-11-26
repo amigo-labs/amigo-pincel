@@ -19,7 +19,7 @@ import {
   undoAll,
   undoButton,
   zoomOf,
-  TEXT_WIDTH,
+  chooseAlign,
 } from './text-helpers';
 
 // Image-mode live text, opening, typing, committing and cancelling
@@ -30,8 +30,7 @@ import {
 // high; frame-layout made it 4 px higher, which changes the fitted zoom.
 test.use({
   permissions: ['clipboard-read', 'clipboard-write'],
-  // Wide, so the Text options fit one row (options-bar-layout).
-  viewport: { width: TEXT_WIDTH, height: 716 },
+  viewport: { width: 1280, height: 716 },
 });
 
 test.beforeEach(async ({ page }) => {
@@ -107,14 +106,14 @@ test('a Text press opens an empty box; the first character begins the text', asy
 
   // Center and Right alignment: the box still opens with its top-left at
   // the press.
-  await page.getByRole('combobox', { name: 'Align' }).selectOption('center');
+  await chooseAlign(page, 'center');
   await page.mouse.click(px, py);
   const center = await textBox(page).boundingBox();
   expect(Math.abs((center?.x ?? 0) - px)).toBeLessThanOrEqual(z + 1);
   expect(Math.abs((center?.y ?? 0) - py)).toBeLessThanOrEqual(z + 1);
   await page.keyboard.press('Escape');
   await expect(textBox(page)).toHaveCount(0);
-  await page.getByRole('combobox', { name: 'Align' }).selectOption('right');
+  await chooseAlign(page, 'right');
   await page.mouse.click(px, py);
   const right = await textBox(page).boundingBox();
   expect(Math.abs((right?.x ?? 0) - px)).toBeLessThanOrEqual(z + 1);
@@ -314,7 +313,7 @@ test('Enter breaks the line; the box keeps its top-left and fits the lines', asy
 
 for (const align of ['left', 'center', 'right'] as const) {
   test(`${align}-aligned lines line up inside the box`, async ({ page }) => {
-    await page.getByRole('combobox', { name: 'Align' }).selectOption(align);
+    await chooseAlign(page, align);
     await typeAt(page, [30, 20], 'HHHH');
     await page.keyboard.press('Enter');
     await page.keyboard.type('HH');

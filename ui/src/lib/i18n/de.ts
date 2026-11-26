@@ -1111,6 +1111,7 @@ export const de: Record<MessageKey, string> = {
   'text.placeholder': 'Hier tippen… (Strg+Enter platziert)',
   'text.content': 'Textinhalt',
   'text.fontSize': 'Schriftgröße',
+  'text.style': 'Textstil',
   'text.align': 'Textausrichtung',
   'text.place': 'Platzieren',
   'font.label': 'Schrift',

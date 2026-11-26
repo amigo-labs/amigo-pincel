@@ -176,8 +176,13 @@ export async function undoAll(page: Page): Promise<number> {
   return n;
 }
 
-/** The width of a window wide enough for the Text tool's options to fit one row
- *  (docs/specs/options-bar-layout.md): the Text specs reach for Bold,
- *  Align and Finish all the time, and an expanded options bar would lie
- *  over the canvas they take screenshots of. */
-export const TEXT_WIDTH = 1920;
+
+/** Sets the Text tool's alignment through its icon radios in the options
+ *  bar (docs/specs/options-bar-layout.md AC-13). */
+export async function chooseAlign(page: Page, align: 'left' | 'center' | 'right' | string): Promise<void> {
+  const name = { left: 'Left', center: 'Center', right: 'Right' }[align as 'left'] ?? align;
+  await page
+    .getByRole('radiogroup', { name: 'Align', exact: true })
+    .getByRole('radio', { name, exact: true })
+    .click();
+}

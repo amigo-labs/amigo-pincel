@@ -55,6 +55,7 @@ Terms:
 - [ ] AC-10 (state): While the window is narrower than 640 px, AC-01 – AC-08 hold as on wider windows; the tool name is not cut off while the bar is wider than 200 px.
 - [ ] AC-11 (event): When the window or the sidebar changes its width, then the row shows as many options as fit the new width, and the More control appears or goes accordingly.
 - [ ] AC-12 (option): Where the UI language is German, the More control is named "Weitere Optionen".
+- [ ] AC-13 (state): While the window is 1280 × 720 with the sidebar shown, the Text tool's own options in Image mode — font, size, the four styles, alignment and Finish — are in the row, in English and in German; in English the shared Antialiasing and Blending options fit too, so the bar has no More control. Bold, Italic, Underline and Strikethrough are toggle buttons with an icon each and keep their names and their checkbox role; Align is a group of three icon buttons named Left, Center and Right.
 
 ## Technical notes
 
@@ -105,6 +106,7 @@ Hints, not contracts.
 | AC-10 | `ui/e2e/options-bar-layout.spec.ts`: "narrow › {pixel, image}: on a phone the bar names the tool, does not scroll sideways and expands" | built |        |
 | AC-11 | `ui/e2e/options-bar-layout.spec.ts`: "wide › image: the row follows the bar’s width" | built |        |
 | AC-12 | `ui/e2e/options-bar-layout.spec.ts`: "wide › German: the More control reads \"Weitere Optionen\"" | built |        |
+| AC-13 | `ui/e2e/options-bar-layout.spec.ts`: "text options at 1280 × 720, {English, Deutsch} › every Text option is in the row; the styles and Align are icon toggles" | built |        |
 
 ## Decisions
 
@@ -119,3 +121,5 @@ Hints, not contracts.
 - 2026-11-26 (build): the row clips with `overflow: clip`, which nothing can scroll. With `overflow: hidden` a script's or the browser's scroll-into-view moved a wrapped line into the row's place. For e2e specs this means a click on an option outside the row no longer finds it: `showAllOptions` in `ui/e2e/helpers.ts` expands the bar first (`image-antialias`, `image-clone-stamp`, `pressure`).
 - 2026-11-26 (build, AC-06 and AC-09 revised): the first version closed the expanded bar on a press on the canvas area or the rail and on a tool change. With Image mode's Text tool that hid Bold, Italic, Align and Finish again after every press that placed the caret, at 1280 px with the sidebar open — the options a user needs while typing. More is now a toggle that holds for the page load; Escape and the control itself close it. CI showed the same thing from the other side: about twenty Text tests could no longer reach their options.
 - 2026-11-26 (build, AC-05 kept): an expanded bar inside the layout (the canvas area shorter by its extra rows) was tried and dropped. Options come and go while a tool works — the Text tool adds Finish and a hint when a box opens — so the bar's height changed in the middle of a press, the canvas moved, and the text box opened beside the point that was pressed. Lying over the canvas area, the expanded bar covers up to 40 % of the window's height at the top while the user keeps it open; the layout below never moves.
+- 2026-11-26 (build, AC-13 added on the owner's request): Image mode's Text options did not fit one row at 1280 px with the sidebar open, so Bold, Italic, Align and Finish sat behind More. Bold, Italic, Underline and Strikethrough are icon buttons in a shared segment control now (`role="checkbox"`, `aria-checked`, names unchanged), Align is a radio group of three icon buttons (it was a select: specs set it through `chooseAlign` in `ui/e2e/text-helpers.ts`), the size slider is 80 px, the "Font" label went (the picker's button reads "Font: <family>"), and the hint "Click to place · Ctrl+Enter to finish · Esc to cancel" is Finish's tooltip. The bar's gap is 12 px. In German "Kantenglättung" and "Mischmodus" are wider; those two shared options may wait behind More there, the Text tool's own options do not. Red run: both AC-13 tests failed on the bundle before the change.
+- 2026-11-26 (build): the More control stuck once it had appeared: the row reserves its room only while it shows, and the fit was read from where the options wrapped — with the room taken they kept wrapping. The fit is now computed from the options' widths against the row without that room.

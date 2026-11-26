@@ -1110,6 +1110,7 @@ export const ptBr: Record<MessageKey, string> = {
   'text.placeholder': 'Digite aqui… (Ctrl+Enter para posicionar)',
   'text.content': 'Conteúdo do texto',
   'text.fontSize': 'Tamanho da fonte',
+  'text.style': 'Estilo do texto',
   'text.align': 'Alinhamento do texto',
   'text.place': 'Posicionar',
   // Font list (docs/specs/system-fonts.md)

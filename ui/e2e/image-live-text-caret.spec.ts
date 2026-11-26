@@ -15,17 +15,13 @@ import {
   setFontSize,
   textBox,
   typeAt,
-  TEXT_WIDTH,
+  chooseAlign,
 } from './text-helpers';
 
 // Caret, selection and clipboard inside an Image-mode live text
 // (docs/specs/image-live-text.md AC-04 – AC-06, AC-14, AC-23).
 
-test.use({
-  permissions: ['clipboard-read', 'clipboard-write'],
-  // Wide, so the Text options fit one row (options-bar-layout).
-  viewport: { width: TEXT_WIDTH, height: 720 },
-});
+test.use({ permissions: ['clipboard-read', 'clipboard-write'] });
 
 test.beforeEach(async ({ page }) => {
   await createDocument(page, 'image', { width: W, height: H });
@@ -116,7 +112,7 @@ for (const variant of ['left', 'center', 'right', 'bold', 'italic'] as const) {
     await page.getByRole('checkbox', { name: 'Antialiasing' }).uncheck();
     if (variant === 'bold') await page.getByRole('checkbox', { name: 'Bold' }).check();
     else if (variant === 'italic') await page.getByRole('checkbox', { name: 'Italic' }).check();
-    else await page.getByRole('combobox', { name: 'Align' }).selectOption(variant);
+    else await chooseAlign(page, variant);
     await typeAt(page, [40, 20], 'HHHHHH');
     await page.keyboard.press('Enter');
     await page.keyboard.type('HHHH');

@@ -1105,6 +1105,7 @@ export const en = {
   'text.placeholder': 'Type here… (Ctrl+Enter to place)',
   'text.content': 'Text content',
   'text.fontSize': 'Font size',
+  'text.style': 'Text style',
   'text.align': 'Text alignment',
   'text.place': 'Place',
   // Font list (docs/specs/system-fonts.md)

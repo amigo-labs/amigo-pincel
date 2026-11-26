@@ -1112,6 +1112,7 @@ export const es: Record<MessageKey, string> = {
   'text.placeholder': 'Escriba aquí… (Ctrl+Enter para colocar)',
   'text.content': 'Contenido del texto',
   'text.fontSize': 'Tamaño de fuente',
+  'text.style': 'Estilo de texto',
   'text.align': 'Alineación del texto',
   'text.place': 'Colocar',
   // Font list (docs/specs/system-fonts.md)

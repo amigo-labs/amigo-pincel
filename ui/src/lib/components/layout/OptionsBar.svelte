@@ -41,9 +41,25 @@
     return first instanceof HTMLElement && el.offsetTop >= first.offsetTop + first.offsetHeight - 1;
   }
 
+  /** Room the More control takes at the row's end, in px. */
+  const MORE_ROOM = 32;
+
+  // Whether the options fit one row, from their widths rather than from
+  // where they wrapped: the row reserves room for the More control only
+  // while it shows, so asking the wrapped layout would keep the control
+  // once it had appeared (a bar a few px too narrow with the room taken).
   function measure(): void {
     if (!bar) return;
-    overflowing = [...bar.children].some((el) => el instanceof HTMLElement && wrapped(el));
+    const style = getComputedStyle(bar);
+    const gap = Number.parseFloat(style.columnGap) || 0;
+    const items = [...bar.children].filter((el): el is HTMLElement => el instanceof HTMLElement);
+    const need = items.reduce((sum, el) => sum + el.getBoundingClientRect().width, 0) + gap * Math.max(0, items.length - 1);
+    const room =
+      bar.getBoundingClientRect().width -
+      Number.parseFloat(style.paddingLeft) -
+      Number.parseFloat(style.paddingRight) +
+      (overflowing ? MORE_ROOM : 0);
+    overflowing = need > room + 0.5;
   }
 
   onMount(() => {
@@ -89,7 +105,7 @@
   <div
     bind:this={bar}
     class={[
-      'options-bar flex flex-wrap items-center gap-x-4 border-b border-pc-border bg-pc-panel pl-3 text-xs text-pc-muted',
+      'options-bar flex flex-wrap items-center gap-x-3 border-b border-pc-border bg-pc-panel pl-3 text-xs text-pc-muted',
       narrow ? 'options-bar--narrow' : '',
       overflowing ? 'pr-11' : 'pr-3',
       expanded

@@ -5,6 +5,8 @@ import { createDocument, menu, switchLanguage } from './helpers';
 // scrolls sideways, and its More control expands it to show every option.
 
 type Mode = 'pixel' | 'image';
+/** A window in which Image mode's Text options need more than one row. */
+const NARROWER = { width: 1100, height: 720 };
 const MODES: Mode[] = ['pixel', 'image'];
 
 const editor = (page: Page) => page.locator('[data-editor]:not([inert])');
@@ -118,6 +120,8 @@ test.describe('wide', () => {
   test('image: Text has more options than fit; More expands the bar over the canvas and back (AC-02, AC-04, AC-05, AC-06)', async ({
     page,
   }) => {
+    // The Text options fit one row at 1280 px (AC-13): a narrower window.
+    await page.setViewportSize(NARROWER);
     await createDocument(page, 'image', { width: 16, height: 16 });
     await textTool(page);
     await expect(more(page)).toBeVisible();
@@ -191,12 +195,21 @@ test.describe('wide', () => {
   test('image: Tab onto an option outside the row expands the bar; a value changed there applies and the bar stays (AC-07, AC-08)', async ({
     page,
   }) => {
+    // The Text options fit one row at 1280 px (AC-13): a narrower window.
+    await page.setViewportSize(NARROWER);
     await createDocument(page, 'image', { width: 16, height: 16 });
     await textTool(page);
     const collapsed = await row(page);
-    // The last focusable control inside the row, then Tab.
-    const lastInRow = bar(page).locator(':scope > *').nth(collapsed.inside - 1);
-    const control = lastInRow.locator('input, select, button').last();
+    // The last enabled control inside the row (Finish is disabled without a
+    // text box), then Tab.
+    const enabled = 'input:not([disabled]), select:not([disabled]), button:not([disabled])';
+    const inRow = bar(page).locator(':scope > *');
+    let control: Locator | null = null;
+    for (let i = collapsed.inside - 1; i >= 0 && control === null; i -= 1) {
+      const found = inRow.nth(i).locator(enabled);
+      if ((await found.count()) > 0) control = found.last();
+    }
+    if (control === null) throw new Error('no enabled control in the row');
     await control.focus();
     await page.keyboard.press('Tab');
     await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
@@ -218,6 +231,8 @@ test.describe('wide', () => {
   });
 
   test('image: while an effect is open the bar takes no input and is one row (AC-09)', async ({ page }) => {
+    // The Text options fit one row at 1280 px (AC-13): a narrower window.
+    await page.setViewportSize(NARROWER);
     await createDocument(page, 'image', { width: 16, height: 16 });
     await textTool(page);
     await page.keyboard.press('Escape');
@@ -235,16 +250,17 @@ test.describe('wide', () => {
   });
 
   test('image: the row follows the bar’s width (AC-11)', async ({ page }) => {
+    await page.setViewportSize(NARROWER);
     await createDocument(page, 'image', { width: 16, height: 16 });
     await textTool(page);
     const wide = (await row(page)).inside;
-    await page.setViewportSize({ width: 1100, height: 720 });
+    await page.setViewportSize({ width: 1040, height: 720 });
     await expect.poll(async () => (await row(page)).inside).toBeLessThan(wide);
     const r = await row(page);
     expect(r.cut).toBe(0);
     expect(r.sideways).toBe(false);
     // Hiding the sidebar gives the bar its width.
-    await page.setViewportSize({ width: 1280, height: 720 });
+    await page.setViewportSize(NARROWER);
     await expect.poll(async () => (await row(page)).inside).toBe(wide);
     await editor(page).locator('[data-panels-toggle] button').click();
     await expect.poll(async () => (await row(page)).inside).toBeGreaterThan(wide);
@@ -262,6 +278,68 @@ test.describe('wide', () => {
     await expect(more(page)).toHaveAttribute('title', 'Weitere Optionen');
   });
 });
+
+for (const language of ['English', 'Deutsch'] as const) {
+  test.describe(`text options at 1280 × 720, ${language}`, () => {
+    test.use({ viewport: { width: 1280, height: 720 } });
+
+    test('every Text option is in the row; the styles and Align are icon toggles (AC-13)', async ({ page }) => {
+      await createDocument(page, 'image', { width: 16, height: 16 });
+      if (language === 'Deutsch') await switchLanguage(page, 'Deutsch');
+      await expect(editor(page).getByRole('complementary')).toBeVisible();
+      await stage(page).click({ position: { x: 5, y: 5 } });
+      await page.keyboard.press('t');
+      await expect(name(page)).toHaveText('Text');
+      const r = await row(page);
+      expect(r.cut).toBe(0);
+      if (language === 'English') {
+        // Everything fits, the shared options too.
+        await expect(more(page)).toHaveCount(0);
+        expect(r.inside).toBe(r.total);
+      } else {
+        // The Text tool's own options are in the row; at most the shared
+        // Antialiasing and Blending options wait behind More.
+        expect(r.inside).toBeGreaterThanOrEqual(r.total - 2);
+      }
+      const inRow = async (target: Locator): Promise<void> => {
+        const b = await box(bar(page));
+        const t = await box(target);
+        expect(t.y + t.height).toBeLessThanOrEqual(b.y + b.height + 0.5);
+        expect(t.x + t.width).toBeLessThanOrEqual(b.x + b.width + 0.5);
+      };
+      await inRow(bar(page).getByRole('button', { name: /^(Font|Schrift): / }));
+      await inRow(bar(page).getByRole('slider', { name: language === 'English' ? 'Font size' : 'Schriftgröße' }));
+      await inRow(bar(page).getByRole('button', { name: language === 'English' ? 'Finish' : 'Fertig', exact: true }));
+      // Toggle buttons that stay checkboxes, and a radio group for Align.
+      const styles =
+        language === 'English'
+          ? ['Bold', 'Italic', 'Underline', 'Strikethrough']
+          : ['Fett', 'Kursiv', 'Unterstrichen', 'Durchgestrichen'];
+      for (const style of styles) {
+        const box = bar(page).getByRole('checkbox', { name: style, exact: true });
+        await expect(box).toHaveCount(1);
+        await expect(box.locator('svg')).toHaveCount(1);
+      }
+      const align = bar(page).getByRole('radiogroup', {
+        name: language === 'English' ? 'Align' : 'Ausrichtung',
+        exact: true,
+      });
+      await expect(align.getByRole('radio')).toHaveCount(3);
+      const left = align.getByRole('radio', { name: language === 'English' ? 'Left' : 'Links', exact: true });
+      await expect(left).toBeChecked();
+      const centre = align.getByRole('radio', {
+        name: language === 'English' ? 'Center' : 'Zentriert',
+        exact: true,
+      });
+      await centre.click();
+      await expect(centre).toBeChecked();
+      await expect(left).not.toBeChecked();
+      const bold = bar(page).getByRole('checkbox', { name: styles[0] ?? 'Bold', exact: true });
+      await bold.check();
+      await expect(bold).toBeChecked();
+    });
+  });
+}
 
 test.describe('narrow', () => {
   test.use({ viewport: { width: 390, height: 844 } });
