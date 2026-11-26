@@ -39,7 +39,7 @@ Terms:
 - Which options a tool has, and new options — because this spec is about the bar's layout.
 - Reordering the options of single tools — because both modes already put size before opacity before shape and mode, and share their labels (`opt.*`); a deviation found while building is fixed there and noted under Decisions.
 - A different name for Image mode's Fill variant ("Fill" inside the group "Fill") — because renaming a tool also renames it in the status bar, the palette and the shortcut overview; it gets its own decision.
-- Remembering the expanded state — because the bar should come back in one row.
+- Storing the expanded state across page loads — because a fresh start should show the canvas uncovered; within a page load the choice holds (AC-06).
 
 ## Acceptance criteria
 
@@ -48,10 +48,10 @@ Terms:
 - [ ] AC-03 (state): While every option fits the bar's row, there is no More control.
 - [ ] AC-04 (state): While at least one option does not fit the row, the bar ends with the More control (a button named "More options", with `aria-expanded`); the tool name and the options before the first one that does not fit stay in the row.
 - [ ] AC-05 (event): When the user activates the More control, then the bar expands: every option of the tool is shown, in the same order, in as many rows as needed, over the canvas area and not moving it; the More control stays at the end of the first row and reads as expanded.
-- [ ] AC-06 (event): When the user activates the More control again, presses Escape with the focus in the bar, presses on the canvas area or the tool rail, or chooses another tool, then the bar is one row again.
+- [ ] AC-06 (event): When the user activates the More control again, or presses Escape with the focus in the bar or on the More control, then the bar is one row again. Nothing else closes it: it stays expanded across presses on the canvas area and the tool rail and across tool changes, in both editors, until the page is reloaded. A tool whose options fit the row shows one row and no More control (AC-03) whatever the user chose.
 - [ ] AC-07 (event): When keyboard focus moves to an option that is not in the row (Tab from the last visible option), then the bar expands, so the focused control is in view.
 - [ ] AC-08 (state): While the bar is expanded, the options keep working as in the row: a changed value applies at once and the bar stays expanded.
-- [ ] AC-09 (state): While an effect is open or an Assistant answer runs, the options bar takes no input, the More control included; an expanded bar is one row again.
+- [ ] AC-09 (state): While an effect is open or an Assistant answer runs, the options bar takes no input, the More control included, and is one row; afterwards it is as the user left it.
 - [ ] AC-10 (state): While the window is narrower than 640 px, AC-01 – AC-08 hold as on wider windows; the tool name is not cut off while the bar is wider than 200 px.
 - [ ] AC-11 (event): When the window or the sidebar changes its width, then the row shows as many options as fit the new width, and the More control appears or goes accordingly.
 - [ ] AC-12 (option): Where the UI language is German, the More control is named "Weitere Optionen".
@@ -73,7 +73,7 @@ Hints, not contracts.
 | A single option is wider than the whole bar (a long hint on a phone) | It is not in the row; the More control shows it, wrapped to the bar's width |
 | The tool has no options | The bar shows the tool name alone; no More control |
 | The expanded bar is taller than the canvas area | It scrolls vertically inside the canvas area's height |
-| The user changes the tool from the expanded bar's variant switcher | The tool changes and the bar is one row again (AC-06) |
+| The user changes the tool from the expanded bar's variant switcher | The tool changes and the bar stays expanded if the new tool's options need more than the row (AC-06) |
 | A select's list or a colour popover opens from an expanded option | It opens as from the row; closing it leaves the bar expanded |
 | Toggle UI | The bar goes and returns as today, in one row |
 | German or Japanese labels make the options wider | Fewer options fit the row; the rule is the same |
@@ -117,3 +117,4 @@ Hints, not contracts.
 - 2026-11-26 (build): red run — the 12 tests of `ui/e2e/options-bar-layout.spec.ts` all failed against the bundle built before the change.
 - 2026-11-26 (build): New public API, for review: the component `layout/OptionsBar.svelte`, `EditorFrame`'s `toolName` prop, the string `frame.moreOptions`.
 - 2026-11-26 (build): the row clips with `overflow: clip`, which nothing can scroll. With `overflow: hidden` a script's or the browser's scroll-into-view moved a wrapped line into the row's place. For e2e specs this means a click on an option outside the row no longer finds it: `showAllOptions` in `ui/e2e/helpers.ts` expands the bar first (`image-antialias`, `image-clone-stamp`, `pressure`).
+- 2026-11-26 (build, AC-06 and AC-09 revised): the first version closed the expanded bar on a press on the canvas area or the rail and on a tool change. With Image mode's Text tool that hid Bold, Italic, Align and Finish again after every press that placed the caret, at 1280 px with the sidebar open — the options a user needs while typing. More is now a toggle that holds for the page load; Escape and the control itself close it. CI showed the same thing from the other side: about twenty Text tests could no longer reach their options.

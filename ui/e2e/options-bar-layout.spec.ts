@@ -158,28 +158,34 @@ test.describe('wide', () => {
     await bar(page).getByRole('checkbox').first().focus();
     await page.keyboard.press('Escape');
     await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
-    // A press on the canvas area.
-    await more(page).click();
-    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
-    const s = await box(stage(page));
-    await page.mouse.click(s.x + s.width - 30, s.y + s.height - 30);
-    await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
-    await page.keyboard.press('Escape');
-    // A press on the rail that keeps the tool.
-    await more(page).click();
-    await rail(page).locator('button[data-group="text"]').click();
-    await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
     // Escape on the More control itself.
     await more(page).click();
     await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
     await page.keyboard.press('Escape');
     await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
-    // Another tool.
+
+    // Nothing else closes it: a press on the canvas area, on the rail, …
     await more(page).click();
     await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
-    await rail(page).locator('button[data-group="eraser"]').click();
-    await expect(name(page)).toHaveText('Eraser');
+    const s = await box(stage(page));
+    await page.mouse.click(s.x + s.width - 30, s.y + s.height - 30);
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    await page.keyboard.press('Escape');
+    await rail(page).locator('button[data-group="text"]').click();
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    // … or another tool. One whose options fit shows one row and no More control;
+    // back on Text the bar is expanded as the user left it.
+    await rail(page).locator('button[data-group="eyedropper"]').click();
+    await expect(name(page)).toHaveText('Eyedropper');
+    await expect(more(page)).toHaveCount(0);
     expect((await row(page)).height).toBe(40);
+    await rail(page).locator('button[data-group="text"]').click();
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    expect((await row(page)).height).toBeGreaterThan(60);
+    // A new page load starts with one row.
+    await createDocument(page, 'image', { width: 16, height: 16 });
+    await textTool(page);
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
   });
 
   test('image: Tab onto an option outside the row expands the bar; a value changed there applies and the bar stays (AC-07, AC-08)', async ({
@@ -207,7 +213,7 @@ test.describe('wide', () => {
     await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
     // Back in one row, the value is kept.
     await more(page).click();
-    await more(page).click();
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
     expect(await bar(page).getByRole('checkbox').last().isChecked()).toBe(!before);
   });
 
@@ -223,6 +229,9 @@ test.describe('wide', () => {
     expect(await more(page).evaluate((el) => el.closest('[inert]') !== null)).toBe(true);
     await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
     expect((await row(page)).height).toBe(40);
+    // Afterwards the bar is as the user left it.
+    await page.getByRole('dialog', { name: 'Invert Colors' }).getByRole('button', { name: 'Cancel' }).click();
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
   });
 
   test('image: the row follows the bar’s width (AC-11)', async ({ page }) => {
@@ -278,10 +287,13 @@ test.describe('narrow', () => {
       const open = await row(page);
       expect(open.inside).toBe(open.total);
       expect(open.sideways).toBe(false);
-      // A press on the canvas area closes it.
+      // A press on the canvas area leaves it open; the control closes it.
       const s = await box(stage(page));
       await page.mouse.click(s.x + s.width / 2, s.y + s.height - 80);
+      await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+      await more(page).click();
       await expect(more(page)).toHaveAttribute('aria-expanded', 'false');
+      expect((await row(page)).height).toBe(44);
     });
   }
 });

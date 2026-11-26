@@ -1,3 +1,9 @@
+<script lang="ts" module>
+  // "Show every option" is the user's choice for the session, for both
+  // editors: it holds across canvas presses and tool changes (AC-06).
+  const all = $state({ wanted: false });
+</script>
+
 <script lang="ts">
   // The options bar (docs/specs/options-bar-layout.md): the active tool's
   // name, then its options, in one row that never scrolls sideways. The
@@ -25,7 +31,9 @@
   let bar = $state<HTMLElement | null>(null);
   /** At least one option is not in the first row. */
   let overflowing = $state(false);
-  let expanded = $state(false);
+  /** The bar shows every option: the user asked for it, there is more than
+   *  one row of them, and the bar takes input (AC-09). */
+  const expanded = $derived(all.wanted && overflowing && !disabled);
 
   /** Whether `el`, a direct child of the bar, sits below the first row. */
   function wrapped(el: HTMLElement): boolean {
@@ -36,7 +44,6 @@
   function measure(): void {
     if (!bar) return;
     overflowing = [...bar.children].some((el) => el instanceof HTMLElement && wrapped(el));
-    if (!overflowing) expanded = false;
   }
 
   onMount(() => {
@@ -60,41 +67,20 @@
     };
   });
 
-  // Another tool, or a bar that takes no input: one row again (AC-06, AC-09).
-  $effect(() => {
-    void name;
-    void disabled;
-    expanded = false;
-  });
-
   // Focus on an option outside the row brings it into view (AC-07).
   function onFocusIn(e: FocusEvent): void {
     if (expanded || !bar || !(e.target instanceof Node)) return;
     const child = [...bar.children].find((el) => el.contains(e.target as Node));
-    if (child instanceof HTMLElement && wrapped(child)) {
-      expanded = true;
-      bar.scrollTop = 0;
-    }
+    if (child instanceof HTMLElement && wrapped(child)) all.wanted = true;
   }
 
   function onKeydown(e: KeyboardEvent): void {
     if (e.key !== 'Escape' || !expanded) return;
     e.preventDefault();
     e.stopPropagation();
-    expanded = false;
-  }
-
-  // A press outside the bar closes it (AC-06); popovers an option opened
-  // (a colour picker, a select's list) are outside it too, so only presses
-  // on the editor's own regions count.
-  function onWindowPointerDown(e: PointerEvent): void {
-    if (!expanded || !host || !(e.target instanceof Element)) return;
-    if (host.contains(e.target)) return;
-    if (e.target.closest('[data-stage], [role="toolbar"], [data-frame]')) expanded = false;
+    all.wanted = false;
   }
 </script>
-
-<svelte:window onpointerdowncapture={onWindowPointerDown} />
 
 <div bind:this={host} class="relative shrink-0" class:h-11={narrow} class:h-10={!narrow}>
   <div
@@ -128,7 +114,7 @@
       aria-expanded={expanded}
       data-more-options=""
       onclick={() => {
-        expanded = !expanded;
+        all.wanted = !expanded;
         if (bar) bar.scrollTop = 0;
       }}
     >
