@@ -26,6 +26,9 @@
     newDocParams,
     prefillKeepingSelection,
   } from './new-doc';
+  import { MAX_CANVAS_AREA } from '../../modes/image/canvas-limits';
+  import { areaNote, edgeOf, fieldNote } from './doc-size';
+  import SizePresets from './SizePresets.svelte';
   import { autoNew, setAutoNew } from './auto-new.svelte';
   import { answerBanner, bannerShown, startTour } from '../tour/tour-state.svelte';
 
@@ -74,8 +77,29 @@
   // The open New card and its size fields; `null` while both are closed.
   let expanded = $state<EditorMode | null>(null);
   let samplesOpen = $state(false);
-  let width = $state(0);
-  let height = $state(0);
+  let width = $state<number | null>(0);
+  let height = $state<number | null>(0);
+  let widthBad = $state(false);
+  let heightBad = $state(false);
+
+  // The New dialog's notes, for the open card (new-document-form AC-05).
+  const cardNotes = $derived.by(() => {
+    if (expanded === null) return [];
+    const limits = NEW_DOC_LIMITS[expanded];
+    const result = newDocParams(expanded, width ?? NaN, height ?? NaN);
+    return [
+      fieldNote(width, widthBad, limits, result.width),
+      fieldNote(height, heightBad, limits, result.height),
+      areaNote(
+        {
+          width: edgeOf(expanded, width, limits, limits.width),
+          height: edgeOf(expanded, height, limits, limits.height),
+        },
+        result,
+        MAX_CANVAS_AREA,
+      ),
+    ].filter((n) => n !== null);
+  });
 
   function toggle(mode: EditorMode) {
     if (expanded === mode) {
@@ -86,6 +110,8 @@
     const { width: w, height: h } = NEW_DOC_LIMITS[mode];
     width = w;
     height = h;
+    widthBad = false;
+    heightBad = false;
     // A clipboard image sets the size, unless the user typed one meanwhile.
     void clipboardDocSize(mode).then((p) => {
       if (p && expanded === mode && width === w && height === h) {
@@ -145,7 +171,7 @@
             class={`shrink-0 text-pc-faint transition-transform ${open ? 'rotate-180' : ''}`}
           />
         </span>
-        <span class="mt-2 block text-[13px] leading-5 text-pc-muted">{t(card.hint)}</span>
+        <span class="mt-2 block text-(length:--pc-text-ui) leading-5 text-pc-muted">{t(card.hint)}</span>
       </button>
       {#if open}
         <!-- novalidate: an out-of-range size is clamped by `newDocParams`,
@@ -157,7 +183,7 @@
           novalidate
           onsubmit={(e) => {
             e.preventDefault();
-            const params = newDocParams(card.mode, width, height);
+            const params = newDocParams(card.mode, width ?? NaN, height ?? NaN);
             if (autoNew.params?.mode === card.mode) setAutoNew(params);
             onCreate(params);
           }}
@@ -173,9 +199,11 @@
                   step="1"
                   inputmode="numeric"
                   bind:value={width}
+                  oninput={(e) => (widthBad = e.currentTarget.validity.badInput)}
                   {@attach focusOnFinePointer}
                   class="am-input start-ctl w-20"
                   aria-label={t('common.width')}
+                  aria-describedby={cardNotes.length > 0 ? `new-${card.mode}-notes` : undefined}
                 />
               </label>
               <span class="text-xs leading-4 text-pc-faint">×</span>
@@ -188,8 +216,10 @@
                   step="1"
                   inputmode="numeric"
                   bind:value={height}
+                  oninput={(e) => (heightBad = e.currentTarget.validity.badInput)}
                   class="am-input start-ctl w-20"
                   aria-label={t('common.height')}
+                  aria-describedby={cardNotes.length > 0 ? `new-${card.mode}-notes` : undefined}
                 />
               </label>
               <span class="text-xs leading-4 text-pc-faint">px</span>
@@ -202,6 +232,26 @@
               {t('common.create')}
             </button>
           </div>
+          {#if cardNotes.length > 0}
+            <div id={`new-${card.mode}-notes`} class="mt-2 flex flex-col gap-1">
+              {#each cardNotes as n (n.key)}
+                <p class="am-hint am-hint--warning">{t(n.key, n.params)}</p>
+              {/each}
+            </div>
+          {/if}
+          <div class="mt-3">
+            <SizePresets
+              mode={card.mode}
+              {width}
+              {height}
+              onPick={(w, h) => {
+                width = w;
+                height = h;
+                widthBad = false;
+                heightBad = false;
+              }}
+            />
+          </div>
           <label
             class="am-check mt-3 flex items-center gap-2 text-xs leading-4 text-pc-muted pointer-coarse:min-h-11"
           >
@@ -209,7 +259,9 @@
               type="checkbox"
               checked={autoNew.params?.mode === card.mode}
               onchange={(e) =>
-                setAutoNew(e.currentTarget.checked ? newDocParams(card.mode, width, height) : null)}
+                setAutoNew(
+                  e.currentTarget.checked ? newDocParams(card.mode, width ?? NaN, height ?? NaN) : null,
+                )}
             />
             {t('newDoc.autoOpen')}
           </label>
@@ -226,7 +278,7 @@
     role="group"
     aria-labelledby="start-clip-title"
   >
-    <span id="start-clip-title" class="text-[13px] leading-5 font-semibold text-pc-muted">
+    <span id="start-clip-title" class="text-(length:--pc-text-ui) leading-5 font-semibold text-pc-muted">
       {t('start.fromClipboard')}
     </span>
     <span class="flex flex-wrap gap-2">
@@ -308,65 +360,28 @@
 {/snippet}
 
 {#snippet openHint()}
-  <p class="mt-3 max-w-[30rem] text-[13px] leading-5 text-pc-faint">{t('start.openHint')}</p>
+  <p class="mt-3 max-w-[30rem] text-(length:--pc-text-ui) leading-5 text-pc-faint">{t('start.openHint')}</p>
 {/snippet}
 
 <main
-  class="flex min-h-full flex-col items-center bg-pc-bg px-4 pt-8 pb-12 text-pc-text sm:px-8 sm:pt-12 lg:pt-16"
+  class="flex min-h-full flex-col items-center bg-pc-bg px-4 pt-8 pb-6 text-pc-text sm:px-8 sm:pt-12 lg:pt-16"
   class:bg-pc-panel={dropHover}
   class:start-drop={dropHover}
   class:cursor-progress={busy}
 >
   <section
-    class="w-full max-w-[40rem]"
-    class:start-wide={returning}
+    class="start-wide mb-10 w-full max-w-[40rem]"
     aria-labelledby="start-title"
     aria-busy={busy}
   >
-    <!-- Title, then the utilities: on the h1 line where they fit, on the
-         next line on phones. -->
-    <div class="flex flex-wrap items-start justify-between gap-x-6 gap-y-4">
-      <div class="min-w-0 flex-[1_1_18rem]">
-        <h1 id="start-title" class="text-[1.75rem] leading-9 font-semibold tracking-tight">
+    <!-- The title alone; the utilities are in the footer
+         (start-screen-tokens AC-02). -->
+    <div>
+      <div class="min-w-0">
+        <h1 id="start-title" class="text-(length:--pc-text-title) leading-9 font-semibold tracking-tight">
           Pincel
         </h1>
         <p class="mt-2 max-w-[30rem] text-sm leading-5 text-pc-muted">{t('start.tagline')}</p>
-      </div>
-      <!-- No menu bar is mounted here, so About needs its own way in
-           wherever the OS draws no native Help menu (spec §11.3). -->
-      <div class="flex flex-wrap items-center gap-2 sm:h-9 sm:shrink-0">
-        {#if !hasNativeMenu()}
-          <span class="flex items-center gap-2" data-tour="start-help">
-            <button
-              type="button"
-              class="am-btn pointer-coarse:min-h-11"
-              onclick={() => startTour('start')}>{t('menu.tour')}</button
-            >
-            <button
-              type="button"
-              class="am-btn pointer-coarse:min-h-11"
-              onclick={openSettings}>{t('settings.title')}</button
-            >
-            <button
-              type="button"
-              class="am-btn pointer-coarse:min-h-11"
-              onclick={openAbout}>{t('menu.about')}</button
-            >
-          </span>
-        {/if}
-        <select
-          class="am-input pointer-coarse:min-h-11 w-auto"
-          aria-label={t('start.language')}
-          value={locale()}
-          onchange={(e) => {
-            const v = e.currentTarget.value;
-            if (isLocale(v)) setLocale(v);
-          }}
-        >
-          {#each LOCALES as l (l.id)}
-            <option value={l.id}>{l.label}</option>
-          {/each}
-        </select>
       </div>
     </div>
 
@@ -413,7 +428,7 @@
           {@render openHint()}
           <div class="start-surface mt-6 rounded-pc-panel border border-pc-border bg-pc-panel">
             <h2
-              class="border-b border-pc-border px-4 py-2 text-[13px] leading-4 font-semibold text-pc-muted"
+              class="border-b border-pc-border px-4 py-2 text-(length:--pc-text-ui) leading-4 font-semibold text-pc-muted"
             >
               {t('start.recent')}
             </h2>
@@ -443,18 +458,66 @@
         </div>
       </div>
     {:else}
-      <!-- First run: the New cards are the page; Open… and the samples sit
-           under them as a quieter pair. -->
-      <div class="mt-6">
-        {@render newBlock()}
+      <!-- First run: start new | open, in the same two columns
+           (start-screen-tokens AC-01). -->
+      <div class="start-split mt-6">
+        <div class="min-w-0">
+          {@render newBlock()}
+        </div>
+        <div class="min-w-0">
+          {@render openCard('')}
+          {@render openHint()}
+          <div class="start-stack mt-6">
+            {@render samples(false)}
+          </div>
+        </div>
       </div>
-      <div class="start-pair mt-6">
-        {@render openCard('cell-1')}
-        {@render samples(true)}
-      </div>
-      {@render openHint()}
     {/if}
   </section>
+
+  <!-- Quiet footer: help, settings and the language, at the page's foot
+       (start-screen-tokens AC-02, AC-03). No menu bar is mounted here, so
+       About needs its own way in wherever the OS draws no native Help
+       menu (spec §11.3). -->
+  <footer
+    class="start-wide mt-auto flex w-full max-w-[40rem] flex-wrap items-center justify-between gap-x-4 gap-y-2 border-t border-pc-border pt-4 text-xs text-pc-muted"
+    data-start-footer=""
+  >
+    {#if !hasNativeMenu()}
+      <span class="flex flex-wrap items-center gap-1" data-tour="start-help">
+        <button
+          type="button"
+          class="am-btn am-btn--ghost am-btn--sm pointer-coarse:min-h-11"
+          onclick={() => startTour('start')}>{t('menu.tour')}</button
+        >
+        <button
+          type="button"
+          class="am-btn am-btn--ghost am-btn--sm pointer-coarse:min-h-11"
+          onclick={openSettings}>{t('settings.title')}</button
+        >
+        <button
+          type="button"
+          class="am-btn am-btn--ghost am-btn--sm pointer-coarse:min-h-11"
+          onclick={openAbout}>{t('menu.about')}</button
+        >
+      </span>
+    {:else}
+      <span></span>
+    {/if}
+    <select
+      class="am-input am-input--sm pointer-coarse:min-h-11 w-auto"
+      aria-label={t('start.language')}
+      value={locale()}
+      onchange={(e) => {
+        const v = e.currentTarget.value;
+        if (isLocale(v)) setLocale(v);
+      }}
+    >
+      {#each LOCALES as l (l.id)}
+        <option value={l.id}>{l.label}</option>
+      {/each}
+    </select>
+  </footer>
 </main>
 
 <style>
@@ -468,7 +531,7 @@
     background-color: var(--color-pc-raised);
   }
 
-  /* Returning: from 960 px the frame widens to 40rem + 32 + 26rem. */
+  /* From 960 px the frame widens to 40rem + 32 + 26rem: New | Open. */
   @media (min-width: 60rem) {
     .start-wide {
       max-width: 68rem;

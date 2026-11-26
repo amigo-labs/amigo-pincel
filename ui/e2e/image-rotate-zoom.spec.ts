@@ -8,6 +8,7 @@ import {
   menu,
   waitForEditor,
   type ClipImage,
+  byText,
 } from './helpers';
 
 // Layer ▸ Rotate / Zoom in Image mode
@@ -131,7 +132,7 @@ test('without a document the item cannot be chosen (AC-01)', async ({ page }) =>
     .getByRole('form', { name: 'New image' })
     .getByRole('button', { name: 'Create' })
     .click();
-  await expect(page.getByText('Loading the Image editor…')).toBeVisible();
+  await expect(byText(page, 'Loading the Image editor…')).toBeVisible();
   await expect(page.getByRole('menubar')).toHaveCount(0);
   release();
   await waitForEditor(page, 'image');
@@ -221,7 +222,7 @@ test('the identity changes no pixel and adds no undo step (AC-05)', async ({ pag
     // No step: Undo stays off and the redo step survives; no notice.
     await expect(undoButton(page)).toBeDisabled();
     await expect(redoButton(page)).toBeEnabled();
-    await expect(page.getByText(/nothing changed/)).toHaveCount(0);
+    await expect(byText(page, /nothing changed/)).toHaveCount(0);
   }
   expect(await activeLayer(page)).toEqual(original);
 });
@@ -248,7 +249,7 @@ test('a locked layer or a group refuses with the locked-layer notice (AC-08)', a
   const [name] = (await layerNames(page)) as [string];
   const refused = async (who: string) => {
     await menu(page, 'Layer', 'Transform', 'Rotate / Zoom…');
-    await expect(page.getByText(`“${who}” is locked`)).toBeVisible();
+    await expect(byText(page, `“${who}” is locked`)).toBeVisible();
     await expect(dialog(page)).toHaveCount(0);
   };
   // The layer locked itself.

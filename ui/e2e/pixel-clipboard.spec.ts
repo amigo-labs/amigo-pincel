@@ -11,6 +11,7 @@ import {
   readClipboardImage,
   setColor,
   type ClipImage,
+  byText,
 } from './helpers';
 
 // Pixel mode: Edit ▸ Cut / Copy / Copy Merged / Paste through the system
@@ -26,7 +27,7 @@ const CLEAR = [0, 0, 0, 0];
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 const layerRows = (page: Page) =>
   page.getByRole('list', { name: 'Layer list' }).getByRole('button', { name: /^Drag to reorder / });
-const depths = (page: Page, u: number, r = 0) => page.getByText(`undo ${u} / redo ${r}`);
+const depths = (page: Page, u: number, r = 0) => byText(page, `undo ${u} / redo ${r}`);
 
 /** Screen point at the centre of sprite pixel `(x, y)` of a `size`² sprite. */
 async function at(page: Page, x: number, y: number, size: number): Promise<[number, number]> {
@@ -263,7 +264,7 @@ test('pixel: a larger image asks — Cancel, Keep canvas size, Expand canvas in 
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await putClipboardImage(page, 20, 10, '#ff0000');
   const dialog = page.getByRole('dialog', { name: 'Paste larger image' });
-  const size = (w: number, h: number) => page.getByText(`${w} × ${h} px`, { exact: true });
+  const size = (w: number, h: number) => byText(page, `${w} × ${h} px`, { exact: true });
 
   await menu(page, 'Edit', 'Paste');
   await expect(dialog).toContainText(
@@ -387,12 +388,12 @@ test('pixel: Copy on a group takes its rendered pixels; Cut on it is refused', a
   expect(pixelOf(group, 2, 2)).toEqual(RED);
 
   await putClipboardImage(page, 3, 3, '#00ff00');
-  const depthText = await page.getByText(/^undo \d+ \/ redo \d+$/).textContent();
+  const depthText = await byText(page, /^undo \d+ \/ redo \d+$/).textContent();
   await page.keyboard.press('ControlOrMeta+x');
-  await expect(page.getByText('Cut works on image layers only')).toBeVisible();
+  await expect(byText(page, 'Cut works on image layers only')).toBeVisible();
   const clip = await readClipboardImage(page);
   expect(clip && [clip.width, clip.height]).toEqual([3, 3]);
-  await expect(page.getByText(depthText ?? '', { exact: true })).toBeVisible();
+  await expect(byText(page, depthText ?? '', { exact: true })).toBeVisible();
   expect(pixelOf(await activeLayer(page), 2, 2)).toEqual(RED);
 });
 
@@ -433,7 +434,7 @@ test('pixel: a paste the core cannot use shows a notice and changes nothing', as
     data.items.add(new File([new Uint8Array([1, 2, 3, 4])], 'bad.png', { type: 'image/png' }));
     window.dispatchEvent(new ClipboardEvent('paste', { clipboardData: data }));
   });
-  await expect(page.getByText(/^Could not paste: /)).toBeVisible();
+  await expect(byText(page, /^Could not paste: /)).toBeVisible();
   await expect(layerRows(page)).toHaveCount(1);
   await expect(depths(page, 0)).toBeVisible();
 });

@@ -2,7 +2,7 @@ import { expect, test, type Page } from '@playwright/test';
 import { de } from '../src/lib/i18n/de';
 import { en } from '../src/lib/i18n/en';
 import { TOUR_STEPS } from '../src/lib/tour/steps';
-import { createDocument, gotoStart, menu, storedPref, waitForEditor } from './helpers';
+import { createDocument, gotoStart, menu, storedPref, waitForEditor, byText } from './helpers';
 
 // The first-run tour (docs/specs/first-run-tutorial.md).
 
@@ -125,11 +125,11 @@ test('each editor offers its part once (AC-10)', async ({ page }) => {
   await page.keyboard.press('Escape');
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await waitForEditor(page, 'pixel');
-  await expect(page.getByText('First time in Pixel mode?')).toHaveCount(0);
+  await expect(byText(page, 'First time in Pixel mode?')).toHaveCount(0);
 
   // The other editor still offers its own part.
   await createDocument(page, 'image', { width: 16, height: 16 });
-  await expect(page.getByText('First time in Image mode?')).toBeVisible();
+  await expect(byText(page, 'First time in Image mode?')).toBeVisible();
 });
 
 test('after No thanks no editor hint shows (AC-10)', async ({ page }) => {
@@ -137,7 +137,7 @@ test('after No thanks no editor hint shows (AC-10)', async ({ page }) => {
   await banner(page).getByRole('button', { name: 'No thanks' }).click();
   await expect.poll(() => storedPref(page, 'tourDeclined')).toBe(true);
   await createDocument(page, 'image', { width: 16, height: 16 });
-  await expect(page.getByText('First time in Image mode?')).toHaveCount(0);
+  await expect(byText(page, 'First time in Image mode?')).toHaveCount(0);
 });
 
 test('the start screen has a Tour button beside About (AC-18)', async ({ page }) => {

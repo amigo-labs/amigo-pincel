@@ -10,6 +10,7 @@ import {
   waitForEditor,
   zoomActual,
   zoomReadout,
+  byText,
 } from './helpers';
 
 // The Magic Wand link: after a wand click, new wand settings recompute that
@@ -55,7 +56,7 @@ async function splitSprite(page: Page): Promise<void> {
   await setColor(page, 'fg', '#ff0000');
   await page.keyboard.press('b');
   await drag(page, await mid(page, 8, 0), await mid(page, 8, 15));
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
   await page.keyboard.press('w');
 }
 
@@ -118,7 +119,7 @@ test.describe('pixel', () => {
     expect(await size(page)).toEqual([8, 16]);
 
     // Selection changes add no undo entry (AC-13).
-    await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+    await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
   });
 
   test('the linked click keeps its combine mode against the selection from before it (AC-25)', async ({
@@ -178,7 +179,7 @@ test.describe('pixel', () => {
     await page.keyboard.press('Escape');
     await wandAt(page, 2, 2);
     await page.keyboard.press('ControlOrMeta+z');
-    await expect(page.getByText('undo 0 / redo 1')).toBeVisible();
+    await expect(byText(page, 'undo 0 / redo 1')).toBeVisible();
     await contiguous(page).uncheck();
     expect(await size(page)).toEqual([8, 16]);
   });
@@ -405,16 +406,16 @@ test.describe('pixel link details', () => {
     await page.keyboard.press('Escape');
     await wandAt(page, 2, 2);
     await page.keyboard.press('Delete');
-    await expect(page.getByText('undo 2 / redo 0')).toBeVisible();
+    await expect(byText(page, 'undo 2 / redo 0')).toBeVisible();
     await offStays();
 
     // Redo.
     await page.keyboard.press('ControlOrMeta+z');
-    await expect(page.getByText('undo 1 / redo 1')).toBeVisible();
+    await expect(byText(page, 'undo 1 / redo 1')).toBeVisible();
     await page.keyboard.press('Escape');
     await wandAt(page, 2, 2);
     await page.keyboard.press('ControlOrMeta+y');
-    await expect(page.getByText('undo 2 / redo 0')).toBeVisible();
+    await expect(byText(page, 'undo 2 / redo 0')).toBeVisible();
     await offStays();
 
     // The active layer: sample the composite on a new empty layer, then

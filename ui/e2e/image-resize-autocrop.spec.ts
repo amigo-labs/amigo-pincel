@@ -9,6 +9,7 @@ import {
   pixelOf,
   setColor,
   switchLanguage,
+  byText,
 } from './helpers';
 
 // image-resize-autocrop: the shared size input of Scale Image / Resize
@@ -16,7 +17,7 @@ import {
 // is pinned without a page in size-input.spec.ts.
 
 function status(page: Page, w: number, h: number): Locator {
-  return page.getByText(`${w} × ${h} px`, { exact: true });
+  return byText(page, `${w} × ${h} px`, { exact: true });
 }
 
 async function open(page: Page, item: 'Scale Image…' | 'Resize Canvas…'): Promise<Locator> {
@@ -229,7 +230,7 @@ test('Auto Crop trims the border in one undo step (AC-13 – AC-16)', async ({ p
   await createDocument(page, 'image', { width: 40, height: 30 });
   // Nothing to crop on a uniform image: a notice, no undo step.
   await menu(page, 'Image', 'Auto Crop');
-  await expect(page.getByText('Nothing to crop')).toBeVisible();
+  await expect(byText(page, 'Nothing to crop')).toBeVisible();
   await expect(status(page, 40, 30)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
 
@@ -240,7 +241,7 @@ test('Auto Crop trims the border in one undo step (AC-13 – AC-16)', async ({ p
   await page.keyboard.press('m');
   await drag(page, imageCanvas(page), [0.05, 0.05], [0.2, 0.2]);
   await menu(page, 'Image', 'Auto Crop');
-  const size = page.getByText(/^\d+ × \d+ px$/);
+  const size = byText(page, /^\d+ × \d+ px$/);
   await expect(size).not.toHaveText('40 × 30 px');
   const [w, h] = ((await size.textContent()) ?? '').split(/ × | px/).map(Number);
   expect(w).toBeLessThan(40);

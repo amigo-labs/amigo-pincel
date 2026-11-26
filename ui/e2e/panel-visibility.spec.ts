@@ -218,11 +218,49 @@ test.describe('wide', () => {
     await expect(panel(page, 'Colors')).toBeVisible();
   });
 
+  test('a lone panel takes the collapse state of its group, and the tab row takes the lone panel’s (AC-05)', async ({
+    page,
+  }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    // A collapsed two-tab group loses a tab: the panel left is collapsed.
+    const collapse = sidebar(page).getByRole('button', { name: 'Layers, History', exact: true });
+    await collapse.click();
+    await expect(collapse).toHaveAttribute('aria-expanded', 'false');
+    await choose(page, 'History');
+    await expect(header(page, 'Layers')).toHaveAttribute('aria-expanded', 'false');
+    await expect(panel(page, 'Layers').getByRole('button', { name: 'Add layer' })).toHaveCount(0);
+    // Expanded through the lone header, the state is stored as the group's …
+    await header(page, 'Layers').click();
+    await expect(panel(page, 'Layers').getByRole('button', { name: 'Add layer' })).toBeVisible();
+    await expect
+      .poll(async () => ((await storedPref(page, 'layout:pixel')) as { groups?: Record<string, unknown> }).groups)
+      .toEqual({ document: { active: 'layers', collapsed: false } });
+    // … and collapsed again, it is what the tab row shows after a reload.
+    await header(page, 'Layers').click();
+    await expect
+      .poll(async () => ((await storedPref(page, 'layout:pixel')) as { groups?: Record<string, unknown> }).groups)
+      .toEqual({ document: { active: 'layers', collapsed: true } });
+    await storeLayout(page, 'pixel', {
+      collapsed: {},
+      sidebar: true,
+      groups: { document: { active: 'layers', collapsed: true } },
+    });
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await expect(sidebar(page).getByRole('button', { name: 'Layers, History', exact: true })).toHaveAttribute(
+      'aria-expanded',
+      'false',
+    );
+    await expect(panel(page, 'Layers')).toHaveCount(0);
+  });
+
   test('choosing a removed panel enables it and brings it into view: active tab, expanded, sidebar shown (AC-06)', async ({
     page,
   }) => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });
     await choose(page, 'Slices');
+    // Colors is collapsed when it is removed.
+    await header(page, 'Colors').click();
+    await expect(header(page, 'Colors')).toHaveAttribute('aria-expanded', 'false');
     await choose(page, 'Colors');
     await header(page, 'Palette').click();
     await toggle(page).click();
@@ -378,6 +416,13 @@ test.describe('wide', () => {
     await choose(page, 'Colors');
     expect(await colorOf(page, 'fg')).toBe(bg);
     expect(await colorOf(page, 'bg')).toBe(fg);
+    // Reset Colors (D) with Colors removed.
+    await choose(page, 'Colors');
+    await page.locator('[data-editor]:not([inert]) [data-stage]').click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('d');
+    await choose(page, 'Colors');
+    expect(await colorOf(page, 'fg')).toBe('#000000');
+    expect(await colorOf(page, 'bg')).toBe('#ffffff');
     await choose(page, 'History');
     await expect(panel(page, 'History').getByRole('option')).toHaveCount(2);
   });

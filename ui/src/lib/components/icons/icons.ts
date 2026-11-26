@@ -313,6 +313,18 @@ export const ICONS = {
     { d: 'M3.5 17l5-5.5 4.5 4.5 2.5-2.5 5 5' },
     { d: 'M16 9h.01' },
   ],
+  // Text styles and alignment (options-bar-layout AC-13)
+  bold: [{ d: 'M7.5 4.5h5.5a3.75 3.75 0 0 1 0 7.5H7.5zM7.5 12h6.5a3.75 3.75 0 0 1 0 7.5H7.5z' }],
+  italic: [{ d: 'M10 4.5h8M6 19.5h8M14 4.5l-4 15' }],
+  underline: [{ d: 'M7 4.5v6.5a5 5 0 0 0 10 0V4.5M5 20h14' }],
+  strikethrough: [
+    { d: 'M16.5 7.2C15.8 5.6 14.1 4.5 12 4.5c-2.6 0-4.5 1.5-4.5 3.5 0 1.5 1 2.6 3 3.2' },
+    { d: 'M4 12h16' },
+    { d: 'M15.8 14.5c.5.6.7 1.2.7 1.9 0 1.9-1.9 3.1-4.5 3.1-2.2 0-4-1-4.7-2.7' },
+  ],
+  'align-left': [{ d: 'M4 6h16M4 10h10M4 14h16M4 18h10' }],
+  'align-center': [{ d: 'M4 6h16M7 10h10M4 14h16M7 18h10' }],
+  'align-right': [{ d: 'M4 6h16M10 10h10M4 14h16M10 18h10' }],
 } satisfies Record<string, IconPath[]>;
 
 /** A known icon name. */

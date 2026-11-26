@@ -107,6 +107,7 @@ export const ja: Record<MessageKey, string> = {
   'newDoc.tooLarge': '{max} 以下にしてください — {n} を使用します',
   'newDoc.notWhole': '整数のピクセルのみ — {n} を使用します',
   'newDoc.tooManyPixels': 'ピクセル数が多すぎます（上限 {limit}） — {w} × {h} を使用します',
+  'newDoc.presets': 'サイズのプリセット',
 
   // Recovery dialog
   'recovery.title': '未保存の作業を復元しますか？',
@@ -289,6 +290,7 @@ export const ja: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — 未保存の変更',
   'frame.toolOptions': 'ツールオプション',
+  'frame.moreOptions': 'その他のオプション',
   'frame.panels': 'パネル',
   'frame.tools': 'ツール',
   'frame.menu': 'メニュー',
@@ -1050,6 +1052,7 @@ export const ja: Record<MessageKey, string> = {
   'resize.scaleTitle': '画像を拡大・縮小',
   'resize.resize': 'サイズ変更',
   'resize.scale': '拡大・縮小',
+  'resize.current': '現在のサイズ: {w} × {h} px',
   'slices.mustBePositive': '{field}は正の整数で指定してください',
   'slices.nameRequired': '名前は必須です',
   'slices.none': 'スライスはまだありません',
@@ -1109,6 +1112,7 @@ export const ja: Record<MessageKey, string> = {
   'text.placeholder': 'ここに入力…（Ctrl+Enter で配置）',
   'text.content': 'テキストの内容',
   'text.fontSize': 'フォントサイズ',
+  'text.style': 'テキストスタイル',
   'text.align': 'テキストの配置',
   'text.place': '配置',
   // Font list (docs/specs/system-fonts.md)

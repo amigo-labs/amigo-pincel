@@ -174,7 +174,7 @@ test('image mode: the Gradient tool paints a ramp', async ({ page }) => {
   await expect(undo).toBeDisabled();
 
   await page.keyboard.press('n');
-  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Gradient');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Fill: Gradient');
   // The options bar offers the five ramps and the two channels.
   await page.getByLabel('Ramp').selectOption('radial');
   await page.getByLabel('Channel').selectOption('color');
@@ -255,7 +255,7 @@ test('image mode: the right button paints and samples the background color', asy
   // Paint Bucket, right click: the uniform layer takes the background color.
   await setColors(page, '#ff0000', '#00ff00');
   await page.keyboard.press('g');
-  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Fill');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Fill: Fill');
   const [cx, cy] = await canvasPoint(page, [0.5, 0.5]);
   await page.mouse.click(cx, cy, { button: 'right' });
   expect(await probe(page, [0.5, 0.2])).toBe('#00ff00');
@@ -337,7 +337,8 @@ test('image mode: W, B, E, G and T select their tools', async ({ page }) => {
     ['w', 'Magic Wand'],
     ['b', 'Brush'],
     ['e', 'Eraser'],
-    ['g', 'Fill'],
+    // Fill and Gradient are one group (docs/specs/tool-rail-colors.md AC-13).
+    ['g', 'Fill: Fill'],
     ['t', 'Text'],
   ];
   for (const [key, label] of keys) {

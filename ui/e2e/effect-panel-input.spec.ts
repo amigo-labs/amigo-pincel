@@ -7,6 +7,8 @@ import {
   menu,
   pixelOf,
   waitForEditor,
+  colorPair,
+  byText,
 } from './helpers';
 import { brightness, canvasOf, centre, fill } from './effect-panel-helpers';
 
@@ -150,7 +152,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(lower).not.toBeFocused();
     await lower.click({ force: true });
     await expect(lower).toHaveAttribute('aria-pressed', 'false');
-    const swap = page.getByRole('button', { name: 'Swap foreground and background colors' });
+    const swap = colorPair(page).getByRole('button', { name: 'Swap foreground and background colors' });
     await swap.focus();
     await expect(swap).not.toBeFocused();
     if (mode === 'pixel') {
@@ -233,7 +235,7 @@ for (const mode of ['pixel', 'image'] as const) {
     const field = panel.getByLabel('Input black value', { exact: true });
     await field.fill('40');
     await panel.getByRole('button', { name: 'OK' }).click();
-    await expect(page.getByText(/Levels failed: .*locked/)).toBeVisible();
+    await expect(byText(page, /Levels failed: .*locked/)).toBeVisible();
     await expect(panel).toBeVisible();
     await expect(field).toHaveValue('40');
 
@@ -242,7 +244,7 @@ for (const mode of ['pixel', 'image'] as const) {
     if (mode === 'pixel') {
       // Pixel mode also reports the failed preview.
       await menu(page, 'Adjustments', 'Levels…');
-      await expect(page.getByText(/Preview failed: .*locked/)).toBeVisible();
+      await expect(byText(page, /Preview failed: .*locked/)).toBeVisible();
     }
   });
 

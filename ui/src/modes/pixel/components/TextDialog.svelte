@@ -75,7 +75,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="pointer-events-none fixed inset-0 z-20 flex items-start justify-end p-4"
+  class="pointer-events-none fixed inset-0 z-(--pc-z-overlay) flex items-start justify-end p-4"
   role="dialog"
   aria-modal="false"
   aria-labelledby="text-title"

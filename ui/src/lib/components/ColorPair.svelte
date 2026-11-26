@@ -4,7 +4,8 @@
   // overlapping swatches with swap (X) and reset (D), a hex field and an
   // alpha slider for the foreground. A click on a swatch opens the own
   // color picker in a popover next to it (color-picker spec) — never the
-  // browser's native color dialog.
+  // browser's native color dialog. `compact` is the tool rail's colour well
+  // (docs/specs/tool-rail-colors.md): the swatches with swap and reset only.
   import Icon from './icons/Icon.svelte';
   import ColorPicker from './color/ColorPicker.svelte';
   import { parseHex, toHex, type Rgba8 } from '../color';
@@ -24,8 +25,10 @@
      *  colors reach `onFg` / `onBg` live), `false` once it ended — the
      *  parent stores the colors then, once per interaction. */
     onDraft: (active: boolean) => void;
+    /** The rail's colour well: small swatches, no hex field or alpha slider. */
+    compact?: boolean;
   }
-  const { fg, bg, onFg, onBg, onSwap, onReset, recent, onDraft }: Props = $props();
+  const { fg, bg, onFg, onBg, onSwap, onReset, recent, onDraft, compact = false }: Props = $props();
 
   // The panel's hex field mirrors the foreground; a full #RRGGBB commits.
   let hexText = $state('');
@@ -103,11 +106,15 @@
 
 <svelte:window bind:innerWidth={winWidth} bind:innerHeight={winHeight} />
 
-<div class="flex items-center gap-3">
-  <div class="relative h-14 w-14 shrink-0" bind:this={swatches}>
+<div
+  class="flex items-center gap-3"
+  data-color-well={compact ? '' : undefined}
+  data-color-pair={compact ? undefined : ''}
+>
+  <div class={['relative shrink-0', compact ? 'h-9 w-9' : 'h-14 w-14']} bind:this={swatches}>
     <button
       type="button"
-      class="swatch absolute right-0 bottom-0 h-9 w-9"
+      class={['swatch absolute right-0 bottom-0', compact ? 'h-[22px] w-[22px]' : 'h-9 w-9']}
       style:--swatch={css(bg)}
       data-swatch="bg"
       aria-label={t('color.bg')}
@@ -118,7 +125,7 @@
     ></button>
     <button
       type="button"
-      class="swatch absolute top-0 left-0 z-10 h-9 w-9"
+      class={['swatch absolute top-0 left-0 z-(--pc-z-raised)', compact ? 'h-[22px] w-[22px]' : 'h-9 w-9']}
       style:--swatch={css(fg)}
       data-swatch="fg"
       aria-label={t('color.fg')}
@@ -134,11 +141,11 @@
       aria-label={t('color.swapLabel')}
       onclick={onSwap}
     >
-      <Icon name="swap" size={13} />
+      <Icon name="swap" size={compact ? 11 : 13} />
     </button>
     <button
       type="button"
-      class="absolute -bottom-0.5 -left-0.5 flex h-4 w-4 items-end"
+      class={['absolute -left-0.5 flex h-4 w-4 items-end', compact ? '-bottom-1' : '-bottom-0.5']}
       title={withHint(t('color.reset'), 'resetColors')}
       aria-label={t('color.resetLabel')}
       onclick={onReset}
@@ -147,6 +154,7 @@
       <span class="absolute bottom-1 left-0 h-2.5 w-2.5 border border-pc-muted bg-black"></span>
     </button>
   </div>
+  {#if !compact}
   <div class="flex min-w-0 flex-col gap-1.5 text-xs text-pc-muted">
     <label class="flex items-center gap-1.5">
       {t('color.hex')}
@@ -184,19 +192,20 @@
       <span class="w-7 text-right tabular-nums">{fg.a}</span>
     </label>
   </div>
+  {/if}
 </div>
 
 {#if editing}
   <!-- Backdrop: a click outside commits field text (its blur) and closes. -->
   <button
     type="button"
-    class="fixed inset-0 z-[60] cursor-default"
+    class="fixed inset-0 z-(--pc-z-popover) cursor-default"
     tabindex="-1"
     aria-label={t('color.closePicker')}
     onclick={close}
   ></button>
   <div
-    class="fixed z-[61] rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
+    class="fixed z-(--pc-z-popover-control) rounded-pc-panel border border-pc-border bg-pc-panel p-3 shadow-(--am-elev-3)"
     style:left="{pos.left}px"
     style:top="{pos.top}px"
     bind:this={popover}

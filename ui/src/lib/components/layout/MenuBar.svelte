@@ -5,7 +5,7 @@
   // their trigger, so a horizontally scrolling bar never clips them.
   // `restricted` (an effect is open, effect-panel AC-03) leaves only the
   // menus marked `liveWithEffect` usable: the others are inert, and the
-  // live triggers sit above the top bar's shade (`z-[46]`, app.css 45),
+  // live triggers sit above the top bar's shade (`z-(--pc-z-menu-lifted)`, app.css 45),
   // on an opaque background so the shade does not show through them.
   import { activeOnFocus } from './menu-focus';
   import Icon from '../icons/Icon.svelte';
@@ -227,7 +227,7 @@
     class="flex h-9 w-9 items-center justify-center rounded-pc-control hover:bg-pc-hover"
     class:bg-pc-active={openId === '☰'}
     class:relative={restricted}
-    class:z-[46]={restricted}
+    class:z-(--pc-z-menu-lifted)={restricted}
     class:bg-pc-panel={restricted && openId !== '☰'}
     aria-label={t('frame.menu')}
     aria-haspopup="menu"
@@ -242,7 +242,7 @@
   <div
     class="flex min-w-0 items-center overflow-x-auto [scrollbar-width:none]"
     class:relative={openId !== null && !restricted}
-    class:z-50={openId !== null && !restricted}
+    class:z-(--pc-z-dialog)={openId !== null && !restricted}
     role="menubar"
   >
     {#each menus as m (m.id)}
@@ -251,7 +251,7 @@
         class="shrink-0 rounded-pc-control px-2 py-1 text-sm whitespace-nowrap hover:bg-pc-hover lg:px-2.5"
         class:bg-pc-active={openId === m.id}
         class:relative={restricted && isLive(m)}
-        class:z-[46]={restricted && isLive(m)}
+        class:z-(--pc-z-menu-lifted)={restricted && isLive(m)}
         class:bg-pc-panel={restricted && isLive(m) && openId !== m.id}
         inert={!isLive(m)}
         data-menu-trigger={m.id}
@@ -271,7 +271,7 @@
   <!-- Backdrop closes the menu on an outside click. -->
   <button
     type="button"
-    class="fixed inset-0 z-40 cursor-default"
+    class="fixed inset-0 z-(--pc-z-menu) cursor-default"
     tabindex="-1"
     aria-label={t('frame.closeMenu')}
     onclick={close}
@@ -279,7 +279,7 @@
   {#if openId === '☰'}
     <div
       bind:this={dropdown}
-      class="am-menu fixed z-50 max-h-[80vh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto *:shrink-0"
+      class="am-menu fixed z-(--pc-z-dialog) max-h-[80vh] w-72 max-w-[calc(100vw-1rem)] overflow-y-auto *:shrink-0"
       style:left="{anchor.left}px"
       style:top="{anchor.top}px"
       role="menu"
@@ -288,7 +288,7 @@
       {#each menus as m, i (m.id)}
         {#if i > 0}<hr />{/if}
         <div class="relative" inert={!isLive(m)} data-dimmed={isLive(m) ? undefined : ''}>
-          <div class="px-3 pt-1.5 pb-0.5 text-[11px] font-semibold tracking-wide text-pc-faint uppercase">
+          <div class="px-3 pt-1.5 pb-0.5 text-(length:--pc-text-label) font-semibold tracking-wide text-pc-faint uppercase">
             {m.label}
           </div>
           {@render rows(m.items, 0)}
@@ -298,7 +298,7 @@
   {:else if openMenu}
     <div
       bind:this={dropdown}
-      class="am-menu fixed z-50 max-h-[80vh] min-w-56 overflow-y-auto *:shrink-0"
+      class="am-menu fixed z-(--pc-z-dialog) max-h-[80vh] min-w-56 overflow-y-auto *:shrink-0"
       style:left="{anchor.left}px"
       style:top="{anchor.top}px"
       role="menu"
@@ -310,7 +310,7 @@
       {@const subItem = openMenu.items.find((it) => it.kind === 'submenu' && it.label === sub?.label)}
       {#if subItem?.kind === 'submenu'}
         <div
-          class="am-menu fixed z-50 max-h-[70vh] min-w-52 overflow-y-auto *:shrink-0"
+          class="am-menu fixed z-(--pc-z-dialog) max-h-[70vh] min-w-52 overflow-y-auto *:shrink-0"
           style:left="{sub.left}px"
           style:top="{sub.top}px"
           role="menu"

@@ -109,6 +109,7 @@ export const fr: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Au plus {max} — {n} sera utilisé',
   'newDoc.notWhole': 'Pixels entiers uniquement — {n} sera utilisé',
   'newDoc.tooManyPixels': 'Trop de pixels (limite {limit}) — {w} × {h} sera utilisé',
+  'newDoc.presets': 'Tailles prédéfinies',
 
   // Recovery dialog
   'recovery.title': 'Récupérer le travail non enregistré ?',
@@ -294,6 +295,7 @@ export const fr: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — modifications non enregistrées',
   'frame.toolOptions': 'Options de l’outil',
+  'frame.moreOptions': 'Plus d’options',
   'frame.panels': 'Panneaux',
   'frame.tools': 'Outils',
   'frame.menu': 'Menu',
@@ -1056,6 +1058,7 @@ export const fr: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Redimensionner l’image',
   'resize.resize': 'Redimensionner',
   'resize.scale': 'Mettre à l’échelle',
+  'resize.current': 'Taille actuelle : {w} × {h} px',
   'slices.mustBePositive': '{field} doit être un entier positif',
   'slices.nameRequired': 'le nom est obligatoire',
   'slices.none': 'aucune tranche pour l’instant',
@@ -1115,6 +1118,7 @@ export const fr: Record<MessageKey, string> = {
   'text.placeholder': 'Tapez ici… (Ctrl+Enter pour placer)',
   'text.content': 'Contenu du texte',
   'text.fontSize': 'Taille de police',
+  'text.style': 'Style du texte',
   'text.align': 'Alignement du texte',
   'text.place': 'Placer',
   // Font list (docs/specs/system-fonts.md)

@@ -1,5 +1,6 @@
 <script lang="ts">
   import TourHint from '../../lib/tour/TourHint.svelte';
+  import ColorWell from './components/ColorWell.svelte';
   import { hexToRgb, toHex } from '../../lib/color';
   import {
     colorDraft,
@@ -577,12 +578,12 @@
       {
         id: 'fill',
         label: t('tool.fill'),
-        tools: [{ id: 'fill', label: t('tool.fill'), icon: 'bucket' }],
-      },
-      {
-        id: 'gradient',
-        label: t('tool.gradient'),
-        tools: [{ id: 'gradient', label: t('tool.gradient'), icon: 'gradient' }],
+        // One group on G, as in Pixel mode; N selects the Gradient
+        // directly (tool-rail-colors AC-13, AC-14).
+        tools: [
+          { id: 'fill', label: t('tool.fill'), icon: 'bucket' },
+          { id: 'gradient', label: t('tool.gradient'), icon: 'gradient' },
+        ],
       },
       {
         id: 'eyedropper',
@@ -712,6 +713,7 @@
   const statusInfo: StatusInfo = $derived({
     ready: editor.handle !== null,
     text: statusNotice ?? toolLabel,
+    notice: statusNotice,
     warning: statusNotice !== null,
     position: statusPointer
       ? t('status.position', {
@@ -1475,6 +1477,7 @@
 <svelte:window onkeydown={onKeydown} onpaste={onPaste} />
 
 {#snippet colorsBody()}<ColorsPanel />{/snippet}
+{#snippet colorWell()}<ColorWell />{/snippet}
 {#snippet effectBody()}
   {#if effectOpen}
     {@const session = effectOpen}
@@ -1526,6 +1529,7 @@
   onSearch={openCommandPalette}
   searchHint={hint('commandPalette')}
   status={statusInfo}
+  toolName={toolLabel}
   zoom={zoomProps}
   effectPanel={effectOpen ? { title: effectLabel(effectOpen.def), body: effectBody } : null}
   tabs={tabBar}
@@ -1589,6 +1593,7 @@
       onSelect={(next) => (tool.kind = next)}
       {orientation}
       resetKey={active ? editor.handle : null}
+      foot={colorWell}
     />
   {/snippet}
   {#snippet options()}

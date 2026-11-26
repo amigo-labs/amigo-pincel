@@ -14,6 +14,7 @@ import {
   zoomActual,
   zoomFit,
   zoomReadout,
+  colorPair,
 } from './helpers';
 
 // The shared amigo app theme (docs/specs/amigo-theme.md): colours, radii,
@@ -946,7 +947,7 @@ for (const mode of MODES) {
 
     // A small icon button outside the dialogs.
     expect(
-      await radiusOf(page.getByRole('button', { name: 'Swap foreground and background colors' })),
+      await radiusOf(colorPair(page).getByRole('button', { name: 'Swap foreground and background colors' })),
     ).toBe(sm);
 
     // Dialogs, their buttons and fields.

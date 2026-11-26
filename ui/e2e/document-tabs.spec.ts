@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, gotoStart, menu, putClipboardImage, waitForEditor } from './helpers';
+import { createDocument, drag, gotoStart, menu, putClipboardImage, waitForEditor, byText } from './helpers';
 import {
   DEFAULT_NAME,
   EXT,
@@ -216,7 +216,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await openTabs(page, mode, ['a']);
     // An unreadable file shows its error and leaves every tab open.
     await dropFiles(page, [{ name: 'notes.txt', bytes: Buffer.from('hello') }]);
-    await expect(page.getByText('notes.txt: not a supported file')).toBeVisible();
+    await expect(byText(page, 'notes.txt: not a supported file')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
     await expect(tabs(page)).toHaveCount(2);
     await expectActive(page, name('a'));
@@ -306,7 +306,7 @@ for (const mode of ['pixel', 'image'] as const) {
     ]);
     await expectActive(page, name('b'));
     expect(await tabNames(page)).toEqual([DEFAULT_NAME[mode], name('a'), x.name, name('b')]);
-    await expect(page.getByText('1 dropped file could not be opened')).toBeVisible();
+    await expect(byText(page, '1 dropped file could not be opened')).toBeVisible();
     await expect(prompt(page)).toHaveCount(0);
     await tab(page, x.name).click();
     await expectActive(page, x.name);

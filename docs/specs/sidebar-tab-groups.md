@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-15
 size: L
 mode: both
@@ -7,6 +7,15 @@ design: [pincel.md §9.2]
 ---
 
 # Sidebar tab groups
+
+## Summary
+
+> Completed: 2026-11-26
+
+- Fixed sidebar groups in both modes: Colors and Palette stay single panels; Layers | History, Preview | Tilesets | Slices (Pixel) and, in the desktop app, Generate | Assistant are tab groups (`PanelGroup.svelte`, `layout/groups.ts`).
+- Each group has a tab list with a collapse control, arrow / Home / End / Enter / Space keys and the tab-panel roles; the active tab and the collapse state are stored per mode and read tolerantly from older or broken layouts.
+- Every panel of a group stays mounted and draws nothing while it is not the shown tab, so drafts, conversations, generations and history survive a tab switch, and Generate connects to no server until its tab is shown.
+- Layers | History and Generate | Assistant share the free height; the phone bottom sheet keeps one tab per panel.
 
 ## Context
 
@@ -46,25 +55,25 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Pixel mode's sidebar shows, top to bottom: Colors (single), Palette (single), a group Layers | History, a group Preview | Tilesets | Slices and, in the desktop app, a group Generate | Assistant.
-- [ ] AC-02 (always): Image mode's sidebar shows, top to bottom: Colors (single), a group Layers | History and, in the desktop app, a group Generate | Assistant.
-- [ ] AC-03 (always): A group's header shows one tab per panel, labelled with the panel's title in the order of AC-01 / AC-02, and a collapse control; an expanded group shows the active tab's panel below it, and the group's other panels are not on the page.
-- [ ] AC-04 (event): When the user chooses a tab of an expanded group, then that panel becomes the group's active tab and replaces the one shown; choosing the tab that is already active changes nothing.
-- [ ] AC-05 (event): When the user chooses a tab of a collapsed group, then the group expands and shows that panel.
-- [ ] AC-06 (event): When the user uses a group's collapse control, then the group collapses or expands; collapsed, the tab row stays visible, the active tab stays marked and none of the group's panels is on the page.
-- [ ] AC-07 (state): While it is first use, every group the mode has on the platform starts like this: Layers | History expanded with Layers active; Preview | Tilesets | Slices collapsed with Preview active; Generate | Assistant expanded with Assistant active. Colors and Palette are expanded.
-- [ ] AC-08 (always): Each group's active tab and collapse state, and each single panel's collapse state, are kept per mode across a reload and across documents; the docked sidebar and the drawer show the same state.
-- [ ] AC-09 (state): While the stored layout is one written before this spec (collapse states per panel, no group state), Colors and Palette keep their stored collapse state and every group starts as in AC-07.
-- [ ] AC-10 (error): If the stored layout cannot be read as a layout at all, then the sidebar starts as in AC-07 and no error is shown; if a stored active tab names a panel the group does not have on this platform, then the group's first-use active tab is active, or its first panel where that one is missing too.
-- [ ] AC-11 (state): While the Generate tab is not active or its group is collapsed, no ComfyUI server is started by the panel (`comfyui-connect` AC-03 holds as it does for the collapsed Generate panel today).
-- [ ] AC-12 (always): The tab row is a tab list for assistive technology: each tab has the role tab and its selected state; while the group is expanded its body has the role tab panel and is named by the active tab. With focus on a tab, Left / Right move focus to the neighbouring tab and choose it, without wrapping at the ends; Home / End go to the first / last tab.
-- [ ] AC-13 (always): Expanded groups Layers | History and Generate | Assistant share the sidebar height the other blocks leave, in equal parts; a collapsed one takes only its header and the other takes the rest. Preview | Tilesets | Slices takes the height of its panel's content. If the blocks need more height than the window has, the sidebar scrolls vertically, as today.
-- [ ] AC-14 (state): While the docked sidebar is at its narrowest width (240 px), in English and in German, the sidebar does not scroll sideways, and every tab of every group can be brought fully into view (the tab row may scroll) and chosen.
-- [ ] AC-15 (state): While the window is narrower than 640 px, the bottom sheet shows one tab per panel as before this spec.
-- [ ] AC-16 (event): When the user switches away from a tab and back, then the panel shows what it showed before: the Assistant its conversation and the text typed into its input, Generate its prompt, settings and results, History its list, Layers its tree.
-- [ ] AC-17 (state): While an Assistant answer runs, the tabs of Generate | Assistant can still be chosen; the answer keeps running while Generate is active, the Generate panel takes no input as today, and on return the Assistant shows the answer as far as it has come — or the finished or failed answer.
-- [ ] AC-18 (state): While a generation runs in the Generate panel, choosing the Assistant tab does not stop it; on return the Generate panel shows its progress or its result.
-- [ ] AC-19 (state): While an effect is open, the tab rows, collapse controls and panels take no pointer or key input, like the rest of the sidebar today.
+- [x] AC-01 (always): Pixel mode's sidebar shows, top to bottom: Colors (single), Palette (single), a group Layers | History, a group Preview | Tilesets | Slices and, in the desktop app, a group Generate | Assistant.
+- [x] AC-02 (always): Image mode's sidebar shows, top to bottom: Colors (single), a group Layers | History and, in the desktop app, a group Generate | Assistant.
+- [x] AC-03 (always): A group's header shows one tab per panel, labelled with the panel's title in the order of AC-01 / AC-02, and a collapse control; an expanded group shows the active tab's panel below it, and the group's other panels are not on the page.
+- [x] AC-04 (event): When the user chooses a tab of an expanded group, then that panel becomes the group's active tab and replaces the one shown; choosing the tab that is already active changes nothing.
+- [x] AC-05 (event): When the user chooses a tab of a collapsed group, then the group expands and shows that panel.
+- [x] AC-06 (event): When the user uses a group's collapse control, then the group collapses or expands; collapsed, the tab row stays visible, the active tab stays marked and none of the group's panels is on the page.
+- [x] AC-07 (state): While it is first use, every group the mode has on the platform starts like this: Layers | History expanded with Layers active; Preview | Tilesets | Slices collapsed with Preview active; Generate | Assistant expanded with Assistant active. Colors and Palette are expanded.
+- [x] AC-08 (always): Each group's active tab and collapse state, and each single panel's collapse state, are kept per mode across a reload and across documents; the docked sidebar and the drawer show the same state.
+- [x] AC-09 (state): While the stored layout is one written before this spec (collapse states per panel, no group state), Colors and Palette keep their stored collapse state and every group starts as in AC-07.
+- [x] AC-10 (error): If the stored layout cannot be read as a layout at all, then the sidebar starts as in AC-07 and no error is shown; if a stored active tab names a panel the group does not have on this platform, then the group's first-use active tab is active, or its first panel where that one is missing too.
+- [x] AC-11 (state): While the Generate tab is not active or its group is collapsed, no ComfyUI server is started by the panel (`comfyui-connect` AC-03 holds as it does for the collapsed Generate panel today).
+- [x] AC-12 (always): The tab row is a tab list for assistive technology: each tab has the role tab and its selected state; while the group is expanded its body has the role tab panel and is named by the active tab. With focus on a tab, Left / Right move focus to the neighbouring tab and choose it, without wrapping at the ends; Home / End go to the first / last tab.
+- [x] AC-13 (always): Expanded groups Layers | History and Generate | Assistant share the sidebar height the other blocks leave, in equal parts; a collapsed one takes only its header and the other takes the rest. Preview | Tilesets | Slices takes the height of its panel's content. If the blocks need more height than the window has, the sidebar scrolls vertically, as today.
+- [x] AC-14 (state): While the docked sidebar is at its narrowest width (240 px), in English and in German, the sidebar does not scroll sideways, and every tab of every group can be brought fully into view (the tab row may scroll) and chosen.
+- [x] AC-15 (state): While the window is narrower than 640 px, the bottom sheet shows one tab per panel as before this spec.
+- [x] AC-16 (event): When the user switches away from a tab and back, then the panel shows what it showed before: the Assistant its conversation and the text typed into its input, Generate its prompt, settings and results, History its list, Layers its tree.
+- [x] AC-17 (state): While an Assistant answer runs, the tabs of Generate | Assistant can still be chosen; the answer keeps running while Generate is active, the Generate panel takes no input as today, and on return the Assistant shows the answer as far as it has come — or the finished or failed answer.
+- [x] AC-18 (state): While a generation runs in the Generate panel, choosing the Assistant tab does not stop it; on return the Generate panel shows its progress or its result.
+- [x] AC-19 (state): While an effect is open, the tab rows, collapse controls and panels take no pointer or key input, like the rest of the sidebar today.
 
 ## Technical notes
 
@@ -108,25 +117,25 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, Preview | Tilesets | Slices, in their first-use state (AC-01, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, Generate | Assistant last with the Assistant active (AC-01, AC-07)" | built |        |
-| AC-02 | `ui/e2e/sidebar-groups.spec.ts`: "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | built |        |
-| AC-03 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, … (AC-01, AC-03, AC-07)", "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)" | built |        |
-| AC-04 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; the collapse control keeps the tab row (AC-04, AC-05, AC-06)"; "wide › {pixel, image}: Enter on a tab chooses it and expands a collapsed group (AC-04, AC-05)" | built |        |
-| AC-05 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)"; "wide › {pixel, image}: Enter on a tab chooses it and expands a collapsed group (AC-04, AC-05)" | built |        |
-| AC-06 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)" | built |        |
-| AC-07 | `ui/e2e/sidebar-groups-layout.spec.ts`: "first use (AC-07)" (5 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: … in their first-use state (AC-01, AC-03, AC-07)", "wide › image: … (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, … (AC-01, AC-07)" | built |        |
-| AC-08 | `ui/e2e/sidebar-groups.spec.ts`: "wide › active tabs and collapse states are kept per mode across a reload, documents and the drawer (AC-08)"; `ui/e2e/sidebar-groups-layout.spec.ts`: "stored group state (AC-08)" | built |        |
-| AC-09 | `ui/e2e/sidebar-groups-layout.spec.ts`: "a layout stored before the groups (AC-09)" (2 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a layout stored before the groups keeps the single panels and starts the groups fresh (AC-09)" | built |        |
-| AC-10 | `ui/e2e/sidebar-groups-layout.spec.ts`: "unreadable or stale values (AC-10)" (9 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a stored value that is no layout, or names a tab the group lacks, starts as on first use without an error (AC-10)" | built |        |
-| AC-11 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "no ComfyUI server is asked for while the Generate tab is not active or its group is collapsed (AC-11)"; `ui/e2e/comfyui-generate.spec.ts`: "desktop › the desktop app has a Generate panel, a tab that is not active at first (AC-01)" | built |        |
-| AC-12 | `ui/e2e/sidebar-groups.spec.ts`: "wide › the tab row is a tab list: roles, the tab panel named by the active tab, arrow keys without wrapping, Home and End (AC-12)" | built |        |
-| AC-13 | `ui/e2e/sidebar-groups.spec.ts`: "wide › Layers | History takes the height the other blocks leave; Preview | Tilesets | Slices that of its content (AC-13)", "short window › blocks that need more height than the window make the sidebar scroll vertically (AC-13)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | built |        |
-| AC-14 | `ui/e2e/sidebar-groups.spec.ts`: "240 px sidebar, {English, Deutsch} › no sideways scroll; every tab can be brought into view and chosen (AC-14)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "240 px sidebar, {English, Deutsch}: all three groups fit; every tab can be brought into view and chosen (AC-14)" | built |        |
-| AC-15 | `ui/e2e/sidebar-groups.spec.ts`: "narrow › the bottom sheet shows one tab per panel, as before (AC-15)" | built |        |
-| AC-16 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a panel shows what it showed before a tab switch: conversation, draft, prompt, history, layers (AC-16)" | built |        |
-| AC-17 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "while an answer runs the tabs can be chosen; the answer goes on behind Generate, which takes no input (AC-17)", "an answer that is still running shows as far as it has come on return (AC-17)" | built |        |
-| AC-18 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a running generation is not stopped by the Assistant tab; on return Generate shows its progress, then its result (AC-18)" | built |        |
-| AC-19 | `ui/e2e/sidebar-groups.spec.ts`: "wide › while an effect is open the tab rows and collapse controls take no input (AC-19)" | built |        |
+| AC-01 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, Preview | Tilesets | Slices, in their first-use state (AC-01, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, Generate | Assistant last with the Assistant active (AC-01, AC-07)" | verified | b1d54fe |
+| AC-02 | `ui/e2e/sidebar-groups.spec.ts`: "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | verified | b1d54fe |
+| AC-03 | `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: Colors, Palette, Layers | History, … (AC-01, AC-03, AC-07)", "wide › image: Colors and Layers | History (AC-02, AC-03, AC-07)" | verified | b1d54fe |
+| AC-04 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; the collapse control keeps the tab row (AC-04, AC-05, AC-06)"; "wide › {pixel, image}: Enter on a tab chooses it and expands a collapsed group (AC-04, AC-05)" | verified | b1d54fe |
+| AC-05 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)"; "wide › {pixel, image}: Enter on a tab chooses it and expands a collapsed group (AC-04, AC-05)" | verified | b1d54fe |
+| AC-06 | `ui/e2e/sidebar-groups.spec.ts`: "wide › choosing a tab shows its panel, expands a collapsed group; … (AC-04, AC-05, AC-06)" | verified | b1d54fe |
+| AC-07 | `ui/e2e/sidebar-groups-layout.spec.ts`: "first use (AC-07)" (5 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › pixel: … in their first-use state (AC-01, AC-03, AC-07)", "wide › image: … (AC-02, AC-03, AC-07)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "pixel: three groups, … (AC-01, AC-07)" | verified | 799bac7 |
+| AC-08 | `ui/e2e/sidebar-groups.spec.ts`: "wide › active tabs and collapse states are kept per mode across a reload, documents and the drawer (AC-08)"; `ui/e2e/sidebar-groups-layout.spec.ts`: "stored group state (AC-08)" | verified | b1d54fe |
+| AC-09 | `ui/e2e/sidebar-groups-layout.spec.ts`: "a layout stored before the groups (AC-09)" (2 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a layout stored before the groups keeps the single panels and starts the groups fresh (AC-09)" | verified | 799bac7 |
+| AC-10 | `ui/e2e/sidebar-groups-layout.spec.ts`: "unreadable or stale values (AC-10)" (9 tests); `ui/e2e/sidebar-groups.spec.ts`: "wide › a stored value that is no layout, or names a tab the group lacks, starts as on first use without an error (AC-10)" | verified | 799bac7 |
+| AC-11 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "no ComfyUI server is asked for while the Generate tab is not active or its group is collapsed (AC-11)"; `ui/e2e/comfyui-generate.spec.ts`: "desktop › the desktop app has a Generate panel, a tab that is not active at first (AC-01)" | verified | afa687f |
+| AC-12 | `ui/e2e/sidebar-groups.spec.ts`: "wide › the tab row is a tab list: roles, the tab panel named by the active tab, arrow keys without wrapping, Home and End (AC-12)" | verified | b1d54fe |
+| AC-13 | `ui/e2e/sidebar-groups.spec.ts`: "wide › Layers | History takes the height the other blocks leave; Preview | Tilesets | Slices that of its content (AC-13)", "short window › blocks that need more height than the window make the sidebar scroll vertically (AC-13)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "image: Layers | History and Generate | Assistant share the height in equal parts (AC-02, AC-07, AC-13)" | verified | b1d54fe |
+| AC-14 | `ui/e2e/sidebar-groups.spec.ts`: "240 px sidebar, {English, Deutsch} › no sideways scroll; every tab can be brought into view and chosen (AC-14)"; `ui/e2e/sidebar-groups-desktop.spec.ts`: "240 px sidebar, {English, Deutsch}: all three groups fit; every tab can be brought into view and chosen (AC-14)" | verified | b1d54fe |
+| AC-15 | `ui/e2e/sidebar-groups.spec.ts`: "narrow › the bottom sheet shows one tab per panel, as before (AC-15)" | verified | b1d54fe |
+| AC-16 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a panel shows what it showed before a tab switch: conversation, draft, prompt, history, layers (AC-16)" | verified | afa687f |
+| AC-17 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "while an answer runs the tabs can be chosen; the answer goes on behind Generate, which takes no input (AC-17)", "an answer that is still running shows as far as it has come on return (AC-17)"; "an answer that fails behind the Generate tab shows its error on return (AC-17)" | verified | afa687f |
+| AC-18 | `ui/e2e/sidebar-groups-desktop.spec.ts`: "a running generation is not stopped by the Assistant tab; on return Generate shows its progress, then its result (AC-18)" | verified | afa687f |
+| AC-19 | `ui/e2e/sidebar-groups.spec.ts`: "wide › while an effect is open the tab rows and collapse controls take no input (AC-19)" | verified | b1d54fe |
 
 ## Decisions
 

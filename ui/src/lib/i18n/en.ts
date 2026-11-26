@@ -106,6 +106,7 @@ export const en = {
   'newDoc.tooLarge': 'At most {max} — {n} will be used',
   'newDoc.notWhole': 'Whole pixels only — {n} will be used',
   'newDoc.tooManyPixels': 'Too many pixels (limit {limit}) — {w} × {h} will be used',
+  'newDoc.presets': 'Size presets',
 
   // Recovery dialog
   'recovery.title': 'Recover unsaved work?',
@@ -287,6 +288,7 @@ export const en = {
   // Editor frame
   'frame.unsaved': '{title} — unsaved changes',
   'frame.toolOptions': 'Tool options',
+  'frame.moreOptions': 'More options',
   'frame.panels': 'Panels',
   'frame.tools': 'Tools',
   'frame.menu': 'Menu',
@@ -1045,6 +1047,7 @@ export const en = {
   'resize.scaleTitle': 'Scale image',
   'resize.resize': 'Resize',
   'resize.scale': 'Scale',
+  'resize.current': 'Current size: {w} × {h} px',
   'slices.mustBePositive': '{field} must be a positive integer',
   'slices.nameRequired': 'name is required',
   'slices.none': 'no slices yet',
@@ -1104,6 +1107,7 @@ export const en = {
   'text.placeholder': 'Type here… (Ctrl+Enter to place)',
   'text.content': 'Text content',
   'text.fontSize': 'Font size',
+  'text.style': 'Text style',
   'text.align': 'Text alignment',
   'text.place': 'Place',
   // Font list (docs/specs/system-fonts.md)

@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { imageCanvas } from './helpers';
+import { imageCanvas} from './helpers';
 
 // Helpers for the Image-mode live text (docs/specs/image-live-text.md).
 // Positions are in document pixels of a `W` × `H` image; screenshots are
@@ -174,4 +174,15 @@ export async function undoAll(page: Page): Promise<number> {
     if (n > 50) throw new Error('undo does not end');
   }
   return n;
+}
+
+
+/** Sets the Text tool's alignment through its icon radios in the options
+ *  bar (docs/specs/options-bar-layout.md AC-13). */
+export async function chooseAlign(page: Page, align: 'left' | 'center' | 'right' | string): Promise<void> {
+  const name = { left: 'Left', center: 'Center', right: 'Right' }[align as 'left'] ?? align;
+  await page
+    .getByRole('radiogroup', { name: 'Align', exact: true })
+    .getByRole('radio', { name, exact: true })
+    .click();
 }

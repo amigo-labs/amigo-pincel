@@ -8,7 +8,7 @@
 </script>
 
 <div
-  class="absolute bottom-3 left-3 z-20 flex items-center gap-0.5 rounded-pc-control border border-pc-border bg-pc-panel/90 p-0.5 shadow-lg backdrop-blur"
+  class="absolute bottom-3 left-3 z-(--pc-z-overlay) flex items-center gap-0.5 rounded-pc-control border border-pc-border bg-pc-panel/90 p-0.5 shadow-lg backdrop-blur"
   role="group"
   aria-label={t('mods.label')}
 >

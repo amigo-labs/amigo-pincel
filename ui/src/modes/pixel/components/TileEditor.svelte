@@ -110,7 +110,7 @@
 </script>
 
 <div
-  class="absolute inset-0 z-10 flex items-center justify-center bg-pc-bg/80 p-4"
+  class="absolute inset-0 z-(--pc-z-raised) flex items-center justify-center bg-pc-bg/80 p-4"
   role="dialog"
   aria-modal="true"
   aria-label={t('tiles.editor')}

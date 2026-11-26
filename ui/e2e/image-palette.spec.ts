@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, menu } from './helpers';
+import { createDocument, menu, byText } from './helpers';
 import {
   chooseSave,
   colorsPanel,
@@ -96,7 +96,7 @@ test.describe('with the file chooser and downloads', () => {
         page.getByRole('menuitem', { name: 'Import palette…' }).click(),
       ]);
       await chooser.setFiles({ name, mimeType: 'application/octet-stream', buffer });
-      await expect(page.getByText(`imported ${count} palette colours`)).toBeVisible();
+      await expect(byText(page, `imported ${count} palette colours`)).toBeVisible();
       await expect(pixelSwatches).toHaveCount(count);
       pixel.push(
         await pixelSwatches.evaluateAll((els) =>

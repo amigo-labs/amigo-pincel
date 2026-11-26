@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Download, type Locator, type Page } from '@playwright/test';
-import { createDocument, menu, storedPref } from './helpers';
+import { createDocument, menu, storedPref, byText } from './helpers';
 
 // Scaled PNG frame and sprite-sheet export (docs/specs/scaled-export.md).
 // Force the download fallback: the File System Access picker would open a
@@ -129,12 +129,12 @@ test('an output over 16384 px fails in the status bar without a file (AC-09)', a
   await menu(page, 'File', 'Export', 'PNG (current frame)');
   await pngDialog(page).getByLabel('Scale').selectOption({ label: '×10' });
   await pngDialog(page).getByRole('button', { name: 'Export' }).click();
-  await expect(page.getByText(/^Export failed: .*16384/)).toBeVisible();
+  await expect(byText(page, /^Export failed: .*16384/)).toBeVisible();
 
   await menu(page, 'File', 'Export', 'Sprite Sheet…');
   await sheetDialog(page).getByLabel('Scale').selectOption({ label: '×10' });
   await sheetDialog(page).getByRole('button', { name: 'Export' }).click();
-  await expect(page.getByText(/^Sprite-sheet export failed: .*16384/)).toBeVisible();
+  await expect(byText(page, /^Sprite-sheet export failed: .*16384/)).toBeVisible();
   expect(downloads).toHaveLength(0);
 });
 

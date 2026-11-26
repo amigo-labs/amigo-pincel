@@ -1,6 +1,6 @@
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor } from './helpers';
+import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor, byText } from './helpers';
 
 // Tool-variant flyout on the tool rail (docs/specs/tool-variant-flyout.md):
 // a right-click, a long press or Shift+F10 on a group button lists the
@@ -9,9 +9,7 @@ import { createDocument, drag, pixelCanvas, switchLanguage, waitForEditor } from
 
 const PIXEL_SHAPES = [
   'Rectangle',
-  'Filled Rectangle',
   'Ellipse',
-  'Filled Ellipse',
   'Rounded Rectangle',
   'Polygon',
 ];
@@ -213,12 +211,12 @@ test.describe('touch', () => {
     // Hold, slide onto an entry, lift.
     await touch('touchStart', [shapes]);
     await expect(menu).toBeVisible();
-    const fill = await center(menu.getByRole('menuitemradio', { name: 'Filled Rectangle', exact: true }));
+    const fill = await center(menu.getByRole('menuitemradio', { name: 'Rounded Rectangle', exact: true }));
     await touch('touchMove', [fill]);
     await touch('touchEnd', []);
     await cdp.detach();
     await expect(menu).toBeHidden();
-    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Filled Rectangle');
+    await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Rounded Rectangle');
   });
 
   test('pixel mode: a quick tap selects the shown variant (AC-04)', async ({ page }) => {
@@ -233,7 +231,6 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   await createDocument(page, 'pixel', { width: 32, height: 32 });
   await page.keyboard.press('u');
   await page.keyboard.press('u');
-  await page.keyboard.press('u');
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Ellipse');
 
   await groupButton(page, 'shapes').click({ button: 'right' });
@@ -245,7 +242,7 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   // Focus starts on the checked entry.
   await expect(entry('Ellipse')).toBeFocused();
   await page.keyboard.press('ArrowDown');
-  await expect(entry('Filled Ellipse')).toBeFocused();
+  await expect(entry('Rounded Rectangle')).toBeFocused();
   await page.keyboard.press('End');
   await expect(entry('Polygon')).toBeFocused();
   await page.keyboard.press('ArrowDown');
@@ -257,7 +254,7 @@ test('pixel mode: header, checked entry and keyboard choice (AC-05, AC-06, AC-08
   await page.keyboard.press('ArrowDown');
   await page.keyboard.press('Enter');
   await expect(menu).toBeHidden();
-  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Filled Rectangle');
+  await expect(activeTool(page)).toHaveAttribute('aria-label', 'Shapes: Ellipse');
   await expect(groupButton(page, 'shapes')).toBeFocused();
 
   // Space chooses too; with the active tool outside the group, focus
@@ -406,7 +403,7 @@ test.describe('phone strip', () => {
     // The last group button sits at the right edge: the flyout shifts in.
     const shapes = groupButton(page, 'shapes');
     await shapes.scrollIntoViewIfNeeded();
-    await rail(page).evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
+    await rail(page).locator('[data-tool-list]').evaluate((el) => el.scrollTo({ left: el.scrollWidth }));
     await shapes.click({ button: 'right' });
     const right = await flyout(page).boundingBox();
     if (!right) throw new Error('not visible');
@@ -415,8 +412,19 @@ test.describe('phone strip', () => {
   });
 });
 
+/** Scrolls `button` into the tool list's view and lets the scroll event
+ *  pass: a scroll of the list closes an open flyout (AC-14), so a flyout
+ *  opened in the same breath as the scroll would close again. */
+async function inView(button: Locator): Promise<void> {
+  await button.scrollIntoViewIfNeeded();
+  await button.evaluate(
+    () => new Promise<void>((done) => requestAnimationFrame(() => requestAnimationFrame(() => done()))),
+  );
+}
+
 test.describe('short window', () => {
-  test.use({ viewport: { width: 1000, height: 200 } });
+  // Four shapes since docs/specs/tool-rail-colors.md AC-15: a lower window.
+  test.use({ viewport: { width: 1000, height: 150 } });
 
   test('pixel mode: a flyout taller than the window is limited to it and scrolls (AC-11)', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 32, height: 32 });
@@ -428,7 +436,7 @@ test.describe('short window', () => {
     const fly = await menu.boundingBox();
     if (!fly) throw new Error('not visible');
     expect(fly.y).toBeGreaterThanOrEqual(0);
-    expect(fly.y + fly.height).toBeLessThanOrEqual(200);
+    expect(fly.y + fly.height).toBeLessThanOrEqual(150);
     expect(await menu.evaluate((el) => el.scrollHeight > el.clientHeight)).toBe(true);
   });
 });
@@ -441,7 +449,7 @@ test.describe('German UI', () => {
     const menu = page.getByRole('menu', { name: 'Formen', exact: true });
     await expect(menu).toBeVisible();
     await expect(menu.locator('[data-flyout-header]')).toHaveText('Formen (U)');
-    await expect(menu.getByRole('menuitemradio', { name: 'Gefülltes Rechteck' })).toBeVisible();
+    await expect(menu.getByRole('menuitemradio', { name: 'Abgerundetes Rechteck' })).toBeVisible();
   });
 });
 
@@ -496,11 +504,14 @@ test.describe('closing from outside', () => {
     await expect(menu).toBeHidden();
 
     await shapes.click({ button: 'right' });
-    await rail(page).evaluate((el) => (el.scrollTop = el.scrollTop > 0 ? 0 : 40));
+    await rail(page)
+      .locator('[data-tool-list]')
+      .evaluate((el) => (el.scrollTop = el.scrollTop > 0 ? 0 : 40));
     await expect(menu).toBeHidden();
 
     // The options bar changes the tool without a press outside the flyout.
     await page.keyboard.press('u');
+    await inView(shapes);
     await shapes.click({ button: 'right' });
     await expect(menu).toBeVisible();
     await page
@@ -521,12 +532,13 @@ test.describe('closing from outside', () => {
     await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Open…' }).click();
     const picker = await chooser;
     // The picker is still open when the flyout opens from the keyboard.
+    await inView(groupButton(page, 'shapes'));
     await groupButton(page, 'shapes').focus();
     await page.keyboard.press('Shift+F10');
     await expect(flyout(page)).toBeVisible();
     await picker.setFiles({ name: 'dot.png', mimeType: 'image/png', buffer: tinyPng() });
     // Pixel mode opens a PNG as a new sprite in place.
-    await expect(page.getByText('opened dot.png · 1×1')).toBeVisible();
+    await expect(byText(page, 'opened dot.png · 1×1')).toBeVisible();
     await expect(page.getByRole('menu')).toHaveCount(0);
     await expect(activeTool(page)).toHaveAttribute('aria-label', 'Pencil');
   });
@@ -540,6 +552,7 @@ test.describe('closing from outside', () => {
     await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
     await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Open…' }).click();
     const picker = await chooser;
+    await inView(groupButton(page, 'shapes'));
     await groupButton(page, 'shapes').focus();
     await page.keyboard.press('Shift+F10');
     await expect(flyout(page)).toBeVisible();

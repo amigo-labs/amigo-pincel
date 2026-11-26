@@ -3,6 +3,7 @@
   // the layers panel also renames inline. Keys typed here never reach the
   // editor's window-level shortcuts.
   import { onMount } from 'svelte';
+  import Dialog from './Dialog.svelte';
   import { t } from '../i18n/index.svelte';
 
   interface Props {
@@ -27,42 +28,20 @@
     else onCancel();
   }
 
-  function onKeydown(e: KeyboardEvent): void {
-    e.stopPropagation();
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  }
+  // Keys typed here never reach the editor's window-level shortcuts; the
+  // shell inside has already handled Escape / Enter / Tab by then.
 </script>
 
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('layers.renameTitle')}
-  tabindex="-1"
-  onkeydown={onKeydown}
+<Dialog
+  title={t('layers.renameTitle')}
+  applyLabel={t('layers.rename')}
+  onApply={submit}
+  onClose={onCancel}
 >
-  <form
-    class="am-dialog"
-    onsubmit={(e) => {
-      e.preventDefault();
-      submit();
-    }}
-  >
-    <header>
-      <h2>{t('layers.renameTitle')}</h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
-      <label class="flex flex-col gap-1 text-xs text-pc-muted">
-        {t('layers.name')}
-        <input bind:this={input} bind:value={draft} class="am-input w-full" spellcheck="false" />
-      </label>
-    </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary">{t('layers.rename')}</button>
-    </footer>
-  </form>
-</div>
+  <div class="flex flex-col gap-3">
+    <label class="flex flex-col gap-1 text-xs text-pc-muted">
+      {t('layers.name')}
+      <input bind:this={input} bind:value={draft} class="am-input w-full" spellcheck="false" />
+    </label>
+  </div>
+</Dialog>

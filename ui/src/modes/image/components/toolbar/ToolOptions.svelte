@@ -24,6 +24,7 @@
   import { commitText, textBoxOpen } from '../../core/live-text.svelte';
   import { imageFont } from '../../core/text-font';
   import FontPicker from '../../../../lib/components/fonts/FontPicker.svelte';
+  import Icon from '../../../../lib/components/icons/Icon.svelte';
   import CloneOptions from './CloneOptions.svelte';
   import { setTransformQuality, transformBox } from '../../core/transform';
 
@@ -79,7 +80,8 @@
   });
 </script>
 
-<div class="flex shrink-0 items-center gap-5 text-sm whitespace-nowrap">
+<!-- The options are direct children of the frame's options bar, which wraps
+     them one by one (docs/specs/options-bar-layout.md). -->
   {#if BRUSH_TOOLS.has(tool.kind)}
     <label class="flex items-center gap-2">
       <span class="text-pc-muted">{t('opt.size')}</span>
@@ -356,8 +358,9 @@
 
     <span class="text-pc-faint">{t('opt.shapeHint')}</span>
   {:else if tool.kind === 'text'}
+    <!-- The picker's button names itself ("Font: Liberation Sans"), so it
+         needs no label beside it (options-bar-layout AC-13). -->
     <div class="flex items-center gap-2">
-      <span class="text-pc-muted">{t('font.label')}</span>
       <FontPicker
         family={imageFont.state.family}
         missing={imageFont.availability() === 'missing'}
@@ -373,49 +376,55 @@
         min="6"
         max="400"
         bind:value={tool.fontSize}
-        class="am-range w-32"
+        class="am-range w-20"
         aria-label={t('text.fontSize')}
         use:rangeFill={tool.fontSize}
       />
       <span class="w-10 tabular-nums text-pc-text">{tool.fontSize}</span>
     </label>
 
-    <label class="am-check flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textBold} />
-      <span class="text-pc-muted">{t('opt.bold')}</span>
-    </label>
+    <!-- Styles and alignment as icon toggles, so the Text options fit one
+         row at 1280 px (options-bar-layout AC-13). They keep the roles of
+         the checkboxes and the select they replace: checkbox and radio. -->
+    <div class="am-seg am-seg--sm shrink-0" role="group" aria-label={t('text.style')}>
+      {#each [['textBold', 'opt.bold', 'bold'], ['textItalic', 'opt.italic', 'italic'], ['textUnderline', 'opt.underline', 'underline'], ['textStrikethrough', 'opt.strikethrough', 'strikethrough']] as const as [key, label, icon] (key)}
+        <button
+          type="button"
+          role="checkbox"
+          aria-checked={tool[key]}
+          aria-label={t(label)}
+          title={t(label)}
+          onclick={() => (tool[key] = !tool[key])}
+        >
+          <Icon name={icon} size={14} />
+        </button>
+      {/each}
+    </div>
 
-    <label class="am-check flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textItalic} />
-      <span class="text-pc-muted">{t('opt.italic')}</span>
-    </label>
-
-    <label class="am-check flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textUnderline} />
-      <span class="text-pc-muted">{t('opt.underline')}</span>
-    </label>
-
-    <label class="am-check flex items-center gap-2">
-      <input type="checkbox" bind:checked={tool.textStrikethrough} />
-      <span class="text-pc-muted">{t('opt.strikethrough')}</span>
-    </label>
-
-    <label class="flex items-center gap-2">
-      <span class="text-pc-muted">{t('opt.align')}</span>
-      <select bind:value={tool.textAlign} class="am-input am-input--sm w-auto">
-        <option value="left">{t('opt.left')}</option>
-        <option value="center">{t('opt.center')}</option>
-        <option value="right">{t('opt.right')}</option>
-      </select>
-    </label>
+    <div class="am-seg am-seg--sm shrink-0" role="radiogroup" aria-label={t('opt.align')}>
+      {#each [['left', 'opt.left', 'align-left'], ['center', 'opt.center', 'align-center'], ['right', 'opt.right', 'align-right']] as const as [value, label, icon] (value)}
+        <button
+          type="button"
+          role="radio"
+          aria-checked={tool.textAlign === value}
+          aria-label={t(label)}
+          title={t(label)}
+          onclick={() => (tool.textAlign = value)}
+        >
+          <Icon name={icon} size={14} />
+        </button>
+      {/each}
+    </div>
 
     <!-- Finishes the live text (docs/specs/image-live-text.md AC-11). -->
+    <!-- The keys are in its tooltip: a hint as wide as the other Text
+         options together would not fit the row (options-bar-layout AC-13). -->
     <button
       class="am-btn am-btn--ghost am-btn--sm"
+      title={t('opt.textHint')}
       disabled={!textBoxOpen()}
       onclick={commitText}>{t('opt.finish')}</button
     >
-    <span class="text-pc-faint">{t('opt.textHint')}</span>
   {/if}
 
   {#if showAntiAlias}
@@ -465,4 +474,3 @@
       >
     </div>
   {/if}
-</div>

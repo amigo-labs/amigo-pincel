@@ -4,7 +4,7 @@
   // shows the group's active (or last used) variant and selects it. A group
   // button also opens a flyout with its variants on a right-click, a long
   // press or Shift+F10 (docs/specs/tool-variant-flyout.md).
-  import { onDestroy, untrack } from 'svelte';
+  import { onDestroy, untrack, type Snippet } from 'svelte';
   import Icon from '../icons/Icon.svelte';
   import ToolFlyout from './ToolFlyout.svelte';
   import {
@@ -33,8 +33,11 @@
      *  pass `null` while another mode's tab is active, so the flyout also
      *  closes when the editor goes into the background. */
     resetKey?: unknown;
+    /** The colour well: it stays in view at the rail's end while the tool
+     *  list scrolls (docs/specs/tool-rail-colors.md AC-01, AC-08). */
+    foot?: Snippet;
   }
-  const { groups, active, onSelect, orientation = 'vertical', resetKey = null }: Props = $props();
+  const { groups, active, onSelect, orientation = 'vertical', resetKey = null, foot }: Props = $props();
 
   // Last variant picked per group, so the rail button returns to it.
   let lastUsed = $state<Record<string, T>>({});
@@ -327,15 +330,21 @@
 <div
   bind:this={railEl}
   class={orientation === 'vertical'
-    ? 'rail flex w-12 shrink-0 flex-col items-center gap-px overflow-y-auto border-r border-pc-border bg-pc-panel py-1.5 select-none [scrollbar-width:none]'
-    : 'rail scroll-fade-x flex h-14 shrink-0 items-center gap-1 overflow-x-auto border-t border-pc-border bg-pc-panel px-2 select-none [scrollbar-width:none]'}
+    ? 'rail flex w-12 shrink-0 flex-col border-r border-pc-border bg-pc-panel select-none'
+    : 'rail flex h-14 shrink-0 border-t border-pc-border bg-pc-panel select-none'}
   role="toolbar"
   aria-label={t('frame.tools')}
   aria-orientation={orientation}
-  onscroll={() => {
-    if (open) closeFlyout();
-  }}
 >
+  <div
+    class={orientation === 'vertical'
+      ? 'flex min-h-0 flex-1 flex-col items-center gap-px overflow-y-auto py-1.5 [scrollbar-width:none]'
+      : 'scroll-fade-x flex min-w-0 flex-1 items-center gap-1 overflow-x-auto px-2 [scrollbar-width:none]'}
+    data-tool-list=""
+    onscroll={() => {
+      if (open) closeFlyout();
+    }}
+  >
   {#each groups as g, i (g.id)}
     {@const tool = current(g)}
     {#if startsSection(groups[i - 1]?.id, g.id)}
@@ -387,6 +396,16 @@
       </button>
     {/if}
   {/each}
+  </div>
+  {#if foot}
+    <div
+      class={orientation === 'vertical'
+        ? 'flex shrink-0 justify-center border-t border-pc-border pt-1.5 pb-2'
+        : 'flex shrink-0 items-center border-l border-pc-border px-2.5'}
+    >
+      {@render foot()}
+    </div>
+  {/if}
 </div>
 
 {#if open && openGroup}

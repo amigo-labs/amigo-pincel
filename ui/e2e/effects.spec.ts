@@ -12,6 +12,7 @@ import {
   setColor,
   type ClipImage,
   waitForEditor,
+  byText,
 } from './helpers';
 import { installTauriMock, launchDesktop, nativeSave, putFile, setMock } from './tauri-mock';
 
@@ -116,7 +117,7 @@ test('pixel mode: the Levels adjustment applies', async ({ page }) => {
   await drag(page, pixelCanvas(page), [0.2, 0.2], [0.8, 0.8]);
   await menu(page, 'Adjustments', 'Levels…');
   await page.getByRole('dialog').getByRole('button', { name: 'OK' }).click();
-  await expect(page.getByText(/Levels applied/)).toBeVisible();
+  await expect(byText(page, /Levels applied/)).toBeVisible();
 });
 
 test('image mode: an effect stays inside the selection', async ({ page }) => {
@@ -555,7 +556,7 @@ for (const mode of MODES) {
       const previewed = await shot();
       // Under the preview the document is still the red fill, one undo step.
       expect((await nativeSave(page, file)).equals(saved)).toBe(true);
-      if (mode === 'pixel') await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+      if (mode === 'pixel') await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
       await expect(dialog).toBeVisible();
       // Preview off: the image without the effect; on again: the effect.
       await preview.uncheck();
@@ -594,7 +595,7 @@ for (const mode of MODES) {
       }
     }
     expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);
-    if (mode === 'pixel') await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+    if (mode === 'pixel') await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
     await undo.click();
     await expect(undo).toBeDisabled();
   });
@@ -630,12 +631,12 @@ for (const mode of MODES) {
     await dialog.getByRole('button', { name: 'OK', exact: true }).click();
     // Both modes report the refusal and keep the panel open with its values
     // (effect-panel AC-16); Cancel then closes it.
-    await expect(page.getByText(/^Invert Colors failed: .*locked/)).toBeVisible();
+    await expect(byText(page, /^Invert Colors failed: .*locked/)).toBeVisible();
     await expect(dialog.getByRole('heading', { name: 'Invert Colors', exact: true })).toBeVisible();
     await dialog.getByRole('button', { name: 'Cancel', exact: true }).click();
     await expect(dialog).toHaveCount(0);
     if (mode === 'pixel') {
-      await expect(page.getByText('undo 2 / redo 0')).toBeVisible();
+      await expect(byText(page, 'undo 2 / redo 0')).toBeVisible();
     }
     expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);
     // The refused effect left no undo step: Undo reverts the lock itself.
@@ -655,14 +656,14 @@ test('image: an empty selection changes nothing and says so (AC-09)', async ({ p
   await dialog.getByRole('button', { name: 'OK', exact: true }).click();
   await expect(dialog).toHaveCount(0);
   await expect(
-    page.getByText('Invert Colors: the selection is empty, nothing changed'),
+    byText(page, 'Invert Colors: the selection is empty, nothing changed'),
   ).toBeVisible();
   await page.keyboard.press('ControlOrMeta+d');
   expect(pixelOf(await activeLayer(page), 8, 8)).toEqual(RED);
 });
 
 /** The Pixel-mode status text `undo N / redo M`. */
-const depthText = (page: Page) => page.getByText(/^undo \d+ \/ redo \d+$/);
+const depthText = (page: Page) => byText(page, /^undo \d+ \/ redo \d+$/);
 
 /**
  * A 16 × 16 RGBA `.aseprite` file whose only layer has one 2 × 2 blue cel
@@ -735,7 +736,7 @@ test('pixel: a selection outside the active cel changes nothing and says so (AC-
   await menu(page, 'Adjustments', 'Invert Colors');
   await effectDialog(page).getByRole('button', { name: 'OK', exact: true }).click();
   await expect(
-    page.getByText('Invert Colors: selection is outside the layer, nothing changed'),
+    byText(page, 'Invert Colors: selection is outside the layer, nothing changed'),
   ).toBeVisible();
   await expect(depthText(page)).toHaveText(depth);
   await page.keyboard.press('ControlOrMeta+d');
@@ -756,7 +757,7 @@ test('pixel: a layer without a cel on the current frame refuses the effect (AC-1
   await menu(page, 'Adjustments', 'Invert Colors');
   const panel = effectDialog(page);
   await panel.getByRole('button', { name: 'OK', exact: true }).click();
-  await expect(page.getByText(/^Invert Colors failed: /)).toBeVisible();
+  await expect(byText(page, /^Invert Colors failed: /)).toBeVisible();
   await expect(depthText(page)).toHaveText(depth);
   // The failed effect keeps its panel (effect-panel AC-16), which keeps the
   // timeline inert (AC-03) until it closes.

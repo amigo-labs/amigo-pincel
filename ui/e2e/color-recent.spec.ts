@@ -9,6 +9,7 @@ import {
   setColor,
   storedPref,
   waitForEditor,
+  colorPair,
 } from './helpers';
 import { effectPanel } from './effect-panel-helpers';
 import { liveInput, textBox, undoButton } from './text-helpers';
@@ -26,7 +27,7 @@ const canvasOf = (page: Page, mode: Mode) =>
 
 /** The recent row's colors as their accessible names (hex), in order. */
 async function recent(page: Page): Promise<string[]> {
-  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Foreground color', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Foreground color picker' });
   const names = await picker
     .getByRole('group', { name: 'Recent colors' })
@@ -50,7 +51,7 @@ function panelRecent(page: Page): Promise<string[]> {
 /** R / G / B / A of a swatch, read from its picker. */
 async function rgbaOf(page: Page, which: 'fg' | 'bg'): Promise<number[]> {
   const name = which === 'fg' ? 'Foreground color' : 'Background color';
-  await page.getByRole('button', { name, exact: true }).click();
+  await colorPair(page).getByRole('button', { name, exact: true }).click();
   const picker = page.getByRole('dialog', { name: `${name} picker` });
   const out: number[] = [];
   for (const label of ['Red', 'Green', 'Blue', 'Alpha value']) {
@@ -234,10 +235,11 @@ test('pixel: a shape adds the colors its mode and button paint with, a filled to
   await step('#00ffff', '#ff00ff', 'left', '#ff00ff', 0.25);
   // The right button fills with the foreground.
   await step('#880000', '#008800', 'right', '#880000', 0.35);
-  // The filled tools paint with the button's color alone.
-  await shapeVariant(page, 'Filled Rectangle');
-  await step('#000088', '#888800', 'left', '#000088', 0.45);
-  await shapeVariant(page, 'Filled Ellipse');
+  // The same holds for the Ellipse (the filled tools are gone:
+  // docs/specs/tool-rail-colors.md AC-15).
+  await shapeVariant(page, 'Ellipse');
+  await step('#000088', '#888800', 'left', '#888800', 0.45);
+  await shapeMode.selectOption('outline');
   await step('#448844', '#884488', 'left', '#448844', 0.55);
 });
 
@@ -530,7 +532,7 @@ test('a recent color sets the edited color, alpha included (AC-13)', async ({ pa
   await page.keyboard.press('b');
   await stroke(page, pixelCanvas(page), 0.5);
   await setColor(page, 'bg', '#ffffffff');
-  await page.getByRole('button', { name: 'Background color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Background color', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Background color picker' });
   await picker
     .getByRole('group', { name: 'Recent colors' })
@@ -542,7 +544,7 @@ test('a recent color sets the edited color, alpha included (AC-13)', async ({ pa
   // The foreground picker sets the foreground, not the background.
   await setColor(page, 'fg', '#000000ff');
   await setColor(page, 'bg', '#ffffffff');
-  await page.getByRole('button', { name: 'Foreground color', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Foreground color', exact: true }).click();
   await page
     .getByRole('dialog', { name: 'Foreground color picker' })
     .getByRole('group', { name: 'Recent colors' })

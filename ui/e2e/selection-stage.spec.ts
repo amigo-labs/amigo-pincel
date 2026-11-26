@@ -9,6 +9,7 @@ import {
   pixelOf,
   setColor,
   type ClipImage,
+  byText,
 } from './helpers';
 
 // Selection gestures that start on the stage around the canvas, and
@@ -101,7 +102,7 @@ async function openDoc(page: Page, mode: Mode): Promise<void> {
     .toBeLessThan((before?.width ?? 0) * 0.9);
 }
 
-const pxDepths = (page: Page, u: number, r = 0) => page.getByText(`undo ${u} / redo ${r}`);
+const pxDepths = (page: Page, u: number, r = 0) => byText(page, `undo ${u} / redo ${r}`);
 const undoButton = (page: Page) => page.getByRole('button', { name: 'Undo', exact: true });
 
 for (const mode of ['pixel', 'image'] as const) {

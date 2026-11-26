@@ -11,6 +11,7 @@ import {
   setColor,
   switchLanguage,
   waitForEditor,
+  byText,
 } from './helpers';
 
 // File ▸ Export ▸ SVG… in both modes (docs/specs/vectorize-dialog.md).
@@ -50,7 +51,7 @@ async function paintPixel(page: Page): Promise<void> {
   await page.getByTitle('Pencil (B)').click();
   await setColor(page, 'fg', '#ff0000');
   await pixelCanvas(page).click();
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 }
 
 test('both modes list SVG… last under File ▸ Export', async ({ page }) => {
@@ -79,7 +80,7 @@ test('File ▸ Export is unreachable until the document is loaded', async ({ pag
     const name = mode === 'pixel' ? 'New pixel sprite' : 'New image';
     await page.getByRole('button', { name }).click();
     await page.getByRole('form', { name }).getByRole('button', { name: 'Create' }).click();
-    await expect(page.getByText(/^Loading the (Pixel|Image) editor…$/)).toBeVisible();
+    await expect(byText(page, /^Loading the (Pixel|Image) editor…$/)).toBeVisible();
     await expect(page.getByRole('menubar')).toHaveCount(0);
     release();
     await waitForEditor(page, mode);
@@ -112,8 +113,8 @@ test('pixel: the dialog opens pixel-exact with defaults and exports the frame', 
   expect(text).toContain('fill="#ff0000"');
   expect(text.match(/<path /g)).toHaveLength(1);
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page.getByText(/exported SVG · \d+ bytes/)).toBeVisible();
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, /exported SVG · \d+ bytes/)).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 });
 
 test("image: the dialog opens in colour mode, shows each mode's options and updates the summary", async ({
@@ -194,7 +195,7 @@ test('Cancel and Escape close the dialog without saving or editing', async ({ pa
   await openDialog(page);
   await page.keyboard.press('Escape');
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
   expect(await pixelCanvas(page).screenshot()).toEqual(canvasBefore);
 
   await createDocument(page, 'image', { width: 16, height: 16 });
@@ -223,7 +224,7 @@ test('pixel-exact refuses more than 256 colours until another mode is chosen', a
     await navigator.clipboard.write([new ClipboardItem({ 'image/png': blob })]);
   });
   await menu(page, 'Edit', 'Paste');
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
   await openDialog(page);
   const exportButton = dialog(page).getByRole('button', { name: 'Export' });
   await expect(dialog(page).getByRole('alert')).toHaveText(
@@ -271,8 +272,8 @@ test('cancelling the save picker saves nothing and shows no error', async ({ pag
   await openDialog(page);
   await dialog(page).getByRole('button', { name: 'Export' }).click();
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page.getByText(/exported SVG|failed/)).toHaveCount(0);
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, /exported SVG|failed/)).toHaveCount(0);
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 });
 test('image: cancelling the save picker saves nothing and shows no error', async ({ page }) => {
   await page.addInitScript(() => {
@@ -285,7 +286,7 @@ test('image: cancelling the save picker saves nothing and shows no error', async
   await openDialog(page);
   await dialog(page).getByRole('button', { name: 'Export' }).click();
   await expect(dialog(page)).toHaveCount(0);
-  await expect(page.getByText(/failed|cancelled/i)).toHaveCount(0);
+  await expect(byText(page, /failed|cancelled/i)).toHaveCount(0);
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
   expect(downloads).toBe(0);
 });
@@ -308,8 +309,13 @@ test('the dialog takes focus, keeps Tab inside and returns focus on close', asyn
   await openDialog(page);
   const d = dialog(page);
   await expect(modeSelect(page)).toBeFocused();
+  // The shared dialog shell puts its Close control first (dialogs AC-01):
+  // Shift+Tab reaches it, then wraps to Export (dialogs AC-06).
+  await page.keyboard.press('Shift+Tab');
+  await expect(d.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(d.getByRole('button', { name: 'Export' })).toBeFocused();
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(modeSelect(page)).toBeFocused();
   for (let i = 0; i < 20; i++) {
@@ -410,7 +416,7 @@ test('the save picker offers the SVG type and receives the SVG', async ({ page }
   await paintPixel(page);
   await openDialog(page);
   await dialog(page).getByRole('button', { name: 'Export' }).click();
-  await expect(page.getByText(/exported SVG · \d+ bytes/)).toBeVisible();
+  await expect(byText(page, /exported SVG · \d+ bytes/)).toBeVisible();
   const { options, written } = await page.evaluate(() => {
     const w = window as unknown as { pickerOptions: unknown; written: string[] };
     return { options: w.pickerOptions, written: w.written };

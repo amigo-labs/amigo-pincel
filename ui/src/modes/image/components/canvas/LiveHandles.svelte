@@ -57,7 +57,7 @@
       class="pointer-events-none absolute border border-pc-bg bg-pc-accent ring-1 ring-pc-bg {m.id ===
       'grip'
         ? 'rounded-full'
-        : 'rounded-[2px]'}"
+        : 'rounded-pc-handle'}"
       style="left: {m.at[0] - SIZE / 2}px; top: {m.at[1] - SIZE / 2}px; width: {SIZE}px; height: {SIZE}px;"
     ></div>
   {/each}

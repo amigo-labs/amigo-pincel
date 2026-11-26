@@ -108,6 +108,7 @@ export const de: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Höchstens {max} — {n} wird verwendet',
   'newDoc.notWhole': 'Nur ganze Pixel — {n} wird verwendet',
   'newDoc.tooManyPixels': 'Zu viele Pixel (Grenze {limit}) — {w} × {h} wird verwendet',
+  'newDoc.presets': 'Größenvorgaben',
 
   // Recovery dialog
   'recovery.title': 'Ungespeicherte Arbeit wiederherstellen?',
@@ -291,6 +292,7 @@ export const de: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} – ungespeicherte Änderungen',
   'frame.toolOptions': 'Werkzeugoptionen',
+  'frame.moreOptions': 'Weitere Optionen',
   'frame.panels': 'Bedienfelder',
   'frame.tools': 'Werkzeuge',
   'frame.menu': 'Menü',
@@ -1051,6 +1053,7 @@ export const de: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Bild skalieren',
   'resize.resize': 'Ändern',
   'resize.scale': 'Skalieren',
+  'resize.current': 'Aktuelle Größe: {w} × {h} px',
   'slices.mustBePositive': '{field} muss eine positive ganze Zahl sein',
   'slices.nameRequired': 'Name ist erforderlich',
   'slices.none': 'noch keine Slices',
@@ -1110,6 +1113,7 @@ export const de: Record<MessageKey, string> = {
   'text.placeholder': 'Hier tippen… (Strg+Enter platziert)',
   'text.content': 'Textinhalt',
   'text.fontSize': 'Schriftgröße',
+  'text.style': 'Textstil',
   'text.align': 'Textausrichtung',
   'text.place': 'Platzieren',
   'font.label': 'Schrift',

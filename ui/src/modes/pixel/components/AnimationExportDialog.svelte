@@ -1,4 +1,5 @@
 <script lang="ts">
+  import Dialog from '../../../lib/components/Dialog.svelte';
   import { t } from '../../../lib/i18n/index.svelte';
   // Export Animation dialog (spec §7.5, animated-export). Presentational:
   // `describe` asks the core about the chosen frames (count, default loop
@@ -59,112 +60,88 @@
   }
 
   const loops = $derived(forever ? 0 : Math.max(1, Math.min(65535, Math.floor(count) || 1)));
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    }
-  }
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div
-  class="fixed inset-0 z-20 flex items-center justify-center bg-black/50"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('anim.title')}
+<Dialog
+  title={t('anim.title')}
+  applyLabel={t('menu.export')}
+  onApply={() => onSubmit({ format, tag, scale, loops })}
+  onClose={onCancel}
 >
-  <form
-    class="am-dialog"
-    onsubmit={(e) => {
-      e.preventDefault();
-      onSubmit({ format, tag, scale, loops });
-    }}
-  >
-    <header>
-      <h2>{t('anim.title')}</h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('anim.format')}</span>
-        <select
-          class="am-input w-auto"
-          bind:value={format}
-          aria-label={t('anim.format')}
-        >
-          <option value="apng">{t('anim.apng')}</option>
-          <option value="gif">{t('anim.gif')}</option>
-        </select>
+  <div class="flex flex-col gap-3">
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('anim.format')}</span>
+      <select
+        class="am-input w-auto"
+        bind:value={format}
+        aria-label={t('anim.format')}
+      >
+        <option value="apng">{t('anim.apng')}</option>
+        <option value="gif">{t('anim.gif')}</option>
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('sheet.frames')}</span>
+      <select
+        class="am-input w-auto"
+        value={tag ?? ''}
+        onchange={(e) => chooseTag(e.currentTarget.value === '' ? null : e.currentTarget.value)}
+        aria-label={t('sheet.frames')}
+      >
+        <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
+        {#each tags as tag (tag.name)}
+          <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
+        {/each}
+      </select>
+    </label>
+    <label class="flex flex-col gap-1 text-xs text-pc-text">
+      <span>{t('anim.scale')}</span>
+      <select
+        class="am-input w-auto"
+        bind:value={scale}
+        aria-label={t('anim.scale')}
+      >
+        {#each SCALES as s (s)}
+          <option value={s}>×{s}</option>
+        {/each}
+      </select>
+    </label>
+    <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
+      <legend class="mb-1">{t('anim.loop')}</legend>
+      <label class="am-check flex items-center gap-2">
+        <input type="radio" name="anim-loop" checked={forever} onchange={() => (forever = true)} />
+        {t('anim.forever')}
       </label>
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('sheet.frames')}</span>
-        <select
-          class="am-input w-auto"
-          value={tag ?? ''}
-          onchange={(e) => chooseTag(e.currentTarget.value === '' ? null : e.currentTarget.value)}
-          aria-label={t('sheet.frames')}
-        >
-          <option value="">{t('sheet.allFrames', { n: frameCount })}</option>
-          {#each tags as tag (tag.name)}
-            <option value={tag.name}>{tag.name} ({tag.to - tag.from + 1})</option>
-          {/each}
-        </select>
-      </label>
-      <label class="flex flex-col gap-1 text-xs text-pc-text">
-        <span>{t('anim.scale')}</span>
-        <select
-          class="am-input w-auto"
-          bind:value={scale}
-          aria-label={t('anim.scale')}
-        >
-          {#each SCALES as s (s)}
-            <option value={s}>×{s}</option>
-          {/each}
-        </select>
-      </label>
-      <fieldset class="flex flex-col gap-1 text-xs text-pc-text">
-        <legend class="mb-1">{t('anim.loop')}</legend>
-        <label class="am-check flex items-center gap-2">
-          <input type="radio" name="anim-loop" checked={forever} onchange={() => (forever = true)} />
-          {t('anim.forever')}
-        </label>
-        <label class="flex items-center gap-2">
-          <span class="am-check">
-            <input
-              type="radio"
-              name="anim-loop"
-              checked={!forever}
-              onchange={() => (forever = false)}
-              aria-label={t('anim.times')}
-            />
-          </span>
+      <label class="flex items-center gap-2">
+        <span class="am-check">
           <input
-            type="number"
-            min="1"
-            max="65535"
-            bind:value={count}
-            disabled={forever}
-            class="am-input w-20 tabular-nums"
-            aria-label={t('anim.loopCount')}
+            type="radio"
+            name="anim-loop"
+            checked={!forever}
+            onchange={() => (forever = false)}
+            aria-label={t('anim.times')}
           />
-          {t('anim.timesSuffix')}
-        </label>
-      </fieldset>
-      <p class="text-xs text-pc-muted" aria-live="polite">
-        {t('anim.estimate', { n: frames, w: frameWidth * scale, h: frameHeight * scale })}
-      </p>
-      {#if format === 'gif' && summary?.gifApproximated}
-        <div class="am-banner am-banner--warning" role="status"><div><strong>{t('anim.gifApproximated')}</strong></div></div>
-      {/if}
-      {#if format === 'gif' && summary?.semiTransparent}
-        <p class="text-xs text-pc-muted" role="status">{t('anim.gifAlpha')}</p>
-      {/if}
-    </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary">{t('menu.export')}</button>
-    </footer>
-  </form>
-</div>
+        </span>
+        <input
+          type="number"
+          min="1"
+          max="65535"
+          bind:value={count}
+          disabled={forever}
+          class="am-input w-20 tabular-nums"
+          aria-label={t('anim.loopCount')}
+        />
+        {t('anim.timesSuffix')}
+      </label>
+    </fieldset>
+    <p class="text-xs text-pc-muted" aria-live="polite">
+      {t('anim.estimate', { n: frames, w: frameWidth * scale, h: frameHeight * scale })}
+    </p>
+    {#if format === 'gif' && summary?.gifApproximated}
+      <div class="am-banner am-banner--warning" role="status"><div><strong>{t('anim.gifApproximated')}</strong></div></div>
+    {/if}
+    {#if format === 'gif' && summary?.semiTransparent}
+      <p class="text-xs text-pc-muted" role="status">{t('anim.gifAlpha')}</p>
+    {/if}
+  </div>
+</Dialog>

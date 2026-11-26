@@ -7,6 +7,7 @@ import {
   setColor,
   switchLanguage,
   waitForEditor,
+  byText,
 } from './helpers';
 import { emit, installTauriMock, launchDesktop } from './tauri-mock';
 
@@ -150,7 +151,7 @@ test('an image that fails to load opens no platform dialog and says so (AC-11)',
   });
   await page.keyboard.press('Control+p');
   await printDialog(page).getByRole('button', { name: 'Print' }).click();
-  await expect(page.getByText(/The print could not be prepared/)).toBeVisible();
+  await expect(byText(page, /The print could not be prepared/)).toBeVisible();
   expect(await printCalls(page)).toBe(0);
   await expect(page.locator('body > .pincel-print')).toHaveCount(0);
 });

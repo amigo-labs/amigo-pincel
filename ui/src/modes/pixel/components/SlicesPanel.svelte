@@ -360,7 +360,7 @@
           <fieldset class="flex flex-col gap-1">
             <legend class="sr-only">{t('slices.bounds', { name: s.name })}</legend>
             <div class="flex gap-1">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.x)}</span>
                 <input
                   type="number"
@@ -371,7 +371,7 @@
                   class="am-input am-input--sm w-auto"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.y)}</span>
                 <input
                   type="number"
@@ -384,7 +384,7 @@
               </label>
             </div>
             <div class="flex gap-1">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.w)}</span>
                 <input
                   type="number"
@@ -396,7 +396,7 @@
                   class="am-input am-input--sm w-auto"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.h)}</span>
                 <input
                   type="number"
@@ -423,7 +423,7 @@
             <fieldset class="flex flex-col gap-1 pl-4">
               <legend class="sr-only">{t('slices.ninePatchCenter')}</legend>
               <div class="flex gap-1">
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+                <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                   <span>{t(FIELD_LABELS.cx)}</span>
                   <input
                     type="number"
@@ -434,7 +434,7 @@
                     class="am-input am-input--sm w-auto"
                   />
                 </label>
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+                <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                   <span>{t(FIELD_LABELS.cy)}</span>
                   <input
                     type="number"
@@ -447,7 +447,7 @@
                 </label>
               </div>
               <div class="flex gap-1">
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+                <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                   <span>{t(FIELD_LABELS.cw)}</span>
                   <input
                     type="number"
@@ -459,7 +459,7 @@
                     class="am-input am-input--sm w-auto"
                   />
                 </label>
-                <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+                <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                   <span>{t(FIELD_LABELS.ch)}</span>
                   <input
                     type="number"
@@ -485,7 +485,7 @@
           </label>
           {#if s.hasPivot}
             <div class="flex gap-1 pl-4">
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.px)}</span>
                 <input
                   type="number"
@@ -496,7 +496,7 @@
                   class="am-input am-input--sm w-auto"
                 />
               </label>
-              <label class="flex flex-1 flex-col gap-0.5 text-[10px] text-pc-faint">
+              <label class="flex flex-1 flex-col gap-0.5 text-(length:--pc-text-tiny) text-pc-faint">
                 <span>{t(FIELD_LABELS.py)}</span>
                 <input
                   type="number"

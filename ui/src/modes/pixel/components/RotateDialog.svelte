@@ -54,7 +54,7 @@
 <svelte:window onkeydown={onKeydown} />
 
 <div
-  class="fixed inset-0 z-20 flex items-start justify-end p-4 pt-16"
+  class="fixed inset-0 z-(--pc-z-overlay) flex items-start justify-end p-4 pt-16"
   role="dialog"
   aria-modal="true"
   aria-label={t('pxRotate.title')}

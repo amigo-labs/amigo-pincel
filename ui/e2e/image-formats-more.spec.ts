@@ -1,6 +1,6 @@
 import { readFile } from 'node:fs/promises';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, dragFiles, gotoStart, imageCanvas, menu, rasterFile, waitForEditor } from './helpers';
+import { createDocument, dragFiles, gotoStart, imageCanvas, menu, rasterFile, waitForEditor, byText } from './helpers';
 
 // TGA, DDS and ICO in Image mode (docs/specs/image-formats-more.md). The
 // files are built here byte by byte; saves fall back to downloads.
@@ -153,7 +153,7 @@ test('a TGA without its extension is refused; another signature wins over .tga (
   page,
 }) => {
   await openFile(page, 'noext', tga([0, 0, 255, 255]), false);
-  await expect(page.getByText(/noext/)).toBeVisible();
+  await expect(byText(page, /noext/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open…' })).toBeVisible();
   const png = await rasterFile(page, 'png');
   await openFile(page, 'fake.tga', png);
@@ -164,9 +164,9 @@ test('DDS variants outside BC1 – BC3 and odd sizes fail with their own reason 
   page,
 }) => {
   await openFile(page, 'bc7.dds', dds('DX10', 98), false);
-  await expect(page.getByText(/DDS variant is not supported/)).toBeVisible();
+  await expect(byText(page, /DDS variant is not supported/)).toBeVisible();
   await openFile(page, 'odd.dds', dds('DXT1', undefined, 30, 30), false);
-  await expect(page.getByText(/multiples of 4/)).toBeVisible();
+  await expect(byText(page, /multiples of 4/)).toBeVisible();
 });
 
 test('Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)', async ({ page }) => {
@@ -184,7 +184,7 @@ test('Save As offers TGA and ICO; ICO refuses more than 256 px (AC-08, AC-10)', 
   await menu(page, 'File', 'Save As…');
   await format.selectOption('ico');
   await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText('ICO holds at most 256 × 256 px. Choose another format.')).toBeVisible();
+  await expect(byText(page, 'ICO holds at most 256 × 256 px. Choose another format.')).toBeVisible();
   await expect(page.getByTitle('image.tga', { exact: true })).toBeVisible();
   expect(downloads).toBe(0);
   // Save As can run again.
@@ -204,16 +204,16 @@ test('Save of an ICO grown past 256 px goes to Save As with the 256 px notice on
   await resize.getByLabel('Width').fill('300');
   await resize.getByLabel('Height').fill('300');
   await resize.getByRole('button', { name: 'Resize' }).click();
-  await expect(page.getByText('300 × 300 px')).toBeVisible();
+  await expect(byText(page, '300 × 300 px')).toBeVisible();
 
   let downloads = 0;
   page.on('download', () => (downloads += 1));
   await menu(page, 'File', 'Save');
   const dialog = page.getByRole('dialog', { name: 'Save As' });
   await expect(dialog).toBeVisible();
-  await expect(page.getByText('ICO holds at most 256 × 256 px. Choose another format.')).toBeVisible();
+  await expect(byText(page, 'ICO holds at most 256 × 256 px. Choose another format.')).toBeVisible();
   // ICO can be written, just not at this size: no "cannot be written back".
-  await expect(page.getByText(/cannot be written back/)).toHaveCount(0);
+  await expect(byText(page, /cannot be written back/)).toHaveCount(0);
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   expect(downloads).toBe(0);
   // Still unsaved, still app.ico.

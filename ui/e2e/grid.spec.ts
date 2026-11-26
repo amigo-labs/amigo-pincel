@@ -9,6 +9,7 @@ import {
   storedPref,
   waitForEditor,
   zoomReadout,
+  byText,
 } from './helpers';
 
 // Pixel grid and custom grid (docs/specs/pixel-grid.md). Both are drawn on
@@ -232,7 +233,7 @@ test('Grid Settings starts at 16×16 / 0, 0 and redraws the grid with the new va
   await viewToggle(page, 'Show Grid');
   expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
   await fillSettings(page, { w: 10, h: 12, x: 4, y: 2, color: '#ff0000', opacity: 100 });
-  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await settings(page).getByRole('button', { name: 'Apply' }).click();
   await expect(settings(page)).toBeHidden();
 
   const red = [255, 0, 0, 255];
@@ -250,12 +251,12 @@ test('undo restores the previous cell size and offset in one step, redo re-appli
   await viewToggle(page, 'Show Grid');
   await openSettings(page);
   await fillSettings(page, { w: 8, h: 5, x: 1, y: 3 });
-  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await settings(page).getByRole('button', { name: 'Apply' }).click();
   await expect(settings(page)).toBeHidden();
-  await expect(page.getByText('undo 1 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 1 / redo 0')).toBeVisible();
 
   await page.keyboard.press('ControlOrMeta+z');
-  await expect(page.getByText('undo 0 / redo 1')).toBeVisible();
+  await expect(byText(page, 'undo 0 / redo 1')).toBeVisible();
   expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
   await settings(page).getByRole('button', { name: 'Cancel' }).click();
   await page.keyboard.press('ControlOrMeta+Shift+z');
@@ -268,21 +269,21 @@ test('out-of-range cell size or offset is not applied (AC-13)', async ({ page })
   const d = settings(page);
   for (const bad of [{ w: 0 }, { h: 65536 }, { x: 32768 }, { y: -32769 }, { w: 2.5 }]) {
     await fillSettings(page, { w: 16, h: 16, x: 0, y: 0, ...bad });
-    await d.getByRole('button', { name: 'OK' }).click();
+    await d.getByRole('button', { name: 'Apply' }).click();
     await expect(d.getByRole('alert')).toContainText('1–65535');
     await expect(d).toBeVisible();
   }
   await d.getByRole('button', { name: 'Cancel' }).click();
   expect(await openSettings(page)).toEqual(['16', '16', '0', '0']);
   // Nothing reached the undo history.
-  await expect(page.getByText('undo 0 / redo 0')).toBeVisible();
+  await expect(byText(page, 'undo 0 / redo 0')).toBeVisible();
 });
 
 test('a changed grid survives saving as .aseprite and reopening (AC-09)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await openSettings(page);
   await fillSettings(page, { w: 12, h: 8, x: 3, y: -5 });
-  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await settings(page).getByRole('button', { name: 'Apply' }).click();
   const bytes = await saveBytes(page);
 
   await gotoStart(page);
@@ -306,7 +307,7 @@ test('line colour and opacity persist per user and stay out of the file (AC-15)'
   const before = await saveBytes(page);
   await openSettings(page);
   await fillSettings(page, { color: '#00ff00', opacity: 40 });
-  await settings(page).getByRole('button', { name: 'OK' }).click();
+  await settings(page).getByRole('button', { name: 'Apply' }).click();
   await expect
     .poll(() => storedPref(page, 'pixelGrid'))
     .toMatchObject({ color: '#00ff00', opacity: 40 });
@@ -358,6 +359,6 @@ test('on a tilemap layer, Use tile size sets the cell size to the tile size at o
   await expect(d.getByLabel('Cell height')).toHaveValue('4');
   await expect(d.getByLabel('Offset X')).toHaveValue('0');
   await expect(d.getByLabel('Offset Y')).toHaveValue('0');
-  await d.getByRole('button', { name: 'OK' }).click();
+  await d.getByRole('button', { name: 'Apply' }).click();
   expect(await openSettings(page)).toEqual(['8', '4', '0', '0']);
 });

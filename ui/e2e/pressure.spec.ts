@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, penStroke } from './helpers';
+import { createDocument, imageCanvas, penStroke, showAllOptions } from './helpers';
 
 // Pen pressure in Image mode (spec §17.4): a light stylus stroke paints a
 // thinner line than a firm one; mouse strokes ignore pressure. Tilt turns
@@ -34,6 +34,7 @@ test('image mode: tilt turns a flat nib only while the option is on', async ({ p
   const canvas = imageCanvas(page);
   const undo = page.getByRole('button', { name: 'Undo', exact: true });
   await page.locator('select').filter({ has: page.locator('option[value="flat"]') }).selectOption('flat');
+  await showAllOptions(page);
   await page.getByRole('checkbox', { name: 'Size' }).uncheck();
 
   const stroke = async (tilt: { tiltX: number; tiltY: number }) => {
@@ -50,6 +51,7 @@ test('image mode: tilt turns a flat nib only while the option is on', async ({ p
   expect(along.equals(across)).toBe(false);
 
   // Off: the nib keeps its fixed angle, whatever the pen does.
+  await showAllOptions(page);
   await page.getByRole('checkbox', { name: 'Tilt turns the nib' }).uncheck();
   const fixedAlong = await stroke({ tiltX: 45, tiltY: 0 });
   const fixedAcross = await stroke({ tiltX: 0, tiltY: 45 });

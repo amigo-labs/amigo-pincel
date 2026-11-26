@@ -289,6 +289,19 @@ export function shortcutList(source: ShortcutSource): ShortcutRow[] {
     }
     rows.push(row);
   }
+  // A key that selects one variant directly (`N`: the Gradient of the Fill
+  // group, tool-rail-colors AC-16).
+  for (const id of Object.keys(TOOL_GROUP_KEYS)) {
+    if (source.groups.some((g) => g.id === id)) continue;
+    const tool = source.groups.flatMap((g) => g.tools).find((x) => x.id === id);
+    if (!tool) continue;
+    rows.push({
+      id: `tool:${id}`,
+      section: 'tools',
+      label: tool.label,
+      chords: effectiveChords(`tool:${id}`).map(chordLabel),
+    });
+  }
   rows.push(...gestureRows());
   // Stable sort: rows keep their order within a section.
   return rows.sort((a, b) => SECTION_ORDER.indexOf(a.section) - SECTION_ORDER.indexOf(b.section));

@@ -85,7 +85,7 @@
      classes have no dense tab row. -->
 {#if !bare}
 <div
-  class="flex h-8 shrink-0 items-stretch pr-3 pl-3 text-[11px] leading-4 font-semibold tracking-[0.06em] text-pc-faint uppercase"
+  class="flex h-8 shrink-0 items-stretch pr-3 pl-3 text-(length:--pc-text-label) leading-4 font-semibold tracking-[0.06em] text-pc-faint uppercase"
   class:border-b={!collapsed}
   class:border-pc-border={!collapsed}
 >

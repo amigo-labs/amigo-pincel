@@ -8,6 +8,7 @@ import {
   setColor,
   waitForEditor,
   type ClipImage,
+  showAllOptions,
 } from './helpers';
 
 // The shared Antialiasing tool option in Image mode
@@ -104,6 +105,7 @@ test('one Antialiasing checkbox, shared by the edge tools and all tabs, on at st
 
   // Off in one tool is off in every other.
   await useTool(page, 'b', 'Brush');
+  await showAllOptions(page);
   await antiAlias(page).uncheck();
   for (const [key, name] of [
     ['t', 'Text'],
@@ -140,6 +142,7 @@ test('a hard round Brush dab has a smooth edge with Antialiasing and a hard one 
   expect(partialAlphas(smooth).length).toBeGreaterThan(0);
 
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
+  await showAllOptions(page);
   await antiAlias(page).uncheck();
   await brushDab(page, 11);
   const hard = await layerPixels(page);
@@ -181,6 +184,7 @@ test('an Ellipse Select and a Lasso edge are anti-aliased only with Antialiasing
     expect(alphaAt(smooth, 0, 31)).toBe(0);
     expect(partialAlphas(smooth).length).toBeGreaterThan(0);
   }
+  await showAllOptions(page);
   await antiAlias(page).uncheck();
   for (const select of [ellipse, lasso]) {
     const hard = await fillShape(select);
@@ -197,6 +201,8 @@ test('Line and shapes follow the shared Antialiasing setting (AC-05)', async ({ 
   await page.keyboard.press('Enter');
   expect(partialAlphas(await layerPixels(page)).length).toBeGreaterThan(0);
   await page.getByRole('button', { name: 'Undo', exact: true }).click();
+
+  await showAllOptions(page);
 
   await antiAlias(page).uncheck();
   await dragDoc(page, [3, 5], [29, 21]);
@@ -216,6 +222,7 @@ test('Text and the box shapes follow the shared Antialiasing setting (AC-05)', a
     await page.mouse.click(...(await point(page, 2, 2)));
     await expect(field).toBeFocused();
     await page.keyboard.type('Wo');
+    await showAllOptions(page);
     await page.getByRole('button', { name: 'Finish', exact: true }).click();
     await expect(page.locator('[data-text-box]')).toHaveCount(0);
     const img = await layerPixels(page);
@@ -233,6 +240,7 @@ test('Text and the box shapes follow the shared Antialiasing setting (AC-05)', a
   for (const draw of [text, rect]) {
     expect(partialAlphas(await draw()).length).toBeGreaterThan(0);
   }
+  await showAllOptions(page);
   await antiAlias(page).uncheck();
   for (const draw of [text, rect]) {
     const hard = await draw();

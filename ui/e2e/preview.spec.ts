@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, hidePanel, pixelCanvas, showPanel, switchLanguage } from './helpers';
+import { createDocument, drag, hidePanel, pixelCanvas, showPanel, switchLanguage, byText } from './helpers';
 
 // docs/specs/animation-preview.md: the Pixel-mode Preview panel.
 
@@ -116,10 +116,10 @@ test('playing, the preview advances while the timeline stays (AC-03, AC-04)', as
 
   // A stroke while the preview plays lands on frame 2, as one undo step
   // (after the two Add frame steps).
-  await expect(page.getByText('undo 2 / redo 0', { exact: true })).toBeVisible();
+  await expect(byText(page, 'undo 2 / redo 0', { exact: true })).toBeVisible();
   await page.getByTitle('Pencil (B)').click();
   await drag(page, pixelCanvas(page), [0.1, 0.5], [0.9, 0.5]);
-  await expect(page.getByText('undo 3 / redo 0', { exact: true })).toBeVisible();
+  await expect(byText(page, 'undo 3 / redo 0', { exact: true })).toBeVisible();
   await expect(currentFrame(page)).toHaveText('2');
   await previewOf(page).getByRole('button', { name: 'Pause preview' }).click();
   await expect(previewCanvas(page)).toHaveAttribute('data-frame', '1');
@@ -333,7 +333,7 @@ test('deleting the shown frame or the loop tag keeps the preview going (AC-15)',
   expect(log.every((e) => e.frame >= 0 && e.frame <= 1)).toBe(true);
   await expect(previewOf(page).getByRole('button', { name: 'Pause preview' })).toBeVisible();
   expect(errors).toEqual([]);
-  await expect(page.getByText(/failed/)).toHaveCount(0);
+  await expect(byText(page, /failed/)).toHaveCount(0);
 });
 
 test('German labels (AC-16)', async ({ page }) => {

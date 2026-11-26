@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
+import { drag, imageCanvas, menu, pixelCanvas, waitForEditor, byText } from './helpers';
 import { expectActive, expectDirty } from './tab-helpers';
 import {
   closeWindow,
@@ -192,7 +192,7 @@ test('a handed-over file that cannot be read shows its error and no prompt (AC-1
   await create(page, 'image');
   await paint(page, 'image');
   await emit(page, 'open-file', '/docs/missing.png');
-  await expect(page.getByText(/Open failed: .*No such file/)).toBeVisible();
+  await expect(byText(page, /Open failed: .*No such file/)).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await expectActive(page, 'image.ora');
   await expectDirty(page, 'image.ora', true);
@@ -257,7 +257,7 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await openRecentEntry(page, 'sprite.aseprite');
   // The file is gone: the notice says so and the entry leaves the list
   // (file-access AC-30).
-  await expect(page.getByText('sprite.aseprite was not found and was removed')).toBeVisible();
+  await expect(byText(page, 'sprite.aseprite was not found and was removed')).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
   await expectActive(page, 'image.ora');
   await expectDirty(page, 'image.ora', true);

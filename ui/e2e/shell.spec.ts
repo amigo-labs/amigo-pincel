@@ -8,6 +8,7 @@ import {
   pixelCanvas,
   storedPref,
   waitForEditor,
+  byText,
 } from './helpers';
 import {
   activeTab,
@@ -84,7 +85,7 @@ test('AC-05: the New pixel sprite card opens a sprite of exactly the typed size'
 }) => {
   await submitCard(page, 'pixel', '40', '24');
   await expect(activeTab(page)).toHaveAccessibleName(/ Pixel$/);
-  await expect(page.getByText(sizeText('pixel', 40, 24), { exact: true })).toBeVisible();
+  await expect(byText(page, sizeText('pixel', 40, 24), { exact: true })).toBeVisible();
 });
 
 test('AC-06: an empty size falls back to the default, an out-of-range one is clamped', async ({
@@ -92,13 +93,13 @@ test('AC-06: an empty size falls back to the default, an out-of-range one is cla
 }) => {
   // Empty → the mode's default; above the edge limit → the limit; 0 → 1.
   await submitCard(page, 'pixel', '', '5000');
-  await expect(page.getByText(sizeText('pixel', 64, 4096), { exact: true })).toBeVisible();
+  await expect(byText(page, sizeText('pixel', 64, 4096), { exact: true })).toBeVisible();
   await submitCard(page, 'pixel', '0', '');
-  await expect(page.getByText(sizeText('pixel', 1, 64), { exact: true })).toBeVisible();
+  await expect(byText(page, sizeText('pixel', 1, 64), { exact: true })).toBeVisible();
   await submitCard(page, 'image', '', '');
-  await expect(page.getByText(sizeText('image', 800, 600))).toBeVisible();
+  await expect(byText(page, sizeText('image', 800, 600))).toBeVisible();
   await submitCard(page, 'image', '20000', '0');
-  await expect(page.getByText(sizeText('image', 16384, 1))).toBeVisible();
+  await expect(byText(page, sizeText('image', 16384, 1))).toBeVisible();
 
   // The New dialog clamps the same way.
   await menu(page, 'File', 'New…');
@@ -108,7 +109,7 @@ test('AC-06: an empty size falls back to the default, an out-of-range one is cla
   await dialog.getByLabel('Height').fill('');
   await dialog.getByRole('button', { name: 'Create' }).click();
   await waitForEditor(page, 'pixel');
-  await expect(page.getByText(sizeText('pixel', 4096, 64), { exact: true })).toBeVisible();
+  await expect(byText(page, sizeText('pixel', 4096, 64), { exact: true })).toBeVisible();
   // The area limit (16384 × 16384 → 8192 × 8192) is pinned in
   // large-image.spec.ts › the New dialog clamps an oversized canvas.
 });
@@ -132,7 +133,7 @@ for (const mode of ['pixel', 'image'] as const) {
       await expect(dialog).toHaveCount(0);
       await expect(tabs(page)).toHaveCount(1);
       await expect(shownEditor(page)).toHaveAttribute('data-editor', mode);
-      await expect(page.getByText(sizeText(mode, 30, 20), { exact: true })).toBeVisible();
+      await expect(byText(page, sizeText(mode, 30, 20), { exact: true })).toBeVisible();
       await expect(undo).toBeEnabled();
       await expect(page.getByTitle(/unsaved changes/)).toBeVisible();
     };
@@ -170,7 +171,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await expect(tabs(page)).toHaveCount(2);
     await expect(tabs(page).nth(1)).toHaveAttribute('aria-selected', 'true');
     await expect(shownEditor(page)).toHaveAttribute('data-editor', other);
-    await expect(page.getByText(sizeText(other, 16, 8), { exact: true })).toBeVisible();
+    await expect(byText(page, sizeText(other, 16, 8), { exact: true })).toBeVisible();
     await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeDisabled();
     await expect(tabs(page).first().getByText('unsaved changes')).toHaveCount(1);
   });

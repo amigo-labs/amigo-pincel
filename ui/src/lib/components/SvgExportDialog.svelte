@@ -10,7 +10,7 @@
 </script>
 
 <script lang="ts">
-  import { onMount } from 'svelte';
+  import Dialog from './Dialog.svelte';
   import { t } from '../i18n/index.svelte';
 
   // Export as SVG (docs/specs/vectorize-dialog.md). Presentational: the
@@ -100,180 +100,123 @@
     if ('svg' in fresh) onExport(fresh.svg);
   }
 
-  let form: HTMLFormElement;
-  let modeField: HTMLSelectElement;
-
-  // Modal focus: the Mode field takes focus on open, Tab stays inside the
-  // dialog, and focus returns to where it was on close.
-  onMount(() => {
-    const previous = document.activeElement instanceof HTMLElement ? document.activeElement : null;
-    modeField.focus();
-    return () => previous?.focus();
-  });
-
-  function focusables(): HTMLElement[] {
-    return Array.from(form.querySelectorAll<HTMLElement>('select, input, button')).filter(
-      (el) => !el.hasAttribute('disabled'),
-    );
-  }
-
-  function onKeydown(e: KeyboardEvent) {
-    if (e.key === 'Escape') {
-      e.preventDefault();
-      onCancel();
-    } else if (e.key === 'Tab') {
-      const items = focusables();
-      const first = items[0];
-      const last = items[items.length - 1];
-      if (!first || !last) return;
-      const inside = form.contains(document.activeElement);
-      if (e.shiftKey && (!inside || document.activeElement === first)) {
-        e.preventDefault();
-        last.focus();
-      } else if (!e.shiftKey && (!inside || document.activeElement === last)) {
-        e.preventDefault();
-        first.focus();
-      }
-    }
-  }
-
   const field = 'am-input';
 </script>
 
-<svelte:window onkeydown={onKeydown} />
-
-<div
-  class="fixed inset-0 z-50 flex items-center justify-center bg-black/50"
-  role="dialog"
-  aria-modal="true"
-  aria-label={t('svg.title')}
+<Dialog
+  title={t('svg.title')}
+  applyLabel={t('export.export')}
+  onApply={submit}
+  onClose={onCancel}
+  applyDisabled={errorText !== null}
+  class="max-h-[90vh]"
 >
-  <form
-    bind:this={form}
-    class="am-dialog max-h-[90vh] overflow-y-auto"
-    onsubmit={(e) => {
-      e.preventDefault();
-      submit();
-    }}
-  >
-    <header>
-      <h2>{t('svg.title')}</h2>
-    </header>
-    <div class="am-body flex flex-col gap-3">
+  <div class="flex flex-col gap-3">
+    <label class="flex flex-col gap-1 text-xs">
+      <span>{t('svg.mode')}</span>
+      <select class="{field} w-auto" bind:value={mode} aria-label={t('svg.mode')}>
+        <option value="color">{t('svg.modeColor')}</option>
+        <option value="mono">{t('svg.modeMono')}</option>
+        <option value="exact">{t('svg.modeExact')}</option>
+      </select>
+    </label>
 
-      <label class="flex flex-col gap-1 text-xs">
-        <span>{t('svg.mode')}</span>
-        <select bind:this={modeField} class="{field} w-auto" bind:value={mode} aria-label={t('svg.mode')}>
-          <option value="color">{t('svg.modeColor')}</option>
-          <option value="mono">{t('svg.modeMono')}</option>
-          <option value="exact">{t('svg.modeExact')}</option>
-        </select>
+    {#if mode === 'color'}
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.colors')}</span>
+        <input
+          type="number"
+          min="2"
+          max="16"
+          step="1"
+          class="w-20 {field}"
+          bind:value={colors}
+          aria-label={t('svg.colors')}
+        />
       </label>
+    {:else if mode === 'mono'}
+      <label class="am-check flex items-center gap-2 text-xs">
+        <input type="checkbox" bind:checked={autoThreshold} />
+        {t('svg.autoThreshold')}
+      </label>
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.threshold')}</span>
+        <input
+          type="number"
+          min="0"
+          max="255"
+          step="1"
+          class="w-20 {field}"
+          bind:value={threshold}
+          disabled={autoThreshold}
+          aria-label={t('svg.threshold')}
+        />
+      </label>
+      <label class="am-check flex items-center gap-2 text-xs">
+        <input type="checkbox" bind:checked={invert} />
+        {t('svg.invert')}
+      </label>
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.fill')}</span>
+        <input type="color" class="h-7 w-12 {field}" bind:value={fill} aria-label={t('svg.fill')} />
+      </label>
+    {/if}
 
-      {#if mode === 'color'}
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.colors')}</span>
-          <input
-            type="number"
-            min="2"
-            max="16"
-            step="1"
-            class="w-20 {field}"
-            bind:value={colors}
-            aria-label={t('svg.colors')}
-          />
-        </label>
-      {:else if mode === 'mono'}
-        <label class="am-check flex items-center gap-2 text-xs">
-          <input type="checkbox" bind:checked={autoThreshold} />
-          {t('svg.autoThreshold')}
-        </label>
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.threshold')}</span>
-          <input
-            type="number"
-            min="0"
-            max="255"
-            step="1"
-            class="w-20 {field}"
-            bind:value={threshold}
-            disabled={autoThreshold}
-            aria-label={t('svg.threshold')}
-          />
-        </label>
-        <label class="am-check flex items-center gap-2 text-xs">
-          <input type="checkbox" bind:checked={invert} />
-          {t('svg.invert')}
-        </label>
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.fill')}</span>
-          <input type="color" class="h-7 w-12 {field}" bind:value={fill} aria-label={t('svg.fill')} />
-        </label>
+    {#if mode !== 'exact'}
+      <label class="am-check flex items-center gap-2 text-xs">
+        <input type="checkbox" bind:checked={despeckle} />
+        {t('svg.despeckle')}
+      </label>
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.minArea')}</span>
+        <input
+          type="number"
+          min="0"
+          step="1"
+          class="w-20 {field}"
+          bind:value={minArea}
+          aria-label={t('svg.minArea')}
+        />
+      </label>
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.cornerThreshold')}</span>
+        <input
+          type="number"
+          min="0"
+          max="1.34"
+          step="0.01"
+          class="w-20 {field}"
+          bind:value={alphaMax}
+          aria-label={t('svg.cornerThreshold')}
+        />
+      </label>
+      <label class="am-check flex items-center gap-2 text-xs">
+        <input type="checkbox" bind:checked={optCurve} />
+        {t('svg.optCurve')}
+      </label>
+      <label class="flex items-center justify-between gap-2 text-xs">
+        <span>{t('svg.tolerance')}</span>
+        <input
+          type="number"
+          min="0"
+          step="0.05"
+          class="w-20 {field}"
+          bind:value={tolerance}
+          disabled={!optCurve}
+          aria-label={t('svg.tolerance')}
+        />
+      </label>
+    {/if}
+
+    <div class="flex h-48 items-center justify-center rounded border border-pc-border bg-pc-bg">
+      {#if errorText}
+        <div class="am-banner am-banner--warning m-2" role="alert"><div><strong>{errorText}</strong></div></div>
+      {:else if previewUrl}
+        <img class="h-full w-full object-contain p-1" src={previewUrl} alt={t('svg.preview')} />
       {/if}
-
-      {#if mode !== 'exact'}
-        <label class="am-check flex items-center gap-2 text-xs">
-          <input type="checkbox" bind:checked={despeckle} />
-          {t('svg.despeckle')}
-        </label>
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.minArea')}</span>
-          <input
-            type="number"
-            min="0"
-            step="1"
-            class="w-20 {field}"
-            bind:value={minArea}
-            aria-label={t('svg.minArea')}
-          />
-        </label>
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.cornerThreshold')}</span>
-          <input
-            type="number"
-            min="0"
-            max="1.34"
-            step="0.01"
-            class="w-20 {field}"
-            bind:value={alphaMax}
-            aria-label={t('svg.cornerThreshold')}
-          />
-        </label>
-        <label class="am-check flex items-center gap-2 text-xs">
-          <input type="checkbox" bind:checked={optCurve} />
-          {t('svg.optCurve')}
-        </label>
-        <label class="flex items-center justify-between gap-2 text-xs">
-          <span>{t('svg.tolerance')}</span>
-          <input
-            type="number"
-            min="0"
-            step="0.05"
-            class="w-20 {field}"
-            bind:value={tolerance}
-            disabled={!optCurve}
-            aria-label={t('svg.tolerance')}
-          />
-        </label>
-      {/if}
-
-      <div class="flex h-48 items-center justify-center rounded border border-pc-border bg-pc-bg">
-        {#if errorText}
-          <div class="am-banner am-banner--warning m-2" role="alert"><div><strong>{errorText}</strong></div></div>
-        {:else if previewUrl}
-          <img class="h-full w-full object-contain p-1" src={previewUrl} alt={t('svg.preview')} />
-        {/if}
-      </div>
-      <p class="text-xs text-pc-muted" aria-live="polite" data-testid="svg-summary">
-        {summary ?? ''}
-      </p>
-
     </div>
-    <footer>
-      <button type="button" class="am-btn" onclick={onCancel}>{t('common.cancel')}</button>
-      <button type="submit" class="am-btn am-btn--primary" disabled={errorText !== null}>
-        {t('export.export')}
-      </button>
-    </footer>
-  </form>
-</div>
+    <p class="text-xs text-pc-muted" aria-live="polite" data-testid="svg-summary">
+      {summary ?? ''}
+    </p>
+  </div>
+</Dialog>

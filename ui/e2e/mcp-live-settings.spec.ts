@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, storedPref, switchLanguage, waitForEditor } from './helpers';
+import { createDocument, storedPref, switchLanguage, waitForEditor, byText } from './helpers';
 import { emit, installTauriMock, type MockWindow } from './tauri-mock';
 
 // Tools ▸ AI agents… and the "AI connected" indicator
@@ -48,7 +48,7 @@ test.describe('desktop app', () => {
     await start(page);
     await page.waitForTimeout(300);
     expect((await commands(page)).filter((c) => c.startsWith('mcp_enable'))).toEqual([]);
-    await expect(page.getByText('AI connected')).toHaveCount(0);
+    await expect(byText(page, 'AI connected')).toHaveCount(0);
   });
 
   test('AC-02 AC-03 AC-04 the switch starts the endpoint with a new token, keeps it on, and stops it', async ({
@@ -146,5 +146,5 @@ test('AC-13 the web app shows neither the setting nor the indicator', async ({ p
   await bar.getByRole('menuitem', { name: 'View', exact: true }).click();
   await expect(page.getByRole('menuitem', { name: 'Zoom In' })).toBeVisible();
   await expect(page.getByRole('menuitem', { name: 'AI Agents…' })).toHaveCount(0);
-  await expect(page.getByText('AI connected')).toHaveCount(0);
+  await expect(byText(page, 'AI connected')).toHaveCount(0);
 });

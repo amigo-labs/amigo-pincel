@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, pixelCanvas, storedPref, switchLanguage } from './helpers';
+import { createDocument, imageCanvas, pixelCanvas, storedPref, switchLanguage, colorPair } from './helpers';
 
 // The own color picker (color-picker spec): a popover from the foreground
 // and background swatches with an S/V area, hue and alpha sliders, a hex
@@ -8,7 +8,7 @@ import { createDocument, imageCanvas, pixelCanvas, storedPref, switchLanguage } 
 type Mode = 'pixel' | 'image';
 
 const swatch = (page: Page, which: 'fg' | 'bg') =>
-  page.getByRole('button', {
+  colorPair(page).getByRole('button', {
     name: which === 'fg' ? 'Foreground color' : 'Background color',
     exact: true,
   });
@@ -477,7 +477,7 @@ for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
     let picker = await openPicker(page);
     await commitHex(picker, '#11223380');
     await page.keyboard.press('Escape');
-    await page.getByRole('button', { name: 'Swap foreground and background colors' }).click();
+    await colorPair(page).getByRole('button', { name: 'Swap foreground and background colors' }).click();
     picker = await openPicker(page, 'bg');
     expect(await rgba(picker)).toEqual([17, 34, 51, 128]);
     await page.keyboard.press('Escape');
@@ -487,7 +487,7 @@ for (const mode of ['pixel', 'image'] as const satisfies readonly Mode[]) {
 
     // Both colors translucent: reset makes both opaque, by button and by D.
     for (const reset of [
-      () => page.getByRole('button', { name: 'Reset to default colors' }).click(),
+      () => colorPair(page).getByRole('button', { name: 'Reset to default colors' }).click(),
       () => page.keyboard.press('d'),
     ]) {
       picker = await openPicker(page, 'fg');
@@ -532,7 +532,7 @@ test.describe('phone', () => {
 test('the picker is German in the German UI (AC-21)', async ({ page }) => {
   await createDocument(page, 'image', { width: 16, height: 16 });
   await switchLanguage(page, 'Deutsch');
-  await page.getByRole('button', { name: 'Vordergrundfarbe', exact: true }).click();
+  await colorPair(page).getByRole('button', { name: 'Vordergrundfarbe', exact: true }).click();
   const picker = page.getByRole('dialog', { name: 'Farbwähler Vordergrundfarbe' });
   await expect(picker.getByRole('slider', { name: 'Farbton' })).toBeVisible();
   await expect(picker.getByRole('slider', { name: 'Sättigung und Hellwert' })).toBeVisible();

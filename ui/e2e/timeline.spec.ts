@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas } from './helpers';
+import { createDocument, drag, menu, pixelCanvas, byText } from './helpers';
 
 test('timeline: frames, durations, tags, playback and onion skin', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
@@ -48,7 +48,7 @@ test('timeline: frames, durations, tags, playback and onion skin', async ({ page
 
 /** The `undo n / redo m` readout of the Pixel status bar. */
 const depths = (page: Page, undo: number, redo = 0) =>
-  page.getByText(`undo ${undo} / redo ${redo}`, { exact: true });
+  byText(page, `undo ${undo} / redo ${redo}`, { exact: true });
 
 const timelineOf = (page: Page) => page.getByRole('region', { name: 'Timeline' });
 

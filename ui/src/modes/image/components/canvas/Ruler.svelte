@@ -25,7 +25,7 @@
 </script>
 
 <div
-  class="relative shrink-0 overflow-hidden border-pc-border bg-pc-panel text-[10px] leading-none text-pc-muted select-none"
+  class="relative shrink-0 overflow-hidden border-pc-border bg-pc-panel text-(length:--pc-text-tiny) leading-none text-pc-muted select-none"
   class:h-5={h}
   class:w-full={h}
   class:border-b={h}

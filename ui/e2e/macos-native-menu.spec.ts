@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, drag, newDocument, pixelCanvas } from './helpers';
+import { createDocument, drag, newDocument, pixelCanvas, byText } from './helpers';
 import { PNG_1X1, tab } from './tab-helpers';
 import {
   commandCalls,
@@ -294,7 +294,7 @@ test.describe('macOS desktop app', () => {
     await expect(undoButton(page)).toBeEnabled();
     // F2 (no native chord) still reaches the editor.
     await page.keyboard.press('F2');
-    await expect(page.getByText(/fps · compose/)).toBeVisible();
+    await expect(byText(page, /fps · compose/)).toBeVisible();
   });
 
   test('a rebound action shows its new chord; one rebound to a single key goes back to the editor (AC-11)', async ({

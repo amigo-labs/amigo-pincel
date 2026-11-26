@@ -107,6 +107,7 @@ export const ptBr: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'No máximo {max} — será usado {n}',
   'newDoc.notWhole': 'Apenas pixels inteiros — será usado {n}',
   'newDoc.tooManyPixels': 'Pixels demais (limite {limit}) — será usado {w} × {h}',
+  'newDoc.presets': 'Tamanhos predefinidos',
 
   // Recovery dialog
   'recovery.title': 'Recuperar trabalho não salvo?',
@@ -291,6 +292,7 @@ export const ptBr: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title} — alterações não salvas',
   'frame.toolOptions': 'Opções da ferramenta',
+  'frame.moreOptions': 'Mais opções',
   'frame.panels': 'Painéis',
   'frame.tools': 'Ferramentas',
   'frame.menu': 'Menu',
@@ -1050,6 +1052,7 @@ export const ptBr: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Redimensionar imagem',
   'resize.resize': 'Redimensionar',
   'resize.scale': 'Escalar',
+  'resize.current': 'Tamanho atual: {w} × {h} px',
   'slices.mustBePositive': '{field} deve ser um número inteiro positivo',
   'slices.nameRequired': 'o nome é obrigatório',
   'slices.none': 'nenhuma fatia ainda',
@@ -1109,6 +1112,7 @@ export const ptBr: Record<MessageKey, string> = {
   'text.placeholder': 'Digite aqui… (Ctrl+Enter para posicionar)',
   'text.content': 'Conteúdo do texto',
   'text.fontSize': 'Tamanho da fonte',
+  'text.style': 'Estilo do texto',
   'text.align': 'Alinhamento do texto',
   'text.place': 'Posicionar',
   // Font list (docs/specs/system-fonts.md)

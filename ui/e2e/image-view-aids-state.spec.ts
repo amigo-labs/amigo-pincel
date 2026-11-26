@@ -9,6 +9,7 @@ import {
   solidPng,
   storedPref,
   waitForEditor,
+  byText,
 } from './helpers';
 import {
   area,
@@ -73,12 +74,12 @@ test('view state persists per user, applies to every Image tab and is no edit (A
 
   // A second Image tab of another size: the states stay, the status follows.
   await newTab(page, 'image', { width: 96, height: 48 });
-  await expect(page.getByText('2.54 × 1.27 cm', { exact: true })).toBeVisible();
+  await expect(byText(page, '2.54 × 1.27 cm', { exact: true })).toBeVisible();
   await expect(page.getByTestId('ruler-h')).toBeVisible();
   expect(await checked(page, 'Pixel Grid')).toBe(true);
   expect(await checked(page, 'Centimeters', 'Units')).toBe(true);
   await tabsOf(page).first().click();
-  await expect(page.getByText('0.53 × 0.26 cm', { exact: true })).toBeVisible();
+  await expect(byText(page, '0.53 × 0.26 cm', { exact: true })).toBeVisible();
 
   // After a reload every Image tab starts from the stored state.
   await createDocument(page, 'image', { width: 20, height: 10 });
@@ -163,7 +164,7 @@ test.describe('opened and saved files', () => {
     await openPng(page, 'print.png', png);
     await check(page, 'View', 'Units', 'Inches');
     // 96 px at 96 DPI, not 0.32 in at 300 DPI.
-    await expect(page.getByText('1.00 × 0.50 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '1.00 × 0.50 in', { exact: true })).toBeVisible();
     await check(page, 'View', 'Rulers');
     await expect(page.getByTestId('ruler-v')).toBeVisible();
     await expect.poll(async () => (await imageCanvas(page).boundingBox())?.x ?? 0).toBeGreaterThan(
@@ -279,9 +280,9 @@ test.describe('another resolution', () => {
     await check(page, 'View', 'Units', 'Inches');
     await check(page, 'View', 'Rulers');
     // 96 DPI until a resolution is set.
-    await expect(page.getByText('3.13 × 1.56 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '3.13 × 1.56 in', { exact: true })).toBeVisible();
     await newTab(page, 'image', { width: 384, height: 192 });
-    await expect(page.getByText('4.00 × 2.00 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '4.00 × 2.00 in', { exact: true })).toBeVisible();
     const [a, b] = await handles(page);
     if (a === undefined || b === undefined) throw new Error('two documents expected');
     await setDpi(page, a, 300);
@@ -289,17 +290,17 @@ test.describe('another resolution', () => {
 
     // Each tab switch reads the active document's resolution.
     await tabsOf(page).first().click();
-    await expect(page.getByText('1.00 × 0.50 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '1.00 × 0.50 in', { exact: true })).toBeVisible();
     await expectTicksAligned(page, 300, decimalUnit('in', 300));
     await tabsOf(page).last().click();
-    await expect(page.getByText('2.00 × 1.00 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '2.00 × 1.00 in', { exact: true })).toBeVisible();
     await expectTicksAligned(page, 384, decimalUnit('in', 192));
 
     // A document change reads it again.
     await setDpi(page, b, 96);
     await drag(page, imageCanvas(page), [0.2, 0.5], [0.6, 0.5]);
     await expect(undo(page)).toBeEnabled();
-    await expect(page.getByText('4.00 × 2.00 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '4.00 × 2.00 in', { exact: true })).toBeVisible();
     await expectTicksAligned(page, 384, decimalUnit('in', 96));
   });
 });
@@ -331,11 +332,11 @@ test('a tab switch moves the rulers and the pixel grid to that tab’s view (AC-
   expect(await gridShown()).toBe(false);
   await expectTicksAligned(page, 800);
   await tabsOf(page).first().click();
-  await expect(page.getByText('200 × 100 px', { exact: true })).toBeVisible();
+  await expect(byText(page, '200 × 100 px', { exact: true })).toBeVisible();
   expect(await gridShown()).toBe(true);
   await expectTicksAligned(page, 200);
   await tabsOf(page).last().click();
-  await expect(page.getByText('800 × 400 px', { exact: true })).toBeVisible();
+  await expect(byText(page, '800 × 400 px', { exact: true })).toBeVisible();
   expect(await gridShown()).toBe(false);
   await expectTicksAligned(page, 800);
   expect(await checked(page, 'Pixel Grid')).toBe(true);
@@ -377,8 +378,8 @@ test('a malformed pref or a failing store keeps the editor working (AC-20, AC-25
   await page.keyboard.press('ControlOrMeta+Shift+Quote');
   await check(page, 'View', 'Units', 'Centimeters');
   expect(await checked(page, 'Pixel Grid')).toBe(true);
-  await expect(page.getByText('0.53 × 0.26 cm', { exact: true })).toBeVisible();
-  await expect(page.getByText(/blocked|failed/i)).toHaveCount(0);
+  await expect(byText(page, '0.53 × 0.26 cm', { exact: true })).toBeVisible();
+  await expect(byText(page, /blocked|failed/i)).toHaveCount(0);
   await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
   await expect(undo(page)).toBeEnabled();
 
@@ -429,7 +430,7 @@ test('a toggle made before the stored state loaded wins and is stored with it (A
   );
 
   // The toggle stays; what it did not touch comes from the store.
-  await expect(page.getByText('0.53 × 0.26 cm', { exact: true })).toBeVisible();
+  await expect(byText(page, '0.53 × 0.26 cm', { exact: true })).toBeVisible();
   await expect(page.getByTestId('ruler-h')).toBeVisible();
   expect(await checked(page, 'Pixel Grid')).toBe(true);
   expect(await checked(page, 'Centimeters', 'Units')).toBe(true);
@@ -458,10 +459,10 @@ test.describe('without IndexedDB', () => {
     await check(page, 'View', 'Rulers');
     await expect(page.getByTestId('ruler-h')).toBeVisible();
     await check(page, 'View', 'Units', 'Inches');
-    await expect(page.getByText('0.21 × 0.10 in', { exact: true })).toBeVisible();
+    await expect(byText(page, '0.21 × 0.10 in', { exact: true })).toBeVisible();
     await drag(page, imageCanvas(page), [0.2, 0.5], [0.8, 0.5]);
     await expect(undo(page)).toBeEnabled();
-    await expect(page.getByText(/failed/i)).toHaveCount(0);
+    await expect(byText(page, /failed/i)).toHaveCount(0);
     expect(errors).toEqual([]);
   });
 });

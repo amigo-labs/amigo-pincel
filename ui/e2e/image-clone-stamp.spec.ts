@@ -10,6 +10,8 @@ import {
   setColor,
   switchLanguage,
   zoomFit,
+  showAllOptions,
+  byText,
 } from './helpers';
 
 // The Clone Stamp in Image mode (docs/specs/clone-stamp.md). The composite
@@ -265,6 +267,7 @@ test('Set source makes the next press set the source and switches off (AC-04)', 
 }) => {
   await paintedDocument(page);
   const steps = await undoDepth(page);
+  await showAllOptions(page);
   await setSource(page).click();
   await expect(setSource(page)).toHaveAttribute('aria-pressed', 'true');
   await press(page, 8, 16);
@@ -282,12 +285,12 @@ test('a stroke without a source paints nothing and says how to set one (AC-13)',
   const start = await composite(page);
   const steps = await undoDepth(page);
   await stroke(page, [20, 16], [26, 16]);
-  await expect(page.getByText(NO_SOURCE)).toBeVisible();
+  await expect(byText(page, NO_SOURCE)).toBeVisible();
   expect(await undoDepth(page)).toBe(steps);
   expect((await composite(page))(24, 16)).toEqual(start(24, 16));
   // Setting the source clears the notice.
   await press(page, 8, 16, true);
-  await expect(page.getByText(NO_SOURCE)).toHaveCount(0);
+  await expect(byText(page, NO_SOURCE)).toHaveCount(0);
 });
 
 test('a locked layer refuses the stroke with the Brush notice; the source can still be set (AC-14)', async ({
@@ -302,12 +305,12 @@ test('a locked layer refuses the stroke with the Brush notice; the source can st
   await lock.click();
   // Locking is an undo step of its own; count from here.
   const steps = await undoDepth(page);
-  const locked = page.getByText(`“${name}” is locked`);
+  const locked = byText(page, `“${name}” is locked`);
 
   // No source: the locked notice wins.
   await stroke(page, [20, 16], [26, 16]);
   await expect(locked).toBeVisible();
-  await expect(page.getByText(NO_SOURCE)).toHaveCount(0);
+  await expect(byText(page, NO_SOURCE)).toHaveCount(0);
 
   // Setting the source works on the locked layer; painting still does not.
   await press(page, 8, 16, true);
@@ -393,7 +396,7 @@ test('each tab keeps its own source through tool, layer and tab switches (AC-16)
   const box = await imageCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByText(NO_SOURCE)).toBeVisible();
+  await expect(byText(page, NO_SOURCE)).toBeVisible();
 
   // Back in the first tab the source is there again; closing the second
   // tab leaves it alone.
@@ -422,10 +425,12 @@ test('Ctrl+press or Set source beside the canvas changes nothing (AC-17)', async
   // No source yet: none afterwards either.
   await ctrlClick();
   await expect(crosshair(page)).toHaveCount(0);
+  await showAllOptions(page);
   await setSource(page).click();
   await page.mouse.click(...beside);
   await expect(crosshair(page)).toHaveCount(0);
   await expect(setSource(page)).toHaveAttribute('aria-pressed', 'true');
+  await showAllOptions(page);
   await setSource(page).click();
 
   // With a source, it stays where it was.
@@ -470,9 +475,9 @@ test('in German the tool, its options and its notice are translated (AC-18)', as
     'title',
     'Der nächste Klick auf die Leinwand legt den Quellpunkt fest',
   );
-  await expect(page.getByText('Aufnehmen von')).toBeVisible();
+  await expect(byText(page, 'Aufnehmen von')).toBeVisible();
   await stroke(page, [10, 10], [12, 10]);
-  await expect(page.getByText('Erst mit Strg+Klick eine Quelle festlegen')).toBeVisible();
+  await expect(byText(page, 'Erst mit Strg+Klick eine Quelle festlegen')).toBeVisible();
 });
 
 test.describe('on macOS', () => {
@@ -490,18 +495,18 @@ test.describe('on macOS', () => {
 
     // Ctrl+click is the secondary click on macOS: no source.
     await press(page, 8, 16, true);
-    await expect(page.getByText(MAC_HINT)).toBeVisible();
+    await expect(byText(page, MAC_HINT)).toBeVisible();
     await expect(crosshair(page)).toHaveCount(0);
     // A stroke without a source names ⌘, not Ctrl.
     await stroke(page, [20, 16], [26, 16]);
-    await expect(page.getByText(MAC_HINT)).toBeVisible();
-    await expect(page.getByText(NO_SOURCE)).toHaveCount(0);
+    await expect(byText(page, MAC_HINT)).toBeVisible();
+    await expect(byText(page, NO_SOURCE)).toHaveCount(0);
     expect(await undoDepth(page)).toBe(steps);
 
     // ⌘+click sets it, without an undo step.
     await press(page, 8, 16, 'Meta');
     await expectCrosshairAt(page, 8.5, 16.5);
-    await expect(page.getByText(MAC_HINT)).toHaveCount(0);
+    await expect(byText(page, MAC_HINT)).toHaveCount(0);
     expect(await undoDepth(page)).toBe(steps);
   });
 });

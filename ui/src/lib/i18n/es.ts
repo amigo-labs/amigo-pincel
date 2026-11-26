@@ -108,6 +108,7 @@ export const es: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Como máximo {max}: se usará {n}',
   'newDoc.notWhole': 'Solo píxeles enteros: se usará {n}',
   'newDoc.tooManyPixels': 'Demasiados píxeles (límite {limit}): se usará {w} × {h}',
+  'newDoc.presets': 'Tamaños predefinidos',
 
   // Recovery dialog
   'recovery.title': '¿Recuperar el trabajo sin guardar?',
@@ -290,6 +291,7 @@ export const es: Record<MessageKey, string> = {
   // Editor frame
   'frame.unsaved': '{title}: cambios sin guardar',
   'frame.toolOptions': 'Opciones de herramienta',
+  'frame.moreOptions': 'Más opciones',
   'frame.panels': 'Paneles',
   'frame.tools': 'Herramientas',
   'frame.menu': 'Menú',
@@ -1052,6 +1054,7 @@ export const es: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Escalar imagen',
   'resize.resize': 'Cambiar tamaño',
   'resize.scale': 'Escalar',
+  'resize.current': 'Tamaño actual: {w} × {h} px',
   'slices.mustBePositive': '{field} debe ser un entero positivo',
   'slices.nameRequired': 'el nombre es obligatorio',
   'slices.none': 'aún no hay sectores',
@@ -1111,6 +1114,7 @@ export const es: Record<MessageKey, string> = {
   'text.placeholder': 'Escriba aquí… (Ctrl+Enter para colocar)',
   'text.content': 'Contenido del texto',
   'text.fontSize': 'Tamaño de fuente',
+  'text.style': 'Estilo de texto',
   'text.align': 'Alineación del texto',
   'text.place': 'Colocar',
   // Font list (docs/specs/system-fonts.md)

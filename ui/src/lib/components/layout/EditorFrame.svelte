@@ -34,6 +34,7 @@
   import { mover, provideEffectHost } from './effect-host';
   import IconButton from './IconButton.svelte';
   import MenuBar from './MenuBar.svelte';
+  import OptionsBar from './OptionsBar.svelte';
   import PanelGroup from './PanelGroup.svelte';
   import PanelHost from './PanelHost.svelte';
   import { PANEL_GROUPS, groupState, nextEnabled, resetPanels, type GroupState } from './groups';
@@ -71,6 +72,9 @@
     tools: Snippet<['vertical' | 'horizontal']>;
     /** Tool options for the active tool. */
     options?: Snippet;
+    /** The active tool's name, first in the options bar
+     *  (options-bar-layout AC-01). */
+    toolName?: string;
     /** The canvas viewport. */
     viewport: Snippet;
     /** App-bar quick actions (undo / redo). */
@@ -106,6 +110,7 @@
     panels,
     tools,
     options,
+    toolName = '',
     viewport: stage,
     quick,
     onSearch,
@@ -452,6 +457,55 @@
     return 12 + Math.max(sheet, dock);
   });
 
+  // The current notice as a toast over the canvas area
+  // (docs/specs/notifications.md). The editors hold a notice as a value, so
+  // a toast shows when that value changes to a notice.
+  const TOAST_MS = 5000;
+  const notice = $derived(status?.notice ?? null);
+  let toast = $state<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  let toastHeld = 0;
+
+  function armToast(): void {
+    if (toastTimer !== null) clearTimeout(toastTimer);
+    toastTimer = null;
+    if (toast === null || toastHeld > 0) return;
+    toastTimer = setTimeout(() => (toast = null), TOAST_MS);
+  }
+
+  $effect(() => {
+    // An editor in the background shows none (its tab is not on screen).
+    const next = active ? notice : null;
+    untrack(() => {
+      toast = next;
+      toastHeld = 0;
+      armToast();
+    });
+  });
+
+  /** The toast stays while the pointer is over it or the focus inside it
+   *  (AC-03); the listeners sit on the status region, which is no control. */
+  function holdToast(node: HTMLElement): () => void {
+    const hold = (): void => {
+      toastHeld += 1;
+      armToast();
+    };
+    const release = (): void => {
+      toastHeld = Math.max(0, toastHeld - 1);
+      armToast();
+    };
+    node.addEventListener('pointerenter', hold);
+    node.addEventListener('pointerleave', release);
+    node.addEventListener('focusin', hold);
+    node.addEventListener('focusout', release);
+    return () => {
+      node.removeEventListener('pointerenter', hold);
+      node.removeEventListener('pointerleave', release);
+      node.removeEventListener('focusin', hold);
+      node.removeEventListener('focusout', release);
+    };
+  }
+
   // `data-dimmed` shades a region outside the canvas area (app.css).
   const dim = $derived(effectOpen ? '' : undefined);
 
@@ -475,6 +529,32 @@
       onToggle={() => toggleCollapsed(p)}
       body={p.body}
     />
+  </div>
+{/snippet}
+
+<!-- The current notice; only the box itself takes input. -->
+{#snippet toastBox(bottom: number)}
+  <div
+    class="pointer-events-none absolute inset-x-0 z-(--pc-z-toast) flex justify-center px-3"
+    style:bottom="{bottom}px"
+  >
+    <div
+      class="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-pc-control border border-pc-border bg-pc-panel pr-0.5 pl-2.5 text-xs text-pc-text shadow-(--am-elev-3)"
+      role="status"
+      data-toast=""
+      {@attach holdToast}
+    >
+      <span class="min-w-0 py-1 break-words">{toast}</span>
+      <IconButton
+        icon="close"
+        label={t('shell.dismiss')}
+        size="sm"
+        onclick={() => {
+          toast = null;
+          armToast();
+        }}
+      />
+    </div>
   </div>
 {/snippet}
 
@@ -539,7 +619,7 @@
   </div>
 {/snippet}
 
-<div class="flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
+<div class="relative flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
   <!-- Top bar. While an effect is open it is dimmed and inert except the
        Effects and Adjustments menus, which MenuBar lifts above the shade
        (AC-03, AC-05). -->
@@ -623,17 +703,9 @@
     <div class="flex min-w-0 flex-1 flex-col">
       {#if options && !chrome.hidden}
         <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
-          <div
-            class:scroll-fade-x={size === 'narrow'}
-            class:h-11={size === 'narrow'}
-            class:h-10={size !== 'narrow'}
-            class="flex items-center gap-4 overflow-x-auto border-b border-pc-border bg-pc-panel px-3 text-xs text-pc-muted [scrollbar-width:none]"
-            data-frame="options"
-            role="toolbar"
-            aria-label={t('frame.toolOptions')}
-          >
+          <OptionsBar name={toolName} narrow={size === 'narrow'} disabled={effectOpen || answering}>
             {@render options()}
-          </div>
+          </OptionsBar>
         </div>
       {/if}
       <main
@@ -658,9 +730,14 @@
             closeKey={zoomCloseKey}
           />
         {/if}
+        {#if toast !== null && size === 'narrow'}
+          <!-- A phone has no status bar: above the floating zoom control
+               and the sheet (notifications AC-08). -->
+          {@render toastBox(zoomLift + 44)}
+        {/if}
         {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div
-            class="absolute inset-x-0 bottom-0 z-30 flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
+            class="absolute inset-x-0 bottom-0 z-(--pc-z-drawer) flex max-h-[60%] flex-col rounded-t-lg border-t border-pc-border bg-pc-panel shadow-[0_-8px_30px_rgb(0_0_0/0.5)]"
             role="dialog"
             aria-label={t('frame.panels')}
             inert={effectOpen}
@@ -697,7 +774,7 @@
         {#if effectPanel && size !== 'narrow'}
           <!-- The effect panel floats over the canvas area (AC-01, AC-12). -->
           <div
-            class="absolute z-[35] flex max-h-full w-80 flex-col"
+            class="absolute z-(--pc-z-float) flex max-h-full w-80 flex-col"
             style:top="{effectPos.y}px"
             style:right="{effectPos.x}px"
             bind:offsetWidth={panelWidth}
@@ -733,7 +810,7 @@
         inert={effectOpen}
         data-dimmed={dim}
         class:hidden={!hasPanels}
-        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-10 focus-visible:bg-pc-focus focus-visible:outline-offset-0"
+        class="relative w-1 shrink-0 cursor-col-resize touch-none bg-pc-border hover:bg-pc-accent focus-visible:z-(--pc-z-raised) focus-visible:bg-pc-focus focus-visible:outline-offset-0"
         role="separator"
         aria-orientation="vertical"
         aria-label={t('frame.sidebarWidth')}
@@ -757,7 +834,7 @@
       <aside
         class:flex={hasPanels}
         class:hidden={!hasPanels}
-        class="absolute inset-y-0 right-0 z-30 w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
+        class="absolute inset-y-0 right-0 z-(--pc-z-drawer) w-72 flex-col border-l border-pc-border bg-pc-panel shadow-[-8px_0_30px_rgb(0_0_0/0.5)]"
         aria-label={t('frame.panels')}
         inert={effectOpen}
         data-dimmed={dim}
@@ -821,6 +898,11 @@
       {/if}
     </footer>
   {/if}
+  {#if toast !== null && size !== 'narrow'}
+    <!-- Centred on the status bar, so it covers no artwork
+         (notifications AC-01). -->
+    {@render toastBox(1)}
+  {/if}
   {#if size === 'narrow' && !chrome.hidden}
     <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>
       {@render tools('horizontal')}
@@ -831,7 +913,7 @@
     <!-- Phones: docked to the bottom edge across the window, over the
          sheet, at most half the window tall (AC-13). -->
     <div
-      class="fixed inset-x-0 bottom-0 z-[35] flex max-h-[50vh] flex-col"
+      class="fixed inset-x-0 bottom-0 z-(--pc-z-float) flex max-h-[50vh] flex-col"
       bind:offsetHeight={effectDockHeight}
     >
       {@render effectPanel.body()}

@@ -15,6 +15,7 @@ import {
   solidPng,
   waitForEditor,
   type DraggedFile,
+  byText,
 } from './helpers';
 import { installTauriMock, putFile, setMock, type MockWindow } from './tauri-mock';
 
@@ -78,7 +79,7 @@ async function merged(page: Page): Promise<{ width: number; height: number; data
 
 const layerRows = (page: Page) => page.getByRole('button', { name: /^Hide / });
 const sizeShown = (page: Page, w: number, h: number) =>
-  page.getByText(`${w} × ${h} px`, { exact: true });
+  byText(page, `${w} × ${h} px`, { exact: true });
 const saveAsDialog = (page: Page) => page.getByRole('dialog', { name: 'Save As' });
 
 test('a JPEG XL file opens with its pixels and Save writes it back as JPEG XL (AC-03, AC-06)', async ({
@@ -120,11 +121,11 @@ test('JPEG XL is told by content: a PNG named .jxl opens as PNG, an AVIF fails (
   expect([...written.bytes.subarray(0, 4)]).toEqual([0x89, 0x50, 0x4e, 0x47]);
 
   await openFile(page, 'still.avif', fixture('still.avif'), false);
-  await expect(page.getByText(/still\.avif/)).toBeVisible();
+  await expect(byText(page, /still\.avif/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open…' })).toBeVisible();
   // Not JPEG XL content under a .jxl name: no document either.
   await openFile(page, 'garbage.jxl', Buffer.from('not an image at all'), false);
-  await expect(page.getByText(/garbage\.jxl could not be opened/)).toBeVisible();
+  await expect(byText(page, /garbage\.jxl could not be opened/)).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open…' })).toBeVisible();
 });
 
@@ -132,12 +133,12 @@ test('a truncated JPEG XL fails as undecodable, a huge one with the size message
   page,
 }) => {
   await openFile(page, 'cut.jxl', fixture('truncated.jxl'), false);
-  await expect(page.getByText(/cut\.jxl could not be opened/)).toBeVisible();
-  await expect(page.getByText(/invalid canvas size/)).toHaveCount(0);
+  await expect(byText(page, /cut\.jxl could not be opened/)).toBeVisible();
+  await expect(byText(page, /invalid canvas size/)).toHaveCount(0);
 
   await openFile(page, 'huge.jxl', fixture('huge.jxl'), false);
   await expect(
-    page.getByText(/huge\.jxl could not be opened: .*invalid canvas size/),
+    byText(page, /huge\.jxl could not be opened: .*invalid canvas size/),
   ).toBeVisible();
   await expect(page.getByRole('button', { name: 'Open…' })).toBeVisible();
 
@@ -145,7 +146,7 @@ test('a truncated JPEG XL fails as undecodable, a huge one with the size message
   await openFile(page, 'lossless8.jxl', fixture('lossless8.jxl'));
   const before = await merged(page);
   await chooseFile(page, () => menu(page, 'File', 'Open…'), 'cut.jxl', fixture('truncated.jxl'));
-  await expect(page.getByText(/Could not open image: .*JPEG XL/)).toBeVisible();
+  await expect(byText(page, /Could not open image: .*JPEG XL/)).toBeVisible();
   await expect(page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab')).toHaveCount(1);
   await expect(page.getByTitle('lossless8.jxl', { exact: true })).toBeVisible();
   expect(await merged(page)).toEqual(before);
@@ -182,8 +183,8 @@ test('Save As ▸ JPEG XL of a 1-px canvas says JPEG XL needs 2 × 2 px and writ
   const dialog = saveAsDialog(page);
   await dialog.getByLabel('Format').selectOption('jxl');
   await dialog.getByRole('button', { name: 'Save' }).click();
-  await expect(page.getByText(TOO_SMALL)).toBeVisible();
-  await expect(page.getByText(/Save failed/)).toHaveCount(0);
+  await expect(byText(page, TOO_SMALL)).toBeVisible();
+  await expect(byText(page, /Save failed/)).toHaveCount(0);
   expect(downloads).toBe(0);
   await expect(page.getByTitle('thin.png — unsaved changes', { exact: true })).toBeVisible();
   // Save As can run again, and another format writes.
@@ -211,10 +212,10 @@ test('Save of a JPEG XL cut to 1 px tall goes to Save As with the 2 px notice on
   await menu(page, 'File', 'Save');
   const dialog = saveAsDialog(page);
   await expect(dialog).toBeVisible();
-  await expect(page.getByText(TOO_SMALL)).toBeVisible();
+  await expect(byText(page, TOO_SMALL)).toBeVisible();
   // JPEG XL can be written, just not at this size: no "cannot be written
   // back", and PNG preselected.
-  await expect(page.getByText(/cannot be written back/)).toHaveCount(0);
+  await expect(byText(page, /cannot be written back/)).toHaveCount(0);
   await expect(dialog.getByLabel('Format')).toHaveValue('png');
   await dialog.getByRole('button', { name: 'Cancel' }).click();
   expect(downloads).toBe(0);
@@ -254,7 +255,7 @@ test.describe('desktop app', () => {
 
     // Save writes in place, without a dialog: the write fails.
     await menu(page, 'File', 'Save');
-    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    await expect(byText(page, /Save failed: .*disk full/)).toBeVisible();
     expect(await onDisk(page, '/pics/photo.jxl')).toEqual([...original]);
     await expect(unsaved).toBeVisible();
 
@@ -269,11 +270,11 @@ test.describe('desktop app', () => {
     await expect
       .poll(() => page.evaluate(() => (window as unknown as MockWindow).__mock.saveDialogs.length))
       .toBe(1);
-    await expect(page.getByText(/Save failed: .*disk full/)).toBeVisible();
+    await expect(byText(page, /Save failed: .*disk full/)).toBeVisible();
     expect(await onDisk(page, '/pics/other.jxl')).toEqual([...other]);
     expect(await onDisk(page, '/pics/photo.jxl')).toEqual([...original]);
     await expect(unsaved).toBeVisible();
-    await expect(page.getByText(TOO_SMALL)).toHaveCount(0);
+    await expect(byText(page, TOO_SMALL)).toHaveCount(0);
   });
 });
 

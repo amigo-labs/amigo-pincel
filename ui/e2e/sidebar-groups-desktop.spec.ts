@@ -232,6 +232,24 @@ test('an answer that is still running shows as far as it has come on return (AC-
   await done(page, chat);
 });
 
+test('an answer that fails behind the Generate tab shows its error on return (AC-17)', async ({ page }) => {
+  await start(page, 'image');
+  await sendMessage(page, 'draw something');
+  const chat = String((await sent(page)).chat);
+  await event(page, chat, { kind: 'text', text: 'Working' });
+  await tabOf(page, AI, 'Generate').click();
+  await expect(generate(page)).toBeVisible();
+  expect(await isInert(generate(page))).toBe(true);
+  await done(page, chat, 'failed', { text: 'cli says offline', hint: 'offline' });
+  // The answer is over: Generate takes input again.
+  await expect.poll(() => isInert(generate(page))).toBe(false);
+  await tabOf(page, AI, 'Assistant').click();
+  await expect(log(page)).toContainText('Working');
+  await expect(log(page).getByRole('status').last()).toContainText('Failed: cli says offline');
+  await expect(assistant(page).getByRole('button', { name: 'Stop' })).toHaveCount(0);
+  await expect(assistant(page).getByRole('button', { name: 'Send' })).toBeVisible();
+});
+
 test('a running generation is not stopped by the Assistant tab; on return Generate shows its progress, then its result (AC-18)', async ({
   page,
 }) => {

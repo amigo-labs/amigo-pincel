@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, menu, pixelCanvas } from './helpers';
+import { createDocument, drag, menu, pixelCanvas, byText } from './helpers';
 
 // Layer ▸ Rotate… (docs/specs/rotsprite.md): the dialog, its live preview,
 // the RotSprite cap and the refusals. The rotation maths is covered by
@@ -92,7 +92,7 @@ test('Apply commits the previewed rotation as one undo step (AC-08)', async ({ p
   const preview = await shot(page, canvas);
   await applyButton(page).click();
   await expect(dialog(page)).toBeHidden();
-  await expect(page.getByText('rotated by 90°')).toBeVisible();
+  await expect(byText(page, 'rotated by 90°')).toBeVisible();
   await expect.poll(async () => (await shot(page, canvas)).equals(preview)).toBe(true);
   await undoButton(page).click();
   await expect.poll(async () => (await shot(page, canvas)).equals(original)).toBe(true);
@@ -129,7 +129,7 @@ test('RotSprite over 512 px shows a notice and rotates nothing (AC-09)', async (
 test('a locked layer or an empty one rotates nothing (AC-10)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await menu(page, 'Layer', 'Transform', 'Rotate…');
-  await expect(page.getByText('rotate: nothing to rotate')).toBeVisible();
+  await expect(byText(page, 'rotate: nothing to rotate')).toBeVisible();
   await expect(dialog(page)).toBeHidden();
   await expect(undoButton(page)).toBeDisabled();
 
@@ -137,7 +137,7 @@ test('a locked layer or an empty one rotates nothing (AC-10)', async ({ page }) 
   const original = await shot(page, canvas);
   await page.getByRole('button', { name: 'Lock Layer 1', exact: true }).click();
   await menu(page, 'Layer', 'Transform', 'Rotate…');
-  await expect(page.getByText('Layer “Layer 1” is locked')).toBeVisible();
+  await expect(byText(page, 'Layer “Layer 1” is locked')).toBeVisible();
   await expect(dialog(page)).toBeHidden();
   expect((await shot(page, canvas)).equals(original)).toBe(true);
   // Undo reverts the lock, then the stroke: no rotation step between.

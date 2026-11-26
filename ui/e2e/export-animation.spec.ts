@@ -1,7 +1,7 @@
 import { readFile } from 'node:fs/promises';
 import { crc32, deflateSync } from 'node:zlib';
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, gotoStart, menu, waitForEditor } from './helpers';
+import { createDocument, gotoStart, menu, waitForEditor, byText } from './helpers';
 
 // File ▸ Export ▸ Animation… (spec animated-export). Downloads go through
 // the fallback: the File System Access pickers would open native dialogs.
@@ -179,7 +179,7 @@ test('APNG export downloads <stem>.png with an acTL frame count', async ({ page 
   expect(name).toBe('pincel.png');
   expect([...bytes.subarray(0, 8)]).toEqual([0x89, 0x50, 0x4e, 0x47, 0x0d, 0x0a, 0x1a, 0x0a]);
   expect(actlFrames(bytes)).toBe(3);
-  await expect(page.getByText(/exported animation · \d+ bytes/)).toBeVisible();
+  await expect(byText(page, /exported animation · \d+ bytes/)).toBeVisible();
 });
 
 test('GIF export downloads <stem>.gif with the NETSCAPE loop count', async ({ page }) => {
@@ -217,7 +217,7 @@ test('GIF notices warn about approximated colours and on/off transparency', asyn
     menu(page, 'File', 'Import PNG as Layer…'),
   ]);
   await chooser.setFiles({ name: 'many.png', mimeType: 'image/png', buffer: png });
-  await expect(page.getByText('imported many.png')).toBeVisible();
+  await expect(byText(page, 'imported many.png')).toBeVisible();
 
   const dialog = await openDialog(page);
   const approximated = dialog.getByText('Some frames have more than 256 colours');
@@ -264,6 +264,6 @@ test('an output over 16384 px fails in the status bar without a download', async
   await dialog.getByLabel('Scale').selectOption('10');
   await expect(dialog.getByText('Frames: 1 · size: 17000×40 px')).toBeVisible();
   await dialog.getByRole('button', { name: 'Export' }).click();
-  await expect(page.getByText(/Animation export failed: .*16384/)).toBeVisible();
+  await expect(byText(page, /Animation export failed: .*16384/)).toBeVisible();
   expect(downloads).toBe(0);
 });

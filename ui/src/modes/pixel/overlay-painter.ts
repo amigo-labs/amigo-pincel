@@ -125,14 +125,8 @@ function paintDragPreview(
     case 'polygon-shape':
       paintRectanglePreview(overlay, a.x, a.y, b.x, b.y, color, false);
       break;
-    case 'rectangle-fill':
-      paintRectanglePreview(overlay, a.x, a.y, b.x, b.y, color, true);
-      break;
     case 'ellipse':
       paintEllipsePreview(overlay, a.x, a.y, b.x, b.y, color, false);
-      break;
-    case 'ellipse-fill':
-      paintEllipsePreview(overlay, a.x, a.y, b.x, b.y, color, true);
       break;
     case 'selection-ellipse':
       paintEllipsePreview(overlay, a.x, a.y, b.x, b.y, '#ffffff', false);

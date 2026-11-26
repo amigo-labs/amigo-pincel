@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { gotoStart, putClipboardImage, waitForEditor } from './helpers';
+import { gotoStart, putClipboardImage, waitForEditor, byText } from './helpers';
 import {
   clipboardReads,
   focusWindow,
@@ -26,7 +26,7 @@ const PNG_1X1 = Buffer.from(
   'base64',
 );
 
-const imageSize = (page: Page, w: number, h: number) => page.getByText(`${w} × ${h} px`);
+const imageSize = (page: Page, w: number, h: number) => byText(page, `${w} × ${h} px`);
 
 function card(page: Page): Locator {
   return page.getByRole('region', { name: 'Image on the clipboard' });

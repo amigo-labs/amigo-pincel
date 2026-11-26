@@ -9,6 +9,7 @@ import {
   pixelOf,
   setColor,
   type ClipImage,
+  byText,
 } from './helpers';
 
 // Layer groups in Image mode (docs/specs/image-layer-groups.md): New Group,
@@ -211,7 +212,7 @@ test('image: a locked group refuses paint on its children and a group refuses pa
   await setColor(page, 'fg', '#0000ff');
   await page.keyboard.press('g');
   await imageCanvas(page).click({ position: { x: 4, y: 4 } });
-  await expect(page.getByText('“Group 1” is locked')).toBeVisible();
+  await expect(byText(page, '“Group 1” is locked')).toBeVisible();
   expect(pixelOf(await composite(page), 8, 8)).toEqual(RED);
 
   // Locked, the group locks its child without setting the child's flag.
@@ -220,7 +221,7 @@ test('image: a locked group refuses paint on its children and a group refuses pa
   await expect(childLock).toHaveAttribute('title', 'Locked by its group');
   await selectRow(page, name);
   await drag(page, imageCanvas(page), [0.2, 0.2], [0.8, 0.6]);
-  await expect(page.getByText(`“${name}” is locked`)).toBeVisible();
+  await expect(byText(page, `“${name}” is locked`)).toBeVisible();
   await imageCanvas(page).click({ position: { x: 4, y: 4 } });
   expect(pixelOf(await composite(page), 8, 8)).toEqual(RED);
 });

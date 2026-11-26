@@ -3,7 +3,7 @@ import { es } from '../src/lib/i18n/es';
 import { fr } from '../src/lib/i18n/fr';
 import { ja } from '../src/lib/i18n/ja';
 import { ptBr } from '../src/lib/i18n/pt-br';
-import { createDocument, menu, menuHint, newDocument, switchLanguage } from './helpers';
+import { createDocument, menu, menuHint, newDocument, switchLanguage, byText } from './helpers';
 import { installTauriMock, launchDesktop } from './tauri-mock';
 
 // The menu bar of both editors (docs/specs/menu-structure.md): Tools for
@@ -105,7 +105,7 @@ function paletteOption(page: Page, label: string): Locator {
     .getByRole('dialog', { name: 'Command Palette' })
     .getByRole('listbox')
     .getByRole('option')
-    .filter({ has: page.getByText(label, { exact: true }) });
+    .filter({ has: byText(page, label, { exact: true }) });
 }
 
 async function openPalette(page: Page): Promise<void> {
@@ -198,13 +198,13 @@ test.describe('browser', () => {
     await expect(item).toHaveAttribute('aria-checked', 'false');
     await expect(item.locator('kbd')).toHaveText('F2');
     await item.click();
-    await expect(page.getByText(/fps · compose/)).toBeVisible();
+    await expect(byText(page, /fps · compose/)).toBeVisible();
     await openHelp();
     await expect(item).toHaveAttribute('aria-checked', 'true');
     await item.click();
-    await expect(page.getByText(/fps · compose/)).toBeHidden();
+    await expect(byText(page, /fps · compose/)).toBeHidden();
     await page.keyboard.press('F2');
-    await expect(page.getByText(/fps · compose/)).toBeVisible();
+    await expect(byText(page, /fps · compose/)).toBeVisible();
   });
 
   test('image: Help has no Frame-Time Probe (AC-05)', async ({ page }) => {
@@ -359,14 +359,14 @@ test.describe('desktop on macOS', () => {
     await expect(page.getByRole('menubar')).toHaveCount(0);
 
     await page.keyboard.press('F2');
-    await expect(page.getByText(/fps · compose/)).toBeVisible();
+    await expect(byText(page, /fps · compose/)).toBeVisible();
     await page.keyboard.press('F2');
-    await expect(page.getByText(/fps · compose/)).toBeHidden();
+    await expect(byText(page, /fps · compose/)).toBeHidden();
 
     await openPalette(page);
     const probe = paletteOption(page, 'Help ▸ Frame-Time Probe');
     await expect(probe).toHaveCount(1);
     await probe.click();
-    await expect(page.getByText(/fps · compose/)).toBeVisible();
+    await expect(byText(page, /fps · compose/)).toBeVisible();
   });
 });

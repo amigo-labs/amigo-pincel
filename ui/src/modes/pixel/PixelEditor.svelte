@@ -371,6 +371,9 @@
   const statusInfo: StatusInfo = $derived({
     ready: ed.doc !== null,
     text: ed.status || toolLabel,
+    // The idle texts are no notices (notifications AC-06).
+    notice:
+      ed.status && ed.status !== t('px.ready') && ed.status !== t('px.initializing') ? ed.status : null,
     position: hover.pixel ? t('px.position', { x: hover.pixel.x, y: hover.pixel.y }) : null,
     size: t('status.size', { width: ed.canvasW, height: ed.canvasH, unit: 'px' }),
     frame: t('px.frameOf', { n: ed.currentFrame + 1, total: ed.frameCount }),
@@ -1066,9 +1069,9 @@
   });
 </script>
 
-{#snippet colorsBody()}
-  <Panel>
+{#snippet colorPair(compact: boolean)}
     <ColorPair
+      {compact}
       fg={{ ...hexToRgb(colors.color), a: colors.alpha }}
       bg={{ ...hexToRgb(colors.bgColor), a: colors.bgAlpha }}
       onFg={(c) => {
@@ -1084,7 +1087,14 @@
       recent={recentColors.pixel}
       onDraft={(d) => (colorDraft.pixel = d)}
     />
+{/snippet}
+{#snippet colorsBody()}
+  <Panel>
+    {@render colorPair(false)}
   </Panel>
+{/snippet}
+{#snippet colorWell()}
+  {@render colorPair(true)}
 {/snippet}
 {#snippet paletteBody()}
   <PalettePanel
@@ -1318,6 +1328,7 @@
   onSearch={openCommandPalette}
   searchHint={hint('commandPalette')}
   status={statusInfo}
+  toolName={toolLabel}
   zoom={zoomProps}
   effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}
   tabs={tabBar}
@@ -1395,6 +1406,7 @@
       onSelect={(next) => (toolState.tool = next)}
       {orientation}
       resetKey={active ? ed.doc : null}
+      foot={colorWell}
     />
   {/snippet}
   {#snippet options()}
@@ -1539,7 +1551,6 @@
         <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}
     {:else}
-      <span class="opt opt-hint">{toolLabel}</span>
       {#if BG_TOOLS.has(toolState.tool)}
         <span class="opt opt-hint">{t('px.rightBg')}</span>
       {/if}
@@ -1589,9 +1600,11 @@
               ? 'move'
               : toolState.tool === 'move' && ed.selection && !view.spaceDown
                 ? 'move'
-                : toolState.tool === 'move' || view.spaceDown
+                : toolState.tool === 'move' || toolState.tool === 'hand' || view.spaceDown
                   ? 'grab'
-                  : 'crosshair'}
+                  : toolState.tool === 'zoom'
+                    ? 'zoom-in'
+                    : 'crosshair'}
           aria-label="Pincel canvas"
           data-ready={ed.ready}
         ></canvas>

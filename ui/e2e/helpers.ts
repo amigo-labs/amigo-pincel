@@ -579,12 +579,23 @@ export async function fakeFsFile(page: Page, name: string): Promise<Buffer> {
   return Buffer.from(bytes ?? []);
 }
 
-/** The swatch button of the foreground or background color. */
+/** The Colors panel's swatches, hex field and alpha slider in the shown
+ *  editor. The tool rail's colour well has swatches of the same names
+ *  (docs/specs/tool-rail-colors.md), so a spec about the panel looks here. */
+export function colorPair(page: Page): Locator {
+  return page.locator('[data-editor]:not([inert]) [data-color-pair]');
+}
+
+/** A swatch button of the foreground or background color: the tool rail's
+ *  colour well where the rail shows, else the Colors panel's. */
 export function swatch(page: Page, which: 'fg' | 'bg'): Locator {
-  return page.getByRole('button', {
-    name: which === 'fg' ? 'Foreground color' : 'Background color',
-    exact: true,
-  });
+  return page
+    .getByRole('button', {
+      name: which === 'fg' ? 'Foreground color' : 'Background color',
+      exact: true,
+    })
+    .filter({ visible: true })
+    .first();
 }
 
 /** Opens the color picker of the visible editor's `which` swatch. */
@@ -593,7 +604,7 @@ async function withPicker<T>(
   which: 'fg' | 'bg',
   run: (hex: Locator) => Promise<T>,
 ): Promise<T> {
-  await swatch(page, which).filter({ visible: true }).first().click();
+  await swatch(page, which).click();
   const picker = page.getByRole('dialog', {
     name: which === 'fg' ? 'Foreground color picker' : 'Background color picker',
   });
@@ -704,4 +715,45 @@ export async function hidePanel(page: Page, title: string): Promise<void> {
     if ((await header.getAttribute('aria-expanded')) === 'true') await header.click();
     await expect(header).toHaveAttribute('aria-expanded', 'false');
   }
+}
+
+/**
+ * Shows every option of the active tool: the options bar keeps one row and
+ * puts what does not fit behind its More control
+ * (docs/specs/options-bar-layout.md). The bar stays expanded until the
+ * control or Escape closes it. The expanded bar lies over the top of
+ * the canvas area: a spec that compares canvas screenshots closes it again
+ * (the control, or Escape with the focus in the bar) or uses a window in
+ * which the options fit.
+ */
+export async function showAllOptions(page: Page): Promise<void> {
+  const more = page.locator('[data-editor]:not([inert]) [data-more-options]');
+  if ((await more.count()) === 0) return;
+  if ((await more.getAttribute('aria-expanded')) === 'true') return;
+  await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+}
+
+/**
+ * `page.getByText(text)` without the toast: a notice shows as a toast over
+ * the canvas area and, on windows with a status bar, in that bar too
+ * (docs/specs/notifications.md), so its text is on the page twice. Specs
+ * that look for a text anywhere on the page mean the page as it was before
+ * the toast: the status bar, a dialog, a panel.
+ */
+export function byText(
+  page: Page,
+  text: string | RegExp,
+  options?: { exact?: boolean },
+): Locator {
+  return page.getByText(text, options).and(page.locator(':not([data-toast] *)'));
+}
+
+/** Dismisses the toast if one shows (docs/specs/notifications.md): on a
+ *  phone, or with a canvas larger than its area, an element screenshot
+ *  would include it. */
+export async function dismissToast(page: Page): Promise<void> {
+  const dismiss = page.locator('[data-editor]:not([inert]) [data-toast] button');
+  if ((await dismiss.count()) > 0) await dismiss.click();
+  await expect(page.locator('[data-editor]:not([inert]) [data-toast]')).toHaveCount(0);
 }

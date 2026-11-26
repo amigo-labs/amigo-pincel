@@ -15,6 +15,7 @@ import {
   setFontSize,
   textBox,
   typeAt,
+  chooseAlign,
 } from './text-helpers';
 
 // Caret, selection and clipboard inside an Image-mode live text
@@ -111,7 +112,7 @@ for (const variant of ['left', 'center', 'right', 'bold', 'italic'] as const) {
     await page.getByRole('checkbox', { name: 'Antialiasing' }).uncheck();
     if (variant === 'bold') await page.getByRole('checkbox', { name: 'Bold' }).check();
     else if (variant === 'italic') await page.getByRole('checkbox', { name: 'Italic' }).check();
-    else await page.getByRole('combobox', { name: 'Align' }).selectOption(variant);
+    else await chooseAlign(page, variant);
     await typeAt(page, [40, 20], 'HHHHHH');
     await page.keyboard.press('Enter');
     await page.keyboard.type('HHHH');

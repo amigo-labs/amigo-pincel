@@ -1,5 +1,5 @@
 import { expect, test, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, setColor } from './helpers';
+import { createDocument, imageCanvas, setColor, byText } from './helpers';
 
 // Image mode: the live preview of a Move Layer drag
 // (docs/specs/image-move-layer-preview.md). The scene has three layers of
@@ -87,7 +87,10 @@ async function pick(page: Page, group: string, name: string, key: string): Promi
 /** Picks the Move variant `name`. */
 const pickMove = (page: Page, name: string): Promise<void> => pick(page, 'Move', name, 'v');
 
-const shot = (page: Page): Promise<Buffer> => imageCanvas(page).screenshot();
+// The canvas is larger than its area here, so the shot reaches the status
+// bar: leave the toast out (docs/specs/notifications.md).
+const shot = (page: Page): Promise<Buffer> =>
+  imageCanvas(page).screenshot({ style: '[data-toast] { visibility: hidden; }' });
 
 /** Presses at document `(x, y)` and moves to `(x + dx, y + dy)` in steps,
  *  the pointer still held; waits for the frame to show the drag. */
@@ -222,7 +225,7 @@ test('a locked layer shows no preview and the notice (AC-09)', async ({ page }) 
   await page.getByRole('button', { name: 'Lock Layer 2', exact: true }).click();
   const before = await shot(page);
   await holdDrag(page, 8, 8, 6, 6);
-  await expect(page.getByText('Layer “Layer 2” is locked', { exact: true })).toBeVisible();
+  await expect(byText(page, 'Layer “Layer 2” is locked', { exact: true })).toBeVisible();
   expect((await shot(page)).equals(before)).toBe(true);
   expect(await calls(page, 'image.movePreview')).toBe(0);
   await page.mouse.up();
