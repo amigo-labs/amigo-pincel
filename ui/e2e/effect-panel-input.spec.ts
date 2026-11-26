@@ -138,7 +138,7 @@ for (const mode of ['pixel', 'image'] as const) {
     // Tool rail, options bar and tab bar take no focus.
     for (const control of [
       tools.getByRole('button', { name: 'Eraser' }),
-      page.getByRole('tab', { selected: true }),
+      page.getByRole('tablist', { name: 'Open documents' }).getByRole('tab', { selected: true }),
     ]) {
       await control.focus();
       await expect(control).not.toBeFocused();
