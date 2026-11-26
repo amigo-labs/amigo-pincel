@@ -46,7 +46,17 @@
 
   // Left / Right move to the neighbouring tab and choose it, without
   // wrapping at the ends; Home / End go to the first / last (AC-12).
+  // Enter chooses the focused tab here, because the Pixel editor's window
+  // handler takes Enter for Play / Pause and cancels the button's click
+  // (AC-04, AC-05).
   function onKeydown(e: KeyboardEvent, index: number): void {
+    if (e.key === 'Enter') {
+      e.preventDefault();
+      e.stopPropagation();
+      const tab = tabs[index];
+      if (tab && (tab.id !== active || collapsed)) onChoose(tab.id);
+      return;
+    }
     const last = tabs.length - 1;
     const next =
       e.key === 'ArrowRight'

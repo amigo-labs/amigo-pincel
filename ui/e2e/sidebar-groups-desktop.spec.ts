@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { drag, imageCanvas, solidPng } from './helpers';
+import { drag, imageCanvas, solidPng, switchLanguage } from './helpers';
 import {
   claude,
   done,
@@ -145,6 +145,17 @@ test('a panel shows what it showed before a tab switch: conversation, draft, pro
   await expect(assistant(page)).toHaveCount(0);
   await prompt(page).fill('a red apple');
 
+  // Settings in Generate, and a result it shows.
+  await generate(page).getByRole('textbox', { name: 'Seed', exact: true }).fill('1234');
+  const variants = generate(page).getByRole('spinbutton', { name: 'Variants', exact: true });
+  await variants.fill('3');
+  await variants.press('Tab');
+  await generate(page).locator('div').getByRole('button', { name: 'Generate', exact: true }).click();
+  await expect.poll(async () => (await commandCalls(page, 'comfyui_generate')).length).toBe(1);
+  await emit(page, 'comfyui:generation', { kind: 'finished', job: 1, count: 1, error: null });
+  const results = generate(page).getByRole('listbox', { name: 'Generated variants' }).getByRole('option');
+  await expect(results).toHaveCount(1);
+
   // Back: the conversation and the draft are there.
   await tabOf(page, AI, 'Assistant').click();
   await expect(log(page)).toContainText('first question');
@@ -153,6 +164,10 @@ test('a panel shows what it showed before a tab switch: conversation, draft, pro
   // … and the prompt.
   await tabOf(page, AI, 'Generate').click();
   await expect(prompt(page)).toHaveValue('a red apple');
+  // … with the settings and the result shown before.
+  await expect(generate(page).getByRole('textbox', { name: 'Seed', exact: true })).toHaveValue('1234');
+  await expect(variants).toHaveValue('3');
+  await expect(results).toHaveCount(1);
   await tabOf(page, AI, 'Assistant').click();
   // Collapsing the group keeps both too.
   await collapse(page, AI).click();
@@ -243,3 +258,39 @@ test('a running generation is not stopped by the Assistant tab; on return Genera
   await expect(cancel).toHaveCount(0);
   expect(await commandCalls(page, 'comfyui_generation_cancel')).toHaveLength(0);
 });
+
+for (const language of ['English', 'Deutsch'] as const) {
+  test(`240 px sidebar, ${language}: all three groups fit; every tab can be brought into view and chosen (AC-14)`, async ({
+    page,
+  }) => {
+    await start(page, 'pixel');
+    if (language === 'Deutsch') await switchLanguage(page, 'Deutsch');
+    // The narrowest sidebar: three 16 px steps of the splitter from 288 px.
+    const splitter = page.locator('[data-editor]:not([inert]) [role="separator"][aria-valuenow]');
+    await splitter.focus();
+    for (let i = 0; i < 3; i += 1) await page.keyboard.press('ArrowRight');
+    const side = page.locator('[data-editor]:not([inert]) aside');
+    await expect.poll(async () => Math.round((await side.boundingBox())?.width ?? 0)).toBe(240);
+    const noSidewaysScroll = () =>
+      side.evaluate((el) => {
+        const scroller = el.firstElementChild as HTMLElement;
+        return scroller.scrollWidth <= scroller.clientWidth && el.scrollWidth <= el.clientWidth;
+      });
+    expect(await noSidewaysScroll()).toBe(true);
+    const tabs = side.getByRole('tab');
+    await expect(tabs).toHaveCount(7);
+    for (let i = 0; i < 7; i += 1) {
+      const tab = tabs.nth(i);
+      await tab.scrollIntoViewIfNeeded();
+      await expect(tab).toBeInViewport({ ratio: 1 });
+      const b = await tab.boundingBox();
+      const s = await side.boundingBox();
+      if (!b || !s) throw new Error('tab not laid out');
+      expect(b.x).toBeGreaterThanOrEqual(s.x);
+      expect(b.x + b.width).toBeLessThanOrEqual(s.x + s.width + 0.5);
+      await tab.click();
+      await expect(tab).toHaveAttribute('aria-selected', 'true');
+      expect(await noSidewaysScroll()).toBe(true);
+    }
+  });
+}
