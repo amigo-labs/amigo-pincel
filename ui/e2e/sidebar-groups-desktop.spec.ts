@@ -230,7 +230,7 @@ test('a running generation is not stopped by the Assistant tab; on return Genera
 
   await tabOf(page, AI, 'Assistant').click();
   await expect(generate(page)).toHaveCount(0);
-  expect(await commandCalls(page, 'comfyui_cancel')).toHaveLength(0);
+  expect(await commandCalls(page, 'comfyui_generation_cancel')).toHaveLength(0);
 
   // Still running on return.
   await tabOf(page, AI, 'Generate').click();
@@ -241,5 +241,5 @@ test('a running generation is not stopped by the Assistant tab; on return Genera
   await tabOf(page, AI, 'Generate').click();
   await expect(generate(page).getByRole('listbox', { name: 'Generated variants' }).getByRole('option')).toHaveCount(1);
   await expect(cancel).toHaveCount(0);
-  expect(await commandCalls(page, 'comfyui_cancel')).toHaveLength(0);
+  expect(await commandCalls(page, 'comfyui_generation_cancel')).toHaveLength(0);
 });
