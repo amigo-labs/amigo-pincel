@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-26
 size: L
 mode: both
@@ -7,6 +7,15 @@ design: [pincel.md §9.2, pincel.md §9.4]
 ---
 
 # Tool rail: colour well and one set of tool groups
+
+## Summary
+
+> Completed: 2026-11-26
+
+- A colour well at the tool rail's end in both modes (foreground over background, swap, reset): the Colors panel's `ColorPair` in a compact form, in a foot that stays in view while the tool list scrolls (vertical rail and phone strip).
+- Pixel mode gained the view tools Pan (`H`) and Zoom (`Z`) after Move; they work while an effect is open or an Assistant answer runs.
+- Fill and Gradient are one group on `G` in both modes; `N` selects the Gradient. Pixel mode's Shapes lost Filled Rectangle and Filled Ellipse — the Mode option draws filled shapes.
+- The shortcut overview and the command palette list the rail's tools.
 
 ## Context
 
@@ -49,23 +58,23 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): The editor shows the colour well at the end of the rail in both modes: below the tool list at the foot of the vertical rail, right of the tool list at the end of the horizontal strip. It holds the foreground swatch, overlapping the background swatch, a swap control and a reset control.
-- [ ] AC-02 (always): The well's swatches show the current foreground and background colour, whichever way they change: the well itself, the Colors panel, the Eyedropper, a palette swatch, Swap Colors (`X`), Reset Colors (`D`).
-- [ ] AC-03 (event): When the user clicks a swatch of the well, then the colour picker for that colour opens next to the rail, wholly inside the window; a colour chosen there is the editor's foreground or background colour, as from the Colors panel. Escape closes the picker and returns the focus to the swatch.
-- [ ] AC-04 (event): When the user clicks the well's swap control, then foreground and background colour swap; when they click its reset control, then the colours are the default pair (black on white), as `X` and `D` do.
-- [ ] AC-05 (state): While the sidebar is hidden, the Colors panel is collapsed or the Colors panel is removed, the well is shown and works.
-- [ ] AC-06 (state): While an effect is open or an Assistant answer runs, the well takes no input, like the tool list.
-- [ ] AC-07 (always): The well's controls are named for assistive technology: "Foreground color", "Background color", "Swap foreground and background colors", "Reset to default colors" (the Colors panel's texts, in the UI language), and the swap and reset controls show the shortcut in their tooltip. They are reached with Tab after the tool list.
-- [ ] AC-08 (state): While the window is too low for the vertical rail's tool list and well together, the tool list scrolls and the well stays in view at the rail's foot; while the horizontal strip is too narrow, the tool list scrolls sideways and the well stays in view at its end. At 1280 × 720 the vertical rail shows every tool and the well without scrolling, in both modes, in the browser and the desktop app.
-- [ ] AC-09 (always): Pixel mode's rail lists Hand and Zoom directly after Move, with the keys `H` and `Z`, as in Image mode.
-- [ ] AC-10 (event): When the user drags on the canvas area with the Hand tool in Pixel mode, then the view pans by the drag; the document does not change and no undo step is added.
-- [ ] AC-11 (event): When the user clicks on the canvas area with the Zoom tool in Pixel mode, then the view zooms in one step around the pointer; with Alt held, or with the right button, it zooms out one step. The document does not change. At the largest or smallest zoom the click does nothing.
-- [ ] AC-12 (state): While an effect is open or an Assistant answer runs, the Hand and Zoom tools still pan and zoom in Pixel mode (the canvas only zooms and pans then).
-- [ ] AC-13 (always): Image mode's rail has one Fill group with the variants Fill and Gradient, and no separate Gradient button. `G` selects the group and cycles its variants.
-- [ ] AC-14 (event): When the user presses `N` in either mode, then the Gradient tool is selected.
-- [ ] AC-15 (always): Pixel mode's Shapes group lists Rectangle, Ellipse, Rounded Rectangle and Polygon, in this order; there is no Filled Rectangle and no Filled Ellipse tool. With the Mode option on Fill, the Rectangle and Ellipse tools draw a filled shape, its interior in the other colour (background for a left-button drag), as the Mode option's hint says.
-- [ ] AC-16 (always): The shortcut overview and the command palette list the tools of the rail: Hand, Zoom and Gradient (`N`) in Pixel mode, no Filled Rectangle or Filled Ellipse.
-- [ ] AC-17 (option): Where the UI language is German, the well's names read "Vordergrundfarbe", "Hintergrundfarbe" and the swap and reset texts of the Colors panel; Hand and Zoom carry Image mode's German tool names in Pixel mode.
+- [x] AC-01 (always): The editor shows the colour well at the end of the rail in both modes: below the tool list at the foot of the vertical rail, right of the tool list at the end of the horizontal strip. It holds the foreground swatch, overlapping the background swatch, a swap control and a reset control.
+- [x] AC-02 (always): The well's swatches show the current foreground and background colour, whichever way they change: the well itself, the Colors panel, the Eyedropper, a palette swatch, Swap Colors (`X`), Reset Colors (`D`).
+- [x] AC-03 (event): When the user clicks a swatch of the well, then the colour picker for that colour opens next to the rail, wholly inside the window; a colour chosen there is the editor's foreground or background colour, as from the Colors panel. Escape closes the picker and returns the focus to the swatch.
+- [x] AC-04 (event): When the user clicks the well's swap control, then foreground and background colour swap; when they click its reset control, then the colours are the default pair (black on white), as `X` and `D` do.
+- [x] AC-05 (state): While the sidebar is hidden, the Colors panel is collapsed or the Colors panel is removed, the well is shown and works.
+- [x] AC-06 (state): While an effect is open or an Assistant answer runs, the well takes no input, like the tool list.
+- [x] AC-07 (always): The well's controls are named for assistive technology: "Foreground color", "Background color", "Swap foreground and background colors", "Reset to default colors" (the Colors panel's texts, in the UI language), and the swap and reset controls show the shortcut in their tooltip. They are reached with Tab after the tool list.
+- [x] AC-08 (state): While the window is too low for the vertical rail's tool list and well together, the tool list scrolls and the well stays in view at the rail's foot; while the horizontal strip is too narrow, the tool list scrolls sideways and the well stays in view at its end. At 1280 × 720 the vertical rail shows every tool and the well without scrolling, in both modes, in the browser and the desktop app.
+- [x] AC-09 (always): Pixel mode's rail lists Hand and Zoom directly after Move, with the keys `H` and `Z`, as in Image mode.
+- [x] AC-10 (event): When the user drags on the canvas area with the Hand tool in Pixel mode, then the view pans by the drag; the document does not change and no undo step is added.
+- [x] AC-11 (event): When the user clicks on the canvas area with the Zoom tool in Pixel mode, then the view zooms in one step around the pointer; with Alt held, or with the right button, it zooms out one step. The document does not change. At the largest or smallest zoom the click does nothing.
+- [x] AC-12 (state): While an effect is open or an Assistant answer runs, the Hand and Zoom tools still pan and zoom in Pixel mode (the canvas only zooms and pans then).
+- [x] AC-13 (always): Image mode's rail has one Fill group with the variants Fill and Gradient, and no separate Gradient button. `G` selects the group and cycles its variants.
+- [x] AC-14 (event): When the user presses `N` in either mode, then the Gradient tool is selected.
+- [x] AC-15 (always): Pixel mode's Shapes group lists Rectangle, Ellipse, Rounded Rectangle and Polygon, in this order; there is no Filled Rectangle and no Filled Ellipse tool. With the Mode option on Fill, the Rectangle and Ellipse tools draw a filled shape, its interior in the other colour (background for a left-button drag), as the Mode option's hint says.
+- [x] AC-16 (always): The shortcut overview and the command palette list the tools of the rail: Hand, Zoom and Gradient (`N`) in Pixel mode, no Filled Rectangle or Filled Ellipse.
+- [x] AC-17 (option): Where the UI language is German, the well's names read "Vordergrundfarbe", "Hintergrundfarbe" and the swap and reset texts of the Colors panel; Hand and Zoom carry Image mode's German tool names in Pixel mode.
 
 ## Technical notes
 
@@ -109,23 +118,23 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways" | built |        |
-| AC-02 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail"; "wide › pixel: the well follows the Eyedropper, a palette swatch and D" | built |        |
-| AC-03 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail", "narrow › {pixel, image}: the well stays at the end of the strip …" (picker inside the window) | built |        |
-| AC-04 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail" | built |        |
-| AC-05 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well stays with the sidebar hidden, Colors collapsed or removed; Toggle UI takes it along" | built |        |
-| AC-06 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: while an effect is open the well takes no input"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › {pixel, image}: while an answer runs the well takes no input; afterwards it does" | built |        |
-| AC-07 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well is named, shows the keys and follows the tools in the tab order" | built |        |
-| AC-08 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "low window › the tool list scrolls and the well stays at the rail’s foot", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › {pixel, image}: in the desktop app the rail shows every tool and the well without scrolling" | built |        |
-| AC-09 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom follow Move, with H and Z" | built |        |
-| AC-10 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Pan drag moves the view and changes nothing; a selection stays put" | built |        |
-| AC-11 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Zoom click zooms in around the pointer; Alt or the right button zooms out; the ends do nothing" | built |        |
-| AC-12 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom still work while an effect is open"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › pixel: while an answer runs Pan and Zoom still pan and zoom" | built |        |
-| AC-13 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › image: one Fill group with Fill and Gradient; G cycles"; `ui/e2e/tools.spec.ts`: "image mode: W, B, E, G and T select their tools" | built |        |
-| AC-14 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: N selects the Gradient" | built |        |
-| AC-15 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Shapes lists four shapes and no filled tool; Mode Fill draws a filled shape in the other colour"; `ui/e2e/tool-flyout.spec.ts`: "pixel mode: a right-click on a group button lists its variants" | built |        |
-| AC-16 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: the shortcut overview and the command palette list Pan, Zoom and Gradient (N), no filled shape"; `ui/e2e/shortcuts-overview.spec.ts`: "{mode} mode: rows carry labels and the menu's chords" | built |        |
-| AC-17 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › German: the well and the view tools carry German names" | built |        |
+| AC-01 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways" | verified | 90151d9 |
+| AC-02 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail"; "wide › pixel: the well follows the Eyedropper, a palette swatch and D" | verified | 90151d9 |
+| AC-03 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail", "narrow › {pixel, image}: the well stays at the end of the strip …" (picker inside the window) | verified | 90151d9 |
+| AC-04 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well follows the colours and its swatches open the picker beside the rail" | verified | 90151d9 |
+| AC-05 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well stays with the sidebar hidden, Colors collapsed or removed; Toggle UI takes it along" | verified | 90151d9 |
+| AC-06 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: while an effect is open the well takes no input"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › {pixel, image}: while an answer runs the well takes no input; afterwards it does" | verified | 90151d9 |
+| AC-07 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well is named, shows the keys and follows the tools in the tab order" | verified | 90151d9 |
+| AC-08 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: the well sits at the rail's foot below the tools, which all fit at 1280 × 720", "low window › the tool list scrolls and the well stays at the rail’s foot", "narrow › {pixel, image}: the well stays at the end of the strip while the tools scroll sideways"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › {pixel, image}: in the desktop app the rail shows every tool and the well without scrolling" | verified | 90151d9 |
+| AC-09 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom follow Move, with H and Z" | verified | 90151d9 |
+| AC-10 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Pan drag moves the view and changes nothing; a selection stays put" | verified | 90151d9 |
+| AC-11 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: a Zoom click zooms in around the pointer; Alt or the right button zooms out; the ends do nothing" | verified | 90151d9 |
+| AC-12 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Pan and Zoom still work while an effect is open"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › pixel: while an answer runs Pan and Zoom still pan and zoom" | verified | 90151d9 |
+| AC-13 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › image: one Fill group with Fill and Gradient; G cycles"; `ui/e2e/tools.spec.ts`: "image mode: W, B, E, G and T select their tools" | verified | 90151d9 |
+| AC-14 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › {pixel, image}: N selects the Gradient" | verified | 90151d9 |
+| AC-15 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: Shapes lists four shapes and no filled tool; Mode Fill draws a filled shape in the other colour"; `ui/e2e/tool-flyout.spec.ts`: "pixel mode: a right-click on a group button lists its variants" | verified | 90151d9 |
+| AC-16 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › pixel: the shortcut overview and the command palette list Pan, Zoom and Gradient (N), no filled shape"; `ui/e2e/shortcuts-overview.spec.ts`: "{mode} mode: rows carry labels and the menu's chords" | verified | 90151d9 |
+| AC-17 | `ui/e2e/tool-rail-colors.spec.ts`: "wide › German: the well and the view tools carry German names" | verified | 90151d9 |
 
 ## Decisions
 

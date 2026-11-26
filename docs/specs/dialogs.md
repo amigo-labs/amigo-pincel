@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-26
 size: L
 mode: both
@@ -7,6 +7,14 @@ design: [pincel.md §9.2, pincel.md §9.4]
 ---
 
 # One dialog shell
+
+## Summary
+
+> Completed: 2026-11-26
+
+- One dialog shell (`lib/components/Dialog.svelte`, wrapped by Image mode's `Modal.svelte`) for the form dialogs of both modes: modal, a header with a Close control, Escape and Close cancel, Enter on a field applies, Tab wraps inside.
+- Focus starts on the first field and returns to the opener on close (the canvas area when the opener is gone); keys typed in a dialog reach no editor shortcut; a backdrop press does nothing.
+- Every primary button names its action; Grid Settings says Apply. Pixel mode's Resize dialog's "Current size" line went through `t()`.
 
 ## Context
 
@@ -31,7 +39,7 @@ Terms:
 - **Dialogs in scope**:
   - Image mode: Print, Resize Image, Resize Canvas (Scale), Save As, Export.
   - Pixel mode: Export PNG, Grid Settings, Resize / Scale Sprite, Sprite Sheet export, Animation export.
-  - Both modes: Rename layer, the selection Radius dialogs (Grow / Shrink / Feather / Border), SVG export.
+  - Both modes: Rename layer, the selection Radius dialogs (Expand, Contract, and Feather in Image mode), SVG export.
 
 ## Scope
 
@@ -52,16 +60,16 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): Every dialog in scope is a `dialog` with `aria-modal="true"`, named by its title, and shows its title in a header with a close control named "Close" at the header's right end.
-- [ ] AC-02 (event): When the user activates the close control or presses Escape with the focus anywhere inside the dialog, then the dialog closes as Cancel does: nothing in the document changes and no undo step is added.
-- [ ] AC-03 (event): When the user presses Enter with the focus on a field of a dialog in scope, then the dialog does what its primary button does; while the primary button is disabled, Enter does nothing. Enter on a button activates that button only.
-- [ ] AC-04 (always): The primary button of every dialog in scope names its action with a verb: Print, Resize, Scale, Save, Export, Apply, Rename. Pixel mode's Grid Settings says "Apply" instead of "OK".
-- [ ] AC-05 (event): When a dialog in scope opens, then the focus is on its first field, or on its primary button when it has no field.
-- [ ] AC-06 (event): When the user presses Tab on the dialog's last focusable control, then the focus moves to its first; Shift+Tab on the first moves to the last. The focus never leaves the dialog while it is open.
-- [ ] AC-07 (event): When a dialog in scope closes, by its primary button, Cancel, the close control or Escape, then the focus returns to the element that had it before the dialog opened, or to the canvas area when that element is gone (a menu item is gone once its menu closed).
-- [ ] AC-08 (state): While a dialog in scope is open, keys typed in it do not reach the editor: no tool changes, no shortcut runs.
-- [ ] AC-09 (event): When the user presses on the backdrop outside the dialog, then the dialog stays open.
-- [ ] AC-10 (option): Where the UI language is German, the close control is named "Schließen" and Grid Settings' primary button reads "Anwenden".
+- [x] AC-01 (always): Every dialog in scope is a `dialog` with `aria-modal="true"`, named by its title, and shows its title in a header with a close control named "Close" at the header's right end.
+- [x] AC-02 (event): When the user activates the close control or presses Escape with the focus anywhere inside the dialog, then the dialog closes as Cancel does: nothing in the document changes and no undo step is added.
+- [x] AC-03 (event): When the user presses Enter with the focus on a field of a dialog in scope, then the dialog does what its primary button does; while the primary button is disabled, Enter does nothing. Enter on a button activates that button only.
+- [x] AC-04 (always): The primary button of every dialog in scope names its action with a verb: Print, Resize, Scale, Save, Export, Apply, Rename. Pixel mode's Grid Settings says "Apply" instead of "OK".
+- [x] AC-05 (event): When a dialog in scope opens, then the focus is on its first field, or on its primary button when it has no field.
+- [x] AC-06 (event): When the user presses Tab on the dialog's last focusable control, then the focus moves to its first; Shift+Tab on the first moves to the last. The focus never leaves the dialog while it is open.
+- [x] AC-07 (event): When a dialog in scope closes, by its primary button, Cancel, the close control or Escape, then the focus returns to the element that had it before the dialog opened, or to the canvas area when that element is gone (a menu item is gone once its menu closed).
+- [x] AC-08 (state): While a dialog in scope is open, keys typed in it do not reach the editor: no tool changes, no shortcut runs.
+- [x] AC-09 (event): When the user presses on the backdrop outside the dialog, then the dialog stays open.
+- [x] AC-10 (option): Where the UI language is German, the close control is named "Schließen" and Grid Settings' primary button reads "Anwenden".
 
 ## Technical notes
 
@@ -97,16 +105,16 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs of both modes}: one shell — modal, named by its title, a Close control, a verb, focus on the first field"; the cases now cover Print, Save As, Sprite Sheet, SVG in both modes, Rename in both modes, Expand and Contract in both modes, Feather | built |        |
-| AC-02 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
-| AC-03 | `ui/e2e/dialogs.spec.ts`: "pixel: Enter in a field does what the primary button does; disabled, it does nothing", "image: Enter in a field applies; Enter with the primary disabled does nothing"; "pixel: Enter in a field does what the primary button does; Enter on Cancel only cancels" | built |        |
-| AC-04 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, a verb, …"; `ui/e2e/grid.spec.ts` (Apply) | built |        |
-| AC-05 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, focus on the first field" | built |        |
-| AC-06 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; the focus returns on close"; `ui/e2e/export-svg.spec.ts`: "the dialog takes focus, keeps Tab inside and returns focus on close" | built |        |
-| AC-07 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; …; the focus returns on close", "the focus returns to the element that had it before the dialog opened"; "the focus returns to the element that had it before the dialog opened: {Cancel, Close, Escape, Export}", "the focus goes to the canvas area when the element that had it is gone" | built |        |
-| AC-08 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; …" | built |        |
-| AC-09 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
-| AC-10 | `ui/e2e/dialogs.spec.ts`: "German: Close reads \"Schließen\" and Grid Settings applies with \"Anwenden\"" | built |        |
+| AC-01 | `ui/e2e/dialogs.spec.ts`: "{20 cases, mode: menu path}: one shell — modal, named by its title, a Close control, a verb, focus on the first field" (Grid Settings, Resize Canvas, Scale Image, Export PNG / Animation / SVG / Sprite Sheet, Rename, Expand, Contract in Pixel mode; Resize Canvas, Scale Image, Export JPEG / SVG, Print, Save As, Rename, Expand, Contract, Feather in Image mode) | verified | c5a05bc |
+| AC-02 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: Close, Escape and Cancel change nothing; the backdrop does not close" | verified | c5a05bc |
+| AC-03 | `ui/e2e/dialogs.spec.ts`: "pixel: Enter in a field does what the primary button does; Enter on Cancel only cancels", "image: Enter in a field applies; Enter with the primary disabled does nothing" | verified | c5a05bc |
+| AC-04 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: one shell — …, a verb, …"; `ui/e2e/grid.spec.ts`: "Grid Settings starts at 16×16 / 0, 0 and redraws the grid with the new values" (Apply) | verified | c5a05bc |
+| AC-05 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: one shell — …, focus on the first field" | verified | c5a05bc |
+| AC-06 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: Tab stays inside; keys reach no tool; the focus returns on close"; `ui/e2e/export-svg.spec.ts`: "the dialog takes focus, keeps Tab inside and returns focus on close" (wrap both ways) | verified | c5a05bc |
+| AC-07 | `ui/e2e/dialogs.spec.ts`: "the focus returns to the element that had it before the dialog opened: {Cancel, Close, Escape, Export}", "the focus goes to the canvas area when the element that had it is gone", "{20 cases}: Tab stays inside; …; the focus returns on close" | verified | c5a05bc |
+| AC-08 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: Tab stays inside; keys reach no tool; …" | verified | c5a05bc |
+| AC-09 | `ui/e2e/dialogs.spec.ts`: "{20 cases}: Close, Escape and Cancel change nothing; the backdrop does not close" | verified | c5a05bc |
+| AC-10 | `ui/e2e/dialogs.spec.ts`: "German: Close reads \"Schließen\" and Grid Settings applies with \"Anwenden\"" | verified | c5a05bc |
 
 ## Decisions
 
@@ -118,4 +126,4 @@ Hints, not contracts.
 - 2026-11-26 (build): red run — the new tests of `ui/e2e/dialogs.spec.ts` failed against the bundle built before the change (37 at that time; the suite was trimmed to 34 when Pixel mode's Feather turned out not to exist and Image mode's PNG export to open no dialog).
 - 2026-11-26 (build): found, not changed: Pixel mode's Resize dialog shows "Current size: {w}×{h} px" without `t()`; it predates this spec.
 - 2026-11-26 (build): New public API, for review: the component `lib/components/Dialog.svelte` (props `title`, `applyLabel`, `onApply`, `onClose`, `secondary`, `applyDisabled`, `class`).
-- 2026-11-26 (acceptance, round 1: NOT READY): the menu cases now cover every dialog in scope (21 cases); the focus test asserts the first field exactly (AC-05); Enter on a focused Cancel cancels only (AC-03); the focus return is checked strictly after Cancel, Close, Escape and the primary button, with the dialog opened by its shortcut from a panel control, and separately the canvas fallback when the opener is gone (AC-07). The first strict version opened Rename from the command palette and failed: the palette, the opener there, is gone once its command ran, so the canvas fallback is the right result — the test, not the shell, was wrong. The shell's "Current size" line in Pixel mode's Resize dialog goes through `t()` now (`resize.current`, six languages).
+- 2026-11-26 (acceptance, round 1: NOT READY): the menu cases now cover every dialog in scope (20 cases); the focus test asserts the first field exactly (AC-05); Enter on a focused Cancel cancels only (AC-03); the focus return is checked strictly after Cancel, Close, Escape and the primary button, with the dialog opened by its shortcut from a panel control, and separately the canvas fallback when the opener is gone (AC-07). The first strict version opened Rename from the command palette and failed: the palette, the opener there, is gone once its command ran, so the canvas fallback is the right result — the test, not the shell, was wrong. The shell's "Current size" line in Pixel mode's Resize dialog goes through `t()` now (`resize.current`, six languages).

@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-26
 size: M
 mode: shell
@@ -7,6 +7,13 @@ design: [pincel.md §9.2, pincel.md §11.3]
 ---
 
 # Start screen in two columns; sizes and levels as tokens
+
+## Summary
+
+> Completed: 2026-11-26
+
+- The start screen shows New on the left and Open (with the recent files and samples) on the right from 960 px, stacked below; the utilities moved into a quiet footer at the window's bottom.
+- 81 literal radii, text sizes and z-indexes in 44 components became tokens at their old values (`--radius-pc-handle`, `--pc-text-*`, thirteen `--pc-z-*` stacking levels, lowest first).
 
 ## Context
 
@@ -39,11 +46,11 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (state): While the window is 960 px wide or wider, the start screen shows the New column on the left and the Open column on the right, with their top edges level, on first use and when returning.
-- [ ] AC-02 (always): The start screen's title row holds the title and the tagline only; the utilities are in a footer below the columns, drawn as quiet controls (ghost buttons, muted text) with the language select at its right end. The utilities keep their names.
-- [ ] AC-03 (state): While the start screen's content is shorter than the window, the footer sits at the window's bottom edge; while it is taller, the footer follows the content.
-- [ ] AC-04 (state): While the window is narrower than 960 px, the New column comes first and the Open column below it, each the full width.
-- [ ] AC-05 (always): No component in `ui/src` writes a radius, font size or z-index as a literal value in its class list (`rounded-[…]`, `text-[…px]` / `text-[…rem]`, `z-[…]`, `z-<number>`); each uses a token. The stacking tokens keep today's values and order.
+- [x] AC-01 (state): While the window is 960 px wide or wider, the start screen shows the New column on the left and the Open column on the right, with their top edges level, on first use and when returning.
+- [x] AC-02 (always): The start screen's title row holds the title and the tagline only; the utilities are in a footer below the columns, drawn as quiet controls (ghost buttons, muted text) with the language select at its right end. The utilities keep their names.
+- [x] AC-03 (state): While the start screen's content is shorter than the window, the footer sits at the window's bottom edge; while it is taller, the footer follows the content.
+- [x] AC-04 (state): While the window is narrower than 960 px, the New column comes first and the Open column below it, each the full width.
+- [x] AC-05 (always): No component in `ui/src` writes a radius, font size or z-index as a literal value in its class list (`rounded-[…]`, `text-[…px]` / `text-[…rem]`, `z-[…]`, `z-<number>`); each uses a token. The stacking tokens keep today's values and order.
 
 ## Technical notes
 
@@ -75,11 +82,11 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › New on the left, Open on the right, top edges level"; "wide › returning: New on the left, Open with the recent files on the right, top edges level" (desktop app, mocked: path-based recents) | built |        |
-| AC-02 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the title row holds the title only; the utilities are quiet controls in the footer" | built |        |
-| AC-03 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the footer sits at the window’s bottom while the content is shorter" | built |        |
-| AC-04 | `ui/e2e/start-screen-tokens.spec.ts`: "narrow › below 960 px New comes first and Open below it, each full width" | built |        |
-| AC-05 | `ui/e2e/start-screen-tokens.spec.ts`: "no component writes a radius, font size or z-index as a literal", "the stacking tokens keep today’s values, lowest first" | built |        |
+| AC-01 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › New on the left, Open on the right, top edges level"; "wide › returning: New on the left, Open with the recent files on the right, top edges level" (desktop app, mocked: path-based recents) | verified | 7cd4dca |
+| AC-02 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the title row holds the title only; the utilities are quiet controls in the footer" | verified | 7cd4dca |
+| AC-03 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the footer sits at the window’s bottom while the content is shorter" | verified | 7cd4dca |
+| AC-04 | `ui/e2e/start-screen-tokens.spec.ts`: "narrow › below 960 px New comes first and Open below it, each full width" | verified | 7cd4dca |
+| AC-05 | `ui/e2e/start-screen-tokens.spec.ts`: "no component writes a radius, font size or z-index as a literal", "the stacking tokens keep today’s values, lowest first" | verified | 7cd4dca |
 
 ## Decisions
 

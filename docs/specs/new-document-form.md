@@ -1,5 +1,5 @@
 ---
-status: todo
+status: implemented
 created: 2026-11-26
 size: M
 mode: shell
@@ -7,6 +7,13 @@ design: [pincel.md §9.2]
 ---
 
 # One size form for New, with presets
+
+## Summary
+
+> Completed: 2026-11-26
+
+- The start screen's New cards and the New dialog share one size form: Width, Height, the dialog's notes (`lib/shell/doc-size.ts`) and size presets per mode (`SizePresets.svelte`).
+- A preset fills both fields and is pressed while they hold it; the start card now shows the notes and describes both fields with them.
 
 ## Context
 
@@ -39,13 +46,13 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (always): The start screen's New cards and the New dialog show the same size form: Width and Height fields with these names, and the presets of the card's or the selected mode, below the fields.
-- [ ] AC-02 (always): The presets are, in this order: Pixel mode 16 × 16, 32 × 32, 64 × 64, 128 × 128, 256 × 256; Image mode 800 × 600, 1280 × 720, 1920 × 1080, 1080 × 1080. Each is a button named by its size ("32 × 32"); together they are a group named "Size presets".
-- [ ] AC-03 (event): When the user presses a preset, then both fields hold its size, their notes go, and Create makes a document of that size.
-- [ ] AC-04 (state): While a field holds the size of a preset in both fields, that preset is marked as pressed (`aria-pressed`); no other is.
-- [ ] AC-05 (state): While a field of the start card is empty, not a number, out of range or not whole, the card shows the dialog's note for it under the fields, and the note for a size above the image area limit; the notes are the fields' descriptions for assistive technology. (Create still clamps as `app-shell` AC-06 says.)
-- [ ] AC-06 (event): When the user switches the dialog's mode, then the presets are the new mode's.
-- [ ] AC-07 (option): Where the UI language is German, the group is named "Größenvorgaben".
+- [x] AC-01 (always): The start screen's New cards and the New dialog show the same size form: Width and Height fields with these names, and the presets of the card's or the selected mode, below the fields.
+- [x] AC-02 (always): The presets are, in this order: Pixel mode 16 × 16, 32 × 32, 64 × 64, 128 × 128, 256 × 256; Image mode 800 × 600, 1280 × 720, 1920 × 1080, 1080 × 1080. Each is a button named by its size ("32 × 32"); together they are a group named "Size presets".
+- [x] AC-03 (event): When the user presses a preset, then both fields hold its size, their notes go, and Create makes a document of that size.
+- [x] AC-04 (state): While a field holds the size of a preset in both fields, that preset is marked as pressed (`aria-pressed`); no other is.
+- [x] AC-05 (state): While a field of the start card is empty, not a number, out of range or not whole, the card shows the dialog's note for it under the fields, and the note for a size above the image area limit; the notes are the fields' descriptions for assistive technology. (Create still clamps as `app-shell` AC-06 says.)
+- [x] AC-06 (event): When the user switches the dialog's mode, then the presets are the new mode's.
+- [x] AC-07 (option): Where the UI language is German, the group is named "Größenvorgaben".
 
 ## Technical notes
 
@@ -77,13 +84,13 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | built |        |
-| AC-02 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | built |        |
-| AC-03 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | built |        |
-| AC-04 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | built |        |
-| AC-05 | `ui/e2e/new-document-form.spec.ts`: "the start card shows the dialog’s notes and describes its fields with them"; now also "Not a number" and Height's description | built |        |
-| AC-06 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | built |        |
-| AC-07 | `ui/e2e/new-document-form.spec.ts`: "German: the presets group is named \"Größenvorgaben\"" | built |        |
+| AC-01 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | verified | 0f983b4 |
+| AC-02 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | verified | 0f983b4 |
+| AC-03 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | verified | 0f983b4 |
+| AC-04 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | verified | 0f983b4 |
+| AC-05 | `ui/e2e/new-document-form.spec.ts`: "the start card shows the dialog’s notes and describes its fields with them"; now also "Not a number" and Height's description | verified | 0f983b4 |
+| AC-06 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | verified | 0f983b4 |
+| AC-07 | `ui/e2e/new-document-form.spec.ts`: "German: the presets group is named \"Größenvorgaben\"" | verified | 0f983b4 |
 
 ## Decisions
 
