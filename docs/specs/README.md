@@ -136,8 +136,6 @@ Owner request 2026-11-15: a better menu and side panel structure. Built top to b
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | K1 | [menu-structure](menu-structure.md) | both | M | settings-dialog | Tools menu for the AI setup (desktop), OCR into Image, probe into Help, Layer ▸ Transform, one order in both modes; replaces the planned `ai-panel` |
-| K2 | [sidebar-tab-groups](sidebar-tab-groups.md) | both | L | — | Fixed groups: Layers \| History, Preview \| Tilesets \| Slices, Generate \| Assistant; Colors and Palette stay single |
-| K3 | [panel-visibility](panel-visibility.md) | both | M | menu-structure, sidebar-tab-groups | View ▸ Panels with a check mark per panel, Reset Panels |
 | K4 | [macos-native-menu](macos-native-menu.md) | shell | L | menu-structure | Owner request 2026-11-18: on macOS only the native menu bar — it mirrors the editor menus, App menu in front; the in-window menus go |
 
 ### L — Sprite and animation import
@@ -216,6 +214,7 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 - [ocr-recognizer](ocr-recognizer.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
+- [panel-visibility](panel-visibility.md)
 - [pen-input](pen-input.md)
 - [performance-benchmarks](performance-benchmarks.md)
 - [performance-image-cache](performance-image-cache.md)
@@ -235,6 +234,7 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 - [save-original-format](save-original-format.md)
 - [scaled-export](scaled-export.md)
 - [shading-ink](shading-ink.md)
+- [sidebar-tab-groups](sidebar-tab-groups.md)
 - [slices](slices.md)
 - [sprite-sheet-import](sprite-sheet-import.md)
 - [system-fonts-mcp](system-fonts-mcp.md)
