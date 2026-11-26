@@ -10,6 +10,7 @@ import {
   setColor,
   switchLanguage,
   zoomFit,
+  showAllOptions,
 } from './helpers';
 
 // The Clone Stamp in Image mode (docs/specs/clone-stamp.md). The composite
@@ -265,6 +266,7 @@ test('Set source makes the next press set the source and switches off (AC-04)', 
 }) => {
   await paintedDocument(page);
   const steps = await undoDepth(page);
+  await showAllOptions(page);
   await setSource(page).click();
   await expect(setSource(page)).toHaveAttribute('aria-pressed', 'true');
   await press(page, 8, 16);
@@ -422,10 +424,12 @@ test('Ctrl+press or Set source beside the canvas changes nothing (AC-17)', async
   // No source yet: none afterwards either.
   await ctrlClick();
   await expect(crosshair(page)).toHaveCount(0);
+  await showAllOptions(page);
   await setSource(page).click();
   await page.mouse.click(...beside);
   await expect(crosshair(page)).toHaveCount(0);
   await expect(setSource(page)).toHaveAttribute('aria-pressed', 'true');
+  await showAllOptions(page);
   await setSource(page).click();
 
   // With a source, it stays where it was.

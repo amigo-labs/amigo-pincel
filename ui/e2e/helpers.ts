@@ -716,3 +716,17 @@ export async function hidePanel(page: Page, title: string): Promise<void> {
     await expect(header).toHaveAttribute('aria-expanded', 'false');
   }
 }
+
+/**
+ * Shows every option of the active tool: the options bar keeps one row and
+ * puts what does not fit behind its More control
+ * (docs/specs/options-bar-layout.md). A press on the canvas or another
+ * tool makes it one row again, so call this right before reaching for an
+ * option that may not be in the row.
+ */
+export async function showAllOptions(page: Page): Promise<void> {
+  const more = page.locator('[data-editor]:not([inert]) [data-more-options]');
+  if ((await more.count()) === 0) return;
+  if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+  await expect(more).toHaveAttribute('aria-expanded', 'true');
+}

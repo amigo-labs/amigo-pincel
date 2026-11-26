@@ -105,7 +105,8 @@
       overflowing ? 'pr-11' : 'pr-3',
       expanded
         ? 'absolute inset-x-0 top-0 z-20 max-h-[60vh] gap-y-1 overflow-y-auto pb-2 shadow-(--am-elev-2)'
-        : 'h-full overflow-hidden',
+        : // `clip`, not `hidden`: nothing may scroll a wrapped line into the row.
+          'h-full overflow-clip',
     ]}
     data-frame="options"
     data-expanded={expanded ? '' : undefined}
