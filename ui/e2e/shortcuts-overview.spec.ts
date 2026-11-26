@@ -71,8 +71,10 @@ for (const mode of ['pixel', 'image'] as const) {
     expect(await chords(dialog, 'Redo')).toEqual(['Ctrl+Shift+Z', 'Ctrl+Y']);
     expect(await chords(dialog, 'Lasso')).toEqual(['Q']);
     expect(await chords(dialog, 'Keyboard Shortcuts')).toEqual(['Ctrl+/']);
-    // The Pan group (H) exists in Image mode only.
-    await expect(row(dialog, 'Pan')).toHaveCount(mode === 'image' ? 1 : 0);
+    // Both modes have the Pan group (H) and the Gradient on N
+    // (docs/specs/tool-rail-colors.md AC-09, AC-16).
+    expect(await chords(dialog, 'Pan')).toEqual(['H']);
+    expect(await chords(dialog, 'Gradient')).toEqual(['N']);
 
     const labels = await dialog.getByRole('rowheader').allTextContents();
     expect(labels.length).toBeGreaterThan(20);
