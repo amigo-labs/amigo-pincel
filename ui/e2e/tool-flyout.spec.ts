@@ -532,6 +532,7 @@ test.describe('closing from outside', () => {
     await page.getByRole('menu', { name: 'File' }).getByRole('menuitem', { name: 'Open…' }).click();
     const picker = await chooser;
     // The picker is still open when the flyout opens from the keyboard.
+    await inView(groupButton(page, 'shapes'));
     await groupButton(page, 'shapes').focus();
     await page.keyboard.press('Shift+F10');
     await expect(flyout(page)).toBeVisible();
