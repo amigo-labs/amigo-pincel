@@ -615,6 +615,7 @@ export const en = {
   'grid.invalid': 'Cell size must be a whole number from 1–65535 and offset from −32768–32767.',
   'menu.probe': 'Frame-Time Probe',
   'menu.toggleUi': 'Toggle UI',
+  'menu.resetPanels': 'Reset Panels',
 
   // Effects
   'effect.gaussian_blur': 'Gaussian Blur',

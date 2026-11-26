@@ -4,6 +4,7 @@
 
 import { effectMenus } from '../../lib/effects/menu';
 import { helpMenus, settingsMenuItems } from '../../lib/help/menu';
+import { panelsSubmenu } from '../../lib/components/layout/panels.svelte';
 import { recentMenuItems } from '../../lib/components/layout/recent-menu';
 import { droppedImagesMenu } from '../../lib/shell/drop-choice.svelte';
 import type { EffectDef } from '../../lib/effects/catalog';
@@ -315,6 +316,7 @@ export function pixelMenus(c: PixelMenuContext): MenuDef[] {
           ).map(([mode, label]) => ({ label, checked: c.tiled === mode, run: () => c.setTiled(mode) })),
         },
         { kind: 'separator' },
+        panelsSubmenu('pixel'),
         { label: t('menu.toggleUi'), shortcut: hint('toggleUi'), run: c.toggleUi },
       ],
     },

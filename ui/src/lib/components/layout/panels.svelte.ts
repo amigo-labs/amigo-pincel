@@ -4,10 +4,12 @@
 // hosts them (docked sidebar, drawer, or phone bottom sheet) and hands
 // each one a `PanelSlot` through context, which `Panel.svelte` reads.
 
-import { getContext, setContext, type Snippet } from 'svelte';
+import { getContext, setContext, untrack, type Snippet } from 'svelte';
 import { getPref, setPref } from '../../idb/prefs';
+import { t } from '../../i18n/index.svelte';
 import type { IconName } from '../icons/icons';
 import { normalizeLayout, type EffectPos, type FrameLayout } from './groups';
+import type { MenuItem, MenuSubmenu } from './menu';
 
 export type { EffectPos, FrameLayout, GroupState } from './groups';
 
@@ -40,6 +42,9 @@ export interface PanelSlot {
    *  `collapsed` (not the active tab, or the group is collapsed) the panel
    *  is not on the page at all (sidebar-tab-groups AC-03, AC-06). */
   readonly grouped?: boolean;
+  /** The user removed the panel (View ▸ Panels): it stays mounted, so it
+   *  keeps what it showed, and draws nothing (panel-visibility AC-14). */
+  readonly removed?: boolean;
   toggle(): void;
 }
 
@@ -65,6 +70,26 @@ export function expandPanel(mode: string, id: string): void {
   panelRequest.mode = mode;
   panelRequest.id = id;
   panelRequest.n += 1;
+}
+
+// View ▸ Panels (panel-visibility AC-01): the editors build their menus,
+// the frame knows the panels and the layout, so each mode's frame publishes
+// the submenu's entries here and the editors place the submenu.
+let panelMenus = $state.raw<Record<string, MenuItem[]>>({});
+
+/** Publishes the View ▸ Panels entries of `mode`'s editor frame; `null`
+ *  when the frame goes away. */
+export function setPanelMenu(mode: string, items: MenuItem[] | null): void {
+  const rest = { ...untrack(() => panelMenus) };
+  if (items === null) delete rest[mode];
+  else rest[mode] = items;
+  panelMenus = rest;
+}
+
+/** The View ▸ Panels submenu of `mode`: a check mark per panel, then
+ *  Reset Panels. */
+export function panelsSubmenu(mode: string): MenuSubmenu {
+  return { kind: 'submenu', label: t('frame.panels'), items: panelMenus[mode] ?? [] };
 }
 
 /** Default effect panel offset: 16 px inside the canvas area's top-right corner. */

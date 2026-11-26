@@ -624,6 +624,7 @@ export const fr: Record<MessageKey, string> = {
     'La taille des cellules doit être un entier de 1 à 65535 et le décalage de −32768 à 32767.',
   'menu.probe': 'Sonde de temps de rendu',
   'menu.toggleUi': 'Afficher/masquer l’interface',
+  'menu.resetPanels': 'Réinitialiser les panneaux',
 
   // Effects
   'effect.gaussian_blur': 'Flou gaussien',

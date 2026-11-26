@@ -9,6 +9,10 @@
   // draws nothing for one that is not the active tab or whose group is
   // collapsed — so a panel keeps its drafts and running work across a tab
   // switch (AC-16 – AC-18) while only the active one is on the page (AC-03).
+  // `tabs` are the group's enabled panels (panel-visibility): with fewer
+  // than two the group draws no header — a lone panel draws its own, like
+  // a single panel (AC-05) — and the element tree below stays the same, so
+  // no panel remounts when a tab is removed or comes back (AC-14).
   import type { Snippet } from 'svelte';
   import Icon from '../icons/Icon.svelte';
 
@@ -34,6 +38,9 @@
   const tabId = (id: string): string => `${uid}-${id}`;
   /** The group's name for assistive technology: its panels' titles. */
   const name = $derived(tabs.map((tab) => tab.title).join(', '));
+
+  /** Fewer than two enabled panels: no tab row. */
+  const bare = $derived(tabs.length < 2);
 
   let row: HTMLDivElement | undefined = $state();
 
@@ -66,6 +73,7 @@
 <!-- The header has the docked panel header's height and label style
      (`.am-panel--docked > header`), written with utilities: the shared
      classes have no dense tab row. -->
+{#if !bare}
 <div
   class="flex h-8 shrink-0 items-stretch pr-3 pl-3 text-[11px] leading-4 font-semibold tracking-[0.06em] text-pc-faint uppercase"
   class:border-b={!collapsed}
@@ -109,13 +117,14 @@
     <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
   </button>
 </div>
+{/if}
 <!-- One element in both states, so the panels inside never remount; it is a
      tab panel only while the group is expanded (AC-12). -->
 <div
   id="{uid}-panel"
   class={collapsed ? 'contents' : 'flex min-h-0 flex-1 flex-col'}
-  role={collapsed ? undefined : 'tabpanel'}
-  aria-labelledby={collapsed ? undefined : tabId(active)}
+  role={collapsed || bare ? undefined : 'tabpanel'}
+  aria-labelledby={collapsed || bare ? undefined : tabId(active)}
 >
   {@render children()}
 </div>
