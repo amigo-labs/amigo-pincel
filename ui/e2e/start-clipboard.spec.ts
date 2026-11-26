@@ -117,9 +117,14 @@ test.describe('browser app', () => {
     expect(box.y).toBeGreaterThanOrEqual(cardsBottom);
     expect(box.y - cardsBottom).toBeLessThanOrEqual(24);
     expect(Math.abs(box.x - Math.min(pixelCard.x, imageCard.x))).toBeLessThanOrEqual(1);
-    // Nothing else sits between the cards and the row.
+    // Nothing else sits between the cards and the row: Open… lies below
+    // it, or beside it in the other column (start-screen-tokens AC-01).
     const open = await page.getByRole('button', { name: 'Open…' }).boundingBox();
-    if (open) expect(open.y).toBeGreaterThan(box.y);
+    if (open) {
+      const below = open.y > box.y;
+      const beside = open.x >= box.x + box.width;
+      expect(below || beside).toBe(true);
+    }
   });
 
   test('the buttons work by keyboard (AC-34, AC-35)', async ({ page }) => {
