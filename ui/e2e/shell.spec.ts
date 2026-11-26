@@ -9,7 +9,16 @@ import {
   storedPref,
   waitForEditor,
 } from './helpers';
-import { dropFiles, editorOf, expectActive, fileOf, shownEditor, tab, tabs } from './tab-helpers';
+import {
+  activeTab,
+  dropFiles,
+  editorOf,
+  expectActive,
+  fileOf,
+  shownEditor,
+  tab,
+  tabs,
+} from './tab-helpers';
 
 // The app shell (docs/specs/app-shell.md): start screen, New cards and the
 // New dialog, at most one editor per mode behind the tab bar, and the
@@ -23,9 +32,9 @@ const canvasOf = (page: Page, mode: Mode) =>
 
 /** The document size as the mode's status bar shows it. */
 const sizeText = (mode: Mode, w: number, h: number) =>
-  mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`;
+  mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`;
 
-/** The editor top bar (mode badge, menus, document name). */
+/** The editor's app bar (menus, undo / redo, search). */
 const topBar = (page: Page) => page.getByRole('banner');
 
 /** One edit that makes the document dirty. */
@@ -74,7 +83,7 @@ test('AC-05: the New pixel sprite card opens a sprite of exactly the typed size'
   page,
 }) => {
   await submitCard(page, 'pixel', '40', '24');
-  await expect(topBar(page).getByText('Pixel', { exact: true })).toBeVisible();
+  await expect(activeTab(page)).toHaveAccessibleName(/ Pixel$/);
   await expect(page.getByText(sizeText('pixel', 40, 24), { exact: true })).toBeVisible();
 });
 
@@ -242,7 +251,7 @@ for (const mode of ['pixel', 'image'] as const) {
 }
 
 for (const mode of ['pixel', 'image'] as const) {
-  test(`AC-16: ${mode}: the top bar shows mode, name and an unsaved marker until saved`, async ({
+  test(`AC-16: ${mode}: the tab shows mode, name and an unsaved marker until saved`, async ({
     page,
   }) => {
     // Save falls back to a download (no native save picker to drive).
@@ -251,26 +260,29 @@ for (const mode of ['pixel', 'image'] as const) {
     });
     await createDocument(page, mode, { width: 30, height: 20 });
     const name = mode === 'pixel' ? 'pincel.aseprite' : 'image.ora';
+    // Name, mode and unsaved marker show in the document's tab; the app
+    // bar shows none of them (frame-layout AC-02, AC-03).
     const bar = topBar(page);
+    const own = activeTab(page);
     const badge = mode === 'pixel' ? 'Pixel' : 'Image';
-    await expect(bar.locator('span').filter({ hasText: new RegExp(`^${badge}$`) })).toBeVisible();
-    await expect(bar.getByTitle(name, { exact: true })).toHaveText(name);
-    await expect(bar.getByTitle(`${name} — unsaved changes`)).toHaveCount(0);
+    await expect(own).toHaveAccessibleName(new RegExp(`^${name.replace('.', '\\.')} ${badge}$`));
+    await expect(own).toHaveAttribute('title', name);
+    await expect(bar.getByTitle(name, { exact: true })).toHaveCount(0);
 
     await edit(page, mode);
-    const marked = bar.getByTitle(`${name} — unsaved changes`, { exact: true });
-    await expect(marked).toBeVisible();
-    await expect(marked).toHaveText(new RegExp(`^${name.replace('.', '\\.')}\\s*●$`));
+    await expect(own).toHaveAttribute('title', `${name} — unsaved changes`);
+    await expect(own).toContainText('●');
+    await expect(bar.getByTitle(/unsaved changes/)).toHaveCount(0);
 
     const download = page.waitForEvent('download');
     await page.keyboard.press('ControlOrMeta+s');
     expect((await download).suggestedFilename()).toBe(name);
-    await expect(marked).toHaveCount(0);
-    await expect(bar.getByTitle(name, { exact: true })).toHaveText(name);
+    await expect(own).toHaveAttribute('title', name);
+    await expect(own).not.toContainText('●');
   });
 }
 
-test('AC-16: with several tabs the top bar follows the active tab: mode, name and its marker', async ({
+test('AC-16: with several tabs the active tab shows its mode, name and marker', async ({
   page,
 }) => {
   // A dirty Image tab, then a clean Pixel tab opened beside it.
@@ -280,20 +292,17 @@ test('AC-16: with several tabs the top bar follows the active tab: mode, name an
   await waitForEditor(page, 'pixel');
   await expectActive(page, 'a.aseprite');
 
-  const bar = topBar(page);
-  const badge = (text: string) => bar.locator('span').filter({ hasText: new RegExp(`^${text}$`) });
-  // The clean Pixel tab: its badge and name, no marker of the other tab.
-  await expect(badge('Pixel')).toBeVisible();
-  await expect(bar.getByTitle('a.aseprite', { exact: true })).toHaveText('a.aseprite');
-  await expect(bar.getByTitle(/ — unsaved changes$/)).toHaveCount(0);
-  await expect(bar.getByTitle('image.ora', { exact: true })).toHaveCount(0);
+  const own = activeTab(page);
+  // The clean Pixel tab: its mode and name, no marker of the other tab.
+  await expect(own).toHaveAccessibleName('a.aseprite Pixel');
+  await expect(own).toHaveAttribute('title', 'a.aseprite');
+  await expect(topBar(page).getByTitle(/unsaved changes/)).toHaveCount(0);
 
-  // The dirty Image tab: its badge, name and marker.
+  // The dirty Image tab: its mode, name and marker.
   await tab(page, 'image.ora').click();
   await expectActive(page, 'image.ora');
-  await expect(badge('Image')).toBeVisible();
-  await expect(bar.getByTitle('image.ora — unsaved changes', { exact: true })).toBeVisible();
-  await expect(bar.getByTitle('a.aseprite', { exact: true })).toHaveCount(0);
+  await expect(own).toHaveAccessibleName(/^image\.ora Image/);
+  await expect(own).toHaveAttribute('title', 'image.ora — unsaved changes');
 });
 
 test('AC-18: a hidden sidebar and a collapsed panel come back on remount and reload', async ({

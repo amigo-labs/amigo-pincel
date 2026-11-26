@@ -135,6 +135,7 @@ export const en = {
   'fileAssoc.gotIt': 'Got it',
 
   'about.version': 'Version {version}',
+  'about.renderer': 'Renderer: {backend}',
   'about.tagline': 'A pixel-art and image editor in one app.',
   'about.close': 'Close',
   'about.checking': 'Checking for updates…',
@@ -293,12 +294,14 @@ export const en = {
   'frame.variant': '{group} variant',
   'frame.variantsHint': 'Hold or right-click: variants',
   'frame.togglePanels': 'Toggle panels',
+  'frame.search': 'Search commands',
   'frame.closePanels': 'Close panels',
   'frame.sidebarWidth': 'Sidebar width',
   'tabs.label': 'Open documents',
   'tabs.close': 'Close',
   'tabs.closeNamed': 'Close {name}',
   'tabs.unsaved': 'unsaved changes',
+  'tabs.new': 'New document',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -306,6 +309,7 @@ export const en = {
   'zoom.actual': 'Actual size',
   'zoom.in': 'Zoom in',
   'zoom.out': 'Zoom out',
+  'zoom.value': 'Zoom level {zoom}',
 
   // Colors
   'color.fg': 'Foreground color',
@@ -1301,7 +1305,8 @@ export const en = {
   'px.polygonSides': 'Polygon sides',
   'px.fillsBg': 'fills with the background color',
   'px.rightBg': 'right button uses the background color',
-  'px.frameOf': 'frame {n}/{total}',
+  'px.frameOf': 'Frame {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': 'undo {u} / redo {r}',
   'px.version': 'Pincel version',
 

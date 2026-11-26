@@ -222,7 +222,12 @@ async function desktopStart(page: Page, bridge: Bridge = {}): Promise<void> {
 }
 
 const unsaved = (page: Page) => page.getByRole('alertdialog', { name: 'Unsaved changes' });
-const docTitle = (page: Page, name: string) => page.getByTitle(name, { exact: true });
+/** The active tab, if it shows `name` (the app bar names no document,
+ *  frame-layout AC-02; both editors may be mounted, each with a tab bar). */
+const docTitle = (page: Page, name: string) =>
+  page
+    .getByRole('tablist', { name: 'Open documents' })
+    .getByRole('tab', { selected: true, name: new RegExp(`^${name.replace('.', '\\.')}( |$)`) });
 const question = (page: Page) =>
   page.getByRole('dialog', { name: 'How should Pincel handle updates?' });
 const aboutDialog = (page: Page) => page.getByRole('dialog', { name: 'About Pincel' });

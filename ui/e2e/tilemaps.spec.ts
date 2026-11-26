@@ -30,7 +30,9 @@ async function open(page: Page, w: number, h: number): Promise<Editor> {
 }
 
 const panel = (page: Page) => page.getByRole('region', { name: 'Tilesets' });
-const statusBar = (page: Page) => page.locator('footer', { hasText: /\d+×\d+/ });
+// The shown editor: its status bar holds the notices, its app bar the
+// history depth ("undo 2 / redo 0", for screen readers since frame-layout).
+const statusBar = (page: Page) => page.locator('[data-editor]:not([inert])');
 const history = (page: Page, undo: number, redo = 0) =>
   expect(statusBar(page)).toContainText(`undo ${undo} / redo ${redo}`);
 /** The undo depth the status bar shows. */

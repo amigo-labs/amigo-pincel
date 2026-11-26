@@ -1,6 +1,7 @@
 import { expect, test, type Page } from '@playwright/test';
 import { createDocument, drag, menu, putClipboardImage, waitForEditor } from './helpers';
 import {
+  activeTab,
   canvas,
   dropFiles,
   editorOf,
@@ -95,9 +96,9 @@ test('switching to a tab of the other mode shows that editor, its menus, panels 
   page,
 }) => {
   await imageThenPixel(page);
-  // The top bar starts with the app name and the mode badge.
-  const banner = page.getByRole('banner');
-  const badge = (mode: string) => expect(banner).toHaveText(new RegExp(`^\\s*Pincel\\s*${mode}`));
+  // The active tab names its mode (frame-layout AC-03).
+  const badge = (mode: string) =>
+    expect(activeTab(page)).toHaveAccessibleName(new RegExp(` ${mode}( |$)`));
   await badge('Pixel');
   await expect(page).toHaveTitle('a.aseprite – Pincel');
   await expect(page.getByRole('region', { name: 'Timeline' })).toBeVisible();
@@ -109,7 +110,7 @@ test('switching to a tab of the other mode shows that editor, its menus, panels 
   await badge('Image');
   await expect(page).toHaveTitle('● image.ora – Pincel');
   await expect(page.getByRole('region', { name: 'Timeline' })).toHaveCount(0);
-  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 px · sRGB');
+  await expect(shownEditor(page).locator('footer')).toContainText('16 × 16 px');
   await expect(page.getByRole('button', { name: 'Undo', exact: true })).toBeEnabled();
   await expect(editorOf(page, 'pixel')).toHaveAttribute('inert', '');
 
@@ -266,6 +267,8 @@ test('only the active tab’s editor takes keys, pointer input and paste; the hi
   await paint(page, 'pixel');
   await page.keyboard.press('-');
   await page.keyboard.press('Control+a');
+  // The pointer rests off the canvas, so the footer holds no position.
+  await page.mouse.move(2, 2);
   const pixelFooter = await shownEditor(page).locator('footer').innerText();
   const pixelZoom = await zoomLabel(page).textContent();
   const layerRows = () =>
@@ -290,6 +293,7 @@ test('only the active tab’s editor takes keys, pointer input and paste; the hi
   await tab(page, 'a.aseprite').click();
   await expectActive(page, 'a.aseprite');
   await expectDirty(page, 'a.aseprite', true);
+  await page.mouse.move(2, 2);
   await expect(shownEditor(page).locator('footer')).toHaveText(pixelFooter);
   await expect(zoomLabel(page)).toHaveText(pixelZoom ?? '');
   await expect(layerRows()).toHaveCount(pixelLayers);

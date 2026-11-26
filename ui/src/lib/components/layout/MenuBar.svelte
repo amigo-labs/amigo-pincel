@@ -128,6 +128,9 @@
       const trigger = document.querySelector<HTMLElement>(`[data-menu-trigger="${next?.id}"]`);
       if (next && trigger) {
         sub = null;
+        // A menu bar that scrolls (a medium window, long menu names) brings
+        // the trigger into view first (frame-layout AC-18).
+        trigger.scrollIntoView({ block: 'nearest', inline: 'nearest' });
         place(trigger);
         openId = next.id;
       }

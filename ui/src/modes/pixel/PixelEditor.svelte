@@ -25,6 +25,9 @@
   import { activeEffect } from '../../lib/effects/session.svelte';
   import PreviewPanel from './components/PreviewPanel.svelte';
   import ColorPair from '../../lib/components/ColorPair.svelte';
+  import type { StatusInfo } from '../../lib/components/layout/status';
+  import type { ZoomProps } from '../../lib/components/layout/ZoomControl.svelte';
+  import { renderInfo } from '../../lib/shell/render-info.svelte';
   import EditorFrame from '../../lib/components/layout/EditorFrame.svelte';
   import HistoryPanel from '../../lib/components/history/HistoryPanel.svelte';
   import AssistantPanel from '../../lib/assistant/AssistantPanel.svelte';
@@ -33,7 +36,6 @@
   import IconButton from '../../lib/components/layout/IconButton.svelte';
   import ToolRail from '../../lib/components/layout/ToolRail.svelte';
   import ToolVariants from '../../lib/components/layout/ToolVariants.svelte';
-  import ZoomControl from '../../lib/components/layout/ZoomControl.svelte';
   import { cycleGroup, groupOf } from '../../lib/components/layout/tools';
   import {
     actionFor,
@@ -182,7 +184,16 @@
   import { applyTextParams, cancelText, previewTextParams } from './text-tool';
   import { pixelFont } from './text-font';
   import { initFontSource } from '../../lib/fonts/source.svelte';
-  import { MAX_ZOOM, MIN_ZOOM, onWheel, resetView, zoomActual, zoomIn, zoomOut } from './view-ops';
+  import {
+    MAX_ZOOM,
+    MIN_ZOOM,
+    onWheel,
+    resetView,
+    zoomActual,
+    zoomIn,
+    zoomOut,
+    zoomTo,
+  } from './view-ops';
   import {
     MAX_DOC_SIZE,
     colors,
@@ -195,6 +206,7 @@
     resetPixelStore,
     tabs,
     toolState,
+    hover,
     view,
   } from './stores/editor.svelte';
   import { dropWandLink, relinkWand } from './wand-link';
@@ -247,7 +259,6 @@
   }
 
   // Release version stamped in by the release workflow; `dev` locally.
-  const appVersion = import.meta.env.VITE_APP_VERSION ?? 'dev';
 
   // "Modified since last save" — drives the footer dot, the tab title,
   // and the window title.
@@ -353,6 +364,38 @@
   function openOverview(): void {
     openShortcuts({ actions: PIXEL_ACTIONS, groups: railGroups });
   }
+  // Status bar and zoom control (docs/specs/frame-layout.md AC-06 – AC-10).
+  const toolLabel = $derived(
+    groupOf(railGroups, toolState.tool)?.tools.find((x) => x.id === toolState.tool)?.label ?? '',
+  );
+  const statusInfo: StatusInfo = $derived({
+    ready: ed.doc !== null,
+    text: ed.status || toolLabel,
+    position: hover.pixel ? t('px.position', { x: hover.pixel.x, y: hover.pixel.y }) : null,
+    size: t('status.size', { width: ed.canvasW, height: ed.canvasH, unit: 'px' }),
+    frame: t('px.frameOf', { n: ed.currentFrame + 1, total: ed.frameCount }),
+  });
+  const zoomProps: ZoomProps = $derived({
+    label: `${view.zoom}×`,
+    factor: view.zoom,
+    min: MIN_ZOOM,
+    max: MAX_ZOOM,
+    format: (factor: number) => `${factor}×`,
+    onZoomIn: zoomIn,
+    onZoomOut: zoomOut,
+    onFit: resetView,
+    onSet: zoomTo,
+  });
+  // The About dialog names the render backend while this editor shows
+  // (frame-layout AC-17).
+  $effect(() => {
+    if (!active) return;
+    renderInfo.backend = ed.backend !== 'none' ? ed.backend : null;
+    return () => {
+      renderInfo.backend = null;
+    };
+  });
+
   /** Ctrl+K: the command palette over these menus and tools (power-user-shortcuts-palette). */
   function openCommandPalette(): void {
     openPalette({
@@ -371,9 +414,6 @@
       },
     });
   }
-  const toolLabel = $derived(
-    groupOf(railGroups, toolState.tool)?.tools.find((x) => x.id === toolState.tool)?.label ?? '',
-  );
 
   const menus = $derived(
     pixelMenus({
@@ -1275,8 +1315,10 @@
   mode="pixel"
   {menus}
   {active}
-  title={ed.doc ? file.saveTarget.name : t('px.noDocument')}
-  dirty={isDirty}
+  onSearch={openCommandPalette}
+  searchHint={hint('commandPalette')}
+  status={statusInfo}
+  zoom={zoomProps}
   effectPanel={dialogs.effect ? { title: effectLabel(dialogs.effect.def), body: effectBody } : null}
   tabs={tabBar}
   panels={[
@@ -1344,6 +1386,9 @@
 >
   {#snippet headerHint()}<TourHint mode="pixel" {active} />{/snippet}
   {#snippet quick()}
+    <!-- The history depth, for screen readers (and tests): the status bar
+         no longer shows it (frame-layout AC-06). -->
+    <span class="sr-only">{t('px.undoRedo', { u: ed.undoDepth, r: ed.redoDepth })}</span>
     <IconButton
       icon="undo"
       label={t('menu.undo')}
@@ -1685,39 +1730,15 @@
           }}
         />
       {/if}
-      {#if ed.doc}
-        <ZoomControl
-          label={`${view.zoom}×`}
-          onZoomIn={zoomIn}
-          onZoomOut={zoomOut}
-          onFit={resetView}
-          onActual={zoomActual}
-          canZoomIn={view.zoom < MAX_ZOOM}
-          canZoomOut={view.zoom > MIN_ZOOM}
-        />
-      {/if}
     </div>
   {/snippet}
-  {#snippet statusbar()}
-    {#if ed.doc}
-      <span>{ed.canvasW}×{ed.canvasH}</span>
-      <span>·</span>
-      <span>{t('px.frameOf', { n: ed.currentFrame + 1, total: ed.frameCount })}</span>
-      <span class="hidden md:inline">·</span>
-      <span class="hidden md:inline">{t('px.undoRedo', { u: ed.undoDepth, r: ed.redoDepth })}</span>
-    {/if}
-    <span class="min-w-0 flex-1 truncate text-center text-pc-muted">{ed.status}</span>
+  {#snippet statusExtra()}
     {#if probe.on}
       <span class="am-chip am-chip--success">
         {probe.fpsEma.toFixed(0)} fps · compose {probe.composeMs.toFixed(2)}ms (max
         {probe.composeMaxMs.toFixed(2)}ms)
       </span>
     {/if}
-    {#if ed.backend !== 'none'}
-      <span>{ed.backend}</span>
-      <span>·</span>
-    {/if}
-    <span title={t('px.version')}>{appVersion}</span>
   {/snippet}
 </EditorFrame>
 

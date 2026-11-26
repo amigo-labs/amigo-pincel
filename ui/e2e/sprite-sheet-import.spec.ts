@@ -143,7 +143,7 @@ test('imports a sheet from Pixel mode as a new tagged document (AC-01, AC-03, AC
     'aria-selected',
     'true',
   );
-  await expect(page.locator('footer')).toContainText(/(^|\D)16×16(\D|$)/);
+  await expect(page.locator('footer')).toContainText('16 × 16 px');
   const timeline = page.getByRole('region', { name: 'Timeline' });
   await expect(timeline.getByRole('button', { name: /^Frame \d+$/ })).toHaveCount(7);
   for (let n = 1; n <= 7; n++) {
@@ -250,7 +250,7 @@ test('without a suggestion the dialog starts from the last confirmed import (AC-
   expect(await gridValues(dialog)).toEqual(['10', '9', '0', '0', '2', '1']);
   await dialog.getByRole('button', { name: 'Import' }).click();
   await waitForEditor(page, 'pixel');
-  await expect(page.locator('footer')).toContainText(/(^|\D)10×9(\D|$)/);
+  await expect(page.locator('footer')).toContainText('10 × 9 px');
 
   dialog = await openSheet(page, 'blank.png');
   expect(await gridValues(dialog)).toEqual(['10', '9', '0', '0', '2', '1']);

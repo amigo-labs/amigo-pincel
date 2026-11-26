@@ -1,5 +1,5 @@
 import { expect, test } from '@playwright/test';
-import { drag, storedPref, switchLanguage } from './helpers';
+import { drag, storedPref, switchLanguage, zoomReadout } from './helpers';
 import { closeWindow, commandCalls, destroyed, reply } from './tauri-mock';
 import {
   canvas,
@@ -60,9 +60,7 @@ test('AC-10 while an answer runs only zoom, pan and the chat stay usable', async
   await page.keyboard.press('Control+n');
   await expect(page.getByRole('dialog', { name: 'New document' })).toHaveCount(0);
   expect((await canvas(page, 'pixel').screenshot()).equals(before)).toBe(true);
-  const zoom = page
-    .getByRole('group', { name: 'Zoom' })
-    .getByRole('button', { name: 'Fit to window' });
+  const zoom = zoomReadout(page);
   const zoomBefore = await zoom.textContent();
   await page.keyboard.press('+');
   await expect(zoom).not.toHaveText(zoomBefore ?? '');

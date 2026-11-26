@@ -15,6 +15,11 @@
     active: number | null;
     /** Tooltip hint of the close shortcut, e.g. `Ctrl+W`. */
     closeHint?: string;
+    /** Opens the New-document dialog (the New button after the tabs,
+     *  docs/specs/frame-layout.md AC-05). */
+    onNew?: () => void;
+    /** Tooltip hint of File ▸ New…'s shortcut. */
+    newHint?: string;
     /** The horizontal scroll every bar showing these tabs shares, so it is
      *  kept when another editor's bar takes over. */
     scroll?: { left: number };
@@ -24,16 +29,34 @@
 </script>
 
 <script lang="ts">
-  // The tab bar both editors show between the options bar and the canvas
-  // (docs/specs/document-tabs.md AC-01, AC-04, AC-07): one tab per open
+  // The tab bar both editors show below the app bar, across the window
+  // (docs/specs/frame-layout.md AC-01; in the macOS desktop app `inline`
+  // inside the top row, AC-14) — docs/specs/document-tabs.md AC-01, AC-04,
+  // AC-07: one tab per open
   // document of either mode in opening order, the active one selected,
   // each with its mode marker, an unsaved marker and a close button. It
   // scrolls horizontally when the tabs do not fit and keeps the active tab
   // in view; the scroll position is shared with the other editor's bar.
+  // The New button follows the last tab and stays put when the tabs scroll.
   import Icon from '../icons/Icon.svelte';
+  import IconButton from './IconButton.svelte';
   import { t } from '../../i18n/index.svelte';
 
-  const { tabs, active, closeHint, scroll, onSelect, onClose }: TabBarProps = $props();
+  interface Props extends TabBarProps {
+    /** Drawn inside another bar's row: no background, border or own height. */
+    inline?: boolean;
+  }
+  const {
+    tabs,
+    active,
+    closeHint,
+    onNew,
+    newHint = '',
+    scroll,
+    onSelect,
+    onClose,
+    inline = false,
+  }: Props = $props();
 
   let bar: HTMLDivElement | undefined = $state();
 
@@ -57,8 +80,20 @@
 </script>
 
 <div
+  class="flex min-w-0 items-end"
+  class:h-9={!inline}
+  class:shrink-0={!inline}
+  class:border-b={!inline}
+  class:border-pc-border={!inline}
+  class:bg-pc-bg={!inline}
+  class:px-1={!inline}
+  class:h-full={inline}
+  class:flex-1={inline}
+  data-frame={inline ? undefined : 'tabbar'}
+>
+<div
   bind:this={bar}
-  class="flex h-8 shrink-0 items-end gap-px overflow-x-auto border-b border-pc-border bg-pc-bg px-1 [scrollbar-width:thin]"
+  class="flex h-full min-w-0 items-end gap-px overflow-x-auto [scrollbar-width:thin]"
   role="tablist"
   aria-label={t('tabs.label')}
   onscroll={onScroll}
@@ -66,7 +101,7 @@
   {#each tabs as tab (tab.id)}
     {@const selected = tab.id === active}
     <div
-      class="flex h-7 max-w-56 shrink-0 items-center rounded-t border border-b-0 text-xs"
+      class="flex h-8 max-w-56 shrink-0 items-center rounded-t-pc-control border border-b-0 text-xs"
       class:border-pc-border={selected}
       class:bg-pc-panel={selected}
       class:text-pc-text={selected}
@@ -85,6 +120,7 @@
         class="flex h-full min-w-0 items-center gap-1 pr-1 pl-2.5 hover:text-pc-text"
         role="tab"
         aria-selected={selected}
+        title={tab.dirty ? t('frame.unsaved', { title: tab.name }) : tab.name}
         tabindex={selected ? 0 : -1}
         onclick={() => onSelect(tab.id)}
       >
@@ -107,4 +143,10 @@
       </button>
     </div>
   {/each}
+</div>
+{#if onNew}
+  <span class="flex h-full shrink-0 items-center px-1">
+    <IconButton icon="plus" label={t('tabs.new')} hint={newHint} size="sm" onclick={onNew} />
+  </span>
+{/if}
 </div>

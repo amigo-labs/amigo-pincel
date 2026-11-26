@@ -8,6 +8,7 @@ import {
   menu,
   pixelCanvas,
   waitForEditor,
+  zoomReadout,
 } from './helpers';
 
 // Viewport input in both modes (docs/specs/pen-input.md AC-07 – AC-13):
@@ -42,7 +43,7 @@ async function boxOf(target: Locator) {
 
 /** The zoom readout as a number (`8×` or `125%`). */
 async function zoomOf(page: Page): Promise<number> {
-  const text = await page.getByRole('button', { name: 'Fit to window' }).textContent();
+  const text = await zoomReadout(page).textContent();
   return Number(text?.replace(/[×%]/, ''));
 }
 

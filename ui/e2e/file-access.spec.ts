@@ -17,6 +17,7 @@ import {
   waitForEditor,
   type DraggedFile,
 } from './helpers';
+import { expectActive } from './tab-helpers';
 
 // File access across hosts (docs/specs/file-access.md): the File System
 // Access pickers, the <input type=file> / download fallbacks and the
@@ -63,7 +64,7 @@ const isOra = (bytes: Buffer) =>
 
 /** The status bar's document size of `mode`. */
 function sizeShown(page: Page, mode: Mode, [w, h]: [number, number]) {
-  return page.getByText(mode === 'pixel' ? `${w}×${h}` : `${w} × ${h} px · sRGB`, { exact: true });
+  return page.getByText(mode === 'pixel' ? `${w} × ${h} px` : `${w} × ${h} px`, { exact: true });
 }
 
 /** The unsaved marker of the top bar for document `name`. */
@@ -218,7 +219,7 @@ test.describe('File System Access', () => {
       await menu(page, 'File', 'Open…');
       await expect.poll(async () => (await pickerCalls(page, 'open')).length).toBe(2);
       await expect(sizeShown(page, mode, [...size])).toBeVisible();
-      await expect(page.getByTitle(name, { exact: true })).toBeVisible();
+      await expectActive(page, name);
       await expect(alert).toHaveCount(0);
       await expect(page.getByText(/failed/i)).toHaveCount(0);
     }
@@ -278,7 +279,7 @@ test.describe('File System Access', () => {
       expect(call?.suggestedName).toBe(suggested);
       expect((call?.types ?? []).flatMap((t) => Object.values(t.accept).flat())).toEqual(accept);
       expect(isProject(await fakeFsFile(page, chosen))).toBe(true);
-      await expect(page.getByTitle(chosen, { exact: true })).toBeVisible();
+      await expectActive(page, chosen);
 
       await edit(page, mode);
       await expect(unsaved(page, chosen)).toBeVisible();
@@ -474,16 +475,16 @@ test.describe('recent files', () => {
     await menu(page, 'File', 'Open Recent', 'hero.aseprite');
     await expect(notice(page, denied)).toBeVisible();
     await expect(sizeShown(page, 'image', [8, 6])).toBeVisible();
-    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await expectActive(page, 'photo.png');
     await dismiss(page, denied);
 
     // Pixel mode's File ▸ Open Recent.
     await pickInEditor(page, 'villain.aseprite');
     await waitForEditor(page, 'pixel');
-    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, 'villain.aseprite');
     await menu(page, 'File', 'Open Recent', 'hero.aseprite');
     await expect(notice(page, denied)).toBeVisible();
-    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, 'villain.aseprite');
     await dismiss(page, denied);
   });
 
@@ -535,7 +536,7 @@ test.describe('recent files', () => {
     await fakeFs(page, { missing: ['villain.aseprite'] });
     await menu(page, 'File', 'Open Recent', 'villain.aseprite');
     await expect(notice(page, gone('villain.aseprite'))).toBeVisible();
-    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await expectActive(page, 'photo.png');
     await expect.poll(names).not.toContain('villain.aseprite');
     await dismiss(page, gone('villain.aseprite'));
     await page.getByRole('menubar').getByRole('menuitem', { name: 'File', exact: true }).click();
@@ -595,7 +596,7 @@ test.describe('start screen', () => {
     await dragAtStart(page, 'drop', hero);
     await waitForEditor(page, 'pixel');
     await expect(sizeShown(page, 'pixel', [32, 24])).toBeVisible();
-    await expect(page.getByTitle('hero.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, 'hero.aseprite');
   });
 
   test('AC-16: a failed read names the failure in a dismissable notice, nothing changes', async ({
@@ -654,22 +655,22 @@ test.describe('start screen', () => {
     await waitForEditor(page, 'image');
     await pickInEditor(page, 'hero.aseprite');
     await expect(notice(page, picked)).toBeVisible();
-    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await expectActive(page, 'photo.png');
     await dismiss(page, picked);
     await menu(page, 'File', 'Open Recent', 'hero.aseprite');
     await expect(notice(page, recent)).toBeVisible();
-    await expect(page.getByTitle('photo.png', { exact: true })).toBeVisible();
+    await expectActive(page, 'photo.png');
     await dismiss(page, recent);
 
     await pickInEditor(page, 'villain.aseprite');
     await waitForEditor(page, 'pixel');
     await pickInEditor(page, 'hero.aseprite');
     await expect(notice(page, picked)).toBeVisible();
-    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, 'villain.aseprite');
     await dismiss(page, picked);
     await menu(page, 'File', 'Open Recent', 'hero.aseprite');
     await expect(notice(page, recent)).toBeVisible();
-    await expect(page.getByTitle('villain.aseprite', { exact: true })).toBeVisible();
+    await expectActive(page, 'villain.aseprite');
     await dismiss(page, recent);
   });
 });

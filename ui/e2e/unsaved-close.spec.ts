@@ -1,5 +1,6 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
 import { drag, imageCanvas, menu, pixelCanvas, waitForEditor } from './helpers';
+import { expectActive, expectDirty } from './tab-helpers';
 import {
   closeWindow,
   destroyed,
@@ -71,7 +72,8 @@ test('closing with unsaved changes asks; Cancel keeps the app running (AC-09, AC
   await prompt(page).getByRole('button', { name: 'Cancel' }).click();
   await expect(prompt(page)).toHaveCount(0);
   expect(await destroyed(page)).toBe(0);
-  await expect(page.getByTitle('pincel.aseprite — unsaved changes')).toBeVisible();
+  await expectActive(page, 'pincel.aseprite');
+  await expectDirty(page, 'pincel.aseprite', true);
 });
 
 test("Don't Save closes the app and recovery never offers the work (AC-09, AC-05)", async ({ page }) => {
@@ -116,7 +118,8 @@ test('a dismissed save picker keeps the app open (AC-09, AC-04)', async ({ page 
   await expect(prompt(page)).toHaveCount(0);
   await page.waitForTimeout(200);
   expect(await destroyed(page)).toBe(0);
-  await expect(page.getByTitle('pincel.aseprite — unsaved changes')).toBeVisible();
+  await expectActive(page, 'pincel.aseprite');
+  await expectDirty(page, 'pincel.aseprite', true);
 });
 
 test('without unsaved changes, or on the start screen, the app closes at once (AC-09, AC-07)', async ({
@@ -178,7 +181,7 @@ test('a file handed over by the OS opens as a tab without a prompt (AC-01)', asy
   await putFile(page, '/docs/dot.png', PNG_1X1);
   await emit(page, 'open-file', '/docs/dot.png');
   await waitForEditor(page, 'image');
-  await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expectActive(page, 'dot.png');
   await expect(prompt(page)).toHaveCount(0);
   await expect(page.getByRole('tab')).toHaveCount(2);
   await expect(page.getByRole('tab').first().getByText('unsaved changes')).toHaveCount(1);
@@ -191,7 +194,8 @@ test('a handed-over file that cannot be read shows its error and no prompt (AC-1
   await emit(page, 'open-file', '/docs/missing.png');
   await expect(page.getByText(/Open failed: .*No such file/)).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
+  await expectActive(page, 'image.ora');
+  await expectDirty(page, 'image.ora', true);
 });
 
 /** Clicks the first File ▸ Open Recent entry named `name` (a recent
@@ -222,14 +226,15 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await paint(page, 'pixel');
   // Saving to a path records the recent.
   await page.keyboard.press('Control+s');
-  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expectActive(page, 'sprite.aseprite');
   await paint(page, 'pixel');
 
   // Pixel mode's own File ▸ Open Recent of the file in the open tab: that
   // tab stays active with its changes, no prompt (document-tabs AC-03).
   await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
+  await expectActive(page, 'sprite.aseprite');
+  await expectDirty(page, 'sprite.aseprite', true);
   await expect(page.getByRole('tab')).toHaveCount(1);
 
   // Image mode routes Open Recent through the shell: the open Pixel tab of
@@ -239,20 +244,23 @@ test('Open Recent opens without a prompt, from both editors; a missing recent sh
   await expect(prompt(page)).toHaveCount(0);
   await paint(page, 'image');
   await openRecentEntry(page, 'sprite.aseprite');
-  await expect(page.getByTitle('sprite.aseprite — unsaved changes')).toBeVisible();
+  await expectActive(page, 'sprite.aseprite');
+  await expectDirty(page, 'sprite.aseprite', true);
   await expect(prompt(page)).toHaveCount(0);
   await expect(page.getByRole('tab')).toHaveCount(2);
 
   // A recent whose file is gone: error, no prompt.
   await page.getByRole('tab', { name: /^image\.ora/ }).click();
-  await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
+  await expectActive(page, 'image.ora');
+  await expectDirty(page, 'image.ora', true);
   await putFile(page, '/docs/sprite.aseprite', null);
   await openRecentEntry(page, 'sprite.aseprite');
   // The file is gone: the notice says so and the entry leaves the list
   // (file-access AC-30).
   await expect(page.getByText('sprite.aseprite was not found and was removed')).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
-  await expect(page.getByTitle('image.ora — unsaved changes')).toBeVisible();
+  await expectActive(page, 'image.ora');
+  await expectDirty(page, 'image.ora', true);
 });
 
 test('a clean document opens a handed-over file and a recent at once (AC-07)', async ({ page }) => {
@@ -260,7 +268,7 @@ test('a clean document opens a handed-over file and a recent at once (AC-07)', a
   await create(page, 'pixel');
   await paint(page, 'pixel');
   await page.keyboard.press('Control+s');
-  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expectActive(page, 'sprite.aseprite');
 
   // Pixel mode's own Open Recent of the open file activates its tab.
   await menu(page, 'File', 'Open Recent', 'sprite.aseprite');
@@ -271,13 +279,13 @@ test('a clean document opens a handed-over file and a recent at once (AC-07)', a
   await putFile(page, '/docs/dot.png', PNG_1X1);
   await emit(page, 'open-file', '/docs/dot.png');
   await waitForEditor(page, 'image');
-  await expect(page.getByTitle('dot.png', { exact: true })).toBeVisible();
+  await expectActive(page, 'dot.png');
   await expect(prompt(page)).toHaveCount(0);
 
   // Image mode's Open Recent, through the shell.
   await openRecentEntry(page, 'sprite.aseprite');
   await waitForEditor(page, 'pixel');
-  await expect(page.getByTitle('sprite.aseprite', { exact: true })).toBeVisible();
+  await expectActive(page, 'sprite.aseprite');
   await expect(prompt(page)).toHaveCount(0);
 });
 
@@ -295,8 +303,9 @@ test('native-menu items reach no editor while the prompt is open (AC-02)', async
   await expect(prompt(page)).toHaveCount(1);
   expect(await page.evaluate(() => Object.keys((window as unknown as MockWindow).__mock.disk))).toEqual([]);
   await prompt(page).getByRole('button', { name: 'Cancel' }).click();
-  await expect(page.getByTitle('pincel.aseprite — unsaved changes')).toBeVisible();
+  await expectActive(page, 'pincel.aseprite');
+  await expectDirty(page, 'pincel.aseprite', true);
   // The history is intact: one undo reaches the saved state.
   await emit(page, 'menu', 'menu:undo');
-  await expect(page.getByTitle('pincel.aseprite', { exact: true })).toBeVisible();
+  await expectActive(page, 'pincel.aseprite');
 });

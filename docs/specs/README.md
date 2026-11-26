@@ -149,6 +149,14 @@ Every spec of this group is done.
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 
+### M — UI refresh
+
+Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (Decision Log 2026-11-25; mock-up approved the same day). Built top to bottom; M1, K2 and K3 all change the editor frame, so not in parallel with each other. The refresh continues with K2 and K3 after M1; its remaining parts are in the backlog ("UI refresh: …").
+
+| # | Spec | Mode | Size | Depends on | Note |
+| - | ---- | ---- | ---- | ---------- | ---- |
+| M1 | [frame-layout](frame-layout.md) | both | L | — | App bar without name and mode badge, tabs above the options bar, one status bar with the zoom control, macOS single row. Build before K2 |
+
 ## Done
 
 - [adjustments-paintnet](adjustments-paintnet.md)
@@ -286,4 +294,9 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | `pincel-wasm` errors as `JsError` | Returns `Result<_, String>` today |
 | Scope Tauri file commands | `read_file_bytes` / `write_file_bytes` accept any path from the webview |
 | Live-edit speed in Image mode | Proposed budgets 8 ms (ellipse handle edit) and 16 ms (gradient); today 200 ms / 767 ms on 4096² / 2048² with 5 layers. Needs span-based shape fill, a cheaper gradient pass and a faster region compose; budgets join `performance-benchmarks` (image-live-objects Decisions, 2026-11-06) |
-| Error surfacing | Failures only reach the transient status bar; a toast area would be harder to miss |
+| UI refresh: tool rail | `tool-rail-colors`: colour well at the foot of the rail, Hand and Zoom in Pixel mode, Fill + Gradient one group in both modes (Decision Log 2026-11-25) |
+| UI refresh: options bar | `options-bar-layout`: tool name first, one order of options for every tool, a "More" popover instead of sideways scrolling, one wording in both modes |
+| UI refresh: dialogs | One shared dialog component (title, close button, Escape / Enter, verb on the primary button); one New-document form for the start screen and the dialog, with the size presets below |
+| UI refresh: notices | `notifications`: a toast area for confirmations and failures, also on phones, which show no notice today; replaces "Error surfacing" |
+| UI refresh: start screen and tokens | Two columns New / Open, quiet footer; hard-coded radii, text sizes and z-indexes onto the shared tokens |
+| Pixel tool options | Line has no width, Bucket no tolerance or contiguous option; needs core work |

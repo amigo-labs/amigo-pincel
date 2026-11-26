@@ -1,6 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
 import { readFile } from 'node:fs/promises';
-import { colorOf, createDocument, menu, pixelCanvas, setColor, storedPref } from './helpers';
+import {
+  colorOf,
+  createDocument,
+  menu,
+  pixelCanvas,
+  setColor,
+  storedPref,
+  zoomActual,
+} from './helpers';
 
 // Pixel-mode Pencil / Eraser (docs/specs/pixel-pencil.md): brush size and
 // shape, Shift constraint, pixel-perfect, shared and persisted options.
@@ -364,7 +372,8 @@ test('a shading stroke steps ramp colors one entry, once per pixel, as one undo 
   await inkSelect(page).selectOption('shading');
   await expect(rampHint(page)).toHaveText('ramp: palette entries 1–3');
   await expect(page.locator('[data-ramp]')).toHaveCount(3);
-  const status = page.locator('footer', { hasText: /\d+×\d+/ });
+  // The history depth sits beside Undo / Redo, for screen readers.
+  const status = page.locator('[data-editor]:not([inert])');
   await expect(status).toContainText('undo 3 / redo 0');
 
   // Back and forth over row 2: every ramp pixel steps once toward the end.
@@ -468,7 +477,7 @@ test.describe('touch device', () => {
   test('the latched Shift toggle constrains a pencil drag', async ({ page }) => {
     await setup(page);
     // Any touch on the stage reveals the toggles; fit the view again after.
-    await page.getByRole('button', { name: 'Actual size' }).tap();
+    await zoomActual(page, 'tap');
     const shift = page.getByRole('button', { name: 'Shift' });
     await shift.click();
     await expect(shift).toHaveAttribute('aria-pressed', 'true');

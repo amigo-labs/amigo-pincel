@@ -8,6 +8,8 @@ import {
   pixelCanvas,
   setColor,
   waitForEditor,
+  zoomActual,
+  zoomReadout,
 } from './helpers';
 
 // The Magic Wand link: after a wand click, new wand settings recompute that
@@ -319,8 +321,8 @@ test.describe('image', () => {
     page,
   }) => {
     await createDocument(page, 'image', { width: IMG, height: IMG });
-    await page.getByRole('button', { name: 'Actual size' }).click();
-    const label = page.getByRole('button', { name: 'Fit to window' });
+    await zoomActual(page);
+    const label = zoomReadout(page);
     await expect(label).toHaveText('100%');
     await page.keyboard.press('z');
     await page.evaluate(() => {
@@ -529,7 +531,7 @@ test.describe('image link details', () => {
     page,
   }) => {
     await createDocument(page, 'image', { width: IMG, height: IMG });
-    await page.getByRole('button', { name: 'Actual size' }).click();
+    await zoomActual(page);
     await page.keyboard.press('z');
     /** The image position under screen point `p`. */
     const under = async (p: [number, number]): Promise<[number, number]> => {
@@ -537,7 +539,7 @@ test.describe('image link details', () => {
       if (!box) throw new Error('canvas not visible');
       return [((p[0] - box.x) * IMG) / box.width, ((p[1] - box.y) * IMG) / box.height];
     };
-    const label = page.getByRole('button', { name: 'Fit to window' });
+    const label = zoomReadout(page);
 
     const at = await imgPt(page, 6, 26);
     const before = await under(at);

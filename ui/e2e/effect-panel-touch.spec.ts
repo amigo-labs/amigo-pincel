@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, imageCanvas, menu, pixelCanvas } from './helpers';
+import { createDocument, imageCanvas, menu, pixelCanvas, zoomReadout } from './helpers';
 
 // Two-finger pinch keeps zooming while an effect panel is open, and starts
 // no stroke (effect-panel AC-03). Same CDP touch gesture as pinch.spec.ts.
@@ -26,10 +26,10 @@ async function pinchOut(page: Page, target: Locator): Promise<void> {
 }
 
 const MODES = {
-  pixel: { canvas: pixelCanvas, readout: (page: Page) => page.getByText(/^\d+×$/), unit: '×' },
+  pixel: { canvas: pixelCanvas, readout: (page: Page) => zoomReadout(page), unit: '×' },
   image: {
     canvas: imageCanvas,
-    readout: (page: Page) => page.getByRole('button', { name: 'Fit to window' }),
+    readout: (page: Page) => zoomReadout(page),
     unit: '%',
   },
 } as const;

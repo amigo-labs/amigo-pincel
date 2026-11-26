@@ -301,6 +301,9 @@ test('pixel: inline rename commits the trimmed name on Enter; Escape, blank and 
 test('pixel: the panel lists the layer tree top-most first, indented, with kind badges (AC-09)', async ({
   page,
 }) => {
+  // Six rows have to show at once for the drops below: since frame-layout
+  // the sidebar is 60 px shorter and the Layers list scrolls at 720 px.
+  await page.setViewportSize({ width: 1280, height: 800 });
   await page.addInitScript(() => {
     delete (window as { showOpenFilePicker?: unknown }).showOpenFilePicker;
   });

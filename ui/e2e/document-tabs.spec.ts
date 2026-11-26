@@ -439,13 +439,14 @@ for (const mode of ['pixel', 'image'] as const)
       await expect(bar).toBeVisible();
       const active = tab(page, `golf-long-name.${EXT[mode]}`);
       await expect(active).toBeInViewport();
-      // The bar sits between the options bar and the canvas.
+      // The bar sits below the app bar, above the options bar and the
+      // canvas (frame-layout AC-01).
       const options = await page.getByRole('toolbar', { name: 'Tool options' }).boundingBox();
       const barBox = await bar.boundingBox();
       const stage = await canvas(page, mode).boundingBox();
       if (!options || !barBox || !stage) throw new Error('editor frame not laid out');
-      expect(barBox.y).toBeGreaterThanOrEqual(options.y + options.height - 1);
-      expect(stage.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+      expect(options.y).toBeGreaterThanOrEqual(barBox.y + barBox.height - 1);
+      expect(stage.y).toBeGreaterThanOrEqual(options.y + options.height - 1);
       if (width < 1280) {
         expect(await bar.evaluate((el) => el.scrollWidth > el.clientWidth)).toBe(true);
       }
@@ -558,7 +559,7 @@ for (const mode of ['pixel', 'image'] as const) {
     await createDocument(page, mode, { width: 16, height: 16 });
     await paint(page, mode);
     const footer = page.locator('footer');
-    const size = mode === 'pixel' ? '16×16' : '16 × 16 px · sRGB';
+    const size = mode === 'pixel' ? '16 × 16 px' : '16 × 16 px';
     await expect(footer).toContainText(size);
     const swatches = page.getByRole('group', { name: 'Palette colors' }).getByRole('button');
     const paletteFirst = mode === 'pixel' ? await swatches.count() : 0;
@@ -636,11 +637,11 @@ test.describe('clipboard', () => {
     await page.keyboard.press('ControlOrMeta+Alt+v');
     await expectActive(page, 'Pasted image.png');
     expect(await tabNames(page)).toEqual(['image.ora', 'Pasted image.png']);
-    await expect(page.locator('footer')).toContainText('24 × 12 px · sRGB');
+    await expect(page.locator('footer')).toContainText('24 × 12 px');
     await expectDirty(page, 'image.ora', true);
     await expect(prompt(page)).toHaveCount(0);
     await tab(page, 'image.ora').click();
-    await expect(page.locator('footer')).toContainText('16 × 16 px · sRGB');
+    await expect(page.locator('footer')).toContainText('16 × 16 px');
   });
 
   test('pixel: Paste as New Image opens a Pixel tab after the unsaved one, without a prompt (AC-02)', async ({
@@ -653,7 +654,7 @@ test.describe('clipboard', () => {
     // A tab of the active tab's mode (document-tabs Terms).
     await expectActive(page, 'Pasted image.aseprite');
     expect(await tabNames(page)).toEqual(['pincel.aseprite', 'Pasted image.aseprite']);
-    await expect(page.locator('footer')).toContainText('24×12');
+    await expect(page.locator('footer')).toContainText('24 × 12 px');
     await expect(editorOf(page, 'image')).toHaveCount(0);
     await expectDirty(page, 'pincel.aseprite', true);
     await expect(prompt(page)).toHaveCount(0);

@@ -1,5 +1,5 @@
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { createDocument, drag, imageCanvas, setColor } from './helpers';
+import { createDocument, drag, imageCanvas, setColor, zoomActual, zoomFit } from './helpers';
 
 // Image-mode live objects in the editor (docs/specs/image-live-objects-ui.md):
 // a Line, Shapes or Gradient drag leaves the object live with handles until
@@ -64,6 +64,10 @@ async function filledRectangle(page: Page): Promise<void> {
     .click();
   await page.getByRole('combobox', { name: 'Mode', exact: true }).selectOption('fill');
 }
+
+// The pixel tolerances of this file were tuned on a canvas area 572 px
+// high; frame-layout made it 4 px higher, which changes the fitted zoom.
+test.use({ viewport: { width: 1280, height: 716 } });
 
 test('a shape, line or gradient drag leaves the object live with handles', async ({ page }) => {
   await createDocument(page, 'image', { width: 64, height: 64 });
@@ -321,7 +325,7 @@ test('handles keep their size and reach at every zoom, on the stage too', async 
   await liveRedBox(page);
   const size = async () => (await page.locator('[data-live-handle="se"]').boundingBox())?.width;
   const fitted = await size();
-  await page.getByRole('button', { name: 'Actual size' }).click();
+  await zoomActual(page);
   expect(await size()).toBe(fitted);
 
   // Grabbed 7 CSS px off its centre at 100 %.
@@ -331,7 +335,7 @@ test('handles keep their size and reach at every zoom, on the stage too', async 
   expect(Math.abs(moved[0] - (se[0] + 20))).toBeLessThan(1.5);
 
   // Moved half off the canvas, its corner on the stage is still grabbed.
-  await page.getByRole('button', { name: 'Fit to window' }).click();
+  await zoomFit(page);
   const nw = await handleAt(page, 'nw');
   const left = await at(page, [-0.1, 0.25]);
   await mouseDrag(page, [nw[0] + 12, nw[1] + 12], [left[0] + 12, nw[1] + 12]);

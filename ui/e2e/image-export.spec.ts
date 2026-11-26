@@ -119,7 +119,7 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
 }) => {
   test.setTimeout(120_000);
   await createDocument(page, 'image', { width: 100, height: 50 });
-  await expect(page.getByText('100 × 50 px · sRGB')).toBeVisible();
+  await expect(page.getByText('100 × 50 px')).toBeVisible();
 
   // An edge beyond 16384 px is cut to 16384 px.
   await menu(page, 'Image', 'Resize Canvas…');
@@ -131,7 +131,7 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   // The readout already shows the reduced size (image-resize-autocrop AC-08).
   await expect(resize.getByTestId('size-result')).toHaveText('16384 × 50 px');
   await resize.getByRole('button', { name: 'Resize' }).click();
-  await expect(page.getByText('16384 × 50 px · sRGB')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('16384 × 50 px')).toBeVisible({ timeout: 60_000 });
 
   // An area beyond 8192 × 8192 px scales both edges down together:
   // 16384 × 8192 · √½ → 11585 × 5792.
@@ -144,5 +144,5 @@ test('Resize Canvas and Scale Image reduce an oversized request to the limits', 
   await scale.getByLabel('Resampling').selectOption('nearest');
   await expect(scale.getByTestId('size-result')).toHaveText('11585 × 5792 px');
   await scale.getByRole('button', { name: 'Scale' }).click();
-  await expect(page.getByText('11585 × 5792 px · sRGB')).toBeVisible({ timeout: 60_000 });
+  await expect(page.getByText('11585 × 5792 px')).toBeVisible({ timeout: 60_000 });
 });

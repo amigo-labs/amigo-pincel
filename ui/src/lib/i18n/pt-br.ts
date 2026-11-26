@@ -137,6 +137,7 @@ export const ptBr: Record<MessageKey, string> = {
   'fileAssoc.gotIt': 'Entendi',
 
   'about.version': 'Versão {version}',
+  'about.renderer': 'Renderizador: {backend}',
   'about.tagline': 'Um editor de pixel art e de imagens em um só app.',
   'about.close': 'Fechar',
   'about.checking': 'Procurando atualizações…',
@@ -297,12 +298,14 @@ export const ptBr: Record<MessageKey, string> = {
   'frame.variant': 'Variante de {group}',
   'frame.variantsHint': 'Segure ou clique com o botão direito: variantes',
   'frame.togglePanels': 'Mostrar/ocultar painéis',
+  'frame.search': 'Pesquisar comandos',
   'frame.closePanels': 'Fechar painéis',
   'frame.sidebarWidth': 'Largura da barra lateral',
   'tabs.label': 'Documentos abertos',
   'tabs.close': 'Fechar',
   'tabs.closeNamed': 'Fechar {name}',
   'tabs.unsaved': 'alterações não salvas',
+  'tabs.new': 'Novo documento',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -310,6 +313,7 @@ export const ptBr: Record<MessageKey, string> = {
   'zoom.actual': 'Tamanho real',
   'zoom.in': 'Aumentar zoom',
   'zoom.out': 'Diminuir zoom',
+  'zoom.value': 'Nível de zoom {zoom}',
 
   // Colors
   'color.fg': 'Cor de primeiro plano',
@@ -1309,6 +1313,7 @@ export const ptBr: Record<MessageKey, string> = {
   'px.fillsBg': 'preenche com a cor de fundo',
   'px.rightBg': 'o botão direito usa a cor de fundo',
   'px.frameOf': 'quadro {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': 'desfazer {u} / refazer {r}',
   'px.version': 'Versão do Pincel',
 

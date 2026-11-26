@@ -137,6 +137,7 @@ export const es: Record<MessageKey, string> = {
   'fileAssoc.gotIt': 'Entendido',
 
   'about.version': 'Versión {version}',
+  'about.renderer': 'Renderizador: {backend}',
   'about.tagline': 'Un editor de pixel art y de imágenes en una sola app.',
   'about.close': 'Cerrar',
   'about.checking': 'Buscando actualizaciones…',
@@ -296,12 +297,14 @@ export const es: Record<MessageKey, string> = {
   'frame.variant': 'Variante de {group}',
   'frame.variantsHint': 'Mantener pulsado o clic derecho: variantes',
   'frame.togglePanels': 'Mostrar/ocultar paneles',
+  'frame.search': 'Buscar comandos',
   'frame.closePanels': 'Cerrar paneles',
   'frame.sidebarWidth': 'Ancho de la barra lateral',
   'tabs.label': 'Documentos abiertos',
   'tabs.close': 'Cerrar',
   'tabs.closeNamed': 'Cerrar {name}',
   'tabs.unsaved': 'cambios sin guardar',
+  'tabs.new': 'Nuevo documento',
 
   // Zoom
   'zoom.label': 'Zoom',
@@ -309,6 +312,7 @@ export const es: Record<MessageKey, string> = {
   'zoom.actual': 'Tamaño real',
   'zoom.in': 'Acercar',
   'zoom.out': 'Alejar',
+  'zoom.value': 'Nivel de zoom {zoom}',
 
   // Colors
   'color.fg': 'Color frontal',
@@ -1312,6 +1316,7 @@ export const es: Record<MessageKey, string> = {
   'px.fillsBg': 'rellena con el color de fondo',
   'px.rightBg': 'el botón derecho usa el color de fondo',
   'px.frameOf': 'fotograma {n}/{total}',
+  'px.position': 'x {x}, y {y}',
   'px.undoRedo': 'deshacer {u} / rehacer {r}',
   'px.version': 'Versión de Pincel',
 

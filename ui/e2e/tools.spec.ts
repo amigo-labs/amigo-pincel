@@ -1,5 +1,14 @@
 import { expect, test, type Page } from '@playwright/test';
-import { colorOf, createDocument, drag, imageCanvas, menu, setColor } from './helpers';
+import {
+  colorOf,
+  createDocument,
+  drag,
+  imageCanvas,
+  menu,
+  setColor,
+  zoomActual,
+  zoomReadout,
+} from './helpers';
 
 /** The tool-rail button that is currently pressed. */
 function activeTool(page: Page) {
@@ -48,13 +57,12 @@ test('image mode: the zoom buttons still work with the Zoom tool selected', asyn
   await page.keyboard.press('z');
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Zoom');
 
-  const zoom = page.getByRole('button', { name: 'Actual size' });
-  await zoom.click();
-  await expect(page.getByRole('button', { name: 'Fit to window' })).toHaveText('100%');
+  await zoomActual(page);
+  await expect(zoomReadout(page)).toHaveText('100%');
 
   // "Zoom out" must zoom out, not in through the viewport gesture.
   await page.getByRole('button', { name: 'Zoom out' }).click();
-  await expect(page.getByRole('button', { name: 'Fit to window' })).not.toHaveText('100%');
+  await expect(zoomReadout(page)).not.toHaveText('100%');
 });
 
 test('image mode: Pan and Zoom are rail tools', async ({ page }) => {
@@ -65,11 +73,11 @@ test('image mode: Pan and Zoom are rail tools', async ({ page }) => {
   await expect(activeTool(page)).toHaveAttribute('aria-label', 'Zoom');
 
   // A click with the Zoom tool steps the view in; the control shows it.
-  const zoomBefore = await page.getByRole('button', { name: 'Fit' }).textContent();
+  const zoomBefore = await zoomReadout(page).textContent();
   const box = await imageCanvas(page).boundingBox();
   if (!box) throw new Error('canvas not visible');
   await page.mouse.click(box.x + box.width / 2, box.y + box.height / 2);
-  await expect(page.getByRole('button', { name: 'Fit' })).not.toHaveText(zoomBefore ?? '');
+  await expect(zoomReadout(page)).not.toHaveText(zoomBefore ?? '');
 });
 
 for (const mode of ['pixel', 'image'] as const) {

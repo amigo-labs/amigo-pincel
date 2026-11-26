@@ -154,3 +154,4 @@ Terms:
 - 2026-11-18 (build): The editors leave a key to the native menu per chord, not per action (`nativeMenuOwns(action, e)`): the menu binds only an action's first chord, so ⌘Y (Redo) and ⌥W (Close) stay with the editors. Found red by `document-tabs-desktop` (⌥W closed nothing).
 - 2026-11-18 (build): Until a mirrored menu is in place, the editors leave only the start-screen menu's chords (New, Open, Keyboard Shortcuts, Settings) to it, so a failed first push keeps ⌘Z & co. working (AC-14).
 - 2026-11-18 (build): The Pixel editor's command-palette `extras` (the probe without a menu path on macOS, `menu-structure` AC-06) are gone: the mirrored Help lists the probe, so the palette finds it under Help (`menu-structure` AC-06 dropped).
+- 2026-11-25: `frame-layout` supersedes AC-01's list of what stays in the top bar: the mode badge and the document title go, and the tabs join the row (its AC-14). No in-window menus at any width holds.

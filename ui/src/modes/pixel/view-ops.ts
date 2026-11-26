@@ -3,6 +3,7 @@
 import { tick } from 'svelte';
 import { fitZoom } from '../../lib/view/fit';
 import type { PinchFrame } from '../../lib/view/pinch';
+import { noteHover } from './hover';
 import { ed, live, view } from './stores/editor.svelte';
 
 /** Integer display-zoom range (sprite px → CSS px). */
@@ -20,6 +21,19 @@ export const FIT_MARGIN = 24;
 export function setZoom(next: number) {
   next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(next)));
   if (next === view.zoom) return;
+  view.zoom = next;
+}
+
+// A zoom chosen from the zoom menu: the document point at the centre of
+// the canvas area stays there (docs/specs/frame-layout.md AC-10). The pan
+// is the canvas centre's offset from the stage centre in CSS pixels, so it
+// scales with the zoom.
+export function zoomTo(next: number) {
+  next = Math.max(MIN_ZOOM, Math.min(MAX_ZOOM, Math.floor(next)));
+  if (next === view.zoom) return;
+  const ratio = next / view.zoom;
+  view.panX *= ratio;
+  view.panY *= ratio;
   view.zoom = next;
 }
 
@@ -100,6 +114,8 @@ export function onWheel(e: WheelEvent) {
   view.panX += (rectCx - e.clientX) * (ratio - 1);
   view.panY += (rectCy - e.clientY) * (ratio - 1);
   view.zoom = next;
+  // The pixel under a resting pointer is another one after the zoom.
+  void tick().then(() => noteHover(e));
 }
 
 export function applyPinch(f: PinchFrame) {
