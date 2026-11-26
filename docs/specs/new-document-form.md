@@ -81,7 +81,7 @@ Hints, not contracts.
 | AC-02 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | built |        |
 | AC-03 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | built |        |
 | AC-04 | `ui/e2e/new-document-form.spec.ts`: "a preset fills both fields, is pressed while they hold it, and Create makes that size" | built |        |
-| AC-05 | `ui/e2e/new-document-form.spec.ts`: "the start card shows the dialog’s notes and describes its fields with them" | built |        |
+| AC-05 | `ui/e2e/new-document-form.spec.ts`: "the start card shows the dialog’s notes and describes its fields with them"; now also "Not a number" and Height's description | built |        |
 | AC-06 | `ui/e2e/new-document-form.spec.ts`: "the start cards and the dialog show Width, Height and the mode’s presets below them" | built |        |
 | AC-07 | `ui/e2e/new-document-form.spec.ts`: "German: the presets group is named \"Größenvorgaben\"" | built |        |
 
@@ -93,3 +93,4 @@ Hints, not contracts.
 - 2026-11-26 (build): `doc-size.ts` stays free of runes, but `new-doc.ts` (the limits) imports a rune module, so the tests drive the forms in the browser rather than in Node.
 - 2026-11-26 (build): red run — the 4 tests of `ui/e2e/new-document-form.spec.ts` failed against the bundle built before the change.
 - 2026-11-26 (build): New public API, for review: `ui/src/lib/shell/doc-size.ts`, the component `ui/src/lib/shell/SizePresets.svelte`, the string `newDoc.presets`.
+- 2026-11-26 (acceptance, round 1: NOT READY): AC-05 lacked the "not a number" note and Height's description; the test types "1e" (a number field takes no such value by `fill()`) and checks both fields' `aria-describedby`.

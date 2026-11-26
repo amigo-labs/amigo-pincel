@@ -80,7 +80,7 @@
 >
   <div class="flex flex-col gap-3">
     <p class="text-xs text-pc-muted">
-      Current size: {initialWidth}×{initialHeight} px
+      {t('resize.current', { w: initialWidth, h: initialHeight })}
     </p>
     <div class="flex gap-3">
       <label class="flex flex-1 flex-col gap-1 text-xs text-pc-text">

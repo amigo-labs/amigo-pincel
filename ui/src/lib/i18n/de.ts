@@ -1053,6 +1053,7 @@ export const de: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Bild skalieren',
   'resize.resize': 'Ändern',
   'resize.scale': 'Skalieren',
+  'resize.current': 'Aktuelle Größe: {w} × {h} px',
   'slices.mustBePositive': '{field} muss eine positive ganze Zahl sein',
   'slices.nameRequired': 'Name ist erforderlich',
   'slices.none': 'noch keine Slices',

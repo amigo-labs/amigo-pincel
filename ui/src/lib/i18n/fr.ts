@@ -1058,6 +1058,7 @@ export const fr: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Redimensionner l’image',
   'resize.resize': 'Redimensionner',
   'resize.scale': 'Mettre à l’échelle',
+  'resize.current': 'Taille actuelle : {w} × {h} px',
   'slices.mustBePositive': '{field} doit être un entier positif',
   'slices.nameRequired': 'le nom est obligatoire',
   'slices.none': 'aucune tranche pour l’instant',

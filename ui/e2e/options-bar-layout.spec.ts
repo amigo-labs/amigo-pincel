@@ -341,6 +341,32 @@ for (const language of ['English', 'Deutsch'] as const) {
   });
 }
 
+test.describe('pixel, a bar that needs More', () => {
+  test.use({ viewport: { width: 760, height: 720 } });
+
+  test('pixel: a press on the canvas or the rail and a tool change keep the bar expanded (AC-06)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    await expect(name(page)).toHaveText('Pencil');
+    await expect(more(page)).toBeVisible();
+    await more(page).click();
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    // The canvas area.
+    const s = await box(stage(page));
+    await page.mouse.click(s.x + s.width / 2, s.y + s.height - 40);
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    // The rail, choosing another tool with more options than fit.
+    await rail(page).locator('button[data-group="eraser"]').click();
+    await expect(name(page)).toHaveText('Eraser');
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    // A tool change by key (the expanded bar lies over the canvas area's top).
+    await page.mouse.click(s.x + 8, s.y + s.height - 8);
+    await page.keyboard.press('b');
+    await expect(name(page)).toHaveText('Pencil');
+    await expect(more(page)).toHaveAttribute('aria-expanded', 'true');
+    expect((await row(page)).inside).toBe((await row(page)).total);
+  });
+});
+
 test.describe('narrow', () => {
   test.use({ viewport: { width: 390, height: 844 } });
 

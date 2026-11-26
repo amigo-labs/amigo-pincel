@@ -41,6 +41,11 @@ const groupIds = (page: Page) =>
 const shown = (page: Page, name: string) =>
   wellButton(page, name).evaluate((el) => getComputedStyle(el).getPropertyValue('--swatch').trim());
 
+async function centreOf(target: Locator, fx: number, fy: number): Promise<[number, number]> {
+  const b = await box(target);
+  return [b.x + b.width * fx, b.y + b.height * fy];
+}
+
 async function box(locator: Locator): Promise<{ x: number; y: number; width: number; height: number }> {
   const b = await locator.boundingBox();
   if (b === null) throw new Error('element has no box');
@@ -172,6 +177,31 @@ test.describe('wide', () => {
       expect(await well(page).evaluate((el) => el.closest('[inert]') !== null)).toBe(true);
     });
   }
+
+  test('pixel: the well follows the Eyedropper, a palette swatch and D (AC-02)', async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    // Paint a pixel red, pick it back with the Eyedropper.
+    await setColor(page, 'fg', '#ff0000');
+    await stage(page).click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('b');
+    await drag(page, pixelCanvas(page), [0.5, 0.5], [0.52, 0.5]);
+    await setColor(page, 'fg', '#00ff00');
+    await expect.poll(() => shown(page, 'Foreground color')).toBe('rgb(0 255 0 / 1)');
+    await page.keyboard.press('i');
+    await page.mouse.click(...(await centreOf(pixelCanvas(page), 0.5, 0.5)));
+    await expect.poll(() => shown(page, 'Foreground color')).toBe('rgb(255 0 0 / 1)');
+    // A palette swatch.
+    const swatches = sidebar(page).getByRole('group', { name: 'Palette colors' }).getByRole('button');
+    const first = swatches.first();
+    const css = await first.evaluate((el) => getComputedStyle(el).backgroundColor);
+    await first.click();
+    await expect.poll(() => shown(page, 'Foreground color')).toBe(css.replace(/^rgb\((\d+), (\d+), (\d+)\)$/, 'rgb($1 $2 $3 / 1)'));
+    // D: the default pair.
+    await stage(page).click({ position: { x: 5, y: 5 } });
+    await page.keyboard.press('d');
+    await expect.poll(() => shown(page, 'Foreground color')).toBe('rgb(0 0 0 / 1)');
+    await expect.poll(() => shown(page, 'Background color')).toBe('rgb(255 255 255 / 1)');
+  });
 
   test('pixel: Pan and Zoom follow Move, with H and Z (AC-09)', async ({ page }) => {
     await createDocument(page, 'pixel', { width: 16, height: 16 });

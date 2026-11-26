@@ -1052,6 +1052,7 @@ export const ptBr: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Redimensionar imagem',
   'resize.resize': 'Redimensionar',
   'resize.scale': 'Escalar',
+  'resize.current': 'Tamanho atual: {w} × {h} px',
   'slices.mustBePositive': '{field} deve ser um número inteiro positivo',
   'slices.nameRequired': 'o nome é obrigatório',
   'slices.none': 'nenhuma fatia ainda',

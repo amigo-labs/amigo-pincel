@@ -1054,6 +1054,7 @@ export const es: Record<MessageKey, string> = {
   'resize.scaleTitle': 'Escalar imagen',
   'resize.resize': 'Cambiar tamaño',
   'resize.scale': 'Escalar',
+  'resize.current': 'Tamaño actual: {w} × {h} px',
   'slices.mustBePositive': '{field} debe ser un entero positivo',
   'slices.nameRequired': 'el nombre es obligatorio',
   'slices.none': 'aún no hay sectores',

@@ -106,6 +106,18 @@ test('the start card shows the dialog’s notes and describes its fields with th
   const described = await width.getAttribute('aria-describedby');
   expect(described).not.toBeNull();
   await expect(page.locator(`#${described}`)).toContainText('Whole pixels only');
+  // Height is described by the same notes.
+  const height = c.getByLabel('Height', { exact: true });
+  expect(await height.getAttribute('aria-describedby')).toBe(described);
+  // Not a number: typed, as a number field takes no such value by fill().
+  await width.fill('');
+  await width.focus();
+  await page.keyboard.type('1e');
+  await expect(notes).toHaveText(['Not a number — 64 will be used']);
+  await width.fill('64');
+  await expect(notes).toHaveCount(0);
+  expect(await width.getAttribute('aria-describedby')).toBeNull();
+  expect(await height.getAttribute('aria-describedby')).toBeNull();
   // Image mode: the area limit.
   await page.getByRole('button', { name: 'New image' }).click();
   const i = card(page, 'image');

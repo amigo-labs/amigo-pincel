@@ -1052,6 +1052,7 @@ export const ja: Record<MessageKey, string> = {
   'resize.scaleTitle': '画像を拡大・縮小',
   'resize.resize': 'サイズ変更',
   'resize.scale': '拡大・縮小',
+  'resize.current': '現在のサイズ: {w} × {h} px',
   'slices.mustBePositive': '{field}は正の整数で指定してください',
   'slices.nameRequired': '名前は必須です',
   'slices.none': 'スライスはまだありません',

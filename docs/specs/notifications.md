@@ -50,7 +50,7 @@ Terms:
 - [ ] AC-06 (state): While the status bar's text is the active tool's name or one of Pixel mode's idle texts ("initializing…", "ready"), no toast appears for it — also not when the document has just been opened or the tool changes.
 - [ ] AC-07 (state): While the window is 640 px wide or wider, the status bar shows the notice as before, also after the toast has gone.
 - [ ] AC-08 (state): While the window is narrower than 640 px, the toast sits above the floating zoom control and the panels sheet, wholly inside the canvas area.
-- [ ] AC-09 (state): While an effect is open or an Assistant answer runs, a notice still shows as a toast and Dismiss works.
+- [ ] AC-09 (state): While an effect is open or an Assistant answer runs, a toast that shows stays on screen and its Dismiss works.
 - [ ] AC-10 (option): Where the UI language is German, the dismiss control is named "Schließen" and the toast shows the German notice.
 
 ## Technical notes
@@ -97,7 +97,7 @@ Hints, not contracts.
 | AC-06 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast on the status bar; idle texts and tool names do not" | built |        |
 | AC-07 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast …", "wide › {pixel, image}: the toast goes after 5 seconds, not while the pointer is over it; the status bar keeps the text" | built |        |
 | AC-08 | `ui/e2e/notifications.spec.ts`: "narrow › {pixel, image}: on a phone the toast sits above the zoom control and the panels sheet, inside the canvas area" | built |        |
-| AC-09 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: while an effect is open the toast shows and can be dismissed" | built |        |
+| AC-09 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: while an effect is open the toast shows and can be dismissed"; `ui/e2e/refresh-while-answering.spec.ts`: "1280 × 720 › image: a toast that shows stays while an answer runs and its Dismiss works" | built |        |
 | AC-10 | `ui/e2e/notifications.spec.ts`: "wide › German: the toast shows the German notice and its control reads \"Schließen\"" | built |        |
 
 ## Decisions
@@ -109,3 +109,5 @@ Hints, not contracts.
 - 2026-11-26 (build): red run — the 13 tests of `ui/e2e/notifications.spec.ts` all failed against the bundle built before the change. Pixel mode's status bar never shows the tool's name while idle (it reads "ready"); the test for AC-06 expects that.
 - 2026-11-26 (build): New public API, for review: `StatusInfo.notice`.
 - 2026-11-26 (build, AC-01 revised): the first version put the toast over the lower edge of the canvas area on every width. With the view fitted it covered the bottom of the artwork for five seconds after every notice — rotating, a refused stroke, placing text — and e2e specs that compare canvas screenshots saw it. On windows with a status bar the toast now sits on the bar, centred and no higher than it; phones keep it over the canvas area because there is nowhere else.
+- 2026-11-26 (acceptance, AC-09 reworded): it read "a notice still shows as a toast", but while an effect is open or an answer runs the canvas and every menu that reports a notice take no input, so no user action can report one; what matters is that a toast already shown is not hidden behind the inert regions and can be dismissed. The tests always checked that.
+- 2026-11-26 (acceptance, round 1: NOT READY): the "answer runs" half of AC-09 had no test; added (with the AC reworded, see above).

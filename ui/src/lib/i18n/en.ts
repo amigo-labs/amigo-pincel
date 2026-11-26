@@ -1047,6 +1047,7 @@ export const en = {
   'resize.scaleTitle': 'Scale image',
   'resize.resize': 'Resize',
   'resize.scale': 'Scale',
+  'resize.current': 'Current size: {w} × {h} px',
   'slices.mustBePositive': '{field} must be a positive integer',
   'slices.nameRequired': 'name is required',
   'slices.none': 'no slices yet',

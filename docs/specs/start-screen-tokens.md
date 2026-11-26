@@ -75,7 +75,7 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › New on the left, Open on the right, top edges level" | built |        |
+| AC-01 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › New on the left, Open on the right, top edges level"; "wide › returning: New on the left, Open with the recent files on the right, top edges level" (desktop app, mocked: path-based recents) | built |        |
 | AC-02 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the title row holds the title only; the utilities are quiet controls in the footer" | built |        |
 | AC-03 | `ui/e2e/start-screen-tokens.spec.ts`: "wide › the footer sits at the window’s bottom while the content is shorter" | built |        |
 | AC-04 | `ui/e2e/start-screen-tokens.spec.ts`: "narrow › below 960 px New comes first and Open below it, each full width" | built |        |
@@ -89,3 +89,4 @@ Hints, not contracts.
 - 2026-11-26 (build): the first-use arrangement uses the returning one's `start-split` grid; the first-use "pair" of Open… and the samples is gone, the Open column stacks them. The footer is the page's last flex item with `mt-auto`.
 - 2026-11-26 (build): red run — the four page tests failed against the bundle built from the previous source; the two Node-side tests first failed on a path error, and the literal scan, run against the previous commit with the same pattern, finds 81 lines.
 - 2026-11-26 (build): `ui/e2e/start-clipboard.spec.ts` (copy-cut-paste AC-34) checked "nothing between the New cards and the clipboard row" as "Open… lies lower than the row". With Open… in the right column at the cards' height (AC-01) that no longer means "between"; the check now accepts Open… below the row or beside it in the other column.
+- 2026-11-26 (acceptance, round 1: NOT READY): the returning arrangement had no test; added through the desktop app's path-based recent files, and the narrow test checks the New column's width too.

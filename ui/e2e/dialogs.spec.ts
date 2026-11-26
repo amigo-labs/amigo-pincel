@@ -30,6 +30,16 @@ const CASES: Case[] = [
   { mode: 'image', path: ['Image', 'Scale Image…'], verb: 'Scale' },
   { mode: 'image', path: ['File', 'Export', 'JPEG…'], verb: 'Export' },
   { mode: 'image', path: ['Select', 'Feather…'], verb: 'Apply', before: selectAll },
+  { mode: 'pixel', path: ['File', 'Export', 'Sprite Sheet…'], verb: 'Export' },
+  { mode: 'pixel', path: ['Layer', 'Rename…'], verb: 'Rename' },
+  { mode: 'pixel', path: ['Select', 'Expand…'], verb: 'Apply', before: selectAll },
+  { mode: 'pixel', path: ['Select', 'Contract…'], verb: 'Apply', before: selectAll },
+  { mode: 'image', path: ['File', 'Print…'], verb: 'Print' },
+  { mode: 'image', path: ['File', 'Save As…'], verb: 'Save' },
+  { mode: 'image', path: ['File', 'Export', 'SVG…'], verb: 'Export' },
+  { mode: 'image', path: ['Layer', 'Rename…'], verb: 'Rename' },
+  { mode: 'image', path: ['Select', 'Expand…'], verb: 'Apply', before: selectAll },
+  { mode: 'image', path: ['Select', 'Contract…'], verb: 'Apply', before: selectAll },
 ];
 
 const label = (c: Case) => `${c.mode}: ${c.path.join(' ▸ ')}`;
@@ -67,11 +77,20 @@ for (const c of CASES) {
     expect(h.x + h.width - (b.x + b.width)).toBeLessThan(32);
     await expect(d.locator('[data-dialog-primary]')).toHaveText(c.verb);
     // The first field has the focus, or the primary button without one.
-    const focusedInBody = await page.evaluate(() => {
-      const el = document.activeElement;
-      return el?.closest('.am-body') !== null || el?.hasAttribute('data-dialog-primary') === true;
+    const first = await page.evaluate(() => {
+      const panel = document.querySelector('[data-dialog]');
+      const fields = [
+        ...(panel?.querySelectorAll<HTMLElement>('.am-body input, .am-body select, .am-body textarea') ?? []),
+      ].filter(
+        (el) =>
+          !(el as HTMLInputElement).disabled &&
+          (el as HTMLInputElement).type !== 'hidden' &&
+          el.offsetParent !== null,
+      );
+      const expected = fields[0] ?? panel?.querySelector('[data-dialog-primary]') ?? null;
+      return expected !== null && document.activeElement === expected;
     });
-    expect(focusedInBody).toBe(true);
+    expect(first).toBe(true);
   });
 
   test(`${label(c)}: Close, Escape and Cancel change nothing; the backdrop does not close (AC-02, AC-09)`, async ({
@@ -122,10 +141,17 @@ for (const c of CASES) {
   });
 }
 
-test('pixel: Enter in a field does what the primary button does; disabled, it does nothing (AC-03)', async ({ page }) => {
+test('pixel: Enter in a field does what the primary button does; Enter on Cancel only cancels (AC-03)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
   await menu(page, 'Image', 'Resize Canvas…');
   const d = dialog(page);
+  // Enter on a focused button activates that button only: Cancel resizes nothing.
+  await d.getByRole('spinbutton').first().fill('20');
+  await d.getByRole('button', { name: 'Cancel', exact: true }).focus();
+  await page.keyboard.press('Enter');
+  await expect(d).toHaveCount(0);
+  await expect(undo(page)).toBeDisabled();
+  await menu(page, 'Image', 'Resize Canvas…');
   const width = d.getByRole('spinbutton').first();
   await width.fill('20');
   await width.press('Enter');
@@ -153,24 +179,37 @@ test('image: Enter in a field applies; Enter with the primary disabled does noth
   await expect(page.locator('[data-frame="status"] [data-status-size]')).toContainText('24');
 });
 
-test('the focus returns to the element that had it before the dialog opened (AC-07)', async ({ page }) => {
+for (const how of ['Cancel', 'Close', 'Escape', 'Export'] as const) {
+  test(`the focus returns to the element that had it before the dialog opened: ${how} (AC-07)`, async ({ page }) => {
+    await createDocument(page, 'pixel', { width: 16, height: 16 });
+    // A dialog opened by its shortcut while a panel control has the focus.
+    const hide = page.getByRole('button', { name: 'Hide Layer 1', exact: true });
+    await hide.focus();
+    await page.keyboard.press('Control+e');
+    const d = dialog(page);
+    await expect(d).toHaveCount(1);
+    await expect(d.locator('[data-dialog-primary]')).toHaveText('Export');
+    if (how === 'Escape') await page.keyboard.press('Escape');
+    else if (how === 'Close') await d.locator('header').getByRole('button', { name: 'Close', exact: true }).click();
+    else if (how === 'Cancel') await d.getByRole('button', { name: 'Cancel', exact: true }).click();
+    else await d.locator('[data-dialog-primary]').click();
+    await expect(d).toHaveCount(0);
+    await expect(hide).toBeFocused();
+  });
+}
+
+test('the focus goes to the canvas area when the element that had it is gone (AC-07)', async ({ page }) => {
   await createDocument(page, 'pixel', { width: 16, height: 16 });
-  // A dialog opened while a panel control has the focus (the command
-  // palette keeps the focus where it was when it runs a command).
-  const hide = page.getByRole('button', { name: 'Hide Layer 1', exact: true });
-  await hide.focus();
+  // Opened from the command palette, which is gone once its command ran.
   await page.keyboard.press('Control+k');
   const palette = page.getByRole('dialog', { name: 'Command Palette' });
   await palette.getByRole('combobox').fill('Layer Rename');
   await page.keyboard.press('Enter');
   const d = dialog(page);
   await expect(d).toHaveCount(1);
-  await expect(d.locator('[data-dialog-primary]')).toHaveText('Rename');
   await page.keyboard.press('Escape');
   await expect(d).toHaveCount(0);
-  const back = await page.evaluate(() => document.activeElement?.getAttribute('aria-label') ?? '');
-  expect(['Hide Layer 1', '']).toContain(back);
-  expect(await page.evaluate(() => document.activeElement !== document.body)).toBe(true);
+  await expect(page.locator('[data-editor]:not([inert]) [data-stage]')).toBeFocused();
 });
 
 test('German: Close reads "Schließen" and Grid Settings applies with "Anwenden" (AC-10)', async ({ page }) => {

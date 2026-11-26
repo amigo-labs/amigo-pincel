@@ -97,13 +97,13 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs of both modes}: one shell — modal, named by its title, a Close control, a verb, focus on the first field" | built |        |
+| AC-01 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs of both modes}: one shell — modal, named by its title, a Close control, a verb, focus on the first field"; the cases now cover Print, Save As, Sprite Sheet, SVG in both modes, Rename in both modes, Expand and Contract in both modes, Feather | built |        |
 | AC-02 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
-| AC-03 | `ui/e2e/dialogs.spec.ts`: "pixel: Enter in a field does what the primary button does; disabled, it does nothing", "image: Enter in a field applies; Enter with the primary disabled does nothing" | built |        |
+| AC-03 | `ui/e2e/dialogs.spec.ts`: "pixel: Enter in a field does what the primary button does; disabled, it does nothing", "image: Enter in a field applies; Enter with the primary disabled does nothing"; "pixel: Enter in a field does what the primary button does; Enter on Cancel only cancels" | built |        |
 | AC-04 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, a verb, …"; `ui/e2e/grid.spec.ts` (Apply) | built |        |
 | AC-05 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, focus on the first field" | built |        |
 | AC-06 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; the focus returns on close"; `ui/e2e/export-svg.spec.ts`: "the dialog takes focus, keeps Tab inside and returns focus on close" | built |        |
-| AC-07 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; …; the focus returns on close", "the focus returns to the element that had it before the dialog opened" | built |        |
+| AC-07 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; …; the focus returns on close", "the focus returns to the element that had it before the dialog opened"; "the focus returns to the element that had it before the dialog opened: {Cancel, Close, Escape, Export}", "the focus goes to the canvas area when the element that had it is gone" | built |        |
 | AC-08 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; …" | built |        |
 | AC-09 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
 | AC-10 | `ui/e2e/dialogs.spec.ts`: "German: Close reads \"Schließen\" and Grid Settings applies with \"Anwenden\"" | built |        |
@@ -118,3 +118,4 @@ Hints, not contracts.
 - 2026-11-26 (build): red run — the new tests of `ui/e2e/dialogs.spec.ts` failed against the bundle built before the change (37 at that time; the suite was trimmed to 34 when Pixel mode's Feather turned out not to exist and Image mode's PNG export to open no dialog).
 - 2026-11-26 (build): found, not changed: Pixel mode's Resize dialog shows "Current size: {w}×{h} px" without `t()`; it predates this spec.
 - 2026-11-26 (build): New public API, for review: the component `lib/components/Dialog.svelte` (props `title`, `applyLabel`, `onApply`, `onClose`, `secondary`, `applyDisabled`, `class`).
+- 2026-11-26 (acceptance, round 1: NOT READY): the menu cases now cover every dialog in scope (21 cases); the focus test asserts the first field exactly (AC-05); Enter on a focused Cancel cancels only (AC-03); the focus return is checked strictly after Cancel, Close, Escape and the primary button, with the dialog opened by its shortcut from a panel control, and separately the canvas fallback when the opener is gone (AC-07). The first strict version opened Rename from the command palette and failed: the palette, the opener there, is gone once its command ran, so the canvas fallback is the right result — the test, not the shell, was wrong. The shell's "Current size" line in Pixel mode's Resize dialog goes through `t()` now (`resize.current`, six languages).

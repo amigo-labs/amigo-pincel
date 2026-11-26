@@ -2,7 +2,8 @@ import { readdirSync, readFileSync, statSync } from 'node:fs';
 import { dirname, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { expect, test, type Locator, type Page } from '@playwright/test';
-import { gotoStart } from './helpers';
+import { gotoStart, rasterFile, waitForEditor } from './helpers';
+import { installTauriMock, putFile, setMock } from './tauri-mock';
 
 const here = dirname(fileURLToPath(import.meta.url));
 
@@ -31,6 +32,32 @@ test.describe('wide', () => {
     expect(Math.abs(o.y - n.y)).toBeLessThanOrEqual(1);
     const sample = await box(page.getByRole('button', { name: /sample/i }).first());
     expect(sample.x).toBeGreaterThanOrEqual(o.x - 1);
+  });
+
+  test('returning: New on the left, Open with the recent files on the right, top edges level (AC-01)', async ({
+    page,
+  }) => {
+    // The desktop app keeps path-based recent files (mocked Tauri bridge).
+    await installTauriMock(page);
+    await page.goto('./');
+    await page.getByRole('button', { name: 'Got it' }).click();
+    await putFile(page, '/pics/dot.png', await rasterFile(page, 'png'));
+    await setMock(page, { openPick: '/pics/dot.png' });
+    await page.getByRole('button', { name: 'Open…' }).click();
+    await waitForEditor(page, 'image');
+    await page
+      .getByRole('tablist', { name: 'Open documents' })
+      .getByRole('button', { name: /^Close / })
+      .click();
+    const recent = page.getByRole('list', { name: 'Recent files' });
+    await expect(recent).toBeVisible();
+    const n = await box(newPixel(page));
+    const o = await box(open(page));
+    const r = await box(recent);
+    expect(o.x).toBeGreaterThan(n.x + n.width);
+    expect(Math.abs(o.y - n.y)).toBeLessThanOrEqual(1);
+    expect(r.x).toBeGreaterThanOrEqual(o.x - 1);
+    expect(r.y).toBeGreaterThan(o.y);
   });
 
   test('the title row holds the title only; the utilities are quiet controls in the footer (AC-02)', async ({ page }) => {
@@ -74,6 +101,9 @@ test.describe('narrow', () => {
     expect(o.y).toBeGreaterThan(n.y + n.height);
     const section = await box(page.locator('section[aria-labelledby="start-title"]'));
     expect(o.width).toBeGreaterThan(section.width - 4);
+    // The New column is the full width too: its clipboard row spans it.
+    const clip = await box(page.getByRole('group', { name: 'Open from clipboard' }));
+    expect(clip.width).toBeGreaterThan(section.width - 4);
   });
 });
 
