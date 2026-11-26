@@ -97,18 +97,24 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 |      | open   |        |
-| AC-02 |      | open   |        |
-| AC-03 |      | open   |        |
-| AC-04 |      | open   |        |
-| AC-05 |      | open   |        |
-| AC-06 |      | open   |        |
-| AC-07 |      | open   |        |
-| AC-08 |      | open   |        |
-| AC-09 |      | open   |        |
-| AC-10 |      | open   |        |
+| AC-01 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs of both modes}: one shell — modal, named by its title, a Close control, a verb, focus on the first field" | built |        |
+| AC-02 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
+| AC-03 | `ui/e2e/dialogs.spec.ts`: "pixel: Enter in a field does what the primary button does; disabled, it does nothing", "image: Enter in a field applies; Enter with the primary disabled does nothing" | built |        |
+| AC-04 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, a verb, …"; `ui/e2e/grid.spec.ts` (Apply) | built |        |
+| AC-05 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: one shell — …, focus on the first field" | built |        |
+| AC-06 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; the focus returns on close"; `ui/e2e/export-svg.spec.ts`: "the dialog takes focus, keeps Tab inside and returns focus on close" | built |        |
+| AC-07 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; …; the focus returns on close", "the focus returns to the element that had it before the dialog opened" | built |        |
+| AC-08 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Tab stays inside; keys reach no tool; …" | built |        |
+| AC-09 | `ui/e2e/dialogs.spec.ts`: "{11 dialogs}: Close, Escape and Cancel change nothing; the backdrop does not close" | built |        |
+| AC-10 | `ui/e2e/dialogs.spec.ts`: "German: Close reads \"Schließen\" and Grid Settings applies with \"Anwenden\"" | built |        |
 
 ## Decisions
 
 - 2026-11-25 (owner, backlog): one shared dialog component with title, close button, Escape / Enter and a verb on the primary button.
 - 2026-11-26 (spec): the form dialogs come first; dialogs without an Apply keep their own markup for now. The New-document form gets its own spec.
+- 2026-11-26 (build): `ui/src/lib/components/Dialog.svelte` is the shell; Image mode's `Modal.svelte` wraps it and keeps setting `ui.modalOpen`. Thirteen dialogs use it (see Context). The tests cover eleven of them through the menus; Rename is covered through the command palette, the Radius family through Feather in Image mode, and Pixel mode's Sprite Sheet export through the existing `ui/e2e/sprite-sheet*.spec.ts`.
+- 2026-11-26 (build): the shell's close control is the first focusable element, so Shift+Tab from the first field reaches Close before it wraps to the primary button (`export-svg.spec.ts` changed accordingly).
+- 2026-11-26 (build): keys stop at the shell after it handled them, except chords with Ctrl, ⌘ or Alt: the editors already ignore those while a dialog is open, and the browser's own must stay the browser's (Ctrl+P while Save As is open, `image-formats-more-print` AC-09).
+- 2026-11-26 (build): red run — the new tests of `ui/e2e/dialogs.spec.ts` failed against the bundle built before the change (37 at that time; the suite was trimmed to 34 when Pixel mode's Feather turned out not to exist and Image mode's PNG export to open no dialog).
+- 2026-11-26 (build): found, not changed: Pixel mode's Resize dialog shows "Current size: {w}×{h} px" without `t()`; it predates this spec.
+- 2026-11-26 (build): New public API, for review: the component `lib/components/Dialog.svelte` (props `title`, `applyLabel`, `onApply`, `onClose`, `secondary`, `applyDisabled`, `class`).

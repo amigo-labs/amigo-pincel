@@ -159,6 +159,7 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 | M2 | [tool-rail-colors](tool-rail-colors.md) | both | L | frame-layout, panel-visibility | Colour well at the rail's end, Pan and Zoom in Pixel mode, Fill + Gradient one group with N for the Gradient, no filled shape tools in Pixel mode |
 | M3 | [options-bar-layout](options-bar-layout.md) | both | M | frame-layout | Tool name first; no sideways scrolling: options that do not fit are reached through More, which expands the bar |
 | M4 | [notifications](notifications.md) | both | S | frame-layout | Every notice shows as a toast over the canvas area, also on phones; the status bar keeps the last one |
+| M5 | [dialogs](dialogs.md) | both | L | — | One dialog shell for the form dialogs: Close control, Escape, Enter, Tab inside, focus in and back, a verb on the primary button |
 
 ## Done
 

@@ -309,8 +309,13 @@ test('the dialog takes focus, keeps Tab inside and returns focus on close', asyn
   await openDialog(page);
   const d = dialog(page);
   await expect(modeSelect(page)).toBeFocused();
+  // The shared dialog shell puts its Close control first (dialogs AC-01):
+  // Shift+Tab reaches it, then wraps to Export (dialogs AC-06).
+  await page.keyboard.press('Shift+Tab');
+  await expect(d.getByRole('button', { name: 'Close', exact: true })).toBeFocused();
   await page.keyboard.press('Shift+Tab');
   await expect(d.getByRole('button', { name: 'Export' })).toBeFocused();
+  await page.keyboard.press('Tab');
   await page.keyboard.press('Tab');
   await expect(modeSelect(page)).toBeFocused();
   for (let i = 0; i < 20; i++) {

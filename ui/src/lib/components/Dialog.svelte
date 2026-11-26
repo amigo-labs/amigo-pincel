@@ -96,13 +96,18 @@
 </script>
 
 <!-- A press on the backdrop leaves the dialog open (AC-09). Keys typed in
-     the dialog stop here, after the panel handled them: they never reach
-     the editors' window listeners (AC-08). -->
+     the dialog stop here, after the panel handled them, so a tool key never
+     reaches the editors' window listeners (AC-08). Chords with Ctrl, ⌘ or
+     Alt go on: the editors already leave them alone while a dialog is open,
+     and the browser's own (Ctrl+P while a dialog is open, image-formats-
+     more-print AC-09) must stay the browser's. -->
 <div
   class="fixed inset-0 z-50 flex items-center justify-center bg-black/50 p-4"
   role="presentation"
   {@attach (node: HTMLElement) => {
-    const stop = (e: KeyboardEvent): void => e.stopPropagation();
+    const stop = (e: KeyboardEvent): void => {
+      if (!e.ctrlKey && !e.metaKey && !e.altKey) e.stopPropagation();
+    };
     node.addEventListener('keydown', stop);
     return () => node.removeEventListener('keydown', stop);
   }}
