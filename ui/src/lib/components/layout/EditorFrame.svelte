@@ -532,6 +532,32 @@
   </div>
 {/snippet}
 
+<!-- The current notice; only the box itself takes input. -->
+{#snippet toastBox(bottom: number)}
+  <div
+    class="pointer-events-none absolute inset-x-0 z-[34] flex justify-center px-3"
+    style:bottom="{bottom}px"
+  >
+    <div
+      class="pointer-events-auto flex max-w-full items-center gap-1.5 rounded-pc-control border border-pc-border bg-pc-panel pr-0.5 pl-2.5 text-xs text-pc-text shadow-(--am-elev-3)"
+      role="status"
+      data-toast=""
+      {@attach holdToast}
+    >
+      <span class="min-w-0 py-1 break-words">{toast}</span>
+      <IconButton
+        icon="close"
+        label={t('shell.dismiss')}
+        size="sm"
+        onclick={() => {
+          toast = null;
+          armToast();
+        }}
+      />
+    </div>
+  </div>
+{/snippet}
+
 {#snippet sidebarBody()}
   <div class="flex min-h-0 flex-1 flex-col overflow-y-auto">
     {#each blocks as block (block.kind === 'group' ? `group:${block.id}` : block.panel.id)}
@@ -593,7 +619,7 @@
   </div>
 {/snippet}
 
-<div class="flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
+<div class="relative flex h-full flex-col overflow-hidden bg-pc-bg text-pc-text">
   <!-- Top bar. While an effect is open it is dimmed and inert except the
        Effects and Adjustments menus, which MenuBar lifts above the shade
        (AC-03, AC-05). -->
@@ -704,31 +730,10 @@
             closeKey={zoomCloseKey}
           />
         {/if}
-        {#if toast !== null}
-          <!-- Above the floating zoom control and the sheet on a phone
-               (notifications AC-08); only the box itself takes input. -->
-          <div
-            class="pointer-events-none absolute inset-x-0 z-[34] flex justify-center px-3"
-            style:bottom="{size === 'narrow' ? zoomLift + 44 : 12}px"
-          >
-            <div
-              class="pointer-events-auto flex max-w-full items-start gap-2 rounded-pc-panel border border-pc-border bg-pc-panel py-1.5 pr-1.5 pl-3 text-sm text-pc-text shadow-(--am-elev-3)"
-              role="status"
-              data-toast=""
-              {@attach holdToast}
-            >
-              <span class="min-w-0 py-0.5 break-words">{toast}</span>
-              <IconButton
-                icon="close"
-                label={t('shell.dismiss')}
-                size="sm"
-                onclick={() => {
-                  toast = null;
-                  armToast();
-                }}
-              />
-            </div>
-          </div>
+        {#if toast !== null && size === 'narrow'}
+          <!-- A phone has no status bar: above the floating zoom control
+               and the sheet (notifications AC-08). -->
+          {@render toastBox(zoomLift + 44)}
         {/if}
         {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div
@@ -892,6 +897,11 @@
         <ZoomControl {...zoom} disabled={!status.ready} closeKey={zoomCloseKey} />
       {/if}
     </footer>
+  {/if}
+  {#if toast !== null && size !== 'narrow'}
+    <!-- Centred on the status bar, so it covers no artwork
+         (notifications AC-01). -->
+    {@render toastBox(1)}
   {/if}
   {#if size === 'narrow' && !chrome.hidden}
     <div class="relative shrink-0" inert={effectOpen || answering} data-dimmed={dim}>

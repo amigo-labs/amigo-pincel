@@ -363,7 +363,8 @@ test('pixel mode: a locked layer refuses paint and says so until a press is acce
   const name = ((await lock.getAttribute('aria-label')) ?? '').replace(/^Lock /, '');
   await lock.click();
   const status = statusBar(page);
-  const notice = status.getByText(`“${name}” is locked`);
+  // In the status bar (the toast shows the same text).
+  const notice = status.locator('[data-frame="status"]').getByText(`“${name}” is locked`);
 
   await colors(page, '#ff0000', '#ffffff');
   await pick(page, 'b');

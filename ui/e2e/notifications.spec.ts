@@ -30,7 +30,7 @@ test.describe('wide', () => {
   test.use({ viewport: { width: 1280, height: 720 } });
 
   for (const mode of MODES) {
-    test(`${mode}: a notice shows as a toast at the canvas area's lower edge; idle texts and tool names do not (AC-01, AC-02, AC-06, AC-07)`, async ({
+    test(`${mode}: a notice shows as a toast on the status bar; idle texts and tool names do not (AC-01, AC-02, AC-06, AC-07)`, async ({
       page,
     }) => {
       await createDocument(page, mode, { width: 16, height: 16 });
@@ -49,15 +49,16 @@ test.describe('wide', () => {
       await expect(toast(page)).toContainText(locked(1));
       await expect(toast(page)).toHaveAttribute('role', 'status');
       await expect(toast(page).getByRole('button', { name: 'Dismiss', exact: true })).toBeVisible();
-      // Centred at the lower edge of the canvas area, wholly inside it.
+      // Centred on the status bar, not higher than it: nothing of the canvas
+      // area is covered.
       const s = await box(stage(page));
+      const bar = await box(editor(page).locator('[data-frame="status"]'));
       const t = await box(toast(page));
-      expect(Math.abs(t.x + t.width / 2 - (s.x + s.width / 2))).toBeLessThanOrEqual(1);
-      expect(t.y).toBeGreaterThan(s.y + s.height / 2);
-      expect(t.y + t.height).toBeLessThanOrEqual(s.y + s.height);
-      expect(s.y + s.height - (t.y + t.height)).toBeLessThan(24);
-      expect(t.x).toBeGreaterThanOrEqual(s.x);
-      // Beside the toast, at its height, a press reaches the canvas area.
+      expect(Math.abs(t.x + t.width / 2 - (bar.x + bar.width / 2))).toBeLessThanOrEqual(1);
+      expect(t.y).toBeGreaterThanOrEqual(bar.y - 0.5);
+      expect(t.y + t.height).toBeLessThanOrEqual(bar.y + bar.height + 0.5);
+      expect(t.y).toBeGreaterThanOrEqual(s.y + s.height);
+      // Beside the toast, at its height, a press reaches what lies there.
       const beside = await page.evaluate(
         ([x, y]) => document.elementFromPoint(x, y)?.closest('[data-toast]') === null,
         [t.x - 20, t.y + t.height / 2] as const,

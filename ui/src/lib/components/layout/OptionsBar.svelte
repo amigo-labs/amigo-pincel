@@ -82,6 +82,9 @@
   }
 </script>
 
+<!-- Always one row high in the layout: the expanded bar lies over the
+     canvas area, so opening it, or options that come and go while it is
+     open, never move the canvas (AC-05). -->
 <div bind:this={host} class="relative shrink-0" class:h-11={narrow} class:h-10={!narrow}>
   <div
     bind:this={bar}
@@ -90,7 +93,7 @@
       narrow ? 'options-bar--narrow' : '',
       overflowing ? 'pr-11' : 'pr-3',
       expanded
-        ? 'absolute inset-x-0 top-0 z-20 max-h-[60vh] gap-y-1 overflow-y-auto pb-2 shadow-(--am-elev-2)'
+        ? 'absolute inset-x-0 top-0 z-20 max-h-[40vh] overflow-y-auto pb-1.5 shadow-(--am-elev-2)'
         : // `clip`, not `hidden`: nothing may scroll a wrapped line into the row.
           'h-full overflow-clip',
     ]}
@@ -107,7 +110,9 @@
   {#if overflowing}
     <button
       type="button"
-      class="btn-press absolute top-1/2 right-1.5 z-[21] flex h-7 w-7 -translate-y-1/2 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+      class="btn-press absolute right-1.5 z-[21] flex h-7 w-7 items-center justify-center rounded-pc-control text-pc-muted hover:bg-pc-hover hover:text-pc-text"
+      class:top-2={narrow}
+      class:top-1.5={!narrow}
       class:btn-on={expanded}
       aria-label={t('frame.moreOptions')}
       title={t('frame.moreOptions')}

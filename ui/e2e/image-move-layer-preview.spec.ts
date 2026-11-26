@@ -87,7 +87,10 @@ async function pick(page: Page, group: string, name: string, key: string): Promi
 /** Picks the Move variant `name`. */
 const pickMove = (page: Page, name: string): Promise<void> => pick(page, 'Move', name, 'v');
 
-const shot = (page: Page): Promise<Buffer> => imageCanvas(page).screenshot();
+// The canvas is larger than its area here, so the shot reaches the status
+// bar: leave the toast out (docs/specs/notifications.md).
+const shot = (page: Page): Promise<Buffer> =>
+  imageCanvas(page).screenshot({ style: '[data-toast] { visibility: hidden; }' });
 
 /** Presses at document `(x, y)` and moves to `(x + dx, y + dy)` in steps,
  *  the pointer still held; waits for the frame to show the drag. */

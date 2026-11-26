@@ -72,7 +72,7 @@ Hints, not contracts.
 | -------- | ----------------- |
 | A single option is wider than the whole bar (a long hint on a phone) | It is not in the row; the More control shows it, wrapped to the bar's width |
 | The tool has no options | The bar shows the tool name alone; no More control |
-| The expanded bar is taller than the canvas area | It scrolls vertically inside the canvas area's height |
+| The options need more rows than 40 % of the window's height | The expanded bar is that high and scrolls vertically |
 | The user changes the tool from the expanded bar's variant switcher | The tool changes and the bar stays expanded if the new tool's options need more than the row (AC-06) |
 | A select's list or a colour popover opens from an expanded option | It opens as from the row; closing it leaves the bar expanded |
 | Toggle UI | The bar goes and returns as today, in one row |
@@ -118,3 +118,4 @@ Hints, not contracts.
 - 2026-11-26 (build): New public API, for review: the component `layout/OptionsBar.svelte`, `EditorFrame`'s `toolName` prop, the string `frame.moreOptions`.
 - 2026-11-26 (build): the row clips with `overflow: clip`, which nothing can scroll. With `overflow: hidden` a script's or the browser's scroll-into-view moved a wrapped line into the row's place. For e2e specs this means a click on an option outside the row no longer finds it: `showAllOptions` in `ui/e2e/helpers.ts` expands the bar first (`image-antialias`, `image-clone-stamp`, `pressure`).
 - 2026-11-26 (build, AC-06 and AC-09 revised): the first version closed the expanded bar on a press on the canvas area or the rail and on a tool change. With Image mode's Text tool that hid Bold, Italic, Align and Finish again after every press that placed the caret, at 1280 px with the sidebar open — the options a user needs while typing. More is now a toggle that holds for the page load; Escape and the control itself close it. CI showed the same thing from the other side: about twenty Text tests could no longer reach their options.
+- 2026-11-26 (build, AC-05 kept): an expanded bar inside the layout (the canvas area shorter by its extra rows) was tried and dropped. Options come and go while a tool works — the Text tool adds Finish and a hint when a box opens — so the bar's height changed in the middle of a press, the canvas moved, and the text box opened beside the point that was pressed. Lying over the canvas area, the expanded bar covers up to 40 % of the window's height at the top while the user keeps it open; the layout below never moves.

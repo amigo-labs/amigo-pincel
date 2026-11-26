@@ -18,7 +18,11 @@ import {
   undoAll,
   undoButton,
   zoomOf,
+  TEXT_WIDTH,
 } from './text-helpers';
+
+// Wide, so the Text options fit one row (options-bar-layout).
+test.use({ viewport: { width: TEXT_WIDTH, height: 720 } });
 
 // Moving, restyling, panning around and undoing an Image-mode live text
 // (docs/specs/image-live-text.md AC-07, AC-08, AC-12, AC-13, AC-24).

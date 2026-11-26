@@ -1,5 +1,5 @@
 import { expect, type Locator, type Page } from '@playwright/test';
-import { imageCanvas } from './helpers';
+import { imageCanvas} from './helpers';
 
 // Helpers for the Image-mode live text (docs/specs/image-live-text.md).
 // Positions are in document pixels of a `W` × `H` image; screenshots are
@@ -175,3 +175,9 @@ export async function undoAll(page: Page): Promise<number> {
   }
   return n;
 }
+
+/** The width of a window wide enough for the Text tool's options to fit one row
+ *  (docs/specs/options-bar-layout.md): the Text specs reach for Bold,
+ *  Align and Finish all the time, and an expanded options bar would lie
+ *  over the canvas they take screenshots of. */
+export const TEXT_WIDTH = 1920;

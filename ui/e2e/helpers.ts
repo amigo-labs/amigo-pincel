@@ -720,14 +720,17 @@ export async function hidePanel(page: Page, title: string): Promise<void> {
 /**
  * Shows every option of the active tool: the options bar keeps one row and
  * puts what does not fit behind its More control
- * (docs/specs/options-bar-layout.md). A press on the canvas or another
- * tool makes it one row again, so call this right before reaching for an
- * option that may not be in the row.
+ * (docs/specs/options-bar-layout.md). The bar stays expanded until the
+ * control or Escape closes it. The expanded bar lies over the top of
+ * the canvas area: a spec that compares canvas screenshots closes it again
+ * (the control, or Escape with the focus in the bar) or uses a window in
+ * which the options fit.
  */
 export async function showAllOptions(page: Page): Promise<void> {
   const more = page.locator('[data-editor]:not([inert]) [data-more-options]');
   if ((await more.count()) === 0) return;
-  if ((await more.getAttribute('aria-expanded')) !== 'true') await more.click();
+  if ((await more.getAttribute('aria-expanded')) === 'true') return;
+  await more.click();
   await expect(more).toHaveAttribute('aria-expanded', 'true');
 }
 
@@ -744,4 +747,13 @@ export function byText(
   options?: { exact?: boolean },
 ): Locator {
   return page.getByText(text, options).and(page.locator(':not([data-toast] *)'));
+}
+
+/** Dismisses the toast if one shows (docs/specs/notifications.md): on a
+ *  phone, or with a canvas larger than its area, an element screenshot
+ *  would include it. */
+export async function dismissToast(page: Page): Promise<void> {
+  const dismiss = page.locator('[data-editor]:not([inert]) [data-toast] button');
+  if ((await dismiss.count()) > 0) await dismiss.click();
+  await expect(page.locator('[data-editor]:not([inert]) [data-toast]')).toHaveCount(0);
 }

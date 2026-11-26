@@ -19,6 +19,7 @@ import {
   undoAll,
   undoButton,
   zoomOf,
+  TEXT_WIDTH,
 } from './text-helpers';
 
 // Image-mode live text, opening, typing, committing and cancelling
@@ -29,7 +30,8 @@ import {
 // high; frame-layout made it 4 px higher, which changes the fitted zoom.
 test.use({
   permissions: ['clipboard-read', 'clipboard-write'],
-  viewport: { width: 1280, height: 716 },
+  // Wide, so the Text options fit one row (options-bar-layout).
+  viewport: { width: TEXT_WIDTH, height: 716 },
 });
 
 test.beforeEach(async ({ page }) => {

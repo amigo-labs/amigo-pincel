@@ -42,8 +42,8 @@ Terms:
 
 ## Acceptance criteria
 
-- [ ] AC-01 (event): When an editor reports a notice, then a toast with the notice's text appears over the canvas area, centred horizontally at its lower edge, in both modes and on every window width.
-- [ ] AC-02 (always): The toast is announced as a status message (`role="status"`) and has a control named "Dismiss"; it does not take pointer input meant for the canvas outside its own box.
+- [ ] AC-01 (event): When an editor reports a notice, then a toast with the notice's text appears, in both modes and on every window width: centred on the status bar on windows of 640 px and wider, not higher than the bar, so it covers nothing of the canvas area; centred at the lower edge of the canvas area on narrower windows, which have no status bar.
+- [ ] AC-02 (always): The toast is announced as a status message (`role="status"`) and has a control named "Dismiss"; it takes no pointer input outside its own box.
 - [ ] AC-03 (event): When 5 seconds have passed since the toast appeared, then it goes; while the pointer is over the toast or the focus is inside it, it stays, and it goes 5 seconds after both have left.
 - [ ] AC-04 (event): When the user activates Dismiss, then the toast goes at once.
 - [ ] AC-05 (event): When an editor reports another notice while a toast shows, then the toast shows the new text and its 5 seconds start again; there is never more than one toast.
@@ -89,12 +89,12 @@ Hints, not contracts.
 
 | AC    | Test | Status | Commit |
 | ----- | ---- | ------ | ------ |
-| AC-01 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast at the canvas area's lower edge; idle texts and tool names do not", "narrow › {pixel, image}: on a phone the toast sits above the zoom control and the panels sheet, inside the canvas area" | built |        |
-| AC-02 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast at the canvas area's lower edge; idle texts and tool names do not" | built |        |
+| AC-01 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast on the status bar; idle texts and tool names do not", "narrow › {pixel, image}: on a phone the toast sits above the zoom control and the panels sheet, inside the canvas area" | built |        |
+| AC-02 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast on the status bar; idle texts and tool names do not" | built |        |
 | AC-03 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: the toast goes after 5 seconds, not while the pointer is over it; the status bar keeps the text", "wide › {pixel, image}: without the pointer the toast is gone after 5 seconds; focus inside holds it" | built |        |
 | AC-04 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: Dismiss removes the toast at once; a newer notice replaces the shown one" | built |        |
 | AC-05 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: Dismiss removes the toast at once; a newer notice replaces the shown one" | built |        |
-| AC-06 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast at the canvas area's lower edge; idle texts and tool names do not" | built |        |
+| AC-06 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast on the status bar; idle texts and tool names do not" | built |        |
 | AC-07 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: a notice shows as a toast …", "wide › {pixel, image}: the toast goes after 5 seconds, not while the pointer is over it; the status bar keeps the text" | built |        |
 | AC-08 | `ui/e2e/notifications.spec.ts`: "narrow › {pixel, image}: on a phone the toast sits above the zoom control and the panels sheet, inside the canvas area" | built |        |
 | AC-09 | `ui/e2e/notifications.spec.ts`: "wide › {pixel, image}: while an effect is open the toast shows and can be dismissed" | built |        |
@@ -108,3 +108,4 @@ Hints, not contracts.
 - 2026-11-26 (build): the toast lies in the canvas area, 12 px above its lower edge; on a phone it is lifted above the floating zoom control, which already clears the panels sheet and the docked effect panel.
 - 2026-11-26 (build): red run — the 13 tests of `ui/e2e/notifications.spec.ts` all failed against the bundle built before the change. Pixel mode's status bar never shows the tool's name while idle (it reads "ready"); the test for AC-06 expects that.
 - 2026-11-26 (build): New public API, for review: `StatusInfo.notice`.
+- 2026-11-26 (build, AC-01 revised): the first version put the toast over the lower edge of the canvas area on every width. With the view fitted it covered the bottom of the artwork for five seconds after every notice — rotating, a refused stroke, placing text — and e2e specs that compare canvas screenshots saw it. On windows with a status bar the toast now sits on the bar, centred and no higher than it; phones keep it over the canvas area because there is nowhere else.
