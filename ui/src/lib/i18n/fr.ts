@@ -109,6 +109,7 @@ export const fr: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Au plus {max} — {n} sera utilisé',
   'newDoc.notWhole': 'Pixels entiers uniquement — {n} sera utilisé',
   'newDoc.tooManyPixels': 'Trop de pixels (limite {limit}) — {w} × {h} sera utilisé',
+  'newDoc.presets': 'Tailles prédéfinies',
 
   // Recovery dialog
   'recovery.title': 'Récupérer le travail non enregistré ?',

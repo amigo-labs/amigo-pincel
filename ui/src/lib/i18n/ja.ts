@@ -107,6 +107,7 @@ export const ja: Record<MessageKey, string> = {
   'newDoc.tooLarge': '{max} 以下にしてください — {n} を使用します',
   'newDoc.notWhole': '整数のピクセルのみ — {n} を使用します',
   'newDoc.tooManyPixels': 'ピクセル数が多すぎます（上限 {limit}） — {w} × {h} を使用します',
+  'newDoc.presets': 'サイズのプリセット',
 
   // Recovery dialog
   'recovery.title': '未保存の作業を復元しますか？',

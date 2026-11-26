@@ -106,6 +106,7 @@ export const en = {
   'newDoc.tooLarge': 'At most {max} — {n} will be used',
   'newDoc.notWhole': 'Whole pixels only — {n} will be used',
   'newDoc.tooManyPixels': 'Too many pixels (limit {limit}) — {w} × {h} will be used',
+  'newDoc.presets': 'Size presets',
 
   // Recovery dialog
   'recovery.title': 'Recover unsaved work?',

@@ -26,6 +26,9 @@
     newDocParams,
     prefillKeepingSelection,
   } from './new-doc';
+  import { MAX_CANVAS_AREA } from '../../modes/image/canvas-limits';
+  import { areaNote, edgeOf, fieldNote } from './doc-size';
+  import SizePresets from './SizePresets.svelte';
   import { autoNew, setAutoNew } from './auto-new.svelte';
   import { answerBanner, bannerShown, startTour } from '../tour/tour-state.svelte';
 
@@ -74,8 +77,29 @@
   // The open New card and its size fields; `null` while both are closed.
   let expanded = $state<EditorMode | null>(null);
   let samplesOpen = $state(false);
-  let width = $state(0);
-  let height = $state(0);
+  let width = $state<number | null>(0);
+  let height = $state<number | null>(0);
+  let widthBad = $state(false);
+  let heightBad = $state(false);
+
+  // The New dialog's notes, for the open card (new-document-form AC-05).
+  const cardNotes = $derived.by(() => {
+    if (expanded === null) return [];
+    const limits = NEW_DOC_LIMITS[expanded];
+    const result = newDocParams(expanded, width ?? NaN, height ?? NaN);
+    return [
+      fieldNote(width, widthBad, limits, result.width),
+      fieldNote(height, heightBad, limits, result.height),
+      areaNote(
+        {
+          width: edgeOf(expanded, width, limits, limits.width),
+          height: edgeOf(expanded, height, limits, limits.height),
+        },
+        result,
+        MAX_CANVAS_AREA,
+      ),
+    ].filter((n) => n !== null);
+  });
 
   function toggle(mode: EditorMode) {
     if (expanded === mode) {
@@ -86,6 +110,8 @@
     const { width: w, height: h } = NEW_DOC_LIMITS[mode];
     width = w;
     height = h;
+    widthBad = false;
+    heightBad = false;
     // A clipboard image sets the size, unless the user typed one meanwhile.
     void clipboardDocSize(mode).then((p) => {
       if (p && expanded === mode && width === w && height === h) {
@@ -157,7 +183,7 @@
           novalidate
           onsubmit={(e) => {
             e.preventDefault();
-            const params = newDocParams(card.mode, width, height);
+            const params = newDocParams(card.mode, width ?? NaN, height ?? NaN);
             if (autoNew.params?.mode === card.mode) setAutoNew(params);
             onCreate(params);
           }}
@@ -173,9 +199,11 @@
                   step="1"
                   inputmode="numeric"
                   bind:value={width}
+                  oninput={(e) => (widthBad = e.currentTarget.validity.badInput)}
                   {@attach focusOnFinePointer}
                   class="am-input start-ctl w-20"
                   aria-label={t('common.width')}
+                  aria-describedby={cardNotes.length > 0 ? `new-${card.mode}-notes` : undefined}
                 />
               </label>
               <span class="text-xs leading-4 text-pc-faint">×</span>
@@ -188,8 +216,10 @@
                   step="1"
                   inputmode="numeric"
                   bind:value={height}
+                  oninput={(e) => (heightBad = e.currentTarget.validity.badInput)}
                   class="am-input start-ctl w-20"
                   aria-label={t('common.height')}
+                  aria-describedby={cardNotes.length > 0 ? `new-${card.mode}-notes` : undefined}
                 />
               </label>
               <span class="text-xs leading-4 text-pc-faint">px</span>
@@ -202,6 +232,26 @@
               {t('common.create')}
             </button>
           </div>
+          {#if cardNotes.length > 0}
+            <div id={`new-${card.mode}-notes`} class="mt-2 flex flex-col gap-1">
+              {#each cardNotes as n (n.key)}
+                <p class="am-hint am-hint--warning">{t(n.key, n.params)}</p>
+              {/each}
+            </div>
+          {/if}
+          <div class="mt-3">
+            <SizePresets
+              mode={card.mode}
+              {width}
+              {height}
+              onPick={(w, h) => {
+                width = w;
+                height = h;
+                widthBad = false;
+                heightBad = false;
+              }}
+            />
+          </div>
           <label
             class="am-check mt-3 flex items-center gap-2 text-xs leading-4 text-pc-muted pointer-coarse:min-h-11"
           >
@@ -209,7 +259,9 @@
               type="checkbox"
               checked={autoNew.params?.mode === card.mode}
               onchange={(e) =>
-                setAutoNew(e.currentTarget.checked ? newDocParams(card.mode, width, height) : null)}
+                setAutoNew(
+                  e.currentTarget.checked ? newDocParams(card.mode, width ?? NaN, height ?? NaN) : null,
+                )}
             />
             {t('newDoc.autoOpen')}
           </label>

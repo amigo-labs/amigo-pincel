@@ -108,6 +108,7 @@ export const de: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Höchstens {max} — {n} wird verwendet',
   'newDoc.notWhole': 'Nur ganze Pixel — {n} wird verwendet',
   'newDoc.tooManyPixels': 'Zu viele Pixel (Grenze {limit}) — {w} × {h} wird verwendet',
+  'newDoc.presets': 'Größenvorgaben',
 
   // Recovery dialog
   'recovery.title': 'Ungespeicherte Arbeit wiederherstellen?',

@@ -107,6 +107,7 @@ export const ptBr: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'No máximo {max} — será usado {n}',
   'newDoc.notWhole': 'Apenas pixels inteiros — será usado {n}',
   'newDoc.tooManyPixels': 'Pixels demais (limite {limit}) — será usado {w} × {h}',
+  'newDoc.presets': 'Tamanhos predefinidos',
 
   // Recovery dialog
   'recovery.title': 'Recuperar trabalho não salvo?',

@@ -108,6 +108,7 @@ export const es: Record<MessageKey, string> = {
   'newDoc.tooLarge': 'Como máximo {max}: se usará {n}',
   'newDoc.notWhole': 'Solo píxeles enteros: se usará {n}',
   'newDoc.tooManyPixels': 'Demasiados píxeles (límite {limit}): se usará {w} × {h}',
+  'newDoc.presets': 'Tamaños predefinidos',
 
   // Recovery dialog
   'recovery.title': '¿Recuperar el trabajo sin guardar?',

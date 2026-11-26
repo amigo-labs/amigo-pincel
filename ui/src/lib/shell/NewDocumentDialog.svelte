@@ -7,7 +7,6 @@
   // field whose value that clamp would change.
   import Button from '../components/Button.svelte';
   import type { EditorMode, NewDocParams } from './types';
-  import type { MessageKey } from '../i18n/en';
   import { tick } from 'svelte';
   import { t } from '../i18n/index.svelte';
   import {
@@ -18,6 +17,8 @@
   } from './new-doc';
   import { autoNew, setAutoNew } from './auto-new.svelte';
   import { MAX_CANVAS_AREA } from '../../modes/image/canvas-limits';
+  import { areaNote, edgeOf, fieldNote, type SizeNote } from './doc-size';
+  import SizePresets from './SizePresets.svelte';
 
   let {
     initialMode,
@@ -52,38 +53,18 @@
   /** What Create makes now — the same clamp as on submit. */
   const result = $derived(newDocParams(mode, width ?? NaN, height ?? NaN));
 
-  type Note = { key: MessageKey; params: Record<string, string | number> };
-
-  /** The edge `newDocParams` uses for `v`, before the image area cap. */
-  function edgeOf(m: EditorMode, v: number | null, fallback: number): number {
-    if (v === null || !Number.isFinite(v)) return fallback;
-    const r = m === 'image' ? Math.round(v) : Math.floor(v);
-    return Math.max(1, Math.min(LIMITS[m].max, r));
-  }
-
-  /** Why the clamp changes this field's value; `n` is the edge Create uses. */
-  function noteFor(m: EditorMode, v: number | null, bad: boolean, n: number): Note | null {
-    if (bad) return { key: 'newDoc.notNumber', params: { n } };
-    if (v === null || !Number.isFinite(v)) return { key: 'newDoc.empty', params: { n } };
-    if (v < 1) return { key: 'newDoc.tooSmall', params: { n } };
-    if (v > LIMITS[m].max) return { key: 'newDoc.tooLarge', params: { max: LIMITS[m].max, n } };
-    if (!Number.isInteger(v)) return { key: 'newDoc.notWhole', params: { n } };
-    return null;
-  }
-
-  const widthNote = $derived(noteFor(mode, width, widthBad, result.width));
-  const heightNote = $derived(noteFor(mode, height, heightBad, result.height));
-  // Both edges fit, their product does not: the image core scales both.
-  const areaNote = $derived.by((): Note | null => {
-    const w = edgeOf(mode, width, LIMITS[mode].width);
-    const h = edgeOf(mode, height, LIMITS[mode].height);
-    if (result.width === w && result.height === h) return null;
-    const side = Math.round(Math.sqrt(MAX_CANVAS_AREA));
-    return {
-      key: 'newDoc.tooManyPixels',
-      params: { limit: `${side} × ${side}`, w: result.width, h: result.height },
-    };
-  });
+  const widthNote = $derived(fieldNote(width, widthBad, LIMITS[mode], result.width));
+  const heightNote = $derived(fieldNote(height, heightBad, LIMITS[mode], result.height));
+  const areaWarning = $derived(
+    areaNote(
+      {
+        width: edgeOf(mode, width, LIMITS[mode], LIMITS[mode].width),
+        height: edgeOf(mode, height, LIMITS[mode], LIMITS[mode].height),
+      },
+      result,
+      MAX_CANVAS_AREA,
+    ),
+  );
 
   const startup = $derived(autoNew.params?.mode === mode);
 
@@ -221,7 +202,7 @@
   </button>
 {/snippet}
 
-{#snippet note(id: string, n: Note | null)}
+{#snippet note(id: string, n: SizeNote | null)}
   {#if n}
     <p {id} class="am-hint am-hint--warning mt-1">{t(n.key, n.params)}</p>
   {/if}
@@ -301,7 +282,18 @@
           {@render note(`${uid}-hnote`, heightNote)}
         </div>
       </div>
-      {@render note(`${uid}-anote`, areaNote)}
+      {@render note(`${uid}-anote`, areaWarning)}
+      <SizePresets
+        {mode}
+        {width}
+        {height}
+        onPick={(w, h) => {
+          width = w;
+          height = h;
+          widthBad = false;
+          heightBad = false;
+        }}
+      />
 
       <label class="am-check flex min-h-8 items-center gap-2 text-xs text-pc-muted">
         <input
