@@ -7,6 +7,9 @@
 import { getContext, setContext, type Snippet } from 'svelte';
 import { getPref, setPref } from '../../idb/prefs';
 import type { IconName } from '../icons/icons';
+import { normalizeLayout, type EffectPos, type FrameLayout } from './groups';
+
+export type { EffectPos, FrameLayout, GroupState } from './groups';
 
 /** One panel an editor offers. */
 export interface PanelDef {
@@ -18,8 +21,13 @@ export interface PanelDef {
   placement?: 'side' | 'bottom';
   /** Grows to fill spare sidebar height (long lists such as Layers). */
   grow?: boolean;
-  /** Starts collapsed until the user expands it (rarely used panels). */
+  /** Starts collapsed until the user expands it (rarely used panels). A
+   *  panel inside a group follows its group instead. */
   defaultCollapsed?: boolean;
+  /** The tab group the panel belongs to (`PANEL_GROUPS` in `groups.ts`);
+   *  consecutive panels of one group share a block with a tab per panel
+   *  (sidebar-tab-groups AC-03). Without one the panel is a block of its own. */
+  group?: string;
 }
 
 /** Where and how a panel is currently shown. */
@@ -43,21 +51,6 @@ export function panelSlot(): PanelSlot | undefined {
   return getContext<PanelSlot | undefined>(SLOT);
 }
 
-/** Persisted chrome layout of one editor mode. */
-export interface FrameLayout {
-  collapsed: Record<string, boolean>;
-  /** Docked sidebar shown (wide windows). */
-  sidebar: boolean;
-  /** Docked sidebar width in px as the user last set it; `undefined` =
-   *  default. Kept as stored even when the window clamps it (effect-panel
-   *  AC-11) — `sidebarWidth()` gives the width actually shown. */
-  sidebarWidth?: number;
-  /** Effect panel position as the user last put it; `undefined` = default.
-   *  Kept as stored even when the canvas area clamps it (effect-panel
-   *  AC-19) — `effectPanelPos()` gives the position actually shown. */
-  effectPos?: EffectPos;
-}
-
 /** The last request to show a panel of one mode's editor frame
  *  (comfyui-generation-info AC-05); `n` counts the requests. */
 export const panelRequest = $state({ mode: '', id: '', n: 0 });
@@ -68,13 +61,6 @@ export function expandPanel(mode: string, id: string): void {
   panelRequest.mode = mode;
   panelRequest.id = id;
   panelRequest.n += 1;
-}
-
-/** Offset of the effect panel's top-right corner from the canvas area's
- *  top-right corner, in px: `x` to the left, `y` down (effect-panel AC-18). */
-export interface EffectPos {
-  x: number;
-  y: number;
 }
 
 /** Default effect panel offset: 16 px inside the canvas area's top-right corner. */
@@ -93,12 +79,6 @@ export function effectPanelPos(pos: EffectPos | undefined, area: Size, panel: Si
   const p = pos ?? { x: EFFECT_PANEL_MARGIN, y: EFFECT_PANEL_MARGIN };
   const clamp = (v: number, max: number) => Math.round(Math.min(Math.max(0, max), Math.max(0, v)));
   return { x: clamp(p.x, area.width - panel.width), y: clamp(p.y, area.height - panel.height) };
-}
-
-function isEffectPos(v: unknown): v is EffectPos {
-  if (typeof v !== 'object' || v === null) return false;
-  const { x, y } = v as Record<string, unknown>;
-  return typeof x === 'number' && Number.isFinite(x) && typeof y === 'number' && Number.isFinite(y);
 }
 
 /** Default docked sidebar width in px (effect-panel AC-08). */
@@ -124,22 +104,13 @@ function prefKey(mode: string): string {
   return `layout:${mode}`;
 }
 
-/** Load the stored layout for `mode`, or defaults. */
+/** Load the stored layout for `mode`, or the first-use layout. */
 export async function loadLayout(mode: string): Promise<FrameLayout> {
-  const fallback: FrameLayout = { collapsed: {}, sidebar: true };
   try {
-    const v = (await getPref(prefKey(mode))) as Partial<FrameLayout> | undefined;
-    if (!v || typeof v !== 'object') return fallback;
-    const width = v.sidebarWidth;
-    return {
-      collapsed: typeof v.collapsed === 'object' && v.collapsed ? { ...v.collapsed } : {},
-      sidebar: v.sidebar !== false,
-      ...(typeof width === 'number' && Number.isFinite(width) ? { sidebarWidth: width } : {}),
-      ...(isEffectPos(v.effectPos) ? { effectPos: { x: v.effectPos.x, y: v.effectPos.y } } : {}),
-    };
+    return normalizeLayout(await getPref(prefKey(mode)));
   } catch {
     // IndexedDB unavailable (private mode): run on defaults.
-    return fallback;
+    return normalizeLayout(undefined);
   }
 }
 
