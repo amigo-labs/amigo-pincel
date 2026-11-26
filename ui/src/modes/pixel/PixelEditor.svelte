@@ -1324,35 +1324,19 @@
   panels={[
     { id: 'colors', title: t('panel.colors'), icon: 'colors', body: colorsBody },
     { id: 'palette', title: t('panel.palette'), icon: 'palette', body: paletteBody },
-    {
-      id: 'preview',
-      title: t('panel.preview'),
-      icon: 'play',
-      body: previewBody,
-      defaultCollapsed: true,
-    },
-    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, grow: true },
-    {
-      id: 'tilesets',
-      title: t('panel.tilesets'),
-      icon: 'grid',
-      body: tilesetsBody,
-      defaultCollapsed: true,
-    },
-    {
-      id: 'slices',
-      title: t('panel.slices'),
-      icon: 'slice',
-      body: slicesBody,
-      defaultCollapsed: true,
-    },
+    // Tab groups (sidebar-tab-groups AC-01): Layers | History,
+    // Preview | Tilesets | Slices and, in the desktop app, Generate | Assistant.
+    { id: 'layers', title: t('panel.layers'), icon: 'layers', body: layersBody, group: 'document' },
     {
       id: 'history',
       title: t('historyPanel.title'),
       icon: 'history',
       body: historyBody,
-      defaultCollapsed: true,
+      group: 'document',
     },
+    { id: 'preview', title: t('panel.preview'), icon: 'play', body: previewBody, group: 'assets' },
+    { id: 'tilesets', title: t('panel.tilesets'), icon: 'grid', body: tilesetsBody, group: 'assets' },
+    { id: 'slices', title: t('panel.slices'), icon: 'slice', body: slicesBody, group: 'assets' },
     {
       id: 'timeline',
       title: t('panel.timeline'),
@@ -1360,10 +1344,10 @@
       body: timelineBody,
       placement: 'bottom',
     },
-    // Desktop only: Generate (comfyui-generate-pixel AC-01) starts
-    // collapsed, so no ComfyUI starts before it is needed (comfyui-connect
-    // AC-03); the Assistant needs a CLI a browser cannot start
-    // (ai-chat-panel AC-01, AC-02).
+    // Desktop only: Generate (comfyui-generate-pixel AC-01) is not the
+    // group's first-use tab, so no ComfyUI starts before it is needed
+    // (comfyui-connect AC-03); the Assistant needs a CLI a browser cannot
+    // start (ai-chat-panel AC-01, AC-02).
     ...(tauriHost
       ? [
           {
@@ -1371,14 +1355,14 @@
             title: t('panel.generate'),
             icon: 'sparkles' as const,
             body: generateBody,
-            defaultCollapsed: true,
+            group: 'ai',
           },
           {
             id: 'assistant',
             title: t('panel.assistant'),
             icon: 'chat' as const,
             body: assistantBody,
-            grow: true,
+            group: 'ai',
           },
         ]
       : []),

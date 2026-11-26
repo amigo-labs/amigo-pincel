@@ -2,7 +2,10 @@
   // Chrome of one editor panel (spec §9.2): a header with the collapse
   // toggle and title from the hosting frame, the panel's own actions on
   // the right, then the body. In the phone bottom sheet the tab strip
-  // carries the title, so only the actions row remains.
+  // carries the title, so only the actions row remains. As a tab of a
+  // sidebar group (sidebar-tab-groups) the group's tab row carries the
+  // title: the panel shows its actions and body, and nothing at all while
+  // it is not the shown tab.
   import type { Snippet } from 'svelte';
   import Icon from '../icons/Icon.svelte';
   import { panelSlot } from './panels.svelte';
@@ -32,37 +35,53 @@
   const name = $derived(slot?.title ?? title ?? '');
   const host = $derived(slot?.host ?? 'side');
   const collapsed = $derived(host !== 'sheet' && (slot?.collapsed ?? false));
+  /** A tab of a sidebar group: the group's header stands in for this
+   *  panel's, and a tab that is not shown draws nothing. */
+  const grouped = $derived(host !== 'sheet' && slot?.grouped === true);
 </script>
 
 <!-- The shared docked panel (amigo-theme-controls AC-07): its header sets the
      height, padding, label style and the hairline below the panel, so no
      utility here may restate them (a utility would win over the shared
      class). -->
-<section class="am-panel am-panel--docked flex min-h-0 flex-col text-sm" class:flex-1={!collapsed} aria-label={name}>
-  <header class="shrink-0">
-    {#if host !== 'sheet'}
-      <button
-        type="button"
-        class="flex h-full min-w-0 flex-1 items-center gap-1 text-left"
-        aria-expanded={!collapsed}
-        onclick={() => slot?.toggle()}
-      >
-        <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
-        <span class="truncate">{name}</span>
-        {#if count !== undefined}
-          <span class="ml-1 font-normal tabular-nums text-pc-muted/80">{count}</span>
-        {/if}
-      </button>
-    {:else if count !== undefined}
-      <span class="flex-1 text-xs text-pc-faint">{count}</span>
+{#if !(grouped && collapsed)}
+  <section
+    class="am-panel am-panel--docked flex min-h-0 flex-col text-sm"
+    class:flex-1={!collapsed}
+    class:border-b-0={grouped}
+    aria-label={name}
+  >
+    {#if grouped}
+      {#if actions}
+        <div class="flex h-8 shrink-0 items-center justify-end gap-1 px-3">{@render actions()}</div>
+      {/if}
     {:else}
-      <span class="flex-1"></span>
+      <header class="shrink-0">
+        {#if host !== 'sheet'}
+          <button
+            type="button"
+            class="flex h-full min-w-0 flex-1 items-center gap-1 text-left"
+            aria-expanded={!collapsed}
+            onclick={() => slot?.toggle()}
+          >
+            <Icon name={collapsed ? 'chevron-right' : 'chevron-down'} size={14} />
+            <span class="truncate">{name}</span>
+            {#if count !== undefined}
+              <span class="ml-1 font-normal tabular-nums text-pc-muted/80">{count}</span>
+            {/if}
+          </button>
+        {:else if count !== undefined}
+          <span class="flex-1 text-xs text-pc-faint">{count}</span>
+        {:else}
+          <span class="flex-1"></span>
+        {/if}
+        {#if actions && (keepActions || !collapsed)}
+          <div class="flex shrink-0 items-center gap-1">{@render actions()}</div>
+        {/if}
+      </header>
     {/if}
-    {#if actions && (keepActions || !collapsed)}
-      <div class="flex shrink-0 items-center gap-1">{@render actions()}</div>
+    {#if !collapsed}
+      <div class="min-h-0 flex-1 {bodyClass}">{@render children()}</div>
     {/if}
-  </header>
-  {#if !collapsed}
-    <div class="min-h-0 flex-1 {bodyClass}">{@render children()}</div>
-  {/if}
-</section>
+  </section>
+{/if}

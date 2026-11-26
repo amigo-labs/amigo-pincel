@@ -36,6 +36,10 @@ export interface PanelSlot {
   /** `sheet` panels are tabs of the phone bottom sheet: no collapse. */
   readonly host: 'side' | 'bottom' | 'sheet';
   readonly collapsed: boolean;
+  /** The panel is a tab of a group: the group draws the header, and while
+   *  `collapsed` (not the active tab, or the group is collapsed) the panel
+   *  is not on the page at all (sidebar-tab-groups AC-03, AC-06). */
+  readonly grouped?: boolean;
   toggle(): void;
 }
 
