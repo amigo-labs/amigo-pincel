@@ -1,5 +1,52 @@
 # Changelog
 
+## [1.21.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.20.0...v1.21.0) (2026-11-26)
+
+
+### Features
+
+* **pincel-image-core:** reduced-size effect preview on a point-sampled document ([aaac9ba](https://github.com/amigo-labs/amigo-pincel/commit/aaac9ba602b46803670a66037dcd35d8332db832))
+* **ui:** colour well on the tool rail, Pan and Zoom in Pixel mode (AC-01..AC-17) ([90151d9](https://github.com/amigo-labs/amigo-pincel/commit/90151d9493ce716947dd7d80df5dff0910a057d8))
+* **ui:** fixed tab groups in the sidebar (AC-01 – AC-06, AC-08, AC-12 – AC-15, AC-19) ([b1d54fe](https://github.com/amigo-labs/amigo-pincel/commit/b1d54fe55f8f65ff658152359a9075eefcaadfdb))
+* **ui:** frame layout (UI refresh, part 1) ([62974f7](https://github.com/amigo-labs/amigo-pincel/commit/62974f72733aff66660e889b65779497bd5f42d8))
+* **ui:** instant reduced-size effect preview in Image mode ([650411f](https://github.com/amigo-labs/amigo-pincel/commit/650411ffb782692f9014864d9c1d6c1838ba2a45))
+* **ui:** layout model for the sidebar's tab groups (AC-07, AC-09, AC-10) ([799bac7](https://github.com/amigo-labs/amigo-pincel/commit/799bac783c1c8a28a8fedb7c0b8175c057ba3cfb))
+* **ui:** notices show as a toast over the canvas area (AC-01..AC-10) ([d73b48a](https://github.com/amigo-labs/amigo-pincel/commit/d73b48a201e5f8e2afa384f4d51af04e0e6ba8b4))
+* **ui:** one dialog shell for the form dialogs of both modes (dialogs AC-01..AC-10) ([c5a05bc](https://github.com/amigo-labs/amigo-pincel/commit/c5a05bc15ce5f3f644eb525a344dc96bb9e01f80))
+* **ui:** one size form with presets for the start cards and New (new-document-form AC-01..AC-07) ([0f983b4](https://github.com/amigo-labs/amigo-pincel/commit/0f983b492ab580755fa12097cf1766a6d01fef50))
+* **ui:** options bar names the tool and expands instead of scrolling (AC-01..AC-12) ([a527d28](https://github.com/amigo-labs/amigo-pincel/commit/a527d2853cf18f3b346d71a06ef4d7190b2655b6))
+* **ui:** order the editor frame app, document, tool, canvas, status (AC-01 – AC-20) ([f4fd882](https://github.com/amigo-labs/amigo-pincel/commit/f4fd882eacd2877bce87d842c4771cd1eb37b47c))
+* **ui:** removed panels in the stored layout (AC-04, AC-10, AC-11) ([2a45670](https://github.com/amigo-labs/amigo-pincel/commit/2a4567051b9dfd3b7cfb16117f28d2e0caa9a9b9))
+* **ui:** sidebar tab groups (UI refresh, part 2) ([dae8ac2](https://github.com/amigo-labs/amigo-pincel/commit/dae8ac25f2eb6d8c079e96562f09620996b83d47))
+* **ui:** start screen New | Open with a quiet footer; sizes and levels as tokens (start-screen-tokens AC-01..AC-05) ([7cd4dca](https://github.com/amigo-labs/amigo-pincel/commit/7cd4dca8a1eb77ffc00f20a88830c663b8b22c5a))
+* **ui:** Text options as icon toggles fit one row at 1280 px (options-bar-layout AC-13) ([2f1f7bf](https://github.com/amigo-labs/amigo-pincel/commit/2f1f7bff66a9ae883d56afbc1dae5e6d78f412e2))
+* **ui:** UI refresh, remaining parts (tool rail, options bar, dialogs, notices, start screen) ([a070c15](https://github.com/amigo-labs/amigo-pincel/commit/a070c151c2278bb057c5e63150f6dd72221bb740))
+* **ui:** View &gt; Panels switches panels on and off (AC-01..AC-19) ([b30f28e](https://github.com/amigo-labs/amigo-pincel/commit/b30f28eea1fbabfc4bde682a6348f5d466ee2361))
+* **ui:** View ▸ Panels switches panels on and off (UI refresh, part 3) ([3ffd16d](https://github.com/amigo-labs/amigo-pincel/commit/3ffd16d92a0e6a2a11ac41befcfe92815bc0644a))
+
+
+### Bug Fixes
+
+* **ui:** dialog shell lets modifier chords through; evidence for dialogs ([fb8d0fc](https://github.com/amigo-labs/amigo-pincel/commit/fb8d0fca0158e551236fbcc420b6781983fef70b))
+* **ui:** Enter chooses a sidebar tab in Pixel mode (sidebar-tab-groups AC-04, AC-05) ([b7b211e](https://github.com/amigo-labs/amigo-pincel/commit/b7b211ed59cfcdbb8a461a9f9b5dc0260dcdc448))
+* **ui:** keep the history depth beside Undo / Redo for screen readers ([aef52d9](https://github.com/amigo-labs/amigo-pincel/commit/aef52d950631a8c23998c74e73bbd4652b343b94))
+* **ui:** make the vertical tool rail dense enough for a 720 px window ([6b5cf1f](https://github.com/amigo-labs/amigo-pincel/commit/6b5cf1f021b0f8c09b8261cdc41c77177a9aa352))
+* **ui:** mark the zoom value as a menu with a chevron ([5a53c0c](https://github.com/amigo-labs/amigo-pincel/commit/5a53c0c222f34d377c4ba6588e3ed86cf0b85f9d))
+* **ui:** More keeps the options bar expanded until the user closes it (AC-06, AC-09) ([8acf256](https://github.com/amigo-labs/amigo-pincel/commit/8acf25611ce750a6ee39f54ae40fba4c442468c1))
+* **ui:** the options row cannot be scrolled; specs expand it for hidden options ([ed91767](https://github.com/amigo-labs/amigo-pincel/commit/ed91767e7006e93a9f8dd67ef34c593ee2c39357))
+* **ui:** toast sits on the status bar; Text specs use a window their options fit ([aad23be](https://github.com/amigo-labs/amigo-pincel/commit/aad23be0a7ab6f84cd6320bace5d8f7bb7799944))
+
+
+### Performance Improvements
+
+* **pincel-image-core:** read and write document snapshots in parts ([5b927d3](https://github.com/amigo-labs/amigo-pincel/commit/5b927d3224f2e20fd483d0baf92f05dbc6dedd5b))
+* **pincel-image-core:** share image buffers between clones until written ([7aaa9cb](https://github.com/amigo-labs/amigo-pincel/commit/7aaa9cb9d5230fb989f0bbd9238d488cfdb62b55))
+* **pincel-image-wasm:** freeze a document and hand its snapshot over in parts ([290b106](https://github.com/amigo-labs/amigo-pincel/commit/290b10697b81831fb7ec28e0aa9d5339a11defe3))
+* **ui:** faster cold start, no autosave stalls, instant effect previews ([c84978f](https://github.com/amigo-labs/amigo-pincel/commit/c84978f186aaab0e35836a95681c28d4f2849183))
+* **ui:** hand Image job snapshots to the worker in parts, one layer per task ([51906dc](https://github.com/amigo-labs/amigo-pincel/commit/51906dc4a013a9ffab2441ba4aebf026b558c7d4))
+* **ui:** load only the active UI language's dictionary ([7355f19](https://github.com/amigo-labs/amigo-pincel/commit/7355f1982050307e61315fa229f280c4df6d2464))
+* **ui:** load the shell's dialogs and Tauri's window API when needed ([f6306ab](https://github.com/amigo-labs/amigo-pincel/commit/f6306ab3f5da7266e43534da204d2e359fd2b49b))
+
 ## [1.20.0](https://github.com/amigo-labs/amigo-pincel/compare/v1.19.0...v1.20.0) (2026-11-18)
 
 
