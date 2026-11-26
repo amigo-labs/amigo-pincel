@@ -713,6 +713,7 @@
   const statusInfo: StatusInfo = $derived({
     ready: editor.handle !== null,
     text: statusNotice ?? toolLabel,
+    notice: statusNotice,
     warning: statusNotice !== null,
     position: statusPointer
       ? t('status.position', {

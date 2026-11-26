@@ -158,6 +158,7 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 | M1 | [frame-layout](frame-layout.md) | both | L | — | App bar without name and mode badge, tabs above the options bar, one status bar with the zoom control, macOS single row. Build before K2 |
 | M2 | [tool-rail-colors](tool-rail-colors.md) | both | L | frame-layout, panel-visibility | Colour well at the rail's end, Pan and Zoom in Pixel mode, Fill + Gradient one group with N for the Gradient, no filled shape tools in Pixel mode |
 | M3 | [options-bar-layout](options-bar-layout.md) | both | M | frame-layout | Tool name first; no sideways scrolling: options that do not fit are reached through More, which expands the bar |
+| M4 | [notifications](notifications.md) | both | S | frame-layout | Every notice shows as a toast over the canvas area, also on phones; the status bar keeps the last one |
 
 ## Done
 
@@ -297,6 +298,5 @@ Not commitments. When one becomes next, write it with `/spec` and move it into t
 | Scope Tauri file commands | `read_file_bytes` / `write_file_bytes` accept any path from the webview |
 | Live-edit speed in Image mode | Proposed budgets 8 ms (ellipse handle edit) and 16 ms (gradient); today 200 ms / 767 ms on 4096² / 2048² with 5 layers. Needs span-based shape fill, a cheaper gradient pass and a faster region compose; budgets join `performance-benchmarks` (image-live-objects Decisions, 2026-11-06) |
 | UI refresh: dialogs | One shared dialog component (title, close button, Escape / Enter, verb on the primary button); one New-document form for the start screen and the dialog, with the size presets below |
-| UI refresh: notices | `notifications`: a toast area for confirmations and failures, also on phones, which show no notice today; replaces "Error surfacing" |
 | UI refresh: start screen and tokens | Two columns New / Open, quiet footer; hard-coded radii, text sizes and z-indexes onto the shared tokens |
 | Pixel tool options | Line has no width, Bucket no tolerance or contiguous option; needs core work |

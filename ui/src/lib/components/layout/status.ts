@@ -5,6 +5,9 @@ export interface StatusInfo {
   ready: boolean;
   /** The notice, or the active tool's name while there is none. */
   text: string;
+  /** The notice to show as a toast, or `null` while `text` is the tool's
+   *  name or an idle text (docs/specs/notifications.md AC-06). */
+  notice?: string | null;
   /** `text` is a warning (drawn as a warning chip). */
   warning?: boolean;
   /** The pointer position, or `null` while there is none to show. */

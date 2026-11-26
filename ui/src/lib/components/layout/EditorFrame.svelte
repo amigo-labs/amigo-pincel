@@ -457,6 +457,55 @@
     return 12 + Math.max(sheet, dock);
   });
 
+  // The current notice as a toast over the canvas area
+  // (docs/specs/notifications.md). The editors hold a notice as a value, so
+  // a toast shows when that value changes to a notice.
+  const TOAST_MS = 5000;
+  const notice = $derived(status?.notice ?? null);
+  let toast = $state<string | null>(null);
+  let toastTimer: ReturnType<typeof setTimeout> | null = null;
+  let toastHeld = 0;
+
+  function armToast(): void {
+    if (toastTimer !== null) clearTimeout(toastTimer);
+    toastTimer = null;
+    if (toast === null || toastHeld > 0) return;
+    toastTimer = setTimeout(() => (toast = null), TOAST_MS);
+  }
+
+  $effect(() => {
+    // An editor in the background shows none (its tab is not on screen).
+    const next = active ? notice : null;
+    untrack(() => {
+      toast = next;
+      toastHeld = 0;
+      armToast();
+    });
+  });
+
+  /** The toast stays while the pointer is over it or the focus inside it
+   *  (AC-03); the listeners sit on the status region, which is no control. */
+  function holdToast(node: HTMLElement): () => void {
+    const hold = (): void => {
+      toastHeld += 1;
+      armToast();
+    };
+    const release = (): void => {
+      toastHeld = Math.max(0, toastHeld - 1);
+      armToast();
+    };
+    node.addEventListener('pointerenter', hold);
+    node.addEventListener('pointerleave', release);
+    node.addEventListener('focusin', hold);
+    node.addEventListener('focusout', release);
+    return () => {
+      node.removeEventListener('pointerenter', hold);
+      node.removeEventListener('pointerleave', release);
+      node.removeEventListener('focusin', hold);
+      node.removeEventListener('focusout', release);
+    };
+  }
+
   // `data-dimmed` shades a region outside the canvas area (app.css).
   const dim = $derived(effectOpen ? '' : undefined);
 
@@ -654,6 +703,32 @@
             disabled={status?.ready === false}
             closeKey={zoomCloseKey}
           />
+        {/if}
+        {#if toast !== null}
+          <!-- Above the floating zoom control and the sheet on a phone
+               (notifications AC-08); only the box itself takes input. -->
+          <div
+            class="pointer-events-none absolute inset-x-0 z-[34] flex justify-center px-3"
+            style:bottom="{size === 'narrow' ? zoomLift + 44 : 12}px"
+          >
+            <div
+              class="pointer-events-auto flex max-w-full items-start gap-2 rounded-pc-panel border border-pc-border bg-pc-panel py-1.5 pr-1.5 pl-3 text-sm text-pc-text shadow-(--am-elev-3)"
+              role="status"
+              data-toast=""
+              {@attach holdToast}
+            >
+              <span class="min-w-0 py-0.5 break-words">{toast}</span>
+              <IconButton
+                icon="close"
+                label={t('shell.dismiss')}
+                size="sm"
+                onclick={() => {
+                  toast = null;
+                  armToast();
+                }}
+              />
+            </div>
+          </div>
         {/if}
         {#if size === 'narrow' && sheetPanel && !chrome.hidden}
           <div

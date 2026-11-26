@@ -371,6 +371,9 @@
   const statusInfo: StatusInfo = $derived({
     ready: ed.doc !== null,
     text: ed.status || toolLabel,
+    // The idle texts are no notices (notifications AC-06).
+    notice:
+      ed.status && ed.status !== t('px.ready') && ed.status !== t('px.initializing') ? ed.status : null,
     position: hover.pixel ? t('px.position', { x: hover.pixel.x, y: hover.pixel.y }) : null,
     size: t('status.size', { width: ed.canvasW, height: ed.canvasH, unit: 'px' }),
     frame: t('px.frameOf', { n: ed.currentFrame + 1, total: ed.frameCount }),
