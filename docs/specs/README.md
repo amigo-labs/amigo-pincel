@@ -154,12 +154,6 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 | # | Spec | Mode | Size | Depends on | Note |
 | - | ---- | ---- | ---- | ---------- | ---- |
 | M1 | [frame-layout](frame-layout.md) | both | L | — | App bar without name and mode badge, tabs above the options bar, one status bar with the zoom control, macOS single row. Build before K2 |
-| M2 | [tool-rail-colors](tool-rail-colors.md) | both | L | frame-layout, panel-visibility | Colour well at the rail's end, Pan and Zoom in Pixel mode, Fill + Gradient one group with N for the Gradient, no filled shape tools in Pixel mode |
-| M3 | [options-bar-layout](options-bar-layout.md) | both | M | frame-layout | Tool name first; no sideways scrolling: options that do not fit are reached through More, which expands the bar |
-| M4 | [notifications](notifications.md) | both | S | frame-layout | Every notice shows as a toast over the canvas area, also on phones; the status bar keeps the last one |
-| M5 | [dialogs](dialogs.md) | both | L | — | One dialog shell for the form dialogs: Close control, Escape, Enter, Tab inside, focus in and back, a verb on the primary button |
-| M6 | [new-document-form](new-document-form.md) | shell | M | — | One size form for the start cards and the New dialog: the same notes and size presets per mode |
-| M7 | [start-screen-tokens](start-screen-tokens.md) | shell | M | — | Start screen New / Open in two columns with a quiet footer; radii, text sizes and stacking levels as tokens |
 
 ## Done
 
@@ -173,6 +167,7 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 - [clone-stamp](clone-stamp.md)
 - [color-picker](color-picker.md)
 - [comfyui-connect](comfyui-connect.md)
+- [dialogs](dialogs.md)
 - [dithered-gradient](dithered-gradient.md)
 - [document-tabs](document-tabs.md)
 - [effect-catalog-v2](effect-catalog-v2.md)
@@ -211,7 +206,10 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 - [mcp-parity-selection-transform](mcp-parity-selection-transform.md)
 - [mcp-parity-selection-transform-content](mcp-parity-selection-transform-content.md)
 - [mcp-parity-structure](mcp-parity-structure.md)
+- [new-document-form](new-document-form.md)
+- [notifications](notifications.md)
 - [ocr-recognizer](ocr-recognizer.md)
+- [options-bar-layout](options-bar-layout.md)
 - [outline-effect](outline-effect.md)
 - [palette-formats](palette-formats.md)
 - [panel-visibility](panel-visibility.md)
@@ -237,8 +235,10 @@ Owner request 2026-11-25: ease of use, logical arrangement, familiar patterns (D
 - [sidebar-tab-groups](sidebar-tab-groups.md)
 - [slices](slices.md)
 - [sprite-sheet-import](sprite-sheet-import.md)
+- [start-screen-tokens](start-screen-tokens.md)
 - [system-fonts-mcp](system-fonts-mcp.md)
 - [tilemaps](tilemaps.md)
+- [tool-rail-colors](tool-rail-colors.md)
 - [tool-variant-flyout](tool-variant-flyout.md)
 - [wasm-npm-api](wasm-npm-api.md)
 
